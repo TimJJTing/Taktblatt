@@ -65,6 +65,21 @@ export function exportFileName(heading: string, date: ISODate): string {
 	return `taktblatt-${slug}-${date}.json`;
 }
 
+/** Returns the file name of a backup: taktblatt-backup-<YYYY-MM-DD>.json. */
+export function backupFileName(date: ISODate): string {
+	return `taktblatt-backup-${date}.json`;
+}
+
+/** Writes a file as text. Two spaces of indentation keep the file readable. */
+export function serializeFile(file: PlanFile | BackupFile): string {
+	return `${JSON.stringify(file, null, 2)}\n`;
+}
+
+/** Splits a list of import errors into the first `max` errors and the number of other errors. */
+export function limitErrors(errors: readonly string[], max = 8): { shown: string[]; more: number } {
+	return { shown: errors.slice(0, max), more: Math.max(0, errors.length - max) };
+}
+
 /** Returns a copy of a plan with new ids for the plan and all its entities. References are updated. */
 export function withNewIds(plan: Plan): Plan {
 	const map = new Map<string, string>();

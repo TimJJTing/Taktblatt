@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { createExamplePlan } from './example';
 import { createEmptyPlan } from './factory';
-import { exportFileName, parseFile, slugify, toBackupFile, toPlanFile, withNewIds } from './io';
+import {
+	backupFileName,
+	exportFileName,
+	limitErrors,
+	parseFile,
+	serializeFile,
+	slugify,
+	toBackupFile,
+	toPlanFile,
+	withNewIds
+} from './io';
 import { makePlan, makeTask } from './test-helpers';
 
 describe('parseFile', () => {
@@ -167,4 +177,28 @@ it.each(['plan', 'backup'])('normalizes imported owners in a %s file', (kind) =>
 	const file = kind === 'plan' ? toPlanFile(plan) : toBackupFile([plan]);
 	const result = parseFile(JSON.stringify(file));
 	expect(result.ok && result.plans[0].tasks[0].owners).toEqual(['Ana', 'Bo']);
+});
+
+describe('backupFileName', () => {
+	it('uses the export date', () => {
+		expect(backupFileName('2027-04-01')).toBe('taktblatt-backup-2027-04-01.json');
+	});
+});
+
+describe('serializeFile', () => {
+	it('writes a file that parseFile reads again', () => {
+		const plan = createExamplePlan('en', '2027-04-01');
+		const text = serializeFile(toBackupFile([plan]));
+		expect(text.endsWith('\n')).toBe(true);
+		expect(parseFile(text)).toEqual({ ok: true, plans: [plan] });
+	});
+});
+
+describe('limitErrors', () => {
+	it('keeps a short list', () => {
+		expect(limitErrors(['a', 'b'], 3)).toEqual({ shown: ['a', 'b'], more: 0 });
+	});
+	it('counts the errors that it hides', () => {
+		expect(limitErrors(['a', 'b', 'c', 'd'], 3)).toEqual({ shown: ['a', 'b', 'c'], more: 1 });
+	});
 });
