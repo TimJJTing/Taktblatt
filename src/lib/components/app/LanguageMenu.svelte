@@ -22,11 +22,11 @@
 
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger
-		class={buttonVariants({ variant: 'ghost', size: 'sm' })}
+		class={buttonVariants({ variant: 'ghost', size: 'sm', class: 'max-sm:px-2' })}
 		aria-label={m.ui_language()}
 	>
 		<LanguagesIcon aria-hidden="true" />
-		<span>{labels[current]()}</span>
+		<span class="max-sm:sr-only">{labels[current]()}</span>
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end">
 		<DropdownMenu.RadioGroup value={current} onValueChange={choose}>

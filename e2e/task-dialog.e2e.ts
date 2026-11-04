@@ -86,8 +86,8 @@ test.describe('task dialog', () => {
 		await openExample(page);
 		await openDetails(page, 'Soil preparation');
 		await page.getByRole('button', { name: 'Delete…' }).click();
-		await expect(page.getByRole('alertdialog')).toContainText('2 subtasks');
-		await expect(page.getByRole('alertdialog')).toContainText('1 other tasks depend');
+		await expect(page.getByRole('alertdialog')).toContainText('Subtasks deleted with the task: 2');
+		await expect(page.getByRole('alertdialog')).toContainText('Other tasks that depend on it: 1');
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 		await expect(stage(page, 0).getByTestId('task-title')).toHaveText([
 			'Site survey',

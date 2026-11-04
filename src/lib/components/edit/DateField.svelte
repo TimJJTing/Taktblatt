@@ -48,6 +48,8 @@
 	const tag = $derived(intlLocale(locale));
 	const show = (d: ISODate | null) => (d ? formatDate(d, tag) : '');
 	const example = $derived(formatDate(todayISO(), tag));
+	// The accessible name of the trigger: "Label: value", or the bare label when the date is empty.
+	const name = $derived(date ? m.field_value({ label, value: formatDate(date, tag) }) : label);
 
 	const calendarValue = $derived(draft ? parseDate(draft) : undefined);
 
@@ -121,7 +123,7 @@
 <Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger>
 		{#snippet child({ props })}
-			{@render trigger({ props: { ...props, 'aria-label': label } })}
+			{@render trigger({ props: { ...props, 'aria-label': name } })}
 		{/snippet}
 	</Popover.Trigger>
 	<Popover.Content class="w-auto p-0" align="start" {onEscapeKeydown}>

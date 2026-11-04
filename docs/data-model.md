@@ -2,6 +2,8 @@
 
 This document describes the JSON files that Taktblatt imports and exports. The Valibot schema in `src/lib/domain/schema.ts` is the reference. This document follows that schema.
 
+The workspace has limits that the schema does not have, for example the length of the objective. The import does not check these limits.
+
 ## File kinds
 
 There are two kinds of file. Each file has a `schemaVersion` and a `kind`.
@@ -21,7 +23,7 @@ The current `schemaVersion` is `1`.
 
 The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`.
 
-- The slug has lowercase letters, digits and hyphens. Letters of other scripts (for example Chinese) stay.
+- The slug has lowercase letters, digits and hyphens. Letters and marks of other scripts (for example Chinese) stay.
 - The date is the export date.
 - When the heading is empty, the slug is `untitled-plan`.
 
@@ -39,7 +41,7 @@ The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`.
 | `heading`                | string                           | Empty means "Untitled plan".                             |
 | `subheading`             | string                           | Optional text.                                           |
 | `range`                  | `{ start, end }`                 | Dates. `start` ≤ `end`.                                  |
-| `objective`              | string                           | Max 250 characters in the editor.                        |
+| `objective`              | string                           | Max 250 characters in the workspace.                     |
 | `locale`                 | `en` \| `de` \| `zh-TW` \| `ja`  | The document language.                                   |
 | `paper`                  | `a4` \| `letter`                 | The paper size for print.                                |
 | `footer`                 | `{ note, version, date, right }` | `date` is a date or `null`.                              |

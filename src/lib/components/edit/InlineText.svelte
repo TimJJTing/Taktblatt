@@ -8,6 +8,7 @@
 	import { tick } from 'svelte';
 	import { motionDuration } from '#lib/motion.js';
 	import { isComposing } from '#lib/browser/keyboard.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -161,7 +162,7 @@
 		bind:this={display}
 		type="button"
 		{disabled}
-		aria-label={value ? `${label}: ${value}` : label}
+		aria-label={value ? m.field_value({ label, value }) : label}
 		class={cn(
 			'block w-full min-w-0 cursor-text rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent',
 			multiline ? 'whitespace-pre-wrap' : 'truncate',

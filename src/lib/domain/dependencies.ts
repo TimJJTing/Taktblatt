@@ -140,6 +140,7 @@ export function readyCount(index: TaskIndex, id: string): number {
 export interface DeleteImpact {
 	/** The ids that the deletion removes: the task and its subtasks. */
 	ids: string[];
+	/** The number of removed tasks whose parent is also removed. */
 	subtasks: number;
 	/** The number of other tasks that depend on a removed task. */
 	dependents: number;
@@ -157,7 +158,7 @@ export function deleteImpact(plan: Plan, taskIds: readonly string[]): DeleteImpa
 	);
 	return {
 		ids: [...ids],
-		subtasks: [...ids].filter((id) => index.byId.get(id)?.parentId !== null).length,
+		subtasks: [...ids].filter((id) => ids.has(index.byId.get(id)?.parentId ?? '')).length,
 		dependents: dependents.length
 	};
 }

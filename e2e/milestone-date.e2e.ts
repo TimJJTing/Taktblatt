@@ -13,7 +13,7 @@ test('the milestone date is picked with the calendar', async ({ page }) => {
 	await page.getByRole('button', { name: 'Add milestone', exact: true }).click();
 	const dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Soil check');
-	const trigger = dialog.getByRole('button', { name: 'Date', exact: true });
+	const trigger = dialog.getByTestId('milestone-date');
 	await expect(trigger).toHaveText(formatted(start));
 	await trigger.click();
 	await expect(page.getByTestId('date-value')).toHaveValue(formatted(start));
@@ -45,7 +45,7 @@ test('Escape closes the milestone calendar before it cancels the dialog', async 
 	await button.click();
 	const dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Beds almost ready');
-	const trigger = dialog.getByRole('button', { name: 'Date', exact: true });
+	const trigger = dialog.getByTestId('milestone-date');
 	await trigger.click();
 	const other = before.endsWith('-15') ? 16 : 15;
 	await day(page, other).click();

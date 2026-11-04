@@ -1,11 +1,15 @@
 /**
- * Screen layout of the Gantt: sizes in pixels and small drawing helpers.
+ * Screen layout of the Gantt: sizes (CSS lengths and pixels) and small drawing helpers.
  * The geometry (fractions of the width) comes from #lib/domain/gantt.
  */
 import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.js';
 
-/** The width of the label column. */
-export const LABEL_WIDTH = 192;
+/**
+ * The width of the label column. It is a CSS variable, so a phone can use a narrower column.
+ * The classes on the Gantt root set the value. Use the Tailwind classes `w-(--gantt-label-width)`
+ * and `left-(--gantt-label-width)` where possible. Use this constant in a `calc()` only.
+ */
+export const LABEL_WIDTH = 'var(--gantt-label-width)';
 /** The minimum width of the timeline area. On a phone, the Gantt scrolls horizontally. */
 export const TIMELINE_MIN_WIDTH = 640;
 export const HEADER_HEIGHT = 28;

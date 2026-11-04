@@ -87,13 +87,15 @@
 <Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger
 		class="flex min-h-6 w-full items-center rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
-		aria-label={owners.length ? `${label}: ${owners.join(', ')}` : label}
+		aria-label={owners.length ? m.field_value({ label, value: owners.join(', ') }) : label}
 		data-testid="owner-field"
 	>
 		{#if owners.length}
 			<OwnerChips {owners} />
 		{:else}
-			<span class="text-sm text-muted-foreground/70">{m.owner_empty()}</span>
+			<span class="truncate text-sm whitespace-nowrap text-muted-foreground/70"
+				>{m.owner_empty()}</span
+			>
 		{/if}
 	</Popover.Trigger>
 	<Popover.Content class="w-64 p-2" align="start" {onEscapeKeydown}>

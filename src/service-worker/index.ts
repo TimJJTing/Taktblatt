@@ -7,6 +7,7 @@
  * old build are closed. Then it activates and deletes the old cache. So an open tab never
  * loses the files of its own build. The first worker takes control with `clients.claim`.
  * The install step bypasses the HTTP cache (`cache: 'reload'`). So it never stores a stale file.
+ * A page navigation without network gets the cached app shell.
  */
 import { version } from '$app/env';
 import { assets, immutable, prerendered } from '$app/manifest';

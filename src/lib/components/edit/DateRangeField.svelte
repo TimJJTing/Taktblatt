@@ -11,7 +11,7 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { RangeCalendar } from '#lib/components/ui/range-calendar/index.js';
 	import { todayISO, type ISODate } from '#lib/domain/date.js';
-	import { formatDate, intlLocale, readTypedDate } from '#lib/domain/format.js';
+	import { formatDate, formatRangeDisplay, intlLocale, readTypedDate } from '#lib/domain/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
@@ -20,7 +20,7 @@
 		/** The document language. It controls the date format. */
 		locale: string;
 		label: string;
-		/** Set to false for a range that must have both dates (for example the project range). */
+		/** Set to false for a range that must have both dates (for example the plan range). */
 		allowEmpty?: boolean;
 		onCommit: (range: { start: ISODate | null; end: ISODate | null }) => void;
 		trigger: Snippet<[{ props: Record<string, unknown> }]>;
@@ -39,6 +39,10 @@
 	const tag = $derived(intlLocale(locale));
 	const show = (d: ISODate | null) => (d ? formatDate(d, tag) : '');
 	const example = $derived(formatDate(todayISO(), tag));
+	// The accessible name of the trigger: "Label: value", or the bare label when both dates are empty.
+	const name = $derived(
+		start || end ? m.field_value({ label, value: formatRangeDisplay(start, end, tag) }) : label
+	);
 
 	const calendarValue = $derived(
 		draftStart && draftEnd && draftStart <= draftEnd
@@ -130,7 +134,7 @@
 <Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger>
 		{#snippet child({ props })}
-			{@render trigger({ props: { ...props, 'aria-label': label } })}
+			{@render trigger({ props: { ...props, 'aria-label': name } })}
 		{/snippet}
 	</Popover.Trigger>
 	<Popover.Content class="w-auto p-0" align="start" {onEscapeKeydown}>

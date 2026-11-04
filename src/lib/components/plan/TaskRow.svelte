@@ -18,6 +18,7 @@
 	import { effectiveValues } from '#lib/domain/derive.js';
 	import { formatRangeDisplay, formatTarget, intlLocale } from '#lib/domain/format.js';
 	import type { Task } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
 	import { getEditing } from '#lib/state/editing.svelte.js';
@@ -63,7 +64,7 @@
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props })}
-					<span {...props} class="inline-flex">
+					<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
 						<Checkbox
 							checked={eff.done === 'done'}
 							indeterminate={eff.done === 'partial'}
@@ -97,10 +98,11 @@
 				onclick={() => viewer.toggleExpanded(ws.plan.id, task.id)}
 				data-testid="task-toggle"
 			>
-				<ChevronRightIcon
-					class={cn('size-3.5 transition-transform duration-200', expanded && 'rotate-90')}
-					aria-hidden="true"
-				/>
+				<span
+					class={cn('flex transition-transform', expanded && 'rotate-90')}
+					style:transition-duration={`${motionDuration(200)}ms`}
+					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
+				>
 			</button>
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>

@@ -10,20 +10,28 @@ const dir = new URL('../static/icons/', import.meta.url);
 const jobs = [
 	{ from: 'icon.svg', to: 'icon-192.png', size: 192 },
 	{ from: 'icon.svg', to: 'icon-512.png', size: 512 },
-	{ from: 'icon.svg', to: 'apple-touch-icon.png', size: 180 },
+	{ from: 'icon.svg', to: 'apple-touch-icon.png', size: 180, opaque: true },
 	{ from: 'icon-maskable.svg', to: 'icon-maskable-512.png', size: 512 }
 ];
 
 const browser = await chromium.launch();
 try {
 	const page = await browser.newPage();
-	for (const { from, to, size } of jobs) {
-		const svg = await readFile(new URL(from, dir), 'utf8');
+	for (const { from, to, size, opaque } of jobs) {
+		let svg = await readFile(new URL(from, dir), 'utf8');
+		if (opaque) {
+			// iOS rounds the corners itself. It shows transparent pixels black.
+			// So remove the rounded corners (rx="112"): the icon then fills the whole square.
+			const square = svg.replace(/ rx="112"/, '');
+			if (square === svg)
+				console.warn(`Warning: no rx="112" found in ${from}. The corners stay round.`);
+			svg = square;
+		}
 		await page.setViewportSize({ width: size, height: size });
 		await page.setContent(
 			`<style>html,body{margin:0;background:transparent}svg{display:block;width:${size}px;height:${size}px}</style>${svg}`
 		);
-		await writeFile(new URL(to, dir), await page.screenshot({ omitBackground: true }));
+		await writeFile(new URL(to, dir), await page.screenshot({ omitBackground: !opaque }));
 	}
 } finally {
 	await browser.close();

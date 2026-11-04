@@ -1,6 +1,6 @@
 # 6. Effective dependencies and move conflicts
 
-Status: accepted (2026-11-05)
+Status: Accepted (2026-11-04)
 
 ## Context
 
