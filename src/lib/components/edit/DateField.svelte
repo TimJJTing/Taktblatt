@@ -1,6 +1,7 @@
 <!--
 	A single date editor in a popover: a calendar and a text field.
 	An ordinary close commits the change. Escape cancels the change. The date can be empty.
+	An optional Today button puts the current date in the field.
 	It has the same structure as DateRangeField.
 -->
 <script lang="ts">
@@ -22,11 +23,21 @@
 		label: string;
 		/** Set to false for a date that must have a value (for example a milestone date). */
 		allowEmpty?: boolean;
+		/** Show a Today button. It puts the current date in the field. */
+		showToday?: boolean;
 		onCommit: (date: ISODate | null) => void;
 		trigger: Snippet<[{ props: Record<string, unknown> }]>;
 	}
 
-	let { date, locale, label, allowEmpty = true, onCommit, trigger }: Props = $props();
+	let {
+		date,
+		locale,
+		label,
+		allowEmpty = true,
+		showToday = false,
+		onCommit,
+		trigger
+	}: Props = $props();
 
 	let open = $state(false);
 	let draft = $state<ISODate | null>(null);
@@ -94,6 +105,12 @@
 		error = '';
 	}
 
+	function setToday() {
+		const today = todayISO();
+		onCalendar(parseDate(today));
+		placeholder = parseDate(today);
+	}
+
 	function clear() {
 		draft = null;
 		text = '';
@@ -132,11 +149,16 @@
 			weekStartsOn={1}
 		/>
 		<div class="flex justify-between gap-2 border-t p-2">
-			{#if allowEmpty}
-				<Button variant="ghost" size="sm" onclick={clear}>{m.date_clear()}</Button>
-			{:else}
-				<span></span>
-			{/if}
+			<span class="flex gap-1">
+				{#if allowEmpty}
+					<Button variant="ghost" size="sm" onclick={clear}>{m.date_clear()}</Button>
+				{/if}
+				{#if showToday}
+					<Button variant="ghost" size="sm" onclick={setToday} data-testid="date-today"
+						>{m.date_today()}</Button
+					>
+				{/if}
+			</span>
 			<Button
 				size="sm"
 				onclick={() => {

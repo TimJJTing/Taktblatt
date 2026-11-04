@@ -1,14 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample, storedPlan } from './helpers';
-
-/** The same format as formatDate in src/lib/domain/format.ts for English. */
-const formatted = (date: string) =>
-	new Intl.DateTimeFormat('en-US', {
-		year: 'numeric',
-		month: 'short',
-		day: 'numeric',
-		timeZone: 'UTC'
-	}).format(new Date(`${date}T00:00:00Z`));
+import { formatted, openExample, storedPlan } from './helpers';
 
 /** A day button of the month that the open calendar shows. */
 const day = (page: Page, n: number) =>

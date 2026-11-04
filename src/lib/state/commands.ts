@@ -176,10 +176,16 @@ export function updateRemarkSection(
 		const section = plan.remarks.find((r) => r.id === id);
 		if (!section) return;
 		Object.assign(section, normalizeRemark({ ...section, ...patch }));
-		if (section.title === '' && section.bullets.length === 0) {
-			plan.remarks = plan.remarks.filter((r) => r.id !== id);
-		}
 	});
+}
+
+/** Removes an empty remark section. Drops its creation step if it is the newest step. */
+export function discardNewRemarkSection(ws: Workspace, id: string): void {
+	const section = ws.plan.remarks.find((r) => r.id === id);
+	if (!section || section.title || section.bullets.length > 0) return;
+	const before = ws.history.peek();
+	if (before && !before.remarks.some((r) => r.id === id)) ws.rollback();
+	else removeRemarkSection(ws, id);
 }
 
 export function removeRemarkSection(ws: Workspace, id: string): void {

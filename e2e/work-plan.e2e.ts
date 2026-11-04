@@ -121,4 +121,19 @@ test.describe('work plan', () => {
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 		await expect(page.getByTestId('stage')).toHaveCount(3);
 	});
+
+	test('a stage moves with the keyboard drag handle', async ({ page }) => {
+		await openExample(page);
+		const stageTitles = page.getByTestId('stage-title');
+		const [first, second] = await stageTitles.allTextContents();
+		const handle = page.getByLabel('Drag to reorder the stage');
+		await handle.first().focus();
+		await expect(handle.first()).toBeFocused();
+		await page.keyboard.press('Space');
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Space');
+		await expect(stageTitles.first()).toHaveText(second);
+		await expect(stageTitles.nth(1)).toHaveText(first);
+		await expect(handle.first()).toHaveAttribute('tabindex', '0');
+	});
 });

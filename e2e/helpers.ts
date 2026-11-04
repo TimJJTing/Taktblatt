@@ -38,3 +38,12 @@ export async function chooseOption(page: Page, testId: string, name: string): Pr
 	await page.getByTestId(testId).click();
 	await page.getByRole('option', { name, exact: true }).click();
 }
+
+/** The same format as formatDate in src/lib/domain/format.ts for English. */
+export const formatted = (date: string) =>
+	new Intl.DateTimeFormat('en-US', {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'UTC'
+	}).format(new Date(`${date}T00:00:00Z`));

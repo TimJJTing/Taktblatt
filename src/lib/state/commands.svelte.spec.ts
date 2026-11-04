@@ -14,7 +14,9 @@ import {
 	updateFooter,
 	discardNewTask,
 	reorderStages,
-	reorderRemarks
+	reorderRemarks,
+	discardNewRemarkSection,
+	moveRemarkSection
 } from './commands';
 import { MemoryStorage } from './memory-storage';
 import { Workspace } from './workspace.svelte';
@@ -72,6 +74,38 @@ describe('commands', () => {
 			objective: 'Goal',
 			footer: { note: 'Note', version: 'v1', right: 'Right' }
 		});
+	});
+
+	it('discards a new empty remark section without an undo or redo step', () => {
+		const ws = open();
+		const id = addRemarkSection(ws);
+		discardNewRemarkSection(ws, id);
+		expect(ws.plan.remarks).toHaveLength(0);
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.history.canRedo).toBe(false);
+	});
+
+	it('keeps a remark section with content, and keeps an emptied existing section on update', () => {
+		const ws = open();
+		const id = addRemarkSection(ws, { title: 'Risks' });
+		discardNewRemarkSection(ws, id);
+		expect(ws.plan.remarks).toHaveLength(1);
+		const other = addRemarkSection(ws, { bullets: ['A'] });
+		updateRemarkSection(ws, other, { bullets: [' '] });
+		expect(ws.plan.remarks.map((r) => r.id)).toEqual([id, other]);
+		expect(ws.plan.remarks[1].bullets).toEqual([]);
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.remarks.find((r) => r.id === other)?.bullets).toEqual(['A']);
+	});
+
+	it('moves a remark section and ignores moves past the ends', () => {
+		const ws = open();
+		const a = addRemarkSection(ws, { title: 'A' });
+		const b = addRemarkSection(ws, { title: 'B' });
+		moveRemarkSection(ws, a, -1);
+		expect(ws.plan.remarks.map((r) => r.id)).toEqual([a, b]);
+		moveRemarkSection(ws, a, 1);
+		expect(ws.plan.remarks.map((r) => r.id)).toEqual([b, a]);
 	});
 
 	it('discards a new empty task without an undo or redo step', () => {
