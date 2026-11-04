@@ -191,5 +191,15 @@
 	"footer_date": "Footer date",
 	"footer_date_placeholder": "Date",
 	"footer_right": "Right footer note",
-	"footer_right_placeholder": "Right note"
+	"footer_right_placeholder": "Right note",
+	"action_preview": "Preview",
+	"action_print": "Print",
+	"preview_title": "Print preview",
+	"preview_close": "Close preview",
+	"preview_paper": "Paper size",
+	"paper_a4": "A4",
+	"paper_letter": "US Letter",
+	"preview_sheet": "Sheet {n} of {total}",
+	"preview_sheets": "Sheets",
+	"preview_hint": "Read-only preview. Print and preview show the same sheets."
 }

@@ -191,5 +191,15 @@
 	"footer_date": "Datum der Fußzeile",
 	"footer_date_placeholder": "Datum",
 	"footer_right": "Notiz rechts in der Fußzeile",
-	"footer_right_placeholder": "Notiz rechts"
+	"footer_right_placeholder": "Notiz rechts",
+	"action_preview": "Vorschau",
+	"action_print": "Drucken",
+	"preview_title": "Druckvorschau",
+	"preview_close": "Vorschau schließen",
+	"preview_paper": "Papierformat",
+	"paper_a4": "A4",
+	"paper_letter": "US Letter",
+	"preview_sheet": "Blatt {n} von {total}",
+	"preview_sheets": "Blätter",
+	"preview_hint": "Schreibgeschützte Vorschau. Druck und Vorschau zeigen dieselben Blätter."
 }

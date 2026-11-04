@@ -11,6 +11,7 @@ import {
 	addRemarkSection,
 	updateRemarkSection,
 	updatePlan,
+	setPaper,
 	updateFooter,
 	discardNewTask,
 	reorderStages,
@@ -247,5 +248,20 @@ describe('timeline commands', () => {
 		removeMilestone(ws, 'missing');
 		removeBand(ws, 'missing');
 		expect(ws.history.canUndo).toBe(false);
+	});
+
+	it('sets the paper size as one undo step and ignores the same size', () => {
+		const ws = open();
+		expect(ws.plan.paper).toBe('a4');
+		ws.history.clear();
+		setPaper(ws, 'a4');
+		expect(ws.history.canUndo).toBe(false);
+		setPaper(ws, 'letter');
+		expect(ws.plan.paper).toBe('letter');
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.paper).toBe('a4');
+		expect(ws.history.canUndo).toBe(false);
+		ws.redo();
+		expect(ws.plan.paper).toBe('letter');
 	});
 });

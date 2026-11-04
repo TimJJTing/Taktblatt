@@ -140,3 +140,19 @@
 @utility scroll-mt-anchor {
 	scroll-margin-top: calc(var(--app-header-h, 7rem) + var(--gantt-pinned-h, 0px) + 1rem);
 }
+
+/*
+ * Print. The app never prints the workspace. Print shows the paginated sheets (PrintHost).
+ * The sheets are always light and set their own colors.
+ */
+@media print {
+	html,
+	body {
+		margin: 0;
+		background: #fff;
+	}
+	[data-workspace],
+	[data-sonner-toaster] {
+		display: none !important;
+	}
+}

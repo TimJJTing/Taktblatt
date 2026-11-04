@@ -76,7 +76,7 @@
 			onCommit={(right) => updateFooter(ws, { right })}
 			testId="footer-right"
 		/>
-		<!-- The paginator (spec section 7) supplies the page number "n / N". Until then, the slot is empty. -->
+		<!-- The page number "n / N" shows on the sheets only (spec section 7). The workspace slot stays empty. -->
 		<span data-page-number></span>
 	</div>
 </footer>

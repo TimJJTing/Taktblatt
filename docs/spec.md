@@ -339,7 +339,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - **Right:** a note and the page number. The app calculates the page number.
 - The plan stores these fields one time. All pages show the same values.
 - The date picker has a **Today** button. It puts the current date in the field. **Done** saves it. The app does not set the date automatically.
-- The page number slot is empty until the paginator exists (section 7).
+- - The page number shows only on the sheets (section 7). The workspace footer keeps an empty slot for it.
 
 ## 6. Language
 
@@ -353,15 +353,19 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ## 7. Preview and print
 
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.
-- The paper size is a plan setting: A4 (default) or US Letter.
+- The **Preview** button in the app header opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the button. The workspace behind it is inert.
+- The preview has a **paper size** control (A4 or US Letter) and a **Print** button. The paper size is a plan setting (`paper`). The default is A4. A change is one undo step.
 - The **paginator** measures blocks and puts them on fixed sheets. It works the same in all browsers.
   - Page 1 is the overview: header, objective, timeline, legends, stage overview.
-  - When the Gantt has too many rows, it continues on the next pages. Each page repeats the month header.
+  - When the Gantt has too many rows, it continues on the next pages. Each page repeats the month header. The milestone row shows on the first page only.
   - The work plan starts on a new page.
-  - A stage header always stays with its first rows. When a table continues on the next page, the table header repeats.
+  - A stage header always stays with its first two rows (or with its only row). When a table continues on the next page, the table header repeats.
   - Remarks come after all stages.
   - Each page has the footer with "n / N".
-- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets. If the preview is not open, the app renders the sheets on `beforeprint`. The app never prints the workspace layout.
+  - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
+- The labels on the sheets use the document language. Print and preview have the current expand state. They show no controls.
+- A dependency line shows on a sheet only when both of its rows are on that sheet.
+- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, the app renders the sheets on `beforeprint` and removes them on `afterprint`. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
 - Print has no animations and no controls.

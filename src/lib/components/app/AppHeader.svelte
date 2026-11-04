@@ -1,9 +1,12 @@
 <script lang="ts">
+	import EyeIcon from '@lucide/svelte/icons/eye';
+	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getPreview } from '#lib/state/preview.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { appHeader } from './app-layout.svelte.js';
 	import LanguageMenu from './LanguageMenu.svelte';
@@ -11,6 +14,7 @@
 	import { SECTIONS } from './sections.js';
 
 	const ws = getWorkspace();
+	const preview = getPreview();
 	const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 	const mod = isMac ? '⌘' : 'Ctrl+';
 
@@ -46,6 +50,17 @@
 		<PlanSwitcher />
 
 		<div class="ml-auto flex items-center gap-1">
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={(event) => preview.show(event.currentTarget)}
+				data-testid="preview-open"
+			>
+				<EyeIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_preview()}</span>
+			</Button>
+			<Button variant="ghost" size="sm" onclick={() => window.print()} data-testid="print">
+				<PrinterIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_print()}</span>
+			</Button>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}

@@ -191,5 +191,15 @@
 	"footer_date": "頁尾日期",
 	"footer_date_placeholder": "日期",
 	"footer_right": "頁尾右側備註",
-	"footer_right_placeholder": "右側備註"
+	"footer_right_placeholder": "右側備註",
+	"action_preview": "預覽",
+	"action_print": "列印",
+	"preview_title": "列印預覽",
+	"preview_close": "關閉預覽",
+	"preview_paper": "紙張大小",
+	"paper_a4": "A4",
+	"paper_letter": "US Letter",
+	"preview_sheet": "第 {n} 頁，共 {total} 頁",
+	"preview_sheets": "頁面",
+	"preview_hint": "唯讀預覽。列印與預覽顯示相同的頁面。"
 }
