@@ -15,11 +15,12 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 | **Effective dependencies** | For a subtask: its own dependencies. For a parent: the union of its own dependencies and those of its subtasks, minus its own subtasks. |                          |
 | **Date rule**              | A cannot be a dependency of B if `A.start > B.end`.                                                                                     |                          |
 | **Ready light**            | A small green dot. It shows that all effective dependencies of a task are done and the task is not done.                                | status, traffic light    |
+| **Task dialog**            | The dialog with all fields of a task or subtask. Its UI title is "Task details" ("Subtask details").                                    | task modal, modal        |
 | **Move**                   | A change of the stage or the parent of a task or subtask.                                                                               |                          |
 | **Move-conflict dialog**   | The dialog that lists the changes that a move needs before it can occur.                                                                |                          |
 | **Milestone**              | A dated event in the plan. Labels M1 … Mn follow date order.                                                                            |                          |
 | **Band**                   | A titled time range that shows as a tint behind the Gantt bars.                                                                         | annotated range, period  |
-| **Remark section**         | A titled list of bullets at the end of the plan.                                                                                        | note section             |
+| **Remark section**         | A titled list of bullets at the end of the plan. The short form "section" is approved in UI strings that are about a remark section.    | note section             |
 | **Mention**                | A token `@[task:<id>]` in a note. The app shows it with the current task title.                                                         |                          |
 | **Workspace**              | The screen layout with controls to edit a plan.                                                                                         | editor                   |
 | **Preview**                | The read-only screen layout that shows the paginated sheets.                                                                            | print view               |
@@ -28,4 +29,8 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 | **Viewer state**           | Settings for one browser only. They are not in the plan file.                                                                           | user settings            |
 | **UI language**            | The language of the app controls. Part of the viewer state.                                                                             |                          |
 | **Document language**      | The language of the printed labels and date formats. A field in the plan.                                                               |                          |
-| **Commit**                 | The end of one edit: blur, Enter, a checkbox, a picker, a modal action. One commit is one undo step.                                    |                          |
+| **Commit**                 | The end of one edit: blur, Enter, a checkbox, a picker, a dialog action. One commit is one undo step.                                   |                          |
+
+## Rules for UI text
+
+- A menu item that opens a dialog ends with “…”. Toolbar and icon buttons do not.

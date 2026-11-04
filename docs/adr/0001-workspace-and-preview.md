@@ -1,6 +1,6 @@
 # 1. Workspace for editing, preview for print
 
-Status: accepted (2026-11-04). Amended by [ADR 8](0008-print-blocks.md).
+Status: Accepted (2026-11-04). Amended by [ADR 8](0008-print-blocks.md).
 
 ## Context
 
@@ -8,7 +8,7 @@ The design artifact shows two fixed A4 sheets. A fixed sheet is a bad editing su
 
 ## Decision
 
-- The screen shows a responsive **workspace** for editing. It is one page that scrolls, with a sticky navigation bar.
+- The screen shows a responsive **workspace** for editing. It is one page that scrolls, with a sticky header. The header has the **Plan sections** navigation.
 - A **preview** shows the paginated sheets. It is read-only.
 - Print always uses the sheets of the preview.
 - The workspace and the preview use the same store. The workspace never prints. The sheets use their own thin print blocks (ADR 8).

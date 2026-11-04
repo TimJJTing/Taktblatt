@@ -1,6 +1,6 @@
 # Taktblatt
 
-Taktblatt is a project planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
+Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
 
 ![The workspace with the plan header and the Gantt timeline](docs/screenshots/workspace.png)
 
@@ -16,7 +16,7 @@ Each plan has a heading, a subheading and an objective. The plan range sets the 
 
 - Each task has one bar. A parent task has a chevron. Click it to show the subtasks.
 - Thin lines show the dependencies between tasks.
-- Bands show a time range as a tint behind the bars, for example a risk period.
+- Bands show a time range as a tint behind the bars, for example a time of frost risk.
 - Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
@@ -38,17 +38,17 @@ Each stage has a card. The card shows the months of the stage, a title, a descri
 - A green dot, the ready light, shows that all dependencies of a task are done and the task is not done.
 - Click a cell to edit it. Drag a stage to change the stage order.
 
-### Task details
+### Task dialog
 
 ![The task dialog with dates, owner, stage, parent, note and dependencies](docs/screenshots/task-dialog.png)
 
-Click the "…" button of a row to open the task details. You can change the stage or the parent of the task, write a note and choose the dependencies. Type `@` in a note to mention a task. If a change causes a conflict, the app lists it before the change.
+Click the "…" button of a row to open the task dialog ("Task details"). You can change the stage or the parent of the task, write a note and choose the dependencies. Type `@` in a note to mention a task. If a change causes a conflict, the app lists it before the change.
 
 ### Remarks and footer
 
 ![Remark sections and the plan footer](docs/screenshots/remarks-footer.png)
 
-Remark sections hold lists of short notes at the end of the plan. The footer has a note, a version, a date and a text on the right side. The sheets show the same footer on each page.
+Remark sections hold lists of short bullets at the end of the plan. The footer has a note, a version, a date and a text on the right side. The sheets show the same footer on each page.
 
 ### Preview and print
 
@@ -60,7 +60,7 @@ Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print
 
 - Create, rename, duplicate and delete plans with the plan switcher in the app header.
 - Export one plan or all plans as JSON files. Import them again on any device.
-- Undo and redo with Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z.
+- Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
 
 ### Languages
@@ -83,9 +83,10 @@ The app follows the theme of your system. The printed sheets are always light.
 
 1. Open the app in a modern browser.
 2. Click **Load example** to see a complete example plan. Or start with the empty plan.
-3. Click a heading, a date or a task to edit it. The app saves each change.
-4. Click **Preview** to see the sheets. Click **Print** to print or to save a PDF.
-5. Click **Export** to save a copy of your plan as a JSON file.
+3. Click a heading, a date or a task to edit it.
+4. Click **Preview** to see the sheets.
+5. Click **Print** to print the plan or to save it as a PDF.
+6. Click **Export → Export this plan** to save a copy of your plan as a JSON file.
 
 ## Development
 

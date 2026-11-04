@@ -19,8 +19,14 @@ try {
 	const page = await browser.newPage();
 	for (const { from, to, size, opaque } of jobs) {
 		let svg = await readFile(new URL(from, dir), 'utf8');
-		// iOS rounds the corners itself and shows transparent pixels black. So draw them full-bleed.
-		if (opaque) svg = svg.replace(/ rx="112"/, '');
+		if (opaque) {
+			// iOS rounds the corners itself. It shows transparent pixels black.
+			// So remove the rounded corners (rx="112"): the icon then fills the whole square.
+			const square = svg.replace(/ rx="112"/, '');
+			if (square === svg)
+				console.warn(`Warning: no rx="112" found in ${from}. The corners stay round.`);
+			svg = square;
+		}
 		await page.setViewportSize({ width: size, height: size });
 		await page.setContent(
 			`<style>html,body{margin:0;background:transparent}svg{display:block;width:${size}px;height:${size}px}</style>${svg}`

@@ -1,6 +1,6 @@
 # 5. UI language and document language
 
-Status: accepted (2026-11-04)
+Status: Accepted (2026-11-04)
 
 ## Context
 

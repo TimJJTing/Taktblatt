@@ -1,6 +1,6 @@
 # 4. Viewer state is not in the plan
 
-Status: accepted (2026-11-04)
+Status: Accepted (2026-11-04)
 
 ## Context
 

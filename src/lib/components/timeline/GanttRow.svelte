@@ -21,7 +21,7 @@
 	import { getViewer } from '#lib/state/viewer.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { cn } from '#lib/utils.js';
-	import { clipEdges, LABEL_WIDTH, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.js';
+	import { clipEdges, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.js';
 	import { markLabel } from './mark-label.js';
 
 	interface Props {
@@ -90,11 +90,10 @@
 >
 	<div
 		class={cn(
-			'pointer-events-auto sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r px-1 transition-colors',
+			'pointer-events-auto sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center gap-1 border-r px-1 transition-colors',
 			highlighted ? 'bg-accent' : 'bg-background',
 			subtask && 'pl-6'
 		)}
-		style:width={LABEL_WIDTH}
 		style:transition-duration={colorDuration}
 		{...hover}
 	>
@@ -126,7 +125,7 @@
 				!subtask && 'font-medium',
 				done && 'text-muted-foreground line-through decoration-muted-foreground/50'
 			)}
-			title="{titleText}: {m.gantt_show_row()}"
+			title={m.gantt_show_row({ task: titleText })}
 			onclick={() => onJump(row.id)}
 			data-testid="gantt-label">{titleText}</button
 		>

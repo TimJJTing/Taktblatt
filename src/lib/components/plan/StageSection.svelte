@@ -149,8 +149,9 @@
 		</DropdownMenu.Root>
 	</header>
 
-	<!-- On a phone the table scrolls sideways. From 768 px all columns fit. -->
-	<div class="relative overflow-x-auto">
+	<!-- The table is at least 640 px wide. A narrower wrapper scrolls the table horizontally.
+		The wrapper is also the container for the pinned "+" buttons. -->
+	<div class="@container relative overflow-x-auto">
 		<table class="w-full min-w-[640px] table-fixed border-collapse text-sm" aria-label={stageName}>
 			<colgroup>
 				<col class="w-8" />
@@ -192,7 +193,7 @@
 								editing.highlightId === rowTask.id && 'bg-accent/60',
 								editing.flashId === rowTask.id && 'row-flash'
 							)}
-							style:transition-duration="{motionDuration(300)}ms"
+							style:transition-duration={`${motionDuration(300)}ms`}
 							style:animation-duration={editing.flashId === rowTask.id
 								? `${motionDuration(FLASH_MS)}ms`
 								: undefined}
@@ -211,6 +212,7 @@
 							<AddLine
 								label={m.subtask_add({ task: task.title || m.task_untitled() })}
 								indent={56}
+								pinned
 								onAdd={() => newTask(task.id)}
 								class="absolute inset-x-0 -top-2.5 z-10 opacity-0 group-focus-within/task:opacity-100 group-hover/task:opacity-100"
 								testId="add-subtask"
@@ -225,19 +227,18 @@
 						<td colspan="6" class="px-1.5 py-2 text-sm text-muted-foreground">{m.stage_empty()}</td>
 					</tr>
 				{/if}
-				<tr>
-					<td colspan="6" class="px-0 pt-3 pb-1">
-						<AddLine
-							label={m.task_add({ stage: stageName })}
-							indent={32}
-							onAdd={() => newTask(null)}
-							class="opacity-0 group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 [@media(hover:none)]:opacity-100"
-							testId="add-task"
-						/>
-					</td>
-				</tr>
 			</tbody>
 		</table>
+	</div>
+	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis. -->
+	<div class="pt-3 pb-1">
+		<AddLine
+			label={m.task_add({ stage: stageName })}
+			indent={32}
+			onAdd={() => newTask(null)}
+			class="opacity-0 group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 [@media(hover:none)]:opacity-100"
+			testId="add-task"
+		/>
 	</div>
 </section>
 

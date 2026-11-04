@@ -49,7 +49,7 @@
 		start={ws.plan.range.start}
 		end={ws.plan.range.end}
 		locale={ws.plan.locale}
-		label={m.field_project_range()}
+		label={m.field_plan_range()}
 		allowEmpty={false}
 		onCommit={({ start, end }) => {
 			if (start && end) updatePlan(ws, { range: { start, end } });
@@ -59,7 +59,7 @@
 				{...props}
 				variant="ghost"
 				size="sm"
-				data-testid="project-range">{rangeText}</Button
+				data-testid="plan-range">{rangeText}</Button
 			>{/snippet}
 	</DateRangeField>
 	<Button

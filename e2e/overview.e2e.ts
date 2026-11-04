@@ -55,7 +55,7 @@ test('Fit to tasks uses task dates and is disabled without dates', async ({ page
 	await page.getByRole('button', { name: 'Done', exact: true }).click();
 	await page.getByRole('button', { name: 'Fit to tasks' }).click();
 	expect((await storedPlan(page)).range).toEqual({ start: '2027-01-02', end: '2027-01-05' });
-	await expect(page.getByTestId('project-range')).toContainText('2027');
+	await expect(page.getByTestId('plan-range')).toContainText('2027');
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	expect((await storedPlan(page)).range).not.toEqual({ start: '2027-01-02', end: '2027-01-05' });
 });
@@ -80,7 +80,7 @@ test('milestones can be added, edited and deleted through the legend', async ({ 
 	let dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Review');
 	await dialog.getByLabel('Description', { exact: true }).fill('Review the first results.');
-	await dialog.getByRole('button', { name: 'Date', exact: true }).click();
+	await dialog.getByTestId('milestone-date').click();
 	await page.getByTestId('date-value').fill('2027-03-01');
 	await page.getByTestId('date-value').press('Enter');
 	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
@@ -96,7 +96,7 @@ test('milestones can be added, edited and deleted through the legend', async ({ 
 	await legend.getByRole('button', { name: /M1 Review/ }).click();
 	dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Final review');
-	await dialog.getByRole('button', { name: 'Date', exact: true }).click();
+	await dialog.getByTestId('milestone-date').click();
 	await page.getByTestId('date-value').fill('2027-04-02');
 	await page.getByTestId('date-value').press('Enter');
 	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
@@ -119,7 +119,7 @@ test('bands can be added, edited and deleted through the legend', async ({ page 
 	let dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Field work');
 	await chooseOption(page, 'band-tint', 'green');
-	await dialog.getByRole('button', { name: 'Dates', exact: true }).click();
+	await dialog.getByRole('button', { name: /^Dates/ }).click();
 	await page.getByTestId('date-start').fill('2027-03-01');
 	await page.getByTestId('date-start').press('Enter');
 	await page.getByTestId('date-end').fill('2027-03-31');
@@ -247,7 +247,10 @@ test('Escape closes the band date picker before it cancels the dialog', async ({
 	await openApp(page);
 	await page.getByRole('button', { name: 'Add band', exact: true }).click();
 	await page.getByRole('dialog').getByLabel('Title', { exact: true }).fill('Draft');
-	await page.getByRole('dialog').getByRole('button', { name: 'Dates', exact: true }).click();
+	await page
+		.getByRole('dialog')
+		.getByRole('button', { name: /^Dates/ })
+		.click();
 	await page.getByTestId('date-start').fill('2027-01-01');
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('date-start')).toHaveCount(0);

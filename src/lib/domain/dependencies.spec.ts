@@ -248,6 +248,9 @@ it('counts actual removed subtasks for repeated, overlapping and unknown roots',
 		dependents: 1
 	});
 	expect(deleteImpact(plan, ['missing'])).toEqual({ ids: [], subtasks: 0, dependents: 0 });
+	// A subtask alone is not a subtask of the deletion.
+	expect(deleteImpact(plan, ['c'])).toEqual({ ids: ['c'], subtasks: 0, dependents: 1 });
+	expect(deleteImpact(plan, ['p'])).toMatchObject({ ids: ['p', 'c'], subtasks: 1 });
 });
 
 it('counts stage tasks, subtasks and external dependents', () => {

@@ -135,7 +135,7 @@ The app calculates a **derived value** from other data. The user cannot edit a d
 - A task or subtask stores its **own dependencies** in `dependsOn`. The app stores ids. The app shows the current titles.
 - The **effective dependencies** of a subtask are its own dependencies.
 - The effective dependencies of a parent are the union of its own dependencies and the dependencies of all its subtasks. The app excludes dependencies that point at its own subtasks.
-- The task modal shows the inherited dependencies of a parent as read-only chips. Each chip shows the subtask that it comes from.
+- The task dialog shows the inherited dependencies of a parent as read-only chips. Each chip shows the subtask that it comes from.
 
 ### 3.2 Validation
 
@@ -160,7 +160,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
   - **Remove dependency (parent and child):** a dependency of the new parent on the task or subtask that you move.
   - **Clear date:** the `start` or the `end` of the task or subtask that you move. The app lists it when the new derived dates of the new parent break the date rule.
   - **Warning only:** date-rule breaks on the old parent. The app does not change data for these. It shows the usual warning after the move.
-- The dialog has two buttons: **Remove and move** and **Cancel**.
+- The dialog has two buttons: **Remove and move** and **Cancel**. When the move has only warnings, the first button is **Move**.
 - **Remove and move** applies all listed removals and the move as one undo step.
 - **Cancel** does not change data.
 
@@ -173,7 +173,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
   - The task is not done.
 - The planned `start` date has no effect on the ready light.
 - When the ready light is off, the app renders nothing. It does not keep empty space.
-- The ready light shows before the title in the table, before the Gantt label, in the task modal and on the sheets.
+- The ready light shows before the title in the table, before the Gantt label, in the task dialog and on the sheets.
 - It has a tooltip and an `aria-label`, for example "Ready: all 3 dependencies done".
 - When it comes on, it fades in with one soft pulse.
 
@@ -183,7 +183,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - The app keeps more than one plan. One plan is active.
 - The header has a plan switcher. With the switcher, you can create, rename, duplicate and delete plans.
-- **Rename plan** opens a small dialog. It changes the plan heading in one undo step. An empty name keeps the previous name.
+- **Rename plan…** opens a small dialog. It changes the plan heading in one undo step. An empty name keeps the previous name.
 - The app asks you to confirm before it deletes a plan. After the deletion, a toast shows an **Undo** button for 10 seconds. When you delete the last plan, the app creates a new empty plan.
 - On the first start, the app creates an empty plan:
   - heading "Untitled plan" (as a placeholder), one empty stage;
@@ -224,9 +224,9 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 ### 4.5 Undo
 
 - The app keeps one undo history in memory for the active plan. The history keeps 50 steps.
-- One commit is one step: a blur, Enter, a checkbox, a picker, a modal action, a move.
+- One commit is one step: a blur, Enter, a checkbox, a picker, a dialog action, a move.
 - **Cmd/Ctrl+Z** undoes. **Shift+Cmd/Ctrl+Z** and **Ctrl+Y** redo.
-- The app clears the history when you switch to a different plan or reload the page.
+- The app clears the history when you switch to a different plan, when another browser tab changes the active plan, after an import, and when you reload the page.
 
 ### 4.6 Import and export
 
@@ -245,8 +245,8 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 ### 5.1 Layout
 
 - The workspace is one page that scrolls. The parts are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
-- A sticky navigation bar shows these parts.
-- The app header contains: plan switcher, navigation bar, Preview, Print, Import, Export, UI language, Undo and Redo.
+- The sticky app header has a second row, **Plan sections**. It is a navigation with a link to each part.
+- The first row of the app header contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and UI language.
 - All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and mark tasks done. The Gantt and the table scroll horizontally.
 - Dark mode follows the system setting. Print is always light.
 
@@ -276,13 +276,13 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 - The app clips a bar outside the window at the edge. The clipped edge has a mark.
 - A task fully outside the window has no bar. A chevron at the near edge shows the side.
 - Done tasks have a muted bar and label.
-- Bars are read-only. You edit dates in the table or in the task modal.
+- Bars are read-only. You edit dates in the table or in the task dialog.
 - **Labels:** click a label to scroll to its table row. The row flashes one time. You cannot edit a label in the Gantt.
 - **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Gantt, the app scrolls it to show the bar.
 - **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
 - **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When you expand a parent, the lines connect to the subtask that owns the dependency. When you collapse a parent, the lines connect to the parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse.
-- **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete**, with a confirmation.
-- **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete**, with a confirmation.
+- **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
+- **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestone and band dialogs:** an outside click saves an edit. Esc and **Cancel** discard the changes. An outside click on a new entry does not add it.
 - **Stage legend:** the stage colors and titles.
 - **Pin:** a toggle pins the Gantt below the app header.
@@ -293,7 +293,7 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 
 ### 5.5 Stage overview
 
-- Three cards for each row on a medium or wide screen. One card for each row on a narrow screen. More cards go to the next row. Cards in a row have the same height.
+- Three cards for each row from 768 px. One card for each row below 768 px. More cards go to the next row. Cards in a row have the same height.
 - A card shows "STAGE N · months", the title, the description and the derived deliverables.
 - The title: click to edit. Workspace limits: single line, required, max 30 characters. Empty → "Stage N".
 - The description: click to edit. Free text. The sheets limit it to 3 lines.
@@ -304,36 +304,38 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 - **Color picker:** a curated palette of 8 colors. The picker shows a warning when two stages have similar colors. A new stage gets the next unused color.
 - **Stage order:** a drag handle (it also works with the keyboard), and **Move up** and **Move down** in the stage menu.
 - **Add stage:** a "+" line between two stages and after the last stage. It adds an empty stage. An empty stage stays after blur.
-- **Delete stage:** in the stage menu. The confirmation shows the effect, for example "5 tasks, 2 dependents". The app deletes the tasks of the stage. You can undo it.
+- **Delete stage…:** in the stage menu. The confirmation shows the effect, for example "Tasks deleted with the stage: 5. Other tasks that depend on them: 2." The app deletes the tasks of the stage. You can undo it.
 - **Columns:** Done | Task | Deliverable | Target | Owner | "…".
 - **Done:** a checkbox. The app dims done rows. For a parent, the app calculates the checkbox state from its subtasks. The state can be indeterminate.
 - **Target:** shows the `end` date. Hover shows the full range. Click opens the date picker. It can be empty. For a parent, the app calculates it from the subtask dates.
-- **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. For a parent, the app calculates the owners from its subtasks. The chip menu has **Rename everywhere**. This renames the owner in all tasks of the plan.
+- **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. For a parent, the app calculates the owners from its subtasks. The chip menu has **Rename everywhere…**. This renames the owner in all tasks of the plan.
 - **Tasks and subtasks:** a parent has a chevron. Other tasks have a spacer, so the titles align. Subtask rows indent the title cell only.
 - **Add task:** a "+" line at the end of the stage. It starts at the task indent.
 - **Add subtask:** a "+" line after the last subtask of a parent. It starts at the subtask indent. It shows when the task or one of its subtasks has hover or focus. On a task without subtasks, it adds the first subtask and expands the task.
-- The two "+" buttons are on the same vertical axis (the center of the table). The two lines are on different rows, with a vertical gap between them.
+- The two "+" buttons are on the same vertical axis (the center of the visible width, also on a phone where the table scrolls). The two lines are on different rows, with a vertical gap between them.
 - **Empty rows:** the app removes a new row that is empty on blur.
-- **"…" button:** opens the task modal.
+- **"…" button:** opens the task dialog.
 
-### 5.7 Task modal
+### 5.7 Task dialog
 
-- The modal shows all fields of the task: title, deliverable, range, owners, done, note, dependencies.
+The title of the dialog in the UI is "Task details" ("Subtask details" for a subtask).
+
+- The dialog shows all fields of the task: title, deliverable, range, owners, done, note, dependencies.
 - It also shows **Stage** and **Parent**.
   - **Stage** moves a task and its subtasks to a different stage.
-  - **Parent** is "None" or another top-level task in the same stage, with or without subtasks. "None" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
+  - **Parent** is "None (task)" or another top-level task in the same stage, with or without subtasks. "None (task)" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
   - A parent change can open the move-conflict dialog (section 3.3).
 - **Note:** plain text. Type "@" to mention a task.
 - **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a rule. A parent also shows its inherited dependencies as read-only chips.
 - Each field saves on blur.
-- **OK** closes the modal. **Delete** opens a confirmation that shows the effect, for example "2 subtasks, 3 dependents".
-- Esc closes the modal. The focus stays in the modal while it is open. On close, the focus goes back to the "…" button.
+- **OK** closes the dialog. **Delete…** opens a confirmation that shows the effect, for example "Subtasks deleted with the task: 2. Other tasks that depend on it: 3. The app removes their links."
+- Esc closes the dialog. The focus stays in the dialog while it is open. On close, the focus goes back to the "…" button.
 
 ### 5.8 Remarks
 
 - A remark section has an editable title and bullets.
 - Remark sections are at the end of the plan, after all stages.
-- Two remark sections for each row on a wide screen. One for each row on a narrow screen.
+- Two remark sections for each row from 640 px. One for each row below 640 px.
 - A "+" line in a remark section adds an empty bullet. Enter at the end of a bullet adds the next bullet. Backspace on an empty bullet removes it.
 - The app trims spaces and removes empty bullets on blur.
 - A "+" line after the last remark section adds a remark section. Its title is in edit mode. The app removes a new remark section on blur when its title and bullets are empty.

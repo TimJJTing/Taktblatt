@@ -1,6 +1,6 @@
 # 8. Print blocks are separate components
 
-Status: accepted (2026-11-04)
+Status: Accepted (2026-11-04)
 
 ## Context
 

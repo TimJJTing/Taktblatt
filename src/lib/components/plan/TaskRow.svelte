@@ -12,13 +12,13 @@
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { motionDuration } from '#lib/motion.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { focusSiblingRow } from '#lib/browser/grid.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
 	import { formatRangeDisplay, formatTarget, intlLocale } from '#lib/domain/format.js';
 	import type { Task } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
 	import { getEditing } from '#lib/state/editing.svelte.js';
@@ -64,12 +64,7 @@
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props })}
-					<span
-						{...props}
-						role="group"
-						aria-label={m.task_done_label({ task: titleText })}
-						class="inline-flex"
-					>
+					<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
 						<Checkbox
 							checked={eff.done === 'done'}
 							indeterminate={eff.done === 'partial'}
@@ -103,11 +98,11 @@
 				onclick={() => viewer.toggleExpanded(ws.plan.id, task.id)}
 				data-testid="task-toggle"
 			>
-				<ChevronRightIcon
-					class={cn('size-3.5 transition-transform', expanded && 'rotate-90')}
-					style="transition-duration: {motionDuration(200)}ms"
-					aria-hidden="true"
-				/>
+				<span
+					class={cn('flex transition-transform', expanded && 'rotate-90')}
+					style:transition-duration={`${motionDuration(200)}ms`}
+					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
+				>
 			</button>
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
@@ -164,7 +159,6 @@
 				<button
 					{...props}
 					type="button"
-					aria-label="{m.column_target()}: {eff.start || eff.end ? rangeText : m.target_empty()}"
 					title={eff.start || eff.end ? rangeText : undefined}
 					class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
 					data-testid="task-target"
