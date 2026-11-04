@@ -195,6 +195,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 | `taktblatt:index`               | The list of plan ids and the active plan id. |
 | `taktblatt:plan:<id>`           | One plan, with `schemaVersion`.              |
 | `taktblatt:ui`                  | The **viewer state** (section 4.4).          |
+| `taktblatt:locale`              | The UI language (part of the viewer state).  |
 | `taktblatt:damaged:<timestamp>` | The raw text of damaged data.                |
 
 ### 4.3 Saving
