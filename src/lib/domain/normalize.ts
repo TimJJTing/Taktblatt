@@ -22,6 +22,7 @@ export const normalizeRemark = (section: RemarkSection): RemarkSection => ({
 export const normalizePlan = (plan: Plan): Plan => ({
 	...plan,
 	heading: plan.heading.trim(),
+	// Keep subheading spaces. The spec stores it as typed.
 	subheading: plan.subheading,
 	objective: plan.objective.trim()
 });
@@ -30,6 +31,15 @@ export const normalizeFooter = (footer: Plan['footer']): Plan['footer'] => ({
 	note: footer.note.trim(),
 	version: footer.version.trim(),
 	right: footer.right.trim()
+});
+export const normalizeMilestone = (milestone: Milestone): Milestone => ({
+	...milestone,
+	title: milestone.title.trim(),
+	description: milestone.description.trim()
+});
+export const normalizeBand = (band: Band): Band => ({
+	...band,
+	title: band.title.trim()
 });
 
 export function isPermutation(current: readonly string[], ids: readonly string[]): boolean {
@@ -40,13 +50,3 @@ export function isPermutation(current: readonly string[], ids: readonly string[]
 		ids.every((id) => known.has(id))
 	);
 }
-
-export const normalizeMilestone = (milestone: Milestone): Milestone => ({
-	...milestone,
-	title: milestone.title.trim(),
-	description: milestone.description.trim()
-});
-export const normalizeBand = (band: Band): Band => ({
-	...band,
-	title: band.title.trim()
-});

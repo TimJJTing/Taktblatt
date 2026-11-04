@@ -1,6 +1,7 @@
 <!--
 	One Gantt row: the label (chevron, ready light, title) and the mark of the task.
 	The row moves to its new position with a tween when rows come in or go out.
+	The mark moves with a tween when the plan range changes.
 	Bars are read-only. A label click shows the task row in the work plan.
 -->
 <script lang="ts">
@@ -14,7 +15,7 @@
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveOf } from '#lib/domain/derive.js';
 	import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
-	import type { GanttRow } from '#lib/domain/gantt.js';
+	import type { GanttMark, GanttRow } from '#lib/domain/gantt.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.js';
@@ -66,6 +67,20 @@
 		y.set(row.row * ROW_HEIGHT, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
 	});
 
+	// The mark moves to its new position when the plan range changes.
+	const markX = (value: GanttMark) =>
+		value.kind === 'bar'
+			? { x0: value.x0, x1: value.x1 }
+			: value.kind === 'point'
+				? { x0: value.x, x1: value.x }
+				: null;
+	const x = new Tween(untrack(() => markX(mark) ?? { x0: 0, x1: 0 }));
+	$effect(() => {
+		const next = markX(mark);
+		if (next) x.set(next, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+	});
+	const colorDuration = $derived(`${motionDuration(150)}ms`);
+
 	const hover = {
 		onpointerenter: () => onHighlight(row.id, true),
 		onpointerleave: () => onHighlight(row.id, false),
@@ -90,6 +105,7 @@
 			subtask && 'pl-6'
 		)}
 		style:width="{LABEL_WIDTH}px"
+		style:transition-duration={colorDuration}
 		{...hover}
 	>
 		{#if row.isParent}
@@ -103,11 +119,11 @@
 				onclick={() => viewer.toggleExpanded(ws.plan.id, row.id)}
 				data-testid="gantt-toggle"
 			>
-				<ChevronRightIcon
-					class={cn('size-3.5 transition-transform', row.expanded && 'rotate-90')}
-					style="transition-duration: {motionDuration(200)}ms"
-					aria-hidden="true"
-				/>
+				<span
+					class={cn('flex transition-transform', row.expanded && 'rotate-90')}
+					style:transition-duration={`${motionDuration(200)}ms`}
+					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
+				>
 			</button>
 		{:else}
 			<span class="size-5 shrink-0 print:hidden" aria-hidden="true"></span>
@@ -125,7 +141,10 @@
 			data-testid="gantt-label">{titleText}</button
 		>
 	</div>
-	<div class={cn('relative flex-1 transition-colors', highlighted && 'bg-accent/60')}>
+	<div
+		class={cn('relative flex-1 transition-colors', highlighted && 'bg-accent/60')}
+		style:transition-duration={colorDuration}
+	>
 		{#if mark.kind === 'bar'}
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 			<div
@@ -137,19 +156,28 @@
 					'pointer-events-auto absolute top-1/2 min-w-0.5 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
 					!mark.clipStart && 'rounded-l-sm',
 					!mark.clipEnd && 'rounded-r-sm',
-					done && 'opacity-40',
 					highlighted && 'ring-2 ring-ring/70'
 				)}
-				style:left="{mark.x0 * 100}%"
-				style:width="{(mark.x1 - mark.x0) * 100}%"
+				style:left="{x.current.x0 * 100}%"
+				style:width="{(x.current.x1 - x.current.x0) * 100}%"
 				style:height={subtask ? '8px' : '14px'}
-				style:background={fill}
-				style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
 				data-testid="gantt-bar"
 				data-clip-start={mark.clipStart || undefined}
 				data-clip-end={mark.clipEnd || undefined}
 				{...hover}
-			></div>
+			>
+				<!-- The clip path is on the fill only. The focus outline and the ring stay visible. -->
+				<div
+					class={cn(
+						'absolute inset-0',
+						!mark.clipStart && 'rounded-l-sm',
+						!mark.clipEnd && 'rounded-r-sm',
+						done && 'opacity-40'
+					)}
+					style:background={fill}
+					style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
+				></div>
+			</div>
 		{:else if mark.kind === 'point'}
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 			<div
@@ -162,7 +190,7 @@
 					done && 'opacity-40',
 					highlighted && 'ring-2 ring-ring/70'
 				)}
-				style:left="{mark.x * 100}%"
+				style:left="{x.current.x0 * 100}%"
 				style:background={fill}
 				data-testid="gantt-point"
 				{...hover}

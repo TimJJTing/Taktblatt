@@ -1,27 +1,33 @@
+<!--
+	The stage overview: one card for each stage with its number, months, title, description and deliverables.
+	Title and description save on blur. The months and the deliverables come from the tasks.
+	Dates use the document language.
+-->
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import { stageDeliverables, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { updateStage } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import StageTitle from '#lib/components/plan/StageTitle.svelte';
 	import { stageColorVar } from './colors.js';
+	import StageTitle from './StageTitle.svelte';
 	const ws = getWorkspace();
 </script>
 
 <div class="grid grid-cols-1 gap-4 md:grid-cols-3 print:grid-cols-3">
 	{#each ws.plan.stages as stage, i (stage.id)}
 		{@const span = stageSpan(ws.index, stage.id)}
+		{@const label = m.stage_label({ n: i + 1 })}
 		<article
 			class="min-w-0 rounded-lg border p-4"
 			data-testid="stage-card"
 			style:border-top-color={stageColorVar(stage.color)}
 		>
-			<p class="mb-2 text-xs font-medium uppercase">
-				{m.stage_label({ n: i + 1 })}{#if span}
-					· {formatMonthSpan(span.start, span.end, intlLocale(getLocale()))}{/if}
+			<p class="mb-2 text-xs font-medium uppercase" data-testid="stage-card-label">
+				{span
+					? `${label} · ${formatMonthSpan(span.start, span.end, intlLocale(ws.plan.locale))}`
+					: label}
 			</p>
 			<h3 class="mb-2 text-lg font-semibold">
 				<StageTitle {stage} number={i + 1} testId="overview-stage-title" />

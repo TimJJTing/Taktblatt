@@ -13,8 +13,6 @@ export const MILESTONE_ROW_HEIGHT = 28;
 export const ROW_HEIGHT = 28;
 /** The duration of the row and line motion, before motionDuration. */
 export const ROW_MOTION_MS = 240;
-/** The duration of the row flash. It agrees with the row-flash class in StageSection. */
-export const FLASH_MS = 1200;
 
 /** The vertical center of a task row, from the top of the milestone row. */
 export function rowCenterY(row: number): number {

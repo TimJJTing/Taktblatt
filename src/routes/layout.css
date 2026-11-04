@@ -122,3 +122,21 @@
 		background-color: transparent;
 	}
 }
+
+/* The row flash after a jump from the Gantt. The element sets the duration: FLASH_MS through motionDuration. */
+.row-flash {
+	animation-name: row-flash;
+	animation-timing-function: ease-out;
+	animation-iteration-count: 1;
+}
+
+/*
+ * Anchor offsets. A jump to a section stops below the sticky app header (--app-header-h).
+ * Below the Gantt, it also stops below the pinned Gantt (--gantt-pinned-h). The Gantt sets this value only while it is pinned.
+ */
+@utility scroll-mt-header {
+	scroll-margin-top: calc(var(--app-header-h, 7rem) + 1rem);
+}
+@utility scroll-mt-anchor {
+	scroll-margin-top: calc(var(--app-header-h, 7rem) + var(--gantt-pinned-h, 0px) + 1rem);
+}

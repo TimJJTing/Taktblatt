@@ -3,6 +3,19 @@
  * the open task modal and the linked highlight. It is not saved.
  */
 import { getContext, setContext } from 'svelte';
+import { motionDuration } from '#lib/motion.js';
+
+/** The duration of the row flash, before motionDuration. The row-flash class uses it. */
+export const FLASH_MS = 1200;
+
+/** Calls `fn` after the next two frames, so that the browser draws one frame between. */
+function afterNextFrame(fn: () => void) {
+	if (typeof requestAnimationFrame !== 'function') {
+		setTimeout(fn, 0);
+		return;
+	}
+	requestAnimationFrame(() => requestAnimationFrame(fn));
+}
 
 export class EditingState {
 	/** The id of a new task. Its title starts in edit mode. */
@@ -16,9 +29,32 @@ export class EditingState {
 	/** A task row that flashes one time, after a jump from the Gantt. */
 	flashId = $state<string | null>(null);
 
+	#flashTimer: ReturnType<typeof setTimeout> | undefined;
+	#flashCount = 0;
+
 	openDetails(id: string, from: HTMLElement | null) {
 		this.detailsReturnFocus = from;
 		this.detailsTaskId = id;
+	}
+
+	/**
+	 * Flashes the table row of a task one time. A new call starts the flash again.
+	 * The flash class goes away for one frame, so that the CSS animation starts again.
+	 */
+	flash(id: string) {
+		clearTimeout(this.#flashTimer);
+		this.flashId = null;
+		const count = ++this.#flashCount;
+		afterNextFrame(() => {
+			if (count !== this.#flashCount) return;
+			this.flashId = id;
+			this.#flashTimer = setTimeout(
+				() => {
+					if (this.flashId === id) this.flashId = null;
+				},
+				motionDuration(FLASH_MS) + 50
+			);
+		});
 	}
 }
 

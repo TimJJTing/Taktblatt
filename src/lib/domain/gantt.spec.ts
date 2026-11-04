@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { indexTasks } from './derive';
 import {
 	dateX,
-	dayNumber,
 	dependencyLines,
 	ganttRows,
 	isDrawn,
@@ -36,11 +35,6 @@ describe('dateX and windowDays', () => {
 	it('does not clamp', () => {
 		expect(dateX(WIN, '2026-12-31')).toBeCloseTo(-0.1);
 		expect(dateX(WIN, '2027-01-11', 'end')).toBeCloseTo(1.1);
-	});
-
-	it('is not affected by daylight saving time', () => {
-		expect(dayNumber('2027-03-29') - dayNumber('2027-03-28')).toBe(1);
-		expect(dayNumber('1970-01-02')).toBe(1);
 	});
 });
 

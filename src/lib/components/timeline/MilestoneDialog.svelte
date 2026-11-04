@@ -1,3 +1,8 @@
+<!--
+	The milestone dialog: add or edit one milestone.
+	An outside click saves an edit. Esc and Cancel discard the changes.
+	An outside click on a new milestone does not add it. Delete asks for confirmation.
+-->
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { isComposing } from '#lib/browser/keyboard.js';
@@ -10,11 +15,10 @@
 	import DateField from '#lib/components/edit/DateField.svelte';
 	import { MILESTONE_SYMBOLS, type Milestone } from '#lib/domain/schema.js';
 	import { formatDate, intlLocale } from '#lib/domain/format.js';
-	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { addMilestone, updateMilestone, removeMilestone } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { cn } from '#lib/utils.js';
 	let { entry, onClose }: { entry?: Milestone; onClose: () => void } = $props();
 	const ws = getWorkspace();
 	const initial = untrack(() => entry);
@@ -49,13 +53,14 @@
 <Dialog.Root
 	{open}
 	onOpenChange={(next) => {
-		if (!next && !confirmDelete) close(true);
+		// An outside click saves an edit. It does not add a new entry.
+		if (!next && !confirmDelete) close(entry !== undefined);
 	}}
 >
 	<Dialog.Content
 		class="print:hidden"
 		showCloseButton={false}
-		style={`animation-duration: ${motionDuration(100)}ms; transition-duration: ${motionDuration(100)}ms`}
+		data-testid="milestone-dialog"
 		onEscapeKeydown={(event) => {
 			event.preventDefault();
 			if (!isComposing(event)) close(false);
@@ -82,7 +87,7 @@
 				<span>{m.field_date()}</span>
 				<DateField
 					{date}
-					locale={getLocale()}
+					locale={ws.plan.locale}
 					label={m.field_date()}
 					allowEmpty={false}
 					onCommit={(next) => {
@@ -92,7 +97,7 @@
 					{#snippet trigger({ props })}<Button
 							{...props}
 							variant="outline"
-							data-testid="milestone-date">{formatDate(date, intlLocale(getLocale()))}</Button
+							data-testid="milestone-date">{formatDate(date, intlLocale(ws.plan.locale))}</Button
 						>{/snippet}
 				</DateField>
 			</div>
@@ -113,28 +118,32 @@
 					</Select.Content>
 				</Select.Root>
 			</div>
-			<Dialog.Footer>
-				{#if entry}<Button
+			<Dialog.Footer class={cn(entry && 'sm:justify-between')}>
+				{#if entry}
+					<Button
 						type="button"
-						variant="destructive"
-						onclick={() => (confirmDelete = true)}>{m.action_delete()}</Button
-					>{/if}
-				<Button type="button" variant="outline" onclick={() => close(false)}
-					>{m.action_cancel()}</Button
-				>
-				<Button type="submit">{m.date_done()}</Button>
+						variant="ghost"
+						class="text-destructive hover:text-destructive"
+						onclick={() => (confirmDelete = true)}>{m.milestone_delete()}</Button
+					>
+				{/if}
+				<div class="flex flex-col-reverse gap-2 sm:flex-row">
+					<Button type="button" variant="outline" onclick={() => close(false)}
+						>{m.action_cancel()}</Button
+					>
+					<Button type="submit" data-testid="milestone-ok">{m.action_ok()}</Button>
+				</div>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
 <AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content
-		class="print:hidden"
-		style={`animation-duration: ${motionDuration(100)}ms; transition-duration: ${motionDuration(100)}ms`}
-	>
+	<AlertDialog.Content class="print:hidden">
 		<AlertDialog.Header
 			><AlertDialog.Title>{m.milestone_delete_title()}</AlertDialog.Title><AlertDialog.Description
-				>{m.timeline_delete_body({ title: entry?.title ?? '' })}</AlertDialog.Description
+				>{m.timeline_delete_body({
+					title: entry?.title || m.milestone_untitled()
+				})}</AlertDialog.Description
 			></AlertDialog.Header
 		>
 		<AlertDialog.Footer>

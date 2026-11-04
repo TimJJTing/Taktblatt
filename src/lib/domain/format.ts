@@ -105,3 +105,30 @@ export function parseUserDate(text: string, locale: string, referenceYear: numbe
 export function intlLocale(locale: string): string {
 	return locale === 'en' ? 'en-US' : locale;
 }
+
+/** The result of readTypedDate. */
+export type TypedDate =
+	/** The text shows the current date. Nothing changed. */
+	| { kind: 'same' }
+	/** A new date, or null for empty text. */
+	| { kind: 'date'; date: ISODate | null }
+	/** The text is not a date. */
+	| { kind: 'invalid' };
+
+/**
+ * Reads the text of a date field. `current` is the date that the field shows (formatted for `locale`).
+ * Without a year, `referenceYear` is used.
+ */
+export function readTypedDate(
+	text: string,
+	current: ISODate | null,
+	locale: string,
+	referenceYear: number
+): TypedDate {
+	const value = text.trim();
+	// The field shows the formatted value. Do not parse it again.
+	if (value === (current ? formatDate(current, locale) : '')) return { kind: 'same' };
+	if (value === '') return { kind: 'date', date: null };
+	const date = parseUserDate(value, locale, referenceYear);
+	return date === null ? { kind: 'invalid' } : { kind: 'date', date };
+}

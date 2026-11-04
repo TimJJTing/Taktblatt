@@ -1,8 +1,12 @@
+<!--
+	The band dialog: add or edit one band.
+	An outside click saves an edit. Esc and Cancel discard the changes.
+	An outside click on a new band does not add it. Delete asks for confirmation.
+-->
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { isComposing } from '#lib/browser/keyboard.js';
 	import { Input } from '#lib/components/ui/input/index.js';
-
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
@@ -12,11 +16,10 @@
 	import { colorName } from '#lib/components/plan/colors.js';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import { formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
-	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { addBand, updateBand, removeBand } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { cn } from '#lib/utils.js';
 	let { entry, onClose }: { entry?: Band; onClose: () => void } = $props();
 	const ws = getWorkspace();
 	const initial = untrack(() => entry);
@@ -25,7 +28,6 @@
 	let end = $state(initial?.end ?? ws.plan.range.end);
 	let color = $state(initial?.color ?? 'gray');
 	const valid = $derived(start <= end);
-
 	let confirmDelete = $state(false);
 	let open = $state(true);
 	function onKeydown(event: KeyboardEvent) {
@@ -48,13 +50,14 @@
 <Dialog.Root
 	{open}
 	onOpenChange={(next) => {
-		if (!next && !confirmDelete) close(true);
+		// An outside click saves an edit. It does not add a new entry.
+		if (!next && !confirmDelete) close(entry !== undefined);
 	}}
 >
 	<Dialog.Content
 		class="print:hidden"
 		showCloseButton={false}
-		style={`animation-duration: ${motionDuration(100)}ms; transition-duration: ${motionDuration(100)}ms`}
+		data-testid="band-dialog"
 		onEscapeKeydown={(event) => {
 			event.preventDefault();
 			if (!isComposing(event)) close(false);
@@ -80,7 +83,7 @@
 				<DateRangeField
 					{start}
 					{end}
-					locale={getLocale()}
+					locale={ws.plan.locale}
 					label={m.field_range()}
 					allowEmpty={false}
 					onCommit={(range) => {
@@ -91,7 +94,7 @@
 					}}
 				>
 					{#snippet trigger({ props })}<Button {...props} variant="outline"
-							>{formatRangeDisplay(start, end, intlLocale(getLocale()))}</Button
+							>{formatRangeDisplay(start, end, intlLocale(ws.plan.locale))}</Button
 						>{/snippet}
 				</DateRangeField>
 			</div>
@@ -108,28 +111,32 @@
 					</Select.Content>
 				</Select.Root>
 			</div>
-			<Dialog.Footer>
-				{#if entry}<Button
+			<Dialog.Footer class={cn(entry && 'sm:justify-between')}>
+				{#if entry}
+					<Button
 						type="button"
-						variant="destructive"
-						onclick={() => (confirmDelete = true)}>{m.action_delete()}</Button
-					>{/if}
-				<Button type="button" variant="outline" onclick={() => close(false)}
-					>{m.action_cancel()}</Button
-				>
-				<Button type="submit" disabled={!valid}>{m.date_done()}</Button>
+						variant="ghost"
+						class="text-destructive hover:text-destructive"
+						onclick={() => (confirmDelete = true)}>{m.band_delete()}</Button
+					>
+				{/if}
+				<div class="flex flex-col-reverse gap-2 sm:flex-row">
+					<Button type="button" variant="outline" onclick={() => close(false)}
+						>{m.action_cancel()}</Button
+					>
+					<Button type="submit" disabled={!valid} data-testid="band-ok">{m.action_ok()}</Button>
+				</div>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
 <AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content
-		class="print:hidden"
-		style={`animation-duration: ${motionDuration(100)}ms; transition-duration: ${motionDuration(100)}ms`}
-	>
+	<AlertDialog.Content class="print:hidden">
 		<AlertDialog.Header
 			><AlertDialog.Title>{m.band_delete_title()}</AlertDialog.Title><AlertDialog.Description
-				>{m.timeline_delete_body({ title: entry?.title ?? '' })}</AlertDialog.Description
+				>{m.timeline_delete_body({
+					title: entry?.title || m.band_untitled()
+				})}</AlertDialog.Description
 			></AlertDialog.Header
 		>
 		<AlertDialog.Footer>

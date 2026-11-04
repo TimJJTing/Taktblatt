@@ -13,6 +13,8 @@
 		/** The accessible name of the field. */
 		label: string;
 		placeholder?: string;
+		/** The printed text when the value is empty. The placeholder does not print. */
+		printFallback?: string;
 		multiline?: boolean;
 		preserveWhitespace?: boolean;
 		maxLength?: number;
@@ -34,6 +36,7 @@
 		value,
 		label,
 		placeholder = '',
+		printFallback = '',
 		multiline = false,
 		preserveWhitespace = false,
 		maxLength,
@@ -152,8 +155,10 @@
 	</button>
 {/if}
 
-<span class="hidden print:contents">
-	<span class={cn('block', multiline && 'whitespace-pre-wrap', className)}
-		>{value || placeholder}</span
-	>
-</span>
+{#if value || printFallback}
+	<span class="hidden print:contents">
+		<span class={cn('block', multiline && 'whitespace-pre-wrap', className)}
+			>{value || printFallback}</span
+		>
+	</span>
+{/if}

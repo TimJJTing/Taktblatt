@@ -5,6 +5,9 @@
 
 export type ISODate = string;
 
+/** The length of one day in milliseconds. */
+export const DAY_MS = 86_400_000;
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Returns true when the value is a real calendar date in "YYYY-MM-DD" format. */
@@ -26,4 +29,15 @@ export function todayISO(now: Date = new Date()): ISODate {
 /** Returns the current time as an ISO timestamp. */
 export function nowISO(): string {
 	return new Date().toISOString();
+}
+
+/** Returns the day number of a date (days since 1970-01-01, UTC). */
+export function dayNumber(date: ISODate): number {
+	const [y, m, d] = date.split('-').map(Number);
+	return Math.round(Date.UTC(y, m - 1, d) / DAY_MS);
+}
+
+/** Returns the date of a day number. It is the inverse of dayNumber. */
+export function isoFromDayNumber(day: number): ISODate {
+	return new Date(day * DAY_MS).toISOString().slice(0, 10);
 }

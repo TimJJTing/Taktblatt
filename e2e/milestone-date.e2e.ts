@@ -1,12 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample } from './helpers';
-
-async function storedPlan(page: Page) {
-	return page.evaluate(() => {
-		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
-		return JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
-	});
-}
+import { openExample, storedPlan } from './helpers';
 
 /** The same format as formatDate in src/lib/domain/format.ts for English. */
 const formatted = (date: string) =>
@@ -39,7 +32,7 @@ test('the milestone date is picked with the calendar', async ({ page }) => {
 	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
 	await expect(page.getByTestId('date-value')).toHaveCount(0);
 	await expect(trigger).toHaveText(formatted(picked));
-	await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+	await dialog.getByRole('button', { name: 'OK', exact: true }).click();
 	await expect(dialog).toHaveCount(0);
 	const legend = page.getByTestId('milestone-legend');
 	await expect(legend.getByRole('button', { name: /Soil check/ })).toHaveText(

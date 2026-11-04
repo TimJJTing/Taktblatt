@@ -12,7 +12,7 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { Calendar } from '#lib/components/ui/calendar/index.js';
 	import { todayISO, type ISODate } from '#lib/domain/date.js';
-	import { formatDate, intlLocale, parseUserDate } from '#lib/domain/format.js';
+	import { formatDate, intlLocale, readTypedDate } from '#lib/domain/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
@@ -74,17 +74,15 @@
 
 	function readText() {
 		if (!open) return false;
-		const value = text.trim();
-		// The field shows the formatted value. Do not parse it again.
-		if (value === show(draft)) return true;
 		const year = Number((draft ?? todayISO()).slice(0, 4));
-		const parsed = value === '' ? null : parseUserDate(value, tag, year);
-		if (value !== '' && parsed === null) {
+		const typed = readTypedDate(text, draft, tag, year);
+		if (typed.kind === 'same') return true;
+		if (typed.kind === 'invalid') {
 			error = m.date_invalid({ example });
 			return false;
 		}
-		draft = parsed;
-		if (parsed) placeholder = parseDate(parsed);
+		draft = typed.date;
+		if (typed.date) placeholder = parseDate(typed.date);
 		error = '';
 		text = show(draft);
 		return true;

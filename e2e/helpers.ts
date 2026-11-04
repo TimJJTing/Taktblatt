@@ -13,6 +13,14 @@ export async function openExample(page: Page): Promise<void> {
 	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
 }
 
+/** Reads the active plan from localStorage. */
+export async function storedPlan(page: Page) {
+	return page.evaluate(() => {
+		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+		return JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
+	});
+}
+
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
 
 /** Finds a row by the exact text of its title cell. */

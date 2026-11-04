@@ -3,13 +3,12 @@
  * It does not use the data of the design artifact.
  * All dates are relative to `today`, so the example is always current.
  */
-import { todayISO, type ISODate } from './date';
+import { dayNumber, isoFromDayNumber, todayISO, type ISODate } from './date';
 import { createId } from './ids';
 import type { Locale, Plan, Task } from './schema';
 
 function addDays(date: ISODate, days: number): ISODate {
-	const [y, m, d] = date.split('-').map(Number);
-	return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+	return isoFromDayNumber(dayNumber(date) + days);
 }
 
 export function createExamplePlan(locale: Locale, today: ISODate = todayISO()): Plan {

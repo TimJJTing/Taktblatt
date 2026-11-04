@@ -11,7 +11,7 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { RangeCalendar } from '#lib/components/ui/range-calendar/index.js';
 	import { todayISO, type ISODate } from '#lib/domain/date.js';
-	import { formatDate, intlLocale, parseUserDate } from '#lib/domain/format.js';
+	import { formatDate, intlLocale, readTypedDate } from '#lib/domain/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
@@ -87,18 +87,18 @@
 
 	function readText(which: 'start' | 'end') {
 		if (!open) return false;
-		const text = (which === 'start' ? startText : endText).trim();
-		// The field shows the formatted value. Do not parse it again.
-		if (text === show(which === 'start' ? draftStart : draftEnd)) return true;
+		const text = which === 'start' ? startText : endText;
+		const current = which === 'start' ? draftStart : draftEnd;
 		const year = Number((draftStart ?? draftEnd ?? todayISO()).slice(0, 4));
-		const parsed = text === '' ? null : parseUserDate(text, tag, year);
-		if (text !== '' && parsed === null) {
+		const typed = readTypedDate(text, current, tag, year);
+		if (typed.kind === 'same') return true;
+		if (typed.kind === 'invalid') {
 			error = m.date_invalid({ example });
 			return false;
 		}
-		if (which === 'start') draftStart = parsed;
-		else draftEnd = parsed;
-		if (parsed) placeholder = parseDate(parsed);
+		if (which === 'start') draftStart = typed.date;
+		else draftEnd = typed.date;
+		if (typed.date) placeholder = parseDate(typed.date);
 		validate();
 		if (which === 'start') startText = show(draftStart);
 		else endText = show(draftEnd);

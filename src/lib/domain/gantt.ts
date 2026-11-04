@@ -5,26 +5,14 @@
  * A day occupies [day start, day end) of the width.
  * Refer to docs/spec.md, section 5.4.
  */
-import type { ISODate } from './date';
+import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date';
 import { effectiveValues, type DoneState, type TaskIndex } from './derive';
 import { effectiveDependencies } from './dependencies';
-
-const DAY_MS = 86_400_000;
 
 /** The visible range of the timeline. Both dates are inclusive. */
 export interface GanttWindow {
 	start: ISODate;
 	end: ISODate;
-}
-
-/** Returns the day number of a date (days since 1970-01-01, UTC). */
-export function dayNumber(date: ISODate): number {
-	const [y, m, d] = date.split('-').map(Number);
-	return Math.round(Date.UTC(y, m - 1, d) / DAY_MS);
-}
-
-function isoFromDayNumber(day: number): ISODate {
-	return new Date(day * DAY_MS).toISOString().slice(0, 10);
 }
 
 /** Number of days in the window (inclusive). The minimum is 1. */

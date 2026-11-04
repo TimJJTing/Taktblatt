@@ -169,5 +169,9 @@
 	"gantt_clipped_end": "ends after the project range",
 	"gantt_band": "Band: {title} ({range})",
 	"gantt_milestone": "Milestone {label}: {title} ({date})",
-	"gantt_show_row": "Show in the work plan"
+	"gantt_show_row": "Show in the work plan",
+	"milestone_delete": "Delete…",
+	"band_delete": "Delete…",
+	"milestone_untitled": "Untitled milestone",
+	"band_untitled": "Untitled band"
 }

@@ -10,10 +10,11 @@
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import StarIcon from '@lucide/svelte/icons/star';
-	import { tick, untrack, type Component } from 'svelte';
+	import { untrack, type Component } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import { innerHeight } from 'svelte/reactivity/window';
+	import { appHeader } from '#lib/components/app/app-layout.svelte.js';
 	import { Toggle } from '#lib/components/ui/toggle/index.js';
 	import { bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
 	import { todayISO } from '#lib/domain/date.js';
@@ -37,7 +38,6 @@
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
 	import {
-		FLASH_MS,
 		HEADER_HEIGHT,
 		heightLimits,
 		LABEL_WIDTH,
@@ -80,7 +80,28 @@
 	);
 	const lines = $derived(dependencyLines(ws.index, rows));
 	const ticks = $derived(monthTicks(win));
-	const today = $derived(todayX(win, todayISO()));
+	// Today changes at local midnight. A hidden tab can miss the timer, so check again when it shows.
+	let todayDate = $state(todayISO());
+	$effect(() => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const refresh = () => {
+			todayDate = todayISO();
+			clearTimeout(timer);
+			const now = new Date();
+			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+			timer = setTimeout(refresh, midnight.getTime() - now.getTime() + 1000);
+		};
+		const onVisibility = () => {
+			if (document.visibilityState === 'visible') refresh();
+		};
+		refresh();
+		document.addEventListener('visibilitychange', onVisibility);
+		return () => {
+			clearTimeout(timer);
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
+	});
+	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(
 		ws.plan.bands.flatMap((band) => {
 			const span = spanX(win, band);
@@ -108,7 +129,7 @@
 	let boxHeight = $state(0);
 
 	// Pin. The app header is sticky. Its height is the top offset of the pinned chart.
-	let headerHeight = $state(0);
+	const headerHeight = $derived(appHeader.height);
 	let stuck = $state(false);
 	let slotBox = $state({ left: 0, width: 0 });
 	const viewport = $derived(innerHeight.current ?? 800);
@@ -116,15 +137,16 @@
 	const height = $derived(pinnedHeight(viewer.ganttHeight, viewport));
 	const percent = (px: number) => Math.round((px / viewport) * 100);
 
+	// While pinned, share the chart height. Anchor jumps then stop below the chart.
+	const pinnedOffset = $derived(viewer.ganttPinned ? boxHeight || height : 0);
 	$effect(() => {
-		const header =
-			document.querySelector<HTMLElement>('[data-app-header]') ??
-			document.querySelector<HTMLElement>('body header');
-		if (!header) return;
-		const observer = new ResizeObserver(() => (headerHeight = header.offsetHeight));
-		observer.observe(header);
-		headerHeight = header.offsetHeight;
-		return () => observer.disconnect();
+		const root = document.documentElement;
+		if (pinnedOffset === 0) {
+			root.style.removeProperty('--gantt-pinned-h');
+			return;
+		}
+		root.style.setProperty('--gantt-pinned-h', `${pinnedOffset}px`);
+		return () => root.style.removeProperty('--gantt-pinned-h');
 	});
 
 	function updateStuck() {
@@ -208,31 +230,21 @@
 		if (delta !== 0) scroller.scrollBy({ top: delta, behavior: scrollBehavior() });
 	}
 
-	let flashTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Scrolls to the table row of the task and flashes it one time. */
-	async function jump(id: string) {
+	function jump(id: string) {
 		const row = document.querySelector<HTMLElement>(`tr[data-task-id="${CSS.escape(id)}"]`);
 		if (!row) return;
 		const behavior = scrollBehavior();
 		if (viewer.ganttPinned) {
-			const offset = headerHeight + (boxHeight || height) + 8;
+			// The same offset as the scroll-mt-anchor class: header, pinned chart and 1rem.
+			const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+			const offset = headerHeight + pinnedOffset + rem;
 			window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - offset, behavior });
 		} else {
 			row.scrollIntoView({ block: 'center', behavior });
 		}
-		clearTimeout(flashTimer);
-		editing.flashId = null;
-		await tick();
-		editing.flashId = id;
-		flashTimer = setTimeout(
-			() => {
-				if (editing.flashId === id) editing.flashId = null;
-			},
-			motionDuration(FLASH_MS) + 50
-		);
+		editing.flash(id);
 	}
-
-	$effect(() => () => clearTimeout(flashTimer));
 </script>
 
 <svelte:window onscroll={updateStuck} onresize={updateStuck} />

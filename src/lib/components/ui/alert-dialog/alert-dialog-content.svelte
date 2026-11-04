@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { AlertDialog as AlertDialogPrimitive } from 'bits-ui';
+	import { motionDuration } from '#lib/motion.js';
 	import { cn, type WithoutChild, type WithoutChildrenOrChild } from '#lib/utils.js';
 	import AlertDialogOverlay from './alert-dialog-overlay.svelte';
 	import AlertDialogPortal from './alert-dialog-portal.svelte';
@@ -8,6 +9,7 @@
 	let {
 		ref = $bindable(null),
 		class: className,
+		style,
 		size = 'default',
 		portalProps,
 		...restProps
@@ -15,6 +17,11 @@
 		size?: 'default' | 'sm';
 		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof AlertDialogPortal>>;
 	} = $props();
+
+	// The open and close motion follows motionDuration (reduced motion: no motion).
+	const motionStyle = $derived(
+		`animation-duration: ${motionDuration(100)}ms; transition-duration: ${motionDuration(100)}ms;${style ? ` ${style}` : ''}`
+	);
 </script>
 
 <AlertDialogPortal {...portalProps}>
@@ -28,5 +35,6 @@
 			className
 		)}
 		{...restProps}
+		style={motionStyle}
 	/>
 </AlertDialogPortal>
