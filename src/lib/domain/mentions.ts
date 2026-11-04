@@ -1,6 +1,6 @@
 /**
  * Mentions in notes. The stored note has tokens `@[task:<id>]`.
- * In the editor, a token shows as `@[Title]`, so a person can read it.
+ * In the note field, a token shows as `@[Title]`, so a person can read it.
  */
 export const MENTION_PATTERN = /@\[task:([^\]\s]+)\]/g;
 
@@ -79,7 +79,7 @@ export function replaceEditorText(
 }
 
 /**
- * Converts editor text to stored tokens. A known text range keeps its id.
+ * Converts note field text to stored tokens. A known text range keeps its id.
  * A typed title becomes a token only when exactly one task has that title.
  */
 export function fromEditorText(

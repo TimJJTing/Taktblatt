@@ -6,13 +6,13 @@ The text follows ASD-STE100 (Simplified Technical English). [GLOSSARY.md](../GLO
 
 ## 0. Product
 
-- Taktblatt shows a project plan as a timeline, stages, milestones and a work table.
+- Taktblatt shows a plan as a timeline, stages, milestones and a work table.
 - Taktblatt is a static web app. It has no server and no authentication.
 - The app keeps all data in the browser `localStorage`. It sends no data on the network.
 - The app does not collect analytics or telemetry.
-- The app works offline. You can install it as a PWA. A service worker caches the app files and answers from the cache first. A new build waits until you close all tabs of the old build. Then it deletes the old cache. The app does not request any other file at run time.
+- The app works offline. You can install it as a PWA. A service worker caches the app files and answers from the cache first. A new build waits until you close all tabs of the old build. The new service worker does not call `skipWaiting`. When it takes control, it deletes the old cache. A page navigation without network gets the cached app shell. The app does not request any other file at run time.
 - You can import a **plan** from a JSON file. You can export a plan to a JSON file.
-- The printed output (print or "Save as PDF") follows the artifact design. The workspace provides controls to edit the plan.
+- The printed output (print or "Save as PDF") follows the artifact design. The workspace has controls to edit the plan.
 - The design artifact contains real example data. The app must not use these values.
 
 ## 1. Data model
@@ -37,10 +37,10 @@ interface BackupFile {
 
 interface Plan {
 	id: string;
-	heading: string; // editor: required
+	heading: string; // workspace: required
 	subheading: string; // empty text is valid
 	range: { start: ISODate; end: ISODate }; // the Gantt window
-	objective: string; // editor: max 250 characters
+	objective: string; // workspace: max 250 characters
 	locale: Locale; // the document language
 	paper: 'a4' | 'letter';
 	footer: { note: string; version: string; date: ISODate | null; right: string };
@@ -55,7 +55,7 @@ interface Plan {
 
 interface Stage {
 	id: string;
-	title: string; // editor: required, max 30 characters
+	title: string; // workspace: required, max 30 characters
 	description: string;
 	color: StageColor; // a key of the curated palette
 }
@@ -64,7 +64,7 @@ interface Task {
 	id: string;
 	stageId: string;
 	parentId: string | null; // null = task; else subtask. Max depth is 2.
-	title: string; // editor: required
+	title: string; // workspace: required
 	deliverable: string;
 	start: ISODate | null;
 	end: ISODate | null;
@@ -98,7 +98,7 @@ interface RemarkSection {
 }
 ```
 
-The `required` title rules and text length limits above are editor constraints. They are not import constraints. The schema requires string fields but permits empty titles and text beyond the editor limits.
+The `required` title rules and text length limits above are limits of the workspace. They are not import rules. The schema requires string fields. It permits empty titles and text longer than the workspace limits.
 
 ### 1.1 Rules for the data
 
@@ -158,7 +158,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 - A parent change can cause conflicts. Before the move, the app shows the **move-conflict dialog**. The dialog lists:
   - **Remove dependency (cycle):** each own dependency that causes a cycle for the task or subtask that you move.
   - **Remove dependency (parent and child):** a dependency of the new parent on the task or subtask that you move.
-  - **Clear date:** the `start` or the `end` of the task or subtask that you move, when the new derived dates of the new parent break the date rule.
+  - **Clear date:** the `start` or the `end` of the task or subtask that you move. The app lists it when the new derived dates of the new parent break the date rule.
   - **Warning only:** date-rule breaks on the old parent. The app does not change data for these. It shows the usual warning after the move.
 - The dialog has two buttons: **Remove and move** and **Cancel**.
 - **Remove and move** applies all listed removals and the move as one undo step.
@@ -182,9 +182,9 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 ### 4.1 Plans
 
 - The app keeps more than one plan. One plan is active.
-- The header has a plan switcher. The switcher can create, rename, duplicate and delete plans.
+- The header has a plan switcher. With the switcher, you can create, rename, duplicate and delete plans.
 - **Rename plan** opens a small dialog. It changes the plan heading in one undo step. An empty name keeps the previous name.
-- The app asks you to confirm before it deletes a plan. After the deletion, a toast shows an **Undo** button for 10 seconds.
+- The app asks you to confirm before it deletes a plan. After the deletion, a toast shows an **Undo** button for 10 seconds. When you delete the last plan, the app creates a new empty plan.
 - On the first start, the app creates an empty plan:
   - heading "Untitled plan" (as a placeholder), one empty stage;
   - the range is the current month plus the next two months;
@@ -207,9 +207,9 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 - **Cmd/Ctrl+S** does not do a save. It shows a "Saved" toast. It prevents the browser save dialog.
 - When a plan changes in a different browser tab, the app loads the new data (the `storage` event). The last write wins.
 - When the stored data does not parse or validate, the app:
-  1. keeps the raw text under a `taktblatt:damaged:<timestamp>` key;
+  1. keeps the raw text under a `taktblatt:damaged:<timestamp>:<id>` key;
   2. starts with an empty plan;
-  3. shows a notice with a **Download backup** button.
+  3. shows a notice with a **Download backup** button. The button saves the damaged text as the file `taktblatt-damaged-data.txt`.
 
 ### 4.4 Viewer state
 
@@ -219,31 +219,34 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - the expanded tasks, for each plan (shared by the Gantt and the table);
 - the pinned state and the height of the Gantt.
 
+The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. An unreadable value gives the default settings.
+
 ### 4.5 Undo
 
-- Each plan has its own undo history in memory. The history keeps 50 steps.
+- The app keeps one undo history in memory for the active plan. The history keeps 50 steps.
 - One commit is one step: a blur, Enter, a checkbox, a picker, a modal action, a move.
 - **Cmd/Ctrl+Z** undoes. **Shift+Cmd/Ctrl+Z** and **Ctrl+Y** redo.
-- The app clears the history when you change the plan or reload the page.
+- The app clears the history when you switch to a different plan or reload the page.
 
 ### 4.6 Import and export
 
 - **Export this plan** writes a `PlanFile`.
 - **Export all plans** writes a `BackupFile`. The file name is `taktblatt-backup-<YYYY-MM-DD>.json`. The date is the export date.
 - Import accepts both kinds. The app validates the file. If the file is not valid, the app shows the errors and does not change data.
-- Import rejects duplicate ids within each plan’s stages, tasks, milestones, bands or remark sections. It also rejects dependencies between a parent and its own subtask, and cycles in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
+- Import rejects duplicate ids in the stages, tasks, milestones, bands or remark sections of a plan. It also rejects a dependency between a parent and its own subtask. It also rejects a cycle in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
 - Import permits date-rule conflicts and shows warnings for them.
 - Import adds each plan as a new plan. The last imported plan becomes active. A toast confirms the import. If dependencies break the date rule, a second toast shows the number of warnings. Import is not an undo step.
-- If a plan with the same `id` exists, one dialog lists all such plans. Each plan has the choices **Replace** and **Keep both**. The default is **Keep both**. **Cancel** imports nothing. **Keep both** gives the copy a new id and adds the copy suffix to its heading. The suffix follows the UI language (English: " (copy)").
+- If the browser cannot save the data, import undoes its own writes and shows an error.
+- If a plan with the same `id` exists, one dialog lists all such plans. Each plan has the choices **Replace** and **Keep both**. The default is **Keep both**. **Replace** overwrites the existing plan with the same `id`. **Cancel** imports nothing. **Keep both** gives the copy a new id and adds the copy suffix to its heading. The suffix follows the UI language (English: " (copy)").
 - If the file is not valid, a dialog lists the errors (the first eight, and the number of other errors).
 
 ## 5. Screen: the workspace
 
 ### 5.1 Layout
 
-- The workspace is one page that scrolls. The sections are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
-- A sticky section navigation shows these sections.
-- The app header contains: plan switcher, section navigation, Preview, Print, Import, Export, UI language, Undo and Redo.
+- The workspace is one page that scrolls. The parts are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
+- A sticky navigation bar shows these parts.
+- The app header contains: plan switcher, navigation bar, Preview, Print, Import, Export, UI language, Undo and Redo.
 - All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and mark tasks done. The Gantt and the table scroll horizontally.
 - Dark mode follows the system setting. Print is always light.
 
@@ -258,9 +261,9 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ### 5.3 Header fields
 
 - **Subheading:** single line, optional. The app stores it as typed. CSS makes it uppercase. The sheets hide it when it is empty.
-- **Heading (editor):** required, max 2 lines (about 80 characters). Empty on blur → the previous value comes back.
-- **Project range:** a date range picker. It sets the Gantt window. A **Fit to tasks** button sets the range to the dates of all tasks.
-- **Objective (editor):** text, max 250 characters. The label text is "Objective:". The sheets hide it when it is empty.
+- **Heading:** required, max 2 lines (about 80 characters). Empty on blur → the previous value comes back.
+- **Plan range:** a date range picker. It sets the Gantt window. A **Fit to tasks** button sets the range to the dates of all tasks.
+- **Objective:** text, max 250 characters. The label text is "Objective:". The sheets hide it when it is empty.
 
 ### 5.4 Timeline (Gantt)
 
@@ -290,9 +293,9 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 ### 5.5 Stage overview
 
-- Three cards for each row. More cards go to the next row. Cards in a row have the same height.
+- Three cards for each row on a medium or wide screen. One card for each row on a narrow screen. More cards go to the next row. Cards in a row have the same height.
 - A card shows "STAGE N · months", the title, the description and the derived deliverables.
-- The title: click to edit. Editor constraints: single line, required, max 30 characters. Empty → "Stage N".
+- The title: click to edit. Workspace limits: single line, required, max 30 characters. Empty → "Stage N".
 - The description: click to edit. Free text. The sheets limit it to 3 lines.
 
 ### 5.6 Work plan
@@ -330,11 +333,11 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 - A remark section has an editable title and bullets.
 - Remark sections are at the end of the plan, after all stages.
-- Two sections for each row.
-- A "+" line in a section adds an empty bullet. Enter at the end of a bullet adds the next bullet. Backspace on an empty bullet removes it.
+- Two remark sections for each row on a wide screen. One for each row on a narrow screen.
+- A "+" line in a remark section adds an empty bullet. Enter at the end of a bullet adds the next bullet. Backspace on an empty bullet removes it.
 - The app trims spaces and removes empty bullets on blur.
-- A "+" line after the last section adds a section. Its title is in edit mode. The app removes a new section on blur when its title and bullets are empty.
-- Sections have a drag handle (it also works with the keyboard), and **Move up** and **Move down** in their menu.
+- A "+" line after the last remark section adds a remark section. Its title is in edit mode. The app removes a new remark section on blur when its title and bullets are empty.
+- Remark sections have a drag handle (it also works with the keyboard), and **Move up** and **Move down** in their menu.
 
 ### 5.9 Footer
 
@@ -356,6 +359,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ## 7. Preview and print
 
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.
+- The sheets use their own print blocks in `src/lib/components/print/`. The print blocks read the same store and the same domain helpers as the workspace. Refer to [ADR 8](adr/0008-print-blocks.md).
 - The **Preview** button in the app header opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the button. The workspace behind it is inert.
 - The preview has a **paper size** control (A4 or US Letter) and a **Print** button. The paper size is a plan setting (`paper`). The default is A4. A change is one undo step.
 - The **paginator** measures blocks and puts them on fixed sheets. It works the same in all browsers.
@@ -391,8 +395,8 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ## 10. Quality
 
 - TypeScript strict mode. ESLint. Prettier.
-- Vitest unit tests for the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import.
-- Playwright end-to-end tests for the main flows and for pagination.
-- GitHub Actions run lint, type check, unit tests and end-to-end tests on each push and pull request.
+- Vitest unit tests in two projects. The `server` project runs the `*.spec.ts` files in Node. It covers the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import, pagination. The `client` project runs the `*.svelte.spec.ts` files in Chromium. It covers the store, commands and undo history.
+- Playwright end-to-end tests in `e2e/` for the main flows, the offline app (PWA) and the pagination of the sheets.
+- GitHub Actions run `pnpm lint`, `pnpm check`, the unit tests and the end-to-end tests on each pull request and on each push to `main`. If a run fails, the workflow keeps the Playwright results for 7 days.
 - Dependabot updates `npm` and `github-actions` every week. Dependabot groups minor and patch updates. Major updates have separate pull requests.
 - License: MIT.
