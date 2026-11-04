@@ -20,34 +20,68 @@ export function noteSegments(note: string): NoteSegment[] {
 	return segments;
 }
 
-/** Converts a stored note to editor text. Returns the text and the title-to-id map of this edit. */
+export type EditorMention = { start: number; end: number; id: string };
+export type EditorNote = { text: string; mentions: EditorMention[] };
+
+/** Converts stored tokens to titles. Each text range keeps its task id. */
 export function toEditorText(
 	note: string,
 	titleOf: (id: string) => string | undefined
-): { text: string; ids: Map<string, string> } {
-	const ids = new Map<string, string>();
-	const text = note.replace(MENTION_PATTERN, (token, id: string) => {
+): EditorNote {
+	const mentions: EditorMention[] = [];
+	let offset = 0;
+	const text = note.replace(MENTION_PATTERN, (token, id: string, index: number) => {
 		const title = titleOf(id);
 		if (title === undefined) return token;
-		ids.set(title, id);
-		return `@[${title}]`;
+		const label = `@[${title}]`;
+		const start = index + offset;
+		mentions.push({ start, end: start + label.length, id });
+		offset += label.length - token.length;
+		return label;
 	});
-	return { text, ids };
+	return { text, mentions };
+}
+
+/** Replaces a text range. Keeps ids for mentions outside the changed range. */
+export function replaceEditorText(
+	editor: EditorNote,
+	start: number,
+	end: number,
+	replacement: string,
+	task?: { id: string; title: string }
+): EditorNote {
+	const shift = replacement.length - (end - start);
+	const mentions = editor.mentions.flatMap((mention) => {
+		if (mention.end <= start) return [mention];
+		if (mention.start >= end) {
+			return [{ ...mention, start: mention.start + shift, end: mention.end + shift }];
+		}
+		return [];
+	});
+	if (task) {
+		mentions.push({ start, end: start + `@[${task.title}]`.length, id: task.id });
+	}
+	return {
+		text: editor.text.slice(0, start) + replacement + editor.text.slice(end),
+		mentions
+	};
 }
 
 /**
- * Converts editor text back to a stored note. A `@[Title]` becomes a token when the title is in
- * the edit map, or when exactly one task has this title. Else the text stays as typed.
+ * Converts editor text to stored tokens. A known text range keeps its id.
+ * A typed title becomes a token only when exactly one task has that title.
  */
 export function fromEditorText(
 	text: string,
-	ids: ReadonlyMap<string, string>,
+	mentions: readonly EditorMention[],
 	tasks: readonly { id: string; title: string }[]
 ): string {
-	return text.replace(/@\[([^\]]+)\]/g, (raw, title: string) => {
+	return text.replace(/@\[([^\]]+)\]/g, (raw, title: string, index: number) => {
 		if (title.startsWith('task:')) return raw;
-		const known = ids.get(title);
-		if (known) return mentionToken(known);
+		const known = mentions.find(
+			(mention) => mention.start === index && mention.end === index + raw.length
+		);
+		if (known) return mentionToken(known.id);
 		const matches = tasks.filter((t) => t.title === title);
 		return matches.length === 1 ? mentionToken(matches[0].id) : raw;
 	});

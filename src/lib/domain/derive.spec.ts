@@ -5,7 +5,8 @@ import {
 	orderedMilestones,
 	stageDeliverables,
 	stageProgress,
-	stageSpan
+	stageSpan,
+	tasksSpan
 } from './derive';
 import { makeTask } from './test-helpers';
 
@@ -120,5 +121,37 @@ describe('orderedMilestones', () => {
 			{ id: 'a', title: 'Early', description: '', date: '2027-01-01', symbol: 'diamond' }
 		]);
 		expect(result.map((r) => `${r.label} ${r.milestone.title}`)).toEqual(['M1 Early', 'M2 Late']);
+	});
+});
+
+describe('tasksSpan', () => {
+	it('uses effective dates and excludes hidden parent fallback dates', () => {
+		const index = indexTasks([
+			makeTask({ id: 'parent', start: '2026-01-01', end: '2028-12-31' }),
+			makeTask({ id: 'child', parentId: 'parent', start: '2027-02-01', end: '2027-02-10' }),
+			makeTask({ id: 'other', stageId: 's2', start: '2027-01-01', end: '2027-03-01' })
+		]);
+		expect(tasksSpan(index)).toEqual({ start: '2027-01-01', end: '2027-03-01' });
+	});
+
+	it('returns null when only hidden fallback dates are set', () => {
+		const index = indexTasks([
+			makeTask({ id: 'parent', start: '2027-01-01', end: '2027-02-01' }),
+			makeTask({ id: 'child', parentId: 'parent' })
+		]);
+		expect(tasksSpan(index)).toBeNull();
+	});
+
+	it('includes dates when only one endpoint is set', () => {
+		const index = indexTasks([
+			makeTask({ id: 'end-only', end: '2027-01-01' }),
+			makeTask({ id: 'start-only', start: '2027-02-01' })
+		]);
+		expect(tasksSpan(index)).toEqual({ start: '2027-01-01', end: '2027-02-01' });
+	});
+
+	it('returns null for empty plans and tasks without dates', () => {
+		expect(tasksSpan(indexTasks([]))).toBeNull();
+		expect(tasksSpan(indexTasks([makeTask({ id: 'a' })]))).toBeNull();
 	});
 });

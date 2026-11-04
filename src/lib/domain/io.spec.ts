@@ -3,6 +3,7 @@ import { createExamplePlan } from './example';
 import { createEmptyPlan } from './factory';
 import { exportFileName, parseFile, slugify, toBackupFile, toPlanFile, withNewIds } from './io';
 import { migrate } from './migrate';
+import { makePlan, makeTask } from './test-helpers';
 
 describe('parseFile', () => {
 	it('reads a plan file that the app wrote', () => {
@@ -38,6 +39,96 @@ describe('parseFile', () => {
 		const plan = createExamplePlan('en', '2027-04-01');
 		plan.tasks[0].dependsOn = ['missing'];
 		expect(parseFile(JSON.stringify(toPlanFile(plan))).ok).toBe(false);
+	});
+
+	it.each([
+		['stages', 'Stage'],
+		['tasks', 'Task'],
+		['milestones', 'Milestone'],
+		['bands', 'Band'],
+		['remarks', 'Remark section']
+	] as const)('rejects duplicate ids in %s', (collection, label) => {
+		const plan = makePlan([makeTask({ id: 'a' })]);
+		plan.milestones = [
+			{ id: 'm', title: '', description: '', date: '2027-01-10', symbol: 'diamond' }
+		];
+		plan.bands = [{ id: 'b', title: '', start: '2027-01-01', end: '2027-01-10', color: 'gray' }];
+		plan.remarks = [{ id: 'r', title: '', bullets: [] }];
+		const items = plan[collection];
+		items[items.length] = { ...items[0] };
+		const result = parseFile(JSON.stringify(toPlanFile(plan)));
+		expect(result).toEqual({ ok: false, errors: [`plan: ${label} ids must be unique.`] });
+	});
+
+	it('rejects a dependency on the task itself', () => {
+		const plan = makePlan([makeTask({ id: 'a', dependsOn: ['a'] })]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
+			ok: false,
+			errors: ['plan: Each dependency must point at a different task of the plan.']
+		});
+	});
+
+	it.each(['parent', 'child'])('rejects a %s depending on its own child or parent', (source) => {
+		const plan = makePlan([
+			makeTask({ id: 'parent', dependsOn: source === 'parent' ? ['child'] : [] }),
+			makeTask({
+				id: 'child',
+				parentId: 'parent',
+				dependsOn: source === 'child' ? ['parent'] : []
+			})
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
+			ok: false,
+			errors: ['plan: A task must not depend on its own parent or subtask.']
+		});
+	});
+
+	it.each([
+		[makeTask({ id: 'a', dependsOn: ['b'] }), makeTask({ id: 'b', dependsOn: ['a'] })],
+		[
+			makeTask({ id: 'a', dependsOn: ['b'] }),
+			makeTask({ id: 'b', dependsOn: ['c'] }),
+			makeTask({ id: 'c', dependsOn: ['a'] })
+		],
+		[
+			makeTask({ id: 'parent' }),
+			makeTask({ id: 'child', parentId: 'parent', dependsOn: ['other'] }),
+			makeTask({ id: 'other', dependsOn: ['parent'] })
+		],
+		[
+			makeTask({ id: 'parent' }),
+			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b'] }),
+			makeTask({ id: 'b', parentId: 'parent', dependsOn: ['a'] })
+		]
+	])('rejects effective dependency cycles (case %#)', (...tasks) => {
+		const plan = makePlan(tasks);
+		for (const file of [toPlanFile(plan), toBackupFile([makePlan([]), plan])]) {
+			const result = parseFile(JSON.stringify(file));
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.errors).toEqual([
+					`${file.kind === 'plan' ? 'plan' : 'plans.1'}: Task dependencies must not form a cycle in the effective graph.`
+				]);
+			}
+		}
+	});
+
+	it('reads valid inherited and sibling dependencies', () => {
+		const plan = makePlan([
+			makeTask({ id: 'parent' }),
+			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b', 'other'] }),
+			makeTask({ id: 'b', parentId: 'parent' }),
+			makeTask({ id: 'other' })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+	});
+
+	it('reads dependencies that break the date rule', () => {
+		const plan = makePlan([
+			makeTask({ id: 'early', end: '2027-01-01', dependsOn: ['late'] }),
+			makeTask({ id: 'late', start: '2027-02-01' })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
 	});
 });
 

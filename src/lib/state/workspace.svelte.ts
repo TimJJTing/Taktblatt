@@ -11,7 +11,7 @@ import { createEmptyPlan } from '#lib/domain/factory.js';
 import { withNewIds } from '#lib/domain/io.js';
 import type { Locale, Plan } from '#lib/domain/schema.js';
 import { History } from './history.svelte';
-import { KEYS, PlanStorage, parsePlan } from './storage';
+import { KEYS, PlanStorage } from './storage';
 
 export interface PlanSummary {
 	id: string;
@@ -313,15 +313,14 @@ export class Workspace {
 			if (!plans.some((p) => p.id === this.plan.id) && plans.length > 0) this.switchTo(plans[0].id);
 			return;
 		}
-		if (event.key === KEYS.plan(this.plan.id) && event.newValue !== null) {
-			const result = parsePlan(event.newValue);
+		if (event.key?.startsWith(KEYS.planPrefix)) {
+			// Read the current value. A queued event can contain an older value.
+			const result = this.storage.loadPlan(event.key.slice(KEYS.planPrefix.length));
 			if (result.ok !== true) return;
-			this.plan = result.value;
-			this.history.clear();
-		}
-		if (event.key?.startsWith(KEYS.planPrefix) && event.newValue !== null) {
-			const result = parsePlan(event.newValue);
-			if (result.ok !== true) return;
+			if (event.key === KEYS.plan(this.plan.id)) {
+				this.plan = result.value;
+				this.history.clear();
+			}
 			this.plans = this.plans.map((p) => (p.id === result.value.id ? summaryOf(result.value) : p));
 		}
 	}

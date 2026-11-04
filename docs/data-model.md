@@ -115,7 +115,14 @@ The app rejects a file when one of these conditions is true:
 - A field has a wrong type or a wrong value.
 - A task points at a stage, a parent or a dependency that does not exist.
 - A subtask has a subtask, or its stage is different from the stage of its parent.
-- Two tasks have the same id.
+- Two stages, two tasks, two milestones, two bands or two remark sections have the same id.
+- A task depends on itself.
+- A parent depends on one of its own subtasks, or a subtask depends on its own parent.
+- The effective dependency graph has a cycle.
+
+A subtask uses its own dependencies in the effective graph. A parent uses its own dependencies and the dependencies of its subtasks. Remove the parent's own subtasks from this set.
+
+The date rule uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
 
 The app shows the path of each wrong field, for example `plan.range.start`. It does not change data.
 

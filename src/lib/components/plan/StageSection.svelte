@@ -7,7 +7,6 @@
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
@@ -19,6 +18,7 @@
 	import { stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
 	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
 		addTask,
@@ -56,7 +56,7 @@
 	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
 	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
 	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));
-	const flipDuration = $derived(prefersReducedMotion.current ? 0 : 280);
+	const flipDuration = $derived(motionDuration(280));
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -126,8 +126,9 @@
 				/>
 			</span>
 			{#if months}
-				<span class="shrink-0 font-normal text-muted-foreground" transition:fade={{ duration: 150 }}
-					>({months})</span
+				<span
+					class="shrink-0 font-normal text-muted-foreground"
+					transition:fade={{ duration: motionDuration(150) }}>({months})</span
 				>
 			{/if}
 		</h3>

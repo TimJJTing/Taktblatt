@@ -37,11 +37,12 @@ export class History<T> {
 		return this.past.length > 0 ? this.past[this.past.length - 1] : null;
 	}
 
-	/** Removes the newest step and returns it, without a redo entry. */
+	/** Removes and returns the newest step. Clears the redo stack. */
 	drop(): T | null {
 		if (this.past.length === 0) return null;
 		const previous = this.past[this.past.length - 1];
 		this.past = this.past.slice(0, -1);
+		this.future = [];
 		return previous;
 	}
 

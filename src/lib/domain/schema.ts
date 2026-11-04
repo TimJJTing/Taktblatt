@@ -4,6 +4,8 @@
  */
 import * as v from 'valibot';
 import { isISODate } from './date';
+import { effectiveDependencies, reaches } from './dependencies';
+import { indexTasks } from './derive';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette';
 
 export const SCHEMA_VERSION = 1;
@@ -103,13 +105,41 @@ export const PlanSchema = v.pipe(
 		});
 	}, 'A subtask must have a task of the same stage as its parent. The maximum depth is 2.'),
 	v.check(
+		(plan) => new Set(plan.stages.map((s) => s.id)).size === plan.stages.length,
+		'Stage ids must be unique.'
+	),
+	v.check(
 		(plan) => new Set(plan.tasks.map((t) => t.id)).size === plan.tasks.length,
 		'Task ids must be unique.'
+	),
+	v.check(
+		(plan) => new Set(plan.milestones.map((m) => m.id)).size === plan.milestones.length,
+		'Milestone ids must be unique.'
+	),
+	v.check(
+		(plan) => new Set(plan.bands.map((b) => b.id)).size === plan.bands.length,
+		'Band ids must be unique.'
+	),
+	v.check(
+		(plan) => new Set(plan.remarks.map((r) => r.id)).size === plan.remarks.length,
+		'Remark section ids must be unique.'
 	),
 	v.check((plan) => {
 		const ids = new Set(plan.tasks.map((t) => t.id));
 		return plan.tasks.every((t) => t.dependsOn.every((d) => d !== t.id && ids.has(d)));
-	}, 'Each dependency must point at a different task of the plan.')
+	}, 'Each dependency must point at a different task of the plan.'),
+	v.check((plan) => {
+		const byId = new Map(plan.tasks.map((t) => [t.id, t]));
+		return plan.tasks.every((t) =>
+			t.dependsOn.every((d) => t.parentId !== d && byId.get(d)?.parentId !== t.id)
+		);
+	}, 'A task must not depend on its own parent or subtask.'),
+	v.check((plan) => {
+		const index = indexTasks(plan.tasks);
+		return plan.tasks.every((t) =>
+			[...effectiveDependencies(index, t.id)].every((d) => !reaches(index, d, t.id))
+		);
+	}, 'Task dependencies must not form a cycle in the effective graph.')
 );
 
 export const PlanFileSchema = v.object({

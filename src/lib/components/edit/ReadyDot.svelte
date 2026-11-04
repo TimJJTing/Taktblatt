@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 	import { scale } from 'svelte/transition';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
@@ -32,7 +33,7 @@
 			role="img"
 			aria-label={label}
 			title={label}
-			transition:scale={{ duration: 220, start: 0.3 }}
+			transition:scale={{ duration: motionDuration(220), start: 0.3 }}
 			data-testid="ready-dot"
 		></span>
 	{/if}

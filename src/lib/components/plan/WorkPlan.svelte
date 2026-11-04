@@ -4,18 +4,18 @@
 -->
 <script lang="ts">
 	import { flip } from 'svelte/animate';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import { allOwners } from '#lib/domain/owners.js';
 	import type { Stage } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { addStage, reorderStages } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import StageSection from './StageSection.svelte';
 
 	const ws = getWorkspace();
-	const flipDuration = $derived(prefersReducedMotion.current ? 0 : 250);
+	const flipDuration = $derived(motionDuration(250));
 	const ownerSuggestions = $derived(allOwners(ws.plan.tasks.map((t) => t.owners)));
 
 	/** A local copy while a drag runs. svelte-dnd-action changes it during the drag. */

@@ -8,6 +8,8 @@
 		fromEditorText,
 		matchesWords,
 		noteSegments,
+		replaceEditorText,
+		type EditorMention,
 		toEditorText
 	} from '#lib/domain/mentions.js';
 	import type { Task } from '#lib/domain/schema.js';
@@ -26,9 +28,9 @@
 
 	let editing = $state(false);
 	let text = $state('');
-	// The title-to-id map of one edit. The UI does not read it, so it does not need reactivity.
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity
-	let ids = new Map<string, string>();
+	// Each mention keeps its id at its text range.
+	let mentions: EditorMention[] = [];
+	let selection = { start: 0, end: 0 };
 	let area = $state<HTMLTextAreaElement | null>(null);
 	let query = $state<string | null>(null);
 	let active = $state(0);
@@ -46,7 +48,7 @@
 	async function start() {
 		const converted = toEditorText(note, (id) => titleOf(id) || undefined);
 		text = converted.text;
-		ids = converted.ids;
+		mentions = converted.mentions;
 		editing = true;
 		await tick();
 		area?.focus();
@@ -55,8 +57,41 @@
 	function save() {
 		editing = false;
 		query = null;
-		const next = fromEditorText(text, ids, tasks).trim();
+		const next = fromEditorText(text, mentions, tasks).trim();
 		if (next !== note) onCommit(next);
+	}
+
+	function beforeInput() {
+		if (area) selection = { start: area.selectionStart, end: area.selectionEnd };
+	}
+
+	function onInput() {
+		if (!area) return;
+		const next = area.value;
+		if (next === text) {
+			readQuery();
+			return;
+		}
+		// The caret bounds keep equal text on each side of a deletion in the correct place.
+		let start = 0;
+		const limit = Math.min(selection.start, area.selectionStart);
+		while (start < limit && text[start] === next[start]) start++;
+		let suffix = 0;
+		const suffixLimit = Math.min(text.length - selection.end, next.length - area.selectionEnd);
+		while (
+			suffix < suffixLimit &&
+			text[text.length - suffix - 1] === next[next.length - suffix - 1]
+		)
+			suffix++;
+		const updated = replaceEditorText(
+			{ text, mentions },
+			start,
+			text.length - suffix,
+			next.slice(start, next.length - suffix)
+		);
+		text = updated.text;
+		mentions = updated.mentions;
+		readQuery();
 	}
 
 	/** Finds an "@query" that ends at the caret. */
@@ -73,8 +108,9 @@
 		const caret = area.selectionStart;
 		const start = caret - query.length - 1;
 		const mention = `@[${task.title}] `;
-		ids.set(task.title, task.id);
-		text = text.slice(0, start) + mention + text.slice(caret);
+		const updated = replaceEditorText({ text, mentions }, start, caret, mention, task);
+		text = updated.text;
+		mentions = updated.mentions;
 		query = null;
 		await tick();
 		area.selectionStart = area.selectionEnd = start + mention.length;
@@ -108,11 +144,12 @@
 	<div class="relative">
 		<textarea
 			bind:this={area}
-			bind:value={text}
+			value={text}
 			aria-label={m.field_note()}
 			placeholder={m.field_note_placeholder()}
 			class="field-sizing-content min-h-20 w-full resize-none rounded-md border bg-background px-2.5 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-			oninput={readQuery}
+			onbeforeinput={beforeInput}
+			oninput={onInput}
 			onclick={readQuery}
 			onkeydown={onKeydown}
 			onblur={save}
