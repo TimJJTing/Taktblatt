@@ -9,3 +9,4 @@
 | 5   | [UI language and document language](0005-ui-language-and-document-language.md)                 |
 | 6   | [Effective dependencies and move conflicts](0006-effective-dependencies-and-move-conflicts.md) |
 | 7   | [Static SPA, offline, no network](0007-static-spa-offline.md)                                  |
+| 8   | [Print blocks are separate components](0008-print-blocks.md)                                   |

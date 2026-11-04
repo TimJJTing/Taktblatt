@@ -16,7 +16,7 @@
 	import { focusSiblingRow } from '#lib/browser/grid.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
-	import { formatDay, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatRangeDisplay, formatTarget, intlLocale } from '#lib/domain/format.js';
 	import type { Task } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
@@ -143,7 +143,7 @@
 			title="{m.target_derived()}{eff.start || eff.end ? ` · ${rangeText}` : ''}"
 			data-testid="task-target"
 		>
-			{eff.end ? formatDay(eff.end, locale) : '–'}
+			{formatTarget(eff, true, locale)}
 		</span>
 	{:else}
 		<DateRangeField
@@ -162,9 +162,9 @@
 					data-testid="task-target"
 				>
 					{#if task.end}
-						{formatDay(task.end, locale)}
+						{formatTarget(task, false, locale)}
 					{:else if task.start}
-						<span class="text-muted-foreground">{formatDay(task.start, locale)} –</span>
+						<span class="text-muted-foreground">{formatTarget(task, false, locale)}</span>
 					{:else}
 						<span class="text-muted-foreground/70">{m.target_empty()}</span>
 					{/if}

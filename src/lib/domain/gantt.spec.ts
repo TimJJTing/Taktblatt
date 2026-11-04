@@ -10,6 +10,8 @@ import {
 	spanX,
 	taskMark,
 	todayX,
+	visibleBands,
+	visibleMilestones,
 	windowDays,
 	type GanttWindow
 } from './gantt';
@@ -335,5 +337,47 @@ describe('todayX, spanX and milestoneX', () => {
 		expect(milestoneX(WIN, '2027-01-06')).toBeCloseTo(0.55);
 		expect(milestoneX(WIN, '2026-12-31')).toBeNull();
 		expect(milestoneX(WIN, '2027-01-11')).toBeNull();
+	});
+});
+
+describe('visibleBands and visibleMilestones', () => {
+	const band = (id: string, start: string, end: string) => ({
+		id,
+		title: id,
+		start,
+		end,
+		color: 'blue' as const
+	});
+	const milestone = (id: string, date: string) => ({
+		id,
+		title: id,
+		description: '',
+		date,
+		symbol: 'diamond' as const
+	});
+
+	it('keeps the bands in the window and clips them', () => {
+		const result = visibleBands(WIN, [
+			band('a', '2026-12-01', '2026-12-31'),
+			band('b', '2026-12-20', '2027-01-03'),
+			band('c', '2027-01-09', '2027-02-01')
+		]);
+		expect(result.map((r) => r.band.id)).toEqual(['b', 'c']);
+		expect(result[0].x0).toBe(0);
+		expect(result[0].x1).toBeCloseTo(0.3);
+		expect(result[1].x1).toBe(1);
+	});
+
+	it('keeps the milestones in the window in date order, with the labels of all milestones', () => {
+		const result = visibleMilestones(WIN, [
+			milestone('late', '2027-02-01'),
+			milestone('b', '2027-01-06'),
+			milestone('a', '2027-01-02')
+		]);
+		expect(result.map((r) => [r.label, r.milestone.id])).toEqual([
+			['M1', 'a'],
+			['M2', 'b']
+		]);
+		expect(result[1].x).toBeCloseTo(0.55);
 	});
 });

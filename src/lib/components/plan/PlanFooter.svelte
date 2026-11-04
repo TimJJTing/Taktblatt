@@ -1,6 +1,6 @@
 <!--
 	The plan footer: note, version and date on the left. A note and the page number on the right.
-	The plan stores each field one time. Empty parts do not print. The date comes from the user.
+	The plan stores each field one time. The date comes from the user.
 -->
 <script lang="ts">
 	import DateField from '#lib/components/edit/DateField.svelte';
@@ -10,21 +10,14 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { updateFooter } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
 
 	const ws = getWorkspace();
 	const footer = $derived(ws.plan.footer);
 	const dateText = $derived(footer.date ? formatDate(footer.date, intlLocale(ws.plan.locale)) : '');
-	const hasNote = $derived(!!footer.note);
-	const hasVersion = $derived(!!footer.version);
-	const isEmpty = $derived(!hasNote && !hasVersion && !footer.date && !footer.right);
 </script>
 
 <footer
-	class={cn(
-		'mx-auto flex max-w-6xl items-baseline justify-between gap-4 border-t px-4 py-3 pl-8 text-xs text-muted-foreground',
-		isEmpty && 'print:hidden'
-	)}
+	class="mx-auto flex max-w-6xl items-baseline justify-between gap-4 border-t px-4 py-3 pl-8 text-xs text-muted-foreground"
 >
 	<div class="flex min-w-0 flex-wrap items-baseline gap-x-1">
 		<InlineText
@@ -35,7 +28,7 @@
 			onCommit={(note) => updateFooter(ws, { note })}
 			testId="footer-note"
 		/>
-		<span aria-hidden="true" class:print:hidden={!(hasNote && hasVersion)}>·</span>
+		<span aria-hidden="true">·</span>
 		<InlineText
 			value={footer.version}
 			label={m.footer_version()}
@@ -44,7 +37,7 @@
 			onCommit={(version) => updateFooter(ws, { version })}
 			testId="footer-version"
 		/>
-		<span aria-hidden="true" class:print:hidden={!(footer.date && (hasNote || hasVersion))}>·</span>
+		<span aria-hidden="true">·</span>
 		<DateField
 			date={footer.date}
 			locale={ws.plan.locale}
@@ -57,7 +50,7 @@
 					{...props}
 					variant="ghost"
 					size="sm"
-					class="h-6 px-1.5 text-xs print:hidden"
+					class="h-6 px-1.5 text-xs"
 					data-testid="footer-date"
 					>{#if dateText}{dateText}{:else}<span class="text-muted-foreground/70"
 							>{m.footer_date_placeholder()}</span
@@ -65,7 +58,6 @@
 				>
 			{/snippet}
 		</DateField>
-		{#if dateText}<span class="hidden print:inline">{dateText}</span>{/if}
 	</div>
 	<div class="flex min-w-0 items-baseline gap-2">
 		<InlineText
@@ -76,7 +68,7 @@
 			onCommit={(right) => updateFooter(ws, { right })}
 			testId="footer-right"
 		/>
-		<!-- The paginator (spec section 7) supplies the page number "n / N". Until then, the slot is empty. -->
+		<!-- The page number "n / N" shows on the sheets only (spec section 7). The workspace slot stays empty. -->
 		<span data-page-number></span>
 	</div>
 </footer>

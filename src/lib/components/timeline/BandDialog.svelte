@@ -55,7 +55,6 @@
 	}}
 >
 	<Dialog.Content
-		class="print:hidden"
 		showCloseButton={false}
 		data-testid="band-dialog"
 		onEscapeKeydown={(event) => {
@@ -131,7 +130,7 @@
 	</Dialog.Content>
 </Dialog.Root>
 <AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content class="print:hidden">
+	<AlertDialog.Content>
 		<AlertDialog.Header
 			><AlertDialog.Title>{m.band_delete_title()}</AlertDialog.Title><AlertDialog.Description
 				>{m.timeline_delete_body({

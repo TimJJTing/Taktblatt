@@ -45,7 +45,7 @@
 </script>
 
 <div
-	class="grid grid-cols-1 gap-4 pl-5 sm:grid-cols-2 print:grid-cols-2"
+	class="grid grid-cols-1 gap-4 pl-5 sm:grid-cols-2"
 	use:dragHandleZone={{ items, flipDurationMs: flipDuration, type: 'remark', dropTargetStyle: {} }}
 	onconsider={onConsider}
 	onfinalize={onFinalize}
@@ -56,7 +56,7 @@
 		</div>
 	{/each}
 </div>
-<div bind:this={addLine} class="group/gap py-3 print:hidden">
+<div bind:this={addLine} class="group/gap py-3">
 	<AddLine
 		label={m.remark_section_add()}
 		onAdd={() => (editing.newRemarkSectionId = addRemarkSection(ws))}

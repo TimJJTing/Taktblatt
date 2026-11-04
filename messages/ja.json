@@ -191,5 +191,15 @@
 	"footer_date": "フッターの日付",
 	"footer_date_placeholder": "日付",
 	"footer_right": "フッター右側のメモ",
-	"footer_right_placeholder": "右側のメモ"
+	"footer_right_placeholder": "右側のメモ",
+	"action_preview": "プレビュー",
+	"action_print": "印刷",
+	"preview_title": "印刷プレビュー",
+	"preview_close": "プレビューを閉じる",
+	"preview_paper": "用紙サイズ",
+	"paper_a4": "A4",
+	"paper_letter": "US レター",
+	"preview_sheet": "{total} ページ中 {n} ページ",
+	"preview_sheets": "ページ",
+	"preview_hint": "読み取り専用のプレビューです。印刷とプレビューは同じページを表示します。"
 }

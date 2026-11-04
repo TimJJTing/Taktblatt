@@ -173,7 +173,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
   - The task is not done.
 - The planned `start` date has no effect on the ready light.
 - When the ready light is off, the app renders nothing. It does not keep empty space.
-- The ready light shows before the title in the table, before the Gantt label, in the task modal and in print.
+- The ready light shows before the title in the table, before the Gantt label, in the task modal and on the sheets.
 - It has a tooltip and an `aria-label`, for example "Ready: all 3 dependencies done".
 - When it comes on, it fades in with one soft pulse.
 
@@ -254,10 +254,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 ### 5.3 Header fields
 
-- **Subheading:** single line, optional. The app stores it as typed. CSS makes it uppercase. The app hides it in print when empty.
+- **Subheading:** single line, optional. The app stores it as typed. CSS makes it uppercase. The sheets hide it when it is empty.
 - **Heading (editor):** required, max 2 lines (about 80 characters). Empty on blur → the previous value comes back.
 - **Project range:** a date range picker. It sets the Gantt window. A **Fit to tasks** button sets the range to the dates of all tasks.
-- **Objective (editor):** text, max 250 characters. The label text is "Objective:". The app hides it in print when empty.
+- **Objective (editor):** text, max 250 characters. The label text is "Objective:". The sheets hide it when it is empty.
 
 ### 5.4 Timeline (Gantt)
 
@@ -290,7 +290,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - Three cards for each row. More cards go to the next row. Cards in a row have the same height.
 - A card shows "STAGE N · months", the title, the description and the derived deliverables.
 - The title: click to edit. Editor constraints: single line, required, max 30 characters. Empty → "Stage N".
-- The description: click to edit. Free text. The app limits it to 3 lines in print.
+- The description: click to edit. Free text. The sheets limit it to 3 lines.
 
 ### 5.6 Work plan
 
@@ -335,11 +335,11 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 ### 5.9 Footer
 
-- **Left:** note · version · date. Three fields. The app hides empty parts.
+- **Left:** note · version · date. Three fields. The sheets hide empty parts.
 - **Right:** a note and the page number. The app calculates the page number.
 - The plan stores these fields one time. All pages show the same values.
 - The date picker has a **Today** button. It puts the current date in the field. **Done** saves it. The app does not set the date automatically.
-- The page number slot is empty until the paginator exists (section 7).
+- The page number shows only on the sheets (section 7). The workspace footer keeps an empty slot for it.
 
 ## 6. Language
 
@@ -353,15 +353,19 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ## 7. Preview and print
 
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.
-- The paper size is a plan setting: A4 (default) or US Letter.
+- The **Preview** button in the app header opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the button. The workspace behind it is inert.
+- The preview has a **paper size** control (A4 or US Letter) and a **Print** button. The paper size is a plan setting (`paper`). The default is A4. A change is one undo step.
 - The **paginator** measures blocks and puts them on fixed sheets. It works the same in all browsers.
   - Page 1 is the overview: header, objective, timeline, legends, stage overview.
-  - When the Gantt has too many rows, it continues on the next pages. Each page repeats the month header.
+  - When the Gantt has too many rows, it continues on the next pages. Each page repeats the month header. The milestone row shows on the first page only.
   - The work plan starts on a new page.
-  - A stage header always stays with its first rows. When a table continues on the next page, the table header repeats.
+  - A stage header always stays with its first two rows (or with its only row). When a table continues on the next page, the table header repeats.
   - Remarks come after all stages.
   - Each page has the footer with "n / N".
-- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets. If the preview is not open, the app renders the sheets on `beforeprint`. The app never prints the workspace layout.
+  - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
+- The labels on the sheets use the document language.
+- A dependency line shows on a sheet only when both of its rows are on that sheet.
+- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, the app renders the sheets on `beforeprint` and removes them on `afterprint`. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
 - Print has no animations and no controls.

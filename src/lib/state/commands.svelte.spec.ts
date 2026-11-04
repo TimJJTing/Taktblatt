@@ -248,4 +248,19 @@ describe('timeline commands', () => {
 		removeBand(ws, 'missing');
 		expect(ws.history.canUndo).toBe(false);
 	});
+
+	it('sets the paper size as one undo step and ignores the same size', () => {
+		const ws = open();
+		expect(ws.plan.paper).toBe('a4');
+		ws.history.clear();
+		updatePlan(ws, { paper: 'a4' });
+		expect(ws.history.canUndo).toBe(false);
+		updatePlan(ws, { paper: 'letter' });
+		expect(ws.plan.paper).toBe('letter');
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.paper).toBe('a4');
+		expect(ws.history.canUndo).toBe(false);
+		ws.redo();
+		expect(ws.plan.paper).toBe('letter');
+	});
 });

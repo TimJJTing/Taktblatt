@@ -26,3 +26,23 @@ const NAMES: Record<StageColor | BandTint, () => string> = {
 export function colorName(color: StageColor | BandTint): string {
 	return NAMES[color]();
 }
+
+/** The stage color on paper. Print is always light, so it uses the light value and ignores the theme. */
+export function stagePaperColor(color: StageColor): string {
+	return STAGE_COLORS[color].light;
+}
+
+/** The band tint on paper. */
+export function bandPaperTint(color: BandTint): string {
+	return BAND_TINTS[color].light;
+}
+
+/** The fill of a subtask bar for a stage color (a screen or paper color). */
+export function subtaskFill(color: string): string {
+	return `color-mix(in oklab, ${color} 55%, transparent)`;
+}
+
+/** The fill of a band for a band tint (a screen or paper color). */
+export function bandFill(tint: string): string {
+	return `color-mix(in oklab, ${tint} 60%, transparent)`;
+}

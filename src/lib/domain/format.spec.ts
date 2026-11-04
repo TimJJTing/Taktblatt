@@ -5,6 +5,7 @@ import {
 	formatMonthSpan,
 	formatRange,
 	formatRangeDisplay,
+	formatTarget,
 	parseUserDate,
 	readTypedDate
 } from './format';
@@ -82,5 +83,20 @@ describe('readTypedDate', () => {
 
 	it('rejects text that is not a date', () => {
 		expect(readTypedDate('soon', null, 'en-US', 2027)).toEqual({ kind: 'invalid' });
+	});
+});
+
+describe('formatTarget', () => {
+	it.each(['en-US', 'de', 'zh-TW', 'ja'])('follows the workspace rule in %s', (locale) => {
+		const day = formatDay('2026-11-27', locale);
+		const none = { start: null, end: null };
+		const startOnly = { start: '2026-11-27', end: null };
+		const both = { start: '2026-11-01', end: '2026-11-27' };
+		expect(formatTarget(both, false, locale)).toBe(day);
+		expect(formatTarget(both, true, locale)).toBe(day);
+		expect(formatTarget(startOnly, false, locale)).toBe(`${day} –`);
+		expect(formatTarget(startOnly, true, locale)).toBe('–');
+		expect(formatTarget(none, false, locale)).toBe('');
+		expect(formatTarget(none, true, locale)).toBe('–');
 	});
 });

@@ -23,7 +23,6 @@
 	} from '#lib/state/commands.js';
 	import { getEditing } from '#lib/state/editing.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
 	import { reconcileKeys } from './bullet-keys.js';
 
 	interface Props {
@@ -150,7 +149,7 @@
 			use:dragHandle
 			role="button"
 			tabindex="0"
-			class="-ml-5 flex size-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/remark:opacity-100 group-hover/remark:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing print:hidden [@media(hover:none)]:opacity-100"
+			class="-ml-5 flex size-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/remark:opacity-100 group-hover/remark:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing [@media(hover:none)]:opacity-100"
 			aria-label={m.remark_drag()}
 		>
 			<GripVerticalIcon class="size-4" aria-hidden="true" />
@@ -169,7 +168,7 @@
 		</h3>
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger
-				class={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'print:hidden')}
+				class={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
 				aria-label={m.remark_menu()}
 				data-testid="remark-menu"
 			>
@@ -233,7 +232,7 @@
 		{/each}
 	</ul>
 
-	<div class="mt-auto pt-2 print:hidden">
+	<div class="mt-auto pt-2">
 		<AddLine
 			label={m.remark_bullet_add({ section: name })}
 			onAdd={() => addPendingAt(section.bullets.length)}

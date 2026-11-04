@@ -1,6 +1,6 @@
 <!--
 	The editable title of a stage. The work plan and the stage overview use it.
-	An empty title shows and prints "Stage N".
+	An empty title shows "Stage N".
 -->
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
@@ -20,7 +20,6 @@
 	value={stage.title}
 	label={m.stage_title_placeholder({ n: number })}
 	placeholder={m.stage_title_placeholder({ n: number })}
-	printFallback={m.stage_title_placeholder({ n: number })}
 	maxLength={LIMITS.stageTitle}
 	onCommit={(title) => updateStage(ws, stage.id, { title })}
 	{testId}
