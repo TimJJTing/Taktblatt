@@ -85,14 +85,15 @@ describe('commands', () => {
 		expect(ws.history.canRedo).toBe(false);
 	});
 
-	it('keeps a remark section with content, and removes an emptied section on update', () => {
+	it('keeps a remark section with content, and keeps an emptied existing section on update', () => {
 		const ws = open();
 		const id = addRemarkSection(ws, { title: 'Risks' });
 		discardNewRemarkSection(ws, id);
 		expect(ws.plan.remarks).toHaveLength(1);
 		const other = addRemarkSection(ws, { bullets: ['A'] });
 		updateRemarkSection(ws, other, { bullets: [' '] });
-		expect(ws.plan.remarks.map((r) => r.id)).toEqual([id]);
+		expect(ws.plan.remarks.map((r) => r.id)).toEqual([id, other]);
+		expect(ws.plan.remarks[1].bullets).toEqual([]);
 		expect(ws.undo()).toBe(true);
 		expect(ws.plan.remarks.find((r) => r.id === other)?.bullets).toEqual(['A']);
 	});

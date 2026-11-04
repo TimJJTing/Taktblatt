@@ -1,5 +1,5 @@
 /**
- * Transient editing state of the workspace: the new row that waits for input,
+ * Transient editing state of the workspace: the new row or remark section that waits for input,
  * the open task modal and the linked highlight. It is not saved.
  */
 import { getContext, setContext } from 'svelte';
@@ -21,7 +21,7 @@ export class EditingState {
 	/** The id of a new task. Its title starts in edit mode. */
 	newTaskId = $state<string | null>(null);
 	/** The id of a new remark section. Its title starts in edit mode. */
-	newRemarkId = $state<string | null>(null);
+	newRemarkSectionId = $state<string | null>(null);
 	/** The id of the task in the task modal. */
 	detailsTaskId = $state<string | null>(null);
 	/** The element that opened the task modal. The focus goes back to it. */

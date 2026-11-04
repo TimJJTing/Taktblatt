@@ -83,14 +83,16 @@
 	data-stage-id={stage.id}
 >
 	<header class="flex items-center gap-2 pb-2">
-		<button
-			type="button"
+		<!-- Not a <button>: svelte-dnd-action ignores keyboard drag on elements with a "disabled" property. -->
+		<div
 			use:dragHandle
-			class="-ml-6 flex size-5 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 focus-visible:opacity-100 active:cursor-grabbing [@media(hover:none)]:opacity-100"
+			role="button"
+			tabindex="0"
+			class="-ml-6 flex size-5 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing print:hidden [@media(hover:none)]:opacity-100"
 			aria-label={m.stage_drag()}
 		>
 			<GripVerticalIcon class="size-4" aria-hidden="true" />
-		</button>
+		</div>
 		<StageColorPicker
 			value={stage.color}
 			used={otherColors}
@@ -131,13 +133,13 @@
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="end">
 				<DropdownMenu.Item disabled={position === 0} onSelect={() => moveStage(ws, stage.id, -1)}>
-					{m.stage_move_up()}
+					{m.action_move_up()}
 				</DropdownMenu.Item>
 				<DropdownMenu.Item
 					disabled={position === ws.plan.stages.length - 1}
 					onSelect={() => moveStage(ws, stage.id, 1)}
 				>
-					{m.stage_move_down()}
+					{m.action_move_down()}
 				</DropdownMenu.Item>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item variant="destructive" onSelect={() => (confirmDelete = true)}>

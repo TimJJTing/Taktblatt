@@ -10,16 +10,21 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { updateFooter } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { cn } from '#lib/utils.js';
 
 	const ws = getWorkspace();
 	const footer = $derived(ws.plan.footer);
 	const dateText = $derived(footer.date ? formatDate(footer.date, intlLocale(ws.plan.locale)) : '');
 	const hasNote = $derived(!!footer.note);
 	const hasVersion = $derived(!!footer.version);
+	const isEmpty = $derived(!hasNote && !hasVersion && !footer.date && !footer.right);
 </script>
 
 <footer
-	class="mx-auto flex max-w-6xl items-baseline justify-between gap-4 border-t px-4 py-3 pl-8 text-xs text-muted-foreground"
+	class={cn(
+		'mx-auto flex max-w-6xl items-baseline justify-between gap-4 border-t px-4 py-3 pl-8 text-xs text-muted-foreground',
+		isEmpty && 'print:hidden'
+	)}
 >
 	<div class="flex min-w-0 flex-wrap items-baseline gap-x-1">
 		<InlineText
@@ -34,7 +39,7 @@
 		<InlineText
 			value={footer.version}
 			label={m.footer_version()}
-			placeholder={m.footer_version_placeholder()}
+			placeholder={m.footer_version()}
 			class="w-auto"
 			onCommit={(version) => updateFooter(ws, { version })}
 			testId="footer-version"
@@ -71,9 +76,7 @@
 			onCommit={(right) => updateFooter(ws, { right })}
 			testId="footer-right"
 		/>
-		<!--
-			The page number "n / N" comes from the paginator (slice 7). The slot stays empty until then.
-		-->
+		<!-- The paginator (spec section 7) supplies the page number "n / N". Until then, the slot is empty. -->
 		<span data-page-number></span>
 	</div>
 </footer>

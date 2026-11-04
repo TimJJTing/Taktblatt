@@ -4,6 +4,7 @@
 	A "+" line after the last section adds a section. Its title starts in edit mode.
 -->
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
@@ -27,6 +28,15 @@
 		dragItems = event.detail.items;
 	}
 
+	let addLine = $state<HTMLElement | null>(null);
+
+	/** A new section went away: put the focus on the "Add remark section" line. */
+	async function focusAddLine() {
+		await tick();
+		if (document.activeElement && document.activeElement !== document.body) return;
+		addLine?.querySelector('button')?.focus();
+	}
+
 	function onFinalize(event: CustomEvent<DndEvent<Section>>) {
 		const ids = event.detail.items.map((s) => s.id);
 		dragItems = null;
@@ -42,14 +52,14 @@
 >
 	{#each items as section (section.id)}
 		<div animate:flip={{ duration: flipDuration }}>
-			<RemarkSection {section} />
+			<RemarkSection {section} onDiscarded={focusAddLine} />
 		</div>
 	{/each}
 </div>
-<div class="group/gap py-3 print:hidden">
+<div bind:this={addLine} class="group/gap py-3 print:hidden">
 	<AddLine
 		label={m.remark_section_add()}
-		onAdd={() => (editing.newRemarkId = addRemarkSection(ws))}
+		onAdd={() => (editing.newRemarkSectionId = addRemarkSection(ws))}
 		class="opacity-40 group-focus-within/gap:opacity-100 group-hover/gap:opacity-100 [@media(hover:none)]:opacity-100"
 		testId="add-remark-section"
 	/>

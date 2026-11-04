@@ -1,6 +1,8 @@
 <!--
-	Click-to-edit text. Click, Enter or F2 starts the edit.
+	Click-to-edit text. Click, Enter or F2 starts the edit. The edit selects all text.
+	`startEdit({ caret: 'end' })` puts the caret at the end instead.
 	Blur and Enter commit (Enter in a multi-line field adds a line; Cmd/Ctrl+Enter commits). Esc cancels.
+	Backspace in an empty field ends the edit and calls onBackspaceEmpty.
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
@@ -25,12 +27,14 @@
 		inputClass?: string;
 		/** Called with the new value when it is different. */
 		onCommit: (value: string) => void;
-		/** Called after an Enter commit, for spreadsheet navigation. */
-		onEnter?: () => void;
+		/** Called after an Enter commit, for spreadsheet navigation. `value` is the draft text. */
+		onEnter?: (value: string) => void;
 		/** Called when the edit ends: after a commit, a cancel or a blur. `value` is the final text. */
 		onDone?: (value: string) => void;
 		/** Called after a Backspace in an empty field. The edit ends without a commit. */
 		onBackspaceEmpty?: () => void;
+		/** Called after Esc cancels the edit. */
+		onEscape?: () => void;
 		testId?: string;
 	}
 
@@ -50,6 +54,7 @@
 		onEnter,
 		onDone,
 		onBackspaceEmpty,
+		onEscape,
 		testId
 	}: Props = $props();
 
@@ -59,14 +64,22 @@
 	let display = $state<HTMLButtonElement | null>(null);
 	let cancelled = false;
 
-	export async function startEdit() {
+	export async function startEdit(options: { caret?: 'select' | 'end' } = {}) {
 		if (disabled) return;
 		draft = value;
 		cancelled = false;
 		editing = true;
 		await tick();
 		field?.focus();
-		field?.select();
+		if (options.caret === 'end') field?.setSelectionRange(draft.length, draft.length);
+		else field?.select();
+	}
+
+	/** Puts the focus on the display button. Returns false during an edit, when there is no button. */
+	export function focusDisplay(): boolean {
+		if (!display) return false;
+		display.focus();
+		return true;
 	}
 
 	$effect(() => {
@@ -90,16 +103,19 @@
 			event.stopPropagation();
 			cancelled = true;
 			finish(true);
+			onEscape?.();
 		} else if (event.key === 'Backspace' && onBackspaceEmpty && draft === '') {
 			event.preventDefault();
+			if (event.repeat) return;
 			cancelled = true;
 			finish(false);
 			onBackspaceEmpty();
 		} else if (event.key === 'Enter') {
 			if (multiline && !(event.metaKey || event.ctrlKey)) return;
 			event.preventDefault();
+			const text = draft;
 			finish(!onEnter);
-			onEnter?.();
+			onEnter?.(text);
 		}
 	}
 
@@ -155,7 +171,7 @@
 			className
 		)}
 		style:transition-duration={`${motionDuration(150)}ms`}
-		onclick={startEdit}
+		onclick={() => startEdit()}
 		onkeydown={onDisplayKeydown}
 		data-testid={testId}
 	>

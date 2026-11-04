@@ -1,6 +1,7 @@
 <!--
 	A single date editor in a popover: a calendar and a text field.
 	An ordinary close commits the change. Escape cancels the change. The date can be empty.
+	An optional Today button puts the current date in the field.
 	It has the same structure as DateRangeField.
 -->
 <script lang="ts">
@@ -106,9 +107,7 @@
 
 	function setToday() {
 		const today = todayISO();
-		draft = today;
-		text = show(today);
-		error = '';
+		onCalendar(parseDate(today));
 		placeholder = parseDate(today);
 	}
 
