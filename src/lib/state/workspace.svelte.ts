@@ -10,7 +10,7 @@ import { createEmptyPlan } from '#lib/domain/factory.js';
 import { withNewIds } from '#lib/domain/io.js';
 import type { Locale, Plan } from '#lib/domain/schema.js';
 import { History } from './history.svelte';
-import { KEYS, PlanStorage, type LoadResult } from './storage';
+import { KEYS, PlanStorage, StorageWriteError, type LoadResult } from './storage';
 
 export interface PlanSummary {
 	id: string;
@@ -253,6 +253,8 @@ export class Workspace {
 	/**
 	 * Adds imported plans. For a plan whose id exists, `replace` replaces it and `keep-both` adds a copy.
 	 * The last imported plan becomes active.
+	 * The import is atomic. When the browser cannot save, it restores the stored text of the plans
+	 * that it wrote, keeps the plan list unchanged and throws a `StorageWriteError`.
 	 */
 	importPlans(
 		plans: readonly Plan[],
@@ -261,27 +263,57 @@ export class Workspace {
 	): void {
 		let last: Plan | null = null;
 		let list = [...this.plans];
-		for (const incoming of plans) {
-			let plan = incoming;
-			const exists = list.some((p) => p.id === incoming.id);
-			if (exists && decide(incoming) === 'keep-both') {
-				plan = withNewIds(incoming);
-				plan.heading = `${plan.heading}${copySuffix}`;
+		// The stored text before the first write of this import, for each plan id.
+		const previous: [id: string, raw: string | null][] = [];
+		const previousIndex = this.storage.rawIndex();
+		try {
+			for (const incoming of plans) {
+				let plan = incoming;
+				const exists = list.some((p) => p.id === incoming.id);
+				if (exists && decide(incoming) === 'keep-both') {
+					plan = withNewIds(incoming);
+					plan.heading = `${plan.heading}${copySuffix}`;
+				}
+				if (!previous.some(([id]) => id === plan.id))
+					previous.push([plan.id, this.storage.rawPlan(plan.id)]);
+				this.storage.savePlan(plan);
+				if (list.some((p) => p.id === plan.id))
+					list = list.map((p) => (p.id === plan.id ? summaryOf(plan) : p));
+				else list = [...list, summaryOf(plan)];
+				last = plan;
 			}
-			this.storage.savePlan(plan);
-			if (list.some((p) => p.id === plan.id))
-				list = list.map((p) => (p.id === plan.id ? summaryOf(plan) : p));
-			else list = [...list, summaryOf(plan)];
-			last = plan;
+			if (last) this.storage.saveIndex({ planIds: list.map((p) => p.id), activeId: last.id });
+		} catch (error) {
+			for (const [id, raw] of previous) {
+				try {
+					this.storage.restoreRawPlan(id, raw);
+				} catch {
+					// Keep going. Restore the other plans.
+				}
+			}
+			try {
+				this.storage.restoreRawIndex(previousIndex);
+			} catch {
+				// The index did not change when its write failed.
+			}
+			throw new StorageWriteError(error);
 		}
 		this.plans = list;
-		if (last) this.activate(last);
+		if (last) {
+			this.plan = last;
+			this.history.clear();
+		}
+	}
+
+	/** Returns a snapshot of the active plan, for export. */
+	activePlan(): Plan {
+		return $state.snapshot(this.plan) as Plan;
 	}
 
 	/** Returns all plans, for "Export all plans". */
 	allPlans(): Plan[] {
 		return this.plans.flatMap((summary) => {
-			if (summary.id === this.plan.id) return [$state.snapshot(this.plan) as Plan];
+			if (summary.id === this.plan.id) return [this.activePlan()];
 			const result = this.recoverStored(this.storage.loadPlan(summary.id));
 			return result.ok === true ? [result.value] : [];
 		});

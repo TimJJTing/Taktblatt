@@ -10,7 +10,7 @@ The text follows ASD-STE100 (Simplified Technical English). [GLOSSARY.md](../GLO
 - Taktblatt is a static web app. It has no server and no authentication.
 - The app keeps all data in the browser `localStorage`. It sends no data on the network.
 - The app does not collect analytics or telemetry.
-- The app works offline. You can install it as a PWA.
+- The app works offline. You can install it as a PWA. A service worker caches the app files and answers from the cache first. A new build waits until you close all tabs of the old build. Then it deletes the old cache. The app does not request any other file at run time.
 - You can import a **plan** from a JSON file. You can export a plan to a JSON file.
 - The printed output (print or "Save as PDF") follows the artifact design. The workspace provides controls to edit the plan.
 - The design artifact contains real example data. The app must not use these values.
@@ -183,6 +183,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - The app keeps more than one plan. One plan is active.
 - The header has a plan switcher. The switcher can create, rename, duplicate and delete plans.
+- **Rename plan** opens a small dialog. It changes the plan heading in one undo step. An empty name keeps the previous name.
 - The app asks you to confirm before it deletes a plan. After the deletion, a toast shows an **Undo** button for 10 seconds.
 - On the first start, the app creates an empty plan:
   - heading "Untitled plan" (as a placeholder), one empty stage;
@@ -228,11 +229,13 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ### 4.6 Import and export
 
 - **Export this plan** writes a `PlanFile`.
-- **Export all plans** writes a `BackupFile`.
+- **Export all plans** writes a `BackupFile`. The file name is `taktblatt-backup-<YYYY-MM-DD>.json`. The date is the export date.
 - Import accepts both kinds. The app validates the file. If the file is not valid, the app shows the errors and does not change data.
 - Import rejects duplicate ids within each plan’s stages, tasks, milestones, bands or remark sections. It also rejects dependencies between a parent and its own subtask, and cycles in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
 - Import permits date-rule conflicts and shows warnings for them.
-- Import adds each plan as a new plan. If a plan with the same `id` exists, a dialog shows **Replace** and **Keep both**. **Keep both** gives the copy a new id and adds " (copy)" to its heading.
+- Import adds each plan as a new plan. The last imported plan becomes active. A toast confirms the import. If dependencies break the date rule, a second toast shows the number of warnings. Import is not an undo step.
+- If a plan with the same `id` exists, one dialog lists all such plans. Each plan has the choices **Replace** and **Keep both**. The default is **Keep both**. **Cancel** imports nothing. **Keep both** gives the copy a new id and adds the copy suffix to its heading. The suffix follows the UI language (English: " (copy)").
+- If the file is not valid, a dialog lists the errors (the first eight, and the number of other errors).
 
 ## 5. Screen: the workspace
 

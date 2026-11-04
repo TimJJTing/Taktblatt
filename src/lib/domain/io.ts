@@ -48,21 +48,41 @@ export function toBackupFile(plans: Plan[]): BackupFile {
 	return { schemaVersion: SCHEMA_VERSION, kind: 'backup', plans };
 }
 
-/** Makes a file-name part from a heading: lowercase letters, digits and hyphens. */
+/**
+ * Makes a file-name part from a heading: lowercase letters, digits and hyphens.
+ * It removes Latin accents only. Other marks stay (for example Japanese dakuten and Indic vowel signs).
+ */
 export function slugify(text: string): string {
-	return text
+	const slug = text
 		.normalize('NFKD')
-		.replace(/[̀-ͯ]/g, '')
+		.replace(/[\u0300-\u036f]/g, '')
+		.normalize('NFC')
 		.toLowerCase()
-		.replace(/[^\p{Letter}\p{Number}]+/gu, '-')
-		.replace(/^-+|-+$/g, '')
-		.slice(0, 60);
+		.replace(/[^\p{Letter}\p{Number}\p{Mark}]+/gu, '-')
+		.replace(/^-+/, '');
+	// Cut by code points, so that a surrogate pair stays whole.
+	return [...slug].slice(0, 60).join('').replace(/-+$/, '');
 }
 
 /** Returns the export file name: taktblatt-<heading-slug>-<YYYY-MM-DD>.json. */
 export function exportFileName(heading: string, date: ISODate): string {
 	const slug = slugify(heading) || 'untitled-plan';
 	return `taktblatt-${slug}-${date}.json`;
+}
+
+/** Returns the file name of a backup: taktblatt-backup-<YYYY-MM-DD>.json. */
+export function backupFileName(date: ISODate): string {
+	return `taktblatt-backup-${date}.json`;
+}
+
+/** Writes a file as text. Two spaces of indentation keep the file readable. */
+export function serializeFile(file: PlanFile | BackupFile): string {
+	return `${JSON.stringify(file, null, 2)}\n`;
+}
+
+/** Splits a list of import errors into the first `max` errors and the number of other errors. */
+export function limitErrors(errors: readonly string[], max = 8): { shown: string[]; more: number } {
+	return { shown: errors.slice(0, max), more: Math.max(0, errors.length - max) };
 }
 
 /** Returns a copy of a plan with new ids for the plan and all its entities. References are updated. */

@@ -24,6 +24,14 @@ const IndexSchema = v.object({ planIds: v.array(v.string()), activeId: v.nullabl
 
 export type LoadResult<T> = { ok: true; value: T } | { ok: false; raw: string } | { ok: 'missing' };
 
+/** The browser could not save the data. An import throws it after it undid its own writes. */
+export class StorageWriteError extends Error {
+	constructor(cause: unknown) {
+		super('The browser could not save the data.', { cause });
+		this.name = 'StorageWriteError';
+	}
+}
+
 export class PlanStorage {
 	constructor(private readonly storage: Storage) {}
 
@@ -52,6 +60,26 @@ export class PlanStorage {
 			KEYS.plan(plan.id),
 			JSON.stringify({ schemaVersion: SCHEMA_VERSION, plan })
 		);
+	}
+
+	/** Returns the stored text of a plan. Use it with `restoreRawPlan` to undo a write. */
+	rawPlan(id: string): string | null {
+		return this.storage.getItem(KEYS.plan(id));
+	}
+
+	/** Puts back stored text from `rawPlan`. The value null removes the plan. */
+	restoreRawPlan(id: string, raw: string | null): void {
+		if (raw === null) this.storage.removeItem(KEYS.plan(id));
+		else this.storage.setItem(KEYS.plan(id), raw);
+	}
+
+	rawIndex(): string | null {
+		return this.storage.getItem(KEYS.index);
+	}
+
+	restoreRawIndex(raw: string | null): void {
+		if (raw === null) this.storage.removeItem(KEYS.index);
+		else this.storage.setItem(KEYS.index, raw);
 	}
 
 	removePlan(id: string): void {

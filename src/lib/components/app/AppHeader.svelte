@@ -9,6 +9,8 @@
 	import { getPreview } from '#lib/state/preview.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { appHeader } from './app-layout.svelte.js';
+	import ExportMenu from './ExportMenu.svelte';
+	import ImportButton from './ImportButton.svelte';
 	import LanguageMenu from './LanguageMenu.svelte';
 	import PlanSwitcher from './PlanSwitcher.svelte';
 	import { SECTIONS } from './sections.js';
@@ -61,6 +63,8 @@
 			<Button variant="ghost" size="sm" onclick={() => window.print()} data-testid="print">
 				<PrinterIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_print()}</span>
 			</Button>
+			<ImportButton />
+			<ExportMenu />
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}
