@@ -182,6 +182,15 @@ export function updateRemarkSection(
 	});
 }
 
+/** Removes an empty remark section. Drops its creation step if it is the newest step. */
+export function discardNewRemarkSection(ws: Workspace, id: string): void {
+	const section = ws.plan.remarks.find((r) => r.id === id);
+	if (!section || section.title.trim() || section.bullets.some((b) => b.trim())) return;
+	const before = ws.history.peek();
+	if (before && !before.remarks.some((r) => r.id === id)) ws.rollback();
+	else removeRemarkSection(ws, id);
+}
+
 export function removeRemarkSection(ws: Workspace, id: string): void {
 	ws.commit((plan) => {
 		plan.remarks = plan.remarks.filter((r) => r.id !== id);

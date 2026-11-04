@@ -11,6 +11,8 @@
 	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
 	import StageOverview from '#lib/components/plan/StageOverview.svelte';
 	import Timeline from '#lib/components/timeline/Timeline.svelte';
+	import PlanFooter from '#lib/components/plan/PlanFooter.svelte';
+	import Remarks from '#lib/components/remarks/Remarks.svelte';
 	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
@@ -97,7 +99,10 @@
 		<h2 id="remarks-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
 			{m.section_remarks()}
 		</h2>
+		<Remarks />
 	</section>
 </main>
+
+<PlanFooter />
 
 <TaskDialog />

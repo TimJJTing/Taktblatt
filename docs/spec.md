@@ -330,7 +330,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - Two sections for each row.
 - A "+" line in a section adds an empty bullet. Enter at the end of a bullet adds the next bullet. Backspace on an empty bullet removes it.
 - The app trims spaces and removes empty bullets on blur.
-- A "+" line after the last section adds a section. Its title is in edit mode. The app removes an empty section with no bullets on blur.
+- A "+" line after the last section adds a section. Its title is in edit mode. The app removes a new section on blur when its title and bullets are empty.
 - Sections have a drag handle (it also works with the keyboard), and **Move up** and **Move down** in their menu.
 
 ### 5.9 Footer
@@ -338,7 +338,8 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - **Left:** note · version · date. Three fields. The app hides empty parts.
 - **Right:** a note and the page number. The app calculates the page number.
 - The plan stores these fields one time. All pages show the same values.
-- The date picker has a **Today** button. The app does not set the date automatically.
+- The date picker has a **Today** button. It puts the current date in the field. **Done** saves it. The app does not set the date automatically.
+- The page number slot is empty until the paginator exists (section 7).
 
 ## 6. Language
 

@@ -29,6 +29,8 @@
 		onEnter?: () => void;
 		/** Called when the edit ends: after a commit, a cancel or a blur. `value` is the final text. */
 		onDone?: (value: string) => void;
+		/** Called after a Backspace in an empty field. The edit ends without a commit. */
+		onBackspaceEmpty?: () => void;
 		testId?: string;
 	}
 
@@ -47,6 +49,7 @@
 		onCommit,
 		onEnter,
 		onDone,
+		onBackspaceEmpty,
 		testId
 	}: Props = $props();
 
@@ -87,6 +90,11 @@
 			event.stopPropagation();
 			cancelled = true;
 			finish(true);
+		} else if (event.key === 'Backspace' && onBackspaceEmpty && draft === '') {
+			event.preventDefault();
+			cancelled = true;
+			finish(false);
+			onBackspaceEmpty();
 		} else if (event.key === 'Enter') {
 			if (multiline && !(event.metaKey || event.ctrlKey)) return;
 			event.preventDefault();

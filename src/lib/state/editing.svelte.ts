@@ -20,6 +20,8 @@ function afterNextFrame(fn: () => void) {
 export class EditingState {
 	/** The id of a new task. Its title starts in edit mode. */
 	newTaskId = $state<string | null>(null);
+	/** The id of a new remark section. Its title starts in edit mode. */
+	newRemarkId = $state<string | null>(null);
 	/** The id of the task in the task modal. */
 	detailsTaskId = $state<string | null>(null);
 	/** The element that opened the task modal. The focus goes back to it. */
