@@ -1,0 +1,263 @@
+<!--
+	One stage in the work plan: header, table of tasks and subtasks, and the "+" lines.
+	Tasks sort by start date. The reorder is animated (FLIP).
+-->
+<script lang="ts">
+	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
+	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
+	import { flip } from 'svelte/animate';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { fade } from 'svelte/transition';
+	import { dragHandle } from 'svelte-dnd-action';
+	import AddLine from '#lib/components/edit/AddLine.svelte';
+	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
+	import InlineText from '#lib/components/edit/InlineText.svelte';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
+	import { buttonVariants } from '#lib/components/ui/button/index.js';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import { stageProgress, stageSpan } from '#lib/domain/derive.js';
+	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
+	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import {
+		addTask,
+		moveStage,
+		removeStage,
+		removeTasks,
+		stageDeleteImpact,
+		updateStage
+	} from '#lib/state/commands.js';
+	import { getEditing } from '#lib/state/editing.svelte.js';
+	import { getViewer } from '#lib/state/viewer.svelte.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import StageColorPicker from './StageColorPicker.svelte';
+	import TaskRow from './TaskRow.svelte';
+	import { stageColorVar } from './colors.js';
+
+	interface Props {
+		stage: Stage;
+		number: number;
+		ownerSuggestions: readonly string[];
+	}
+
+	let { stage, number, ownerSuggestions }: Props = $props();
+
+	const ws = getWorkspace();
+	const viewer = getViewer();
+	const editing = getEditing();
+
+	const tasks = $derived(ws.index.stageTasks.get(stage.id) ?? []);
+	const progress = $derived(stageProgress(ws.index, stage.id));
+	const span = $derived(stageSpan(ws.index, stage.id));
+	const months = $derived(
+		span ? formatMonthSpan(span.start, span.end, intlLocale(ws.plan.locale)) : ''
+	);
+	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
+	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
+	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));
+	const flipDuration = $derived(prefersReducedMotion.current ? 0 : 280);
+
+	let confirmDelete = $state(false);
+	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
+
+	function isEmpty(task: Task): boolean {
+		return (
+			task.title.trim() === '' &&
+			task.deliverable.trim() === '' &&
+			task.start === null &&
+			task.end === null &&
+			task.owners.length === 0 &&
+			task.note.trim() === '' &&
+			task.dependsOn.length === 0 &&
+			!ws.plan.tasks.some((t) => t.parentId === task.id)
+		);
+	}
+
+	/** Removes a new task that stayed empty. If it is the newest commit, it leaves no undo step. */
+	function discardIfEmpty(task: Task) {
+		const current = ws.plan.tasks.find((t) => t.id === task.id);
+		if (!current || !isEmpty(current)) return;
+		// The newest commit added this task: remove the commit. Else delete the task (an undo step).
+		const before = ws.history.peek();
+		if (before && !before.tasks.some((t) => t.id === task.id)) ws.rollback();
+		else removeTasks(ws, [task.id]);
+	}
+
+	function newTask(parentId: string | null) {
+		if (parentId) viewer.setExpanded(ws.plan.id, parentId, true);
+		editing.newTaskId = addTask(ws, stage.id, parentId);
+	}
+</script>
+
+<section
+	class="group/stage scroll-mt-24"
+	aria-labelledby="stage-{stage.id}-title"
+	data-testid="stage"
+	data-stage-id={stage.id}
+>
+	<header class="flex items-center gap-2 pb-2">
+		<button
+			type="button"
+			use:dragHandle
+			class="-ml-6 flex size-5 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 focus-visible:opacity-100 active:cursor-grabbing [@media(hover:none)]:opacity-100"
+			aria-label={m.stage_drag()}
+		>
+			<GripVerticalIcon class="size-4" aria-hidden="true" />
+		</button>
+		<StageColorPicker
+			value={stage.color}
+			used={otherColors}
+			onChange={(color) => updateStage(ws, stage.id, { color })}
+		/>
+		<h3
+			id="stage-{stage.id}-title"
+			class="flex min-w-0 items-baseline gap-1 text-base font-semibold"
+		>
+			<span class="shrink-0">{m.stage_label({ n: number })} ·</span>
+			<span class="min-w-0">
+				<InlineText
+					value={stage.title}
+					label={m.stage_title_placeholder({ n: number })}
+					placeholder={m.stage_title_placeholder({ n: number })}
+					maxLength={LIMITS.stageTitle}
+					onCommit={(title) => updateStage(ws, stage.id, { title })}
+					testId="stage-title"
+				/>
+			</span>
+			{#if months}
+				<span class="shrink-0 font-normal text-muted-foreground" transition:fade={{ duration: 150 }}
+					>({months})</span
+				>
+			{/if}
+		</h3>
+		<span
+			class="ml-auto text-xs whitespace-nowrap text-muted-foreground"
+			data-testid="stage-progress"
+		>
+			{#key progress.total}
+				<AnimatedNumber value={progress.done} /> / {progress.total}
+			{/key}
+			<span class="sr-only">{m.stage_progress({ done: progress.done, total: progress.total })}</span
+			>
+		</span>
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger
+				class={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+				aria-label={m.stage_menu()}
+				data-testid="stage-menu"
+			>
+				<EllipsisVerticalIcon aria-hidden="true" />
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end">
+				<DropdownMenu.Item disabled={position === 0} onSelect={() => moveStage(ws, stage.id, -1)}>
+					{m.stage_move_up()}
+				</DropdownMenu.Item>
+				<DropdownMenu.Item
+					disabled={position === ws.plan.stages.length - 1}
+					onSelect={() => moveStage(ws, stage.id, 1)}
+				>
+					{m.stage_move_down()}
+				</DropdownMenu.Item>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item variant="destructive" onSelect={() => (confirmDelete = true)}>
+					{m.stage_delete()}
+				</DropdownMenu.Item>
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	</header>
+
+	<table class="w-full table-fixed border-collapse text-sm" aria-label={stageName}>
+		<colgroup>
+			<col class="w-8" />
+			<col />
+			<col class="w-[26%]" />
+			<col class="w-24" />
+			<col class="w-36" />
+			<col class="w-9" />
+		</colgroup>
+		<thead>
+			<tr
+				class="border-b text-left text-xs text-muted-foreground"
+				style="border-top: 2px solid {stageColorVar(stage.color)}"
+			>
+				<th class="py-1.5 pl-1 font-medium"><span class="sr-only">{m.column_done()}</span></th>
+				<th class="px-1.5 py-1.5 font-medium">{m.column_task()}</th>
+				<th class="px-1.5 py-1.5 font-medium">{m.column_deliverable()}</th>
+				<th class="px-1.5 py-1.5 font-medium">{m.column_target()}</th>
+				<th class="px-1.5 py-1.5 font-medium">{m.column_owner()}</th>
+				<th class="py-1.5"><span class="sr-only">{m.column_more()}</span></th>
+			</tr>
+		</thead>
+		{#each tasks as task (task.id)}
+			{@const children = ws.index.children.get(task.id) ?? []}
+			{@const expanded = viewer.isExpanded(ws.plan.id, task.id)}
+			<tbody
+				class="group/task relative"
+				animate:flip={{ duration: flipDuration, easing: cubicOut }}
+			>
+				<TaskRow {task} {ownerSuggestions} onTitleDone={discardIfEmpty} />
+				{#if expanded}
+					{#each children as child (child.id)}
+						<TaskRow task={child} {ownerSuggestions} onTitleDone={discardIfEmpty} />
+					{/each}
+				{/if}
+				<tr aria-hidden="false" class="h-0">
+					<td colspan="6" class="relative h-0 p-0">
+						<AddLine
+							label={m.subtask_add({ task: task.title || m.task_untitled() })}
+							indent={56}
+							onAdd={() => newTask(task.id)}
+							class="absolute inset-x-0 -top-2.5 z-10 opacity-0 group-focus-within/task:opacity-100 group-hover/task:opacity-100"
+							testId="add-subtask"
+						/>
+					</td>
+				</tr>
+			</tbody>
+		{/each}
+		<tbody>
+			{#if tasks.length === 0}
+				<tr>
+					<td colspan="6" class="px-1.5 py-2 text-sm text-muted-foreground">{m.stage_empty()}</td>
+				</tr>
+			{/if}
+			<tr>
+				<td colspan="6" class="px-0 pt-3 pb-1">
+					<AddLine
+						label={m.task_add({ stage: stageName })}
+						indent={32}
+						onAdd={() => newTask(null)}
+						class="opacity-0 group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 [@media(hover:none)]:opacity-100"
+						testId="add-task"
+					/>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+</section>
+
+<AlertDialog.Root bind:open={confirmDelete}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>{m.stage_delete_title()}</AlertDialog.Title>
+			<AlertDialog.Description>
+				{stageName}. {m.stage_delete_body({
+					tasks: impact?.tasks ?? 0,
+					dependents: impact?.dependents ?? 0
+				})}
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class={buttonVariants({ variant: 'destructive' })}
+				onclick={() => {
+					confirmDelete = false;
+					removeStage(ws, stage.id);
+				}}
+			>
+				{m.action_delete()}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

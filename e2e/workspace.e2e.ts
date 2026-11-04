@@ -1,12 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { openApp } from './helpers';
 
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
-
-/** Opens the app and waits until the SPA has mounted. */
-async function openApp(page: Page) {
-	await page.goto('/');
-	await expect(page.getByTestId('plan-heading')).toBeVisible();
-}
 
 test.describe('workspace', () => {
 	test('the example loads, stays after a reload, and can be undone', async ({ page }) => {
@@ -73,7 +68,7 @@ test.describe('workspace', () => {
 			localStorage.setItem('taktblatt:plan:x', '{broken');
 		});
 		await page.goto('/');
-		await expect(page.getByRole('alert')).toContainText('could not be read');
+		await expect(page.getByRole('alert').filter({ hasText: 'could not be read' })).toBeVisible();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
 		const download = page.waitForEvent('download');
 		await page.getByRole('button', { name: 'Download backup' }).click();

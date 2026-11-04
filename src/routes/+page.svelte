@@ -7,6 +7,8 @@
 	import { LOCALES, type Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
+	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
+	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
 
@@ -17,6 +19,7 @@
 
 	const ws = setWorkspace(new Workspace(localStorage, uiLocale));
 	setViewer(new ViewerState(localStorage));
+	setEditing(new EditingState());
 
 	const title = $derived(ws.plan.heading.trim() || m.untitled_plan());
 
@@ -55,7 +58,7 @@
 <AppHeader />
 <DamagedNotice />
 
-<main class="mx-auto max-w-6xl px-4 py-8">
+<main class="mx-auto max-w-6xl px-4 py-8 pl-8">
 	{#if ws.isPristine}
 		<div class="flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm">
 			<span class="text-muted-foreground">{m.example_prompt()}</span>
@@ -65,5 +68,11 @@
 		</div>
 	{/if}
 	<h1 class="mt-6 text-2xl font-semibold" data-testid="plan-heading">{title}</h1>
-	<p class="text-sm text-muted-foreground" data-testid="task-count">{ws.plan.tasks.length}</p>
+
+	<section id="work-plan" class="mt-10 scroll-mt-16" aria-labelledby="work-plan-title">
+		<h2 id="work-plan-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
+			{m.section_work_plan()}
+		</h2>
+		<WorkPlan />
+	</section>
 </main>

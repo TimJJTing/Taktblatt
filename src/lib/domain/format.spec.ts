@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest';
+import { formatDay, formatMonthSpan, formatRange, parseUserDate } from './format';
+
+describe('format', () => {
+	it('formats short days in the document language', () => {
+		expect(formatDay('2027-11-27', 'en-US')).toBe('Nov 27');
+		expect(formatDay('2027-11-27', 'de')).toBe('27. Nov.');
+	});
+
+	it('formats a month span', () => {
+		expect(formatMonthSpan('2027-11-02', '2027-11-30', 'en-US')).toBe('Nov');
+		expect(formatMonthSpan('2027-11-02', '2027-12-30', 'en-US')).toBe('Nov – Dec');
+	});
+
+	it('formats a range across years', () => {
+		expect(formatRange('2026-11-01', '2027-01-31', 'en-US')).toMatch(
+			/Nov 1, 2026\s–\sJan 31, 2027/
+		);
+	});
+});
+
+describe('parseUserDate', () => {
+	it('accepts ISO dates', () => {
+		expect(parseUserDate('2027-01-05', 'en-US', 2030)).toBe('2027-01-05');
+	});
+
+	it('uses the order of the locale', () => {
+		expect(parseUserDate('1/5/2027', 'en-US', 2030)).toBe('2027-01-05');
+		expect(parseUserDate('5.1.2027', 'de', 2030)).toBe('2027-01-05');
+		expect(parseUserDate('2027/1/5', 'ja', 2030)).toBe('2027-01-05');
+	});
+
+	it('uses the reference year when the year is missing', () => {
+		expect(parseUserDate('5.1.', 'de', 2030)).toBe('2030-01-05');
+		expect(parseUserDate('1/5', 'zh-TW', 2030)).toBe('2030-01-05');
+	});
+
+	it('rejects dates that do not exist', () => {
+		expect(parseUserDate('2/30/2027', 'en-US', 2030)).toBeNull();
+		expect(parseUserDate('hello', 'en-US', 2030)).toBeNull();
+	});
+});

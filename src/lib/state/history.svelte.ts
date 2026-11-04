@@ -32,6 +32,19 @@ export class History<T> {
 		return next;
 	}
 
+	/** Returns the newest step without a change. */
+	peek(): T | null {
+		return this.past.length > 0 ? this.past[this.past.length - 1] : null;
+	}
+
+	/** Removes the newest step and returns it, without a redo entry. */
+	drop(): T | null {
+		if (this.past.length === 0) return null;
+		const previous = this.past[this.past.length - 1];
+		this.past = this.past.slice(0, -1);
+		return previous;
+	}
+
 	clear(): void {
 		this.past = [];
 		this.future = [];
