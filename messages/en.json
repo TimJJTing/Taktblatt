@@ -1,0 +1,10 @@
+{
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"app_name": "Taktblatt",
+	"app_tagline": "A simple project planner",
+	"ui_language": "Language",
+	"ui_language_en": "English",
+	"ui_language_de": "Deutsch",
+	"ui_language_zh_tw": "繁體中文",
+	"ui_language_ja": "日本語"
+}

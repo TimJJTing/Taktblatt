@@ -109,22 +109,22 @@ interface RemarkSection {
 
 A **derived** value is calculated from other data. The user cannot edit a derived value directly. Each derived value has one calculation. All views use the same calculation.
 
-| Value | Rule |
-| --- | --- |
-| Parent `start` | The earliest `start` of its subtasks. Empty values are skipped. All empty → empty. |
-| Parent `end` | The latest `end` of its subtasks. Empty values are skipped. All empty → empty. |
-| Parent `owners` | The union of the owners of its subtasks. |
-| Parent `done` | All subtasks done → done. Some subtasks done → indeterminate. No subtasks done → not done. |
-| Parent fallback | The parent keeps its own `start`, `end`, `owners` and `done` in storage. These values are hidden while the parent has subtasks. They come back when the last subtask is deleted or moved. |
-| Task order | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Items without `start` go last. |
-| Sort time | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The reorder is animated (FLIP). |
-| Milestone labels | M1 … Mn, numbered by date order. |
-| Stage number | "Stage N". N is the position of the stage in the stage order. |
-| Stage months | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". No dates: hidden. |
-| Stage deliverables | The list of task deliverables of the stage, in task order. Empty values are skipped. |
-| Stage progress | "x / y done". y is the number of tasks in the stage (not subtasks). x is the number of done tasks. |
-| Page numbers | "n / N". Calculated by the paginator (section 7). |
-| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date. |
+| Value                   | Rule                                                                                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parent `start`          | The earliest `start` of its subtasks. Empty values are skipped. All empty → empty.                                                                                                        |
+| Parent `end`            | The latest `end` of its subtasks. Empty values are skipped. All empty → empty.                                                                                                            |
+| Parent `owners`         | The union of the owners of its subtasks.                                                                                                                                                  |
+| Parent `done`           | All subtasks done → done. Some subtasks done → indeterminate. No subtasks done → not done.                                                                                                |
+| Parent fallback         | The parent keeps its own `start`, `end`, `owners` and `done` in storage. These values are hidden while the parent has subtasks. They come back when the last subtask is deleted or moved. |
+| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Items without `start` go last.                                                  |
+| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The reorder is animated (FLIP).                                                                |
+| Milestone labels        | M1 … Mn, numbered by date order.                                                                                                                                                          |
+| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                             |
+| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". No dates: hidden.                                         |
+| Stage deliverables      | The list of task deliverables of the stage, in task order. Empty values are skipped.                                                                                                      |
+| Stage progress          | "x / y done". y is the number of tasks in the stage (not subtasks). x is the number of done tasks.                                                                                        |
+| Page numbers            | "n / N". Calculated by the paginator (section 7).                                                                                                                                         |
+| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                          |
 
 ## 3. Dependencies
 
@@ -190,12 +190,12 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 ### 4.2 localStorage keys
 
-| Key | Content |
-| --- | --- |
-| `taktblatt:index` | The list of plan ids and the active plan id. |
-| `taktblatt:plan:<id>` | One plan, with `schemaVersion`. |
-| `taktblatt:ui` | The **viewer state** (section 4.4). |
-| `taktblatt:damaged:<timestamp>` | The raw text of damaged data. |
+| Key                             | Content                                      |
+| ------------------------------- | -------------------------------------------- |
+| `taktblatt:index`               | The list of plan ids and the active plan id. |
+| `taktblatt:plan:<id>`           | One plan, with `schemaVersion`.              |
+| `taktblatt:ui`                  | The **viewer state** (section 4.4).          |
+| `taktblatt:damaged:<timestamp>` | The raw text of damaged data.                |
 
 ### 4.3 Saving
 
