@@ -1,3 +1,7 @@
+<!--
+	The export menu: it writes the active plan or all plans to a JSON file.
+	The file contains plan data only. It never contains viewer state.
+-->
 <script lang="ts">
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { mergeProps } from 'bits-ui';
@@ -13,15 +17,13 @@
 		toBackupFile,
 		toPlanFile
 	} from '#lib/domain/io.js';
-	import type { Plan } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 
 	const ws = getWorkspace();
 
-	// The export contains plan data only. It never contains viewer state.
 	function exportPlan() {
-		const plan = $state.snapshot(ws.plan) as Plan;
+		const plan = ws.activePlan();
 		downloadText(exportFileName(plan.heading, todayISO()), serializeFile(toPlanFile(plan)));
 	}
 

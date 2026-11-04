@@ -48,15 +48,20 @@ export function toBackupFile(plans: Plan[]): BackupFile {
 	return { schemaVersion: SCHEMA_VERSION, kind: 'backup', plans };
 }
 
-/** Makes a file-name part from a heading: lowercase letters, digits and hyphens. */
+/**
+ * Makes a file-name part from a heading: lowercase letters, digits and hyphens.
+ * It removes Latin accents only. Other marks stay (for example Japanese dakuten and Indic vowel signs).
+ */
 export function slugify(text: string): string {
-	return text
+	const slug = text
 		.normalize('NFKD')
-		.replace(/[̀-ͯ]/g, '')
+		.replace(/[\u0300-\u036f]/g, '')
+		.normalize('NFC')
 		.toLowerCase()
-		.replace(/[^\p{Letter}\p{Number}]+/gu, '-')
-		.replace(/^-+|-+$/g, '')
-		.slice(0, 60);
+		.replace(/[^\p{Letter}\p{Number}\p{Mark}]+/gu, '-')
+		.replace(/^-+/, '');
+	// Cut by code points, so that a surrogate pair stays whole.
+	return [...slug].slice(0, 60).join('').replace(/-+$/, '');
 }
 
 /** Returns the export file name: taktblatt-<heading-slug>-<YYYY-MM-DD>.json. */

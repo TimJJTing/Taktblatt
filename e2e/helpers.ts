@@ -21,6 +21,10 @@ export async function storedPlan(page: Page) {
 	});
 }
 
+/** The ids of all stored plans, in list order. */
+export const planIds = (page: Page) =>
+	page.evaluate(() => JSON.parse(localStorage.getItem('taktblatt:index')!).planIds as string[]);
+
 type StoredPlan = Awaited<ReturnType<typeof storedPlan>>;
 
 /** Changes the stored plan in localStorage, then reloads the app. */

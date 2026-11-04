@@ -116,6 +116,7 @@ The app rejects a file when one of these conditions is true:
 - A task points at a stage, a parent or a dependency that does not exist.
 - A subtask has a subtask, or its stage is different from the stage of its parent.
 - Two stages, two tasks, two milestones, two bands or two remark sections have the same id.
+- A backup file has no plan, or two plans in it have the same id.
 - A task depends on itself.
 - A parent depends on one of its own subtasks, or a subtask depends on its own parent.
 - The effective dependency graph has a cycle.

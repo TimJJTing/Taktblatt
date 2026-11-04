@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createEmptyPlan, createTask } from '#lib/domain/factory.js';
 import { loadExample } from './commands';
 import { MemoryStorage } from './memory-storage';
-import { KEYS } from './storage';
+import { KEYS, StorageWriteError } from './storage';
 import { ViewerState } from './viewer.svelte';
 import { Workspace } from './workspace.svelte';
 
@@ -214,4 +214,51 @@ it('keeps an invalid index received from another tab', () => {
 	ws.handleStorageEvent({ key: KEYS.index, newValue: 'invalid' });
 	expect(ws.damaged).toHaveLength(1);
 	expect(storage.getItem(ws.damaged[0].key)).toBe('invalid');
+});
+
+/** A storage that throws once, on write number `failOn`, like a full localStorage. */
+class QuotaStorage extends MemoryStorage {
+	failOn = Infinity;
+
+	setItem(key: string, value: string): void {
+		this.failOn -= 1;
+		if (this.failOn === 0) throw new DOMException('full', 'QuotaExceededError');
+		super.setItem(key, value);
+	}
+}
+
+describe('Workspace import when the storage is full', () => {
+	it('restores the stored plans and keeps the list unchanged', () => {
+		const storage = new QuotaStorage();
+		const ws = new Workspace(storage, () => 'en');
+		const existing = ws.activePlan();
+		const before = Object.fromEntries(
+			[KEYS.index, KEYS.plan(existing.id)].map((key) => [key, storage.getItem(key)])
+		);
+		const replaced = { ...structuredClone(existing), heading: 'Replaced' };
+		const fresh1 = createEmptyPlan('en', '2027-04-01');
+		const fresh2 = createEmptyPlan('en', '2027-04-01');
+		// The first two plan writes work. The third write fails.
+		storage.failOn = 3;
+		expect(() => ws.importPlans([replaced, fresh1, fresh2], () => 'replace', ' (copy)')).toThrow(
+			StorageWriteError
+		);
+		expect(storage.getItem(KEYS.plan(existing.id))).toBe(before[KEYS.plan(existing.id)]);
+		expect(storage.getItem(KEYS.plan(fresh1.id))).toBeNull();
+		expect(storage.getItem(KEYS.plan(fresh2.id))).toBeNull();
+		expect(storage.getItem(KEYS.index)).toBe(before[KEYS.index]);
+		expect(ws.plans.map((p) => p.id)).toEqual([existing.id]);
+		expect(ws.plan.heading).toBe(existing.heading);
+	});
+
+	it('restores the plans when only the index write fails', () => {
+		const storage = new QuotaStorage();
+		const ws = new Workspace(storage, () => 'en');
+		const fresh = createEmptyPlan('en', '2027-04-01');
+		// The plan write works. The index write fails.
+		storage.failOn = 2;
+		expect(() => ws.importPlans([fresh], () => 'keep-both', ' (copy)')).toThrow(StorageWriteError);
+		expect(storage.getItem(KEYS.plan(fresh.id))).toBeNull();
+		expect(ws.plans).toHaveLength(1);
+	});
 });

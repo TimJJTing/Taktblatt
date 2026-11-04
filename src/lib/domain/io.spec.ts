@@ -68,6 +68,44 @@ describe('parseFile', () => {
 		expect(result).toEqual({ ok: false, errors: [`plan: ${label} ids must be unique.`] });
 	});
 
+	it('rejects a backup file with a repeated plan id', () => {
+		const plan = createEmptyPlan('en', '2027-04-01');
+		const result = parseFile(JSON.stringify(toBackupFile([plan, { ...plan, heading: 'Other' }])));
+		expect(result).toEqual({
+			ok: false,
+			errors: ['plans: Plan ids must be unique in a backup file.']
+		});
+	});
+
+	it('rejects a backup file without plans', () => {
+		expect(parseFile(JSON.stringify({ schemaVersion: 1, kind: 'backup', plans: [] }))).toEqual({
+			ok: false,
+			errors: ['plans: A backup file must contain at least one plan.']
+		});
+	});
+
+	it('finds a cycle and accepts a diamond (no false positive)', () => {
+		const diamond = makePlan([
+			makeTask({ id: 'a' }),
+			makeTask({ id: 'b', dependsOn: ['a'] }),
+			makeTask({ id: 'c', dependsOn: ['a'] }),
+			makeTask({ id: 'd', dependsOn: ['b', 'c'] })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(diamond))).ok).toBe(true);
+	});
+
+	it('checks a chain of 10000 tasks in linear time', () => {
+		const tasks = Array.from({ length: 10_000 }, (_, i) =>
+			makeTask({ id: `t${i}`, dependsOn: i > 0 ? [`t${i - 1}`] : [] })
+		);
+		const text = JSON.stringify(toPlanFile(makePlan(tasks)));
+		const start = performance.now();
+		expect(parseFile(text).ok).toBe(true);
+		expect(performance.now() - start).toBeLessThan(1000);
+		tasks[0].dependsOn = ['t9999'];
+		expect(parseFile(JSON.stringify(toPlanFile(makePlan(tasks)))).ok).toBe(false);
+	});
+
 	it('rejects a dependency on the task itself', () => {
 		const plan = makePlan([makeTask({ id: 'a', dependsOn: ['a'] })]);
 		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
@@ -144,6 +182,20 @@ describe('file names', () => {
 	it('makes a slug from the heading', () => {
 		expect(slugify('  Café Relaunch — Phase 2! ')).toBe('cafe-relaunch-phase-2');
 		expect(slugify('專案 計畫')).toBe('專案-計畫');
+	});
+
+	it('keeps Japanese and Indic marks, removes Latin accents', () => {
+		expect(slugify('データベース計画')).toBe('データベース計画');
+		expect(slugify('Café Plan')).toBe('cafe-plan');
+		expect(slugify('योजना')).toBe('योजना');
+	});
+
+	it('cuts a long heading without a trailing hyphen or a split surrogate pair', () => {
+		expect(slugify(`${'a'.repeat(59)} b`)).toBe('a'.repeat(59));
+		const emoji = slugify(`${'a'.repeat(59)}\u{20BB7}b`);
+		expect([...emoji]).toHaveLength(60);
+		expect(emoji.endsWith('\u{20BB7}')).toBe(true);
+		expect(slugify(`${'word '.repeat(14)}x`)).not.toMatch(/-$/);
 	});
 
 	it('uses the export file name pattern', () => {

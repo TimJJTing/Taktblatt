@@ -10,7 +10,7 @@ The text follows ASD-STE100 (Simplified Technical English). [GLOSSARY.md](../GLO
 - Taktblatt is a static web app. It has no server and no authentication.
 - The app keeps all data in the browser `localStorage`. It sends no data on the network.
 - The app does not collect analytics or telemetry.
-- The app works offline. You can install it as a PWA. A service worker caches the app files and answers from the cache first. A new build deletes the old cache. The app does not request any other file at run time.
+- The app works offline. You can install it as a PWA. A service worker caches the app files and answers from the cache first. A new build waits until you close all tabs of the old build. Then it deletes the old cache. The app does not request any other file at run time.
 - You can import a **plan** from a JSON file. You can export a plan to a JSON file.
 - The printed output (print or "Save as PDF") follows the artifact design. The workspace provides controls to edit the plan.
 - The design artifact contains real example data. The app must not use these values.
@@ -183,7 +183,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - The app keeps more than one plan. One plan is active.
 - The header has a plan switcher. The switcher can create, rename, duplicate and delete plans.
-- **Rename plan** opens a small dialog. It changes the plan heading in one undo step. An empty name keeps the previous name. **Duplicate plan** adds the copy suffix to the heading (English: " (copy)").
+- **Rename plan** opens a small dialog. It changes the plan heading in one undo step. An empty name keeps the previous name.
 - The app asks you to confirm before it deletes a plan. After the deletion, a toast shows an **Undo** button for 10 seconds.
 - On the first start, the app creates an empty plan:
   - heading "Untitled plan" (as a placeholder), one empty stage;

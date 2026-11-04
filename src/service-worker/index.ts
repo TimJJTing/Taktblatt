@@ -2,6 +2,11 @@
  * The service worker caches the app shell and all files of the build.
  * It answers with the cache first. It never requests anything outside the app (ADR 7).
  * The cache name contains the build version. A new build deletes the old caches.
+ *
+ * Update rule: a new worker does not call `skipWaiting`. It waits until all tabs of the
+ * old build are closed. Then it activates and deletes the old cache. So an open tab never
+ * loses the files of its own build. The first worker takes control with `clients.claim`.
+ * The install step bypasses the HTTP cache (`cache: 'reload'`). So it never stores a stale file.
  */
 import { version } from '$app/env';
 import { assets, immutable, prerendered } from '$app/manifest';
@@ -19,8 +24,7 @@ sw.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches
 			.open(CACHE)
-			.then((cache) => cache.addAll(ASSETS))
-			.then(() => sw.skipWaiting())
+			.then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
 	);
 });
 

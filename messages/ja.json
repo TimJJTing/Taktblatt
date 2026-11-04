@@ -211,13 +211,15 @@
 	"export_all": "すべての計画をエクスポート",
 	"import_error_title": "このファイルはインポートできません",
 	"import_error_body": "データは変更されていません。次のエラーを修正して、もう一度お試しください。",
-	"import_error_more": "ほか {count} 件のエラー",
+	"import_error_more": "その他のエラー: {count} 件",
 	"import_conflict_title": "一部の計画はすでに存在します",
-	"import_conflict_body": "これらの計画は、このブラウザーにある計画と ID が同じです。計画ごとに処理を選んでください。",
+	"import_conflict_body": "これらの計画は、このブラウザにある計画と ID が同じです。計画ごとに処理を選んでください。",
 	"import_conflict_existing": "既存の計画：「{name}」",
 	"import_replace": "置き換える",
 	"import_keep_both": "両方を残す",
 	"import_done_one": "計画をインポートしました",
 	"import_done_many": "{count} 件の計画をインポートしました",
-	"import_date_warnings": "{count} 件の依存関係が日付のルールに違反しています。タスクを開くと警告が表示されます。"
+	"import_date_warnings": "日付のルールに違反している依存関係: {count} 件。タスクを開くと警告が表示されます。",
+	"import_error_storage": "ブラウザの保存領域がいっぱいです。データは変更されていません。不要な計画を削除してから、もう一度お試しください。",
+	"import_error_read": "このファイルを読み込めません。データは変更されていません。"
 }

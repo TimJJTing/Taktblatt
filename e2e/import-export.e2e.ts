@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, storedPlan } from './helpers';
+import { openApp, openExample, planIds, row, storedPlan } from './helpers';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -22,9 +22,6 @@ async function importJson(page: Page, content: unknown | string, name = 'plan.js
 		buffer: Buffer.from(typeof content === 'string' ? content : JSON.stringify(content))
 	});
 }
-
-const planIds = (page: Page) =>
-	page.evaluate(() => JSON.parse(localStorage.getItem('taktblatt:index')!).planIds as string[]);
 
 async function exportedExample(page: Page) {
 	await openExample(page);
@@ -77,7 +74,7 @@ test.describe('import', () => {
 		await importJson(page, file);
 		await expect(page.getByTestId('import-conflicts')).toBeVisible();
 		await page.getByRole('radio', { name: 'Replace' }).check();
-		await page.getByTestId('import-confirm').click();
+		await page.getByTestId('import-ok').click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Replaced heading');
 		expect(await planIds(page)).toEqual([id]);
 	});
@@ -89,7 +86,7 @@ test.describe('import', () => {
 		await expect(page.getByTestId('import-conflicts')).toBeVisible();
 		// Keep both is the default choice.
 		await expect(page.getByRole('radio', { name: 'Keep both' })).toBeChecked();
-		await page.getByTestId('import-confirm').click();
+		await page.getByTestId('import-ok').click();
 		await expect(page.getByTestId('plan-heading')).toHaveText(`${file.plan.heading} (copy)`);
 		const ids = await planIds(page);
 		expect(ids).toHaveLength(2);
@@ -113,7 +110,7 @@ test.describe('import', () => {
 		const dialog = page.getByTestId('import-conflicts');
 		await expect(dialog.getByRole('group')).toHaveCount(1);
 		await page.getByRole('radio', { name: 'Replace' }).check();
-		await page.getByTestId('import-confirm').click();
+		await page.getByTestId('import-ok').click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Other plan');
 		await expect(page.getByText('2 plans imported')).toBeVisible();
 		expect(await planIds(page)).toHaveLength(2);
@@ -139,6 +136,25 @@ test.describe('import', () => {
 		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
 	});
 
+	test('a backup with a repeated plan id is rejected', async ({ page }) => {
+		await openApp(page);
+		const plan = (await exportedExample(page)).plan;
+		const before = await planIds(page);
+		await importJson(
+			page,
+			{ schemaVersion: 1, kind: 'backup', plans: [plan, plan] },
+			'backup.json'
+		);
+		await expect(page.getByTestId('import-errors')).toContainText('Plan ids must be unique');
+		expect(await planIds(page)).toEqual(before);
+	});
+
+	test('an empty backup is rejected', async ({ page }) => {
+		await openApp(page);
+		await importJson(page, { schemaVersion: 1, kind: 'backup', plans: [] }, 'backup.json');
+		await expect(page.getByTestId('import-errors')).toContainText('at least one plan');
+	});
+
 	test('a date-rule conflict imports and shows a warning', async ({ page }) => {
 		const file = await exportedExample(page);
 		file.plan.id = 'conflict';
@@ -148,46 +164,9 @@ test.describe('import', () => {
 		survey.end = '2099-01-02';
 		await importJson(page, file);
 		await expect(page.getByText('Plan imported', { exact: true })).toBeVisible();
-		await expect(page.getByText(/dependencies break the date rule/)).toBeVisible();
-		await page
-			.getByTestId('task-row')
-			.filter({ hasText: 'Order seeds' })
-			.getByTestId('task-details')
-			.click();
+		await expect(page.getByText(/Dependencies that break the date rule: 1/)).toBeVisible();
+		await row(page, 'Order seeds').getByTestId('task-details').click();
 		await expect(page.getByLabel(/starts after this task ends/)).toBeVisible();
-	});
-});
-
-test.describe('plan switcher', () => {
-	test('rename changes the heading in one undo step', async ({ page }) => {
-		await openExample(page);
-		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
-		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
-		await page.getByTestId('plan-rename-input').fill('Spring plan');
-		await page.getByTestId('plan-rename-input').press('Enter');
-		await expect(page.getByTestId('plan-heading')).toHaveText('Spring plan');
-		await expect(page.getByTestId('plan-switcher')).toContainText('Spring plan');
-		await page.getByRole('button', { name: 'Undo', exact: true }).click();
-		await expect(page.getByTestId('plan-heading')).toHaveText(original);
-	});
-
-	test('an empty name keeps the previous name', async ({ page }) => {
-		await openExample(page);
-		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
-		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
-		await page.getByTestId('plan-rename-input').fill('   ');
-		await page.getByRole('button', { name: 'Rename', exact: true }).click();
-		await expect(page.getByTestId('plan-heading')).toHaveText(original);
-	});
-
-	test('duplicate adds a copy suffix', async ({ page }) => {
-		await openExample(page);
-		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
-		await page.getByRole('menuitem', { name: 'Duplicate plan' }).click();
-		await expect(page.getByTestId('plan-heading')).toHaveText(`${original} (copy)`);
 	});
 });
 

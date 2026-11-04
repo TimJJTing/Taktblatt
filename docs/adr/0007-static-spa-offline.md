@@ -17,3 +17,4 @@ The app has no server and no authentication. All data is local.
 
 - Any static host can serve the app.
 - The app works offline after the first visit.
+- A new build waits. The new service worker takes control only after all tabs of the old build are closed. An open tab keeps the files of its own build. The install step fetches each file with `cache: 'reload'`, so the cache never holds a stale file from the HTTP cache.

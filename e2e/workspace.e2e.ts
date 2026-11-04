@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp, openExample } from './helpers';
+import { openApp, openExample, row, storedPlan } from './helpers';
 
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -44,6 +44,8 @@ test.describe('workspace', () => {
 		await page.getByTestId('plan-switcher').click();
 		await page.getByRole('menuitemradio', { name: /Community Garden/ }).click();
 		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		await row(page, 'Soil preparation').getByTestId('task-toggle').click();
+		await expect(row(page, 'Soil test')).toBeVisible();
 
 		await page.getByTestId('plan-switcher').click();
 		await page.getByRole('menuitem', { name: 'Delete plan…' }).click();
@@ -51,6 +53,51 @@ test.describe('workspace', () => {
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
 		await page.getByRole('button', { name: 'Undo' }).filter({ hasText: 'Undo' }).click();
 		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		// Undo also restores the expanded rows.
+		await expect(row(page, 'Soil test')).toBeVisible();
+	});
+
+	test('rename changes the heading in one undo step', async ({ page }) => {
+		await openExample(page);
+		const original = (await storedPlan(page)).heading;
+		await page.getByTestId('plan-switcher').click();
+		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
+		await page.getByTestId('plan-rename-input').fill('Spring plan');
+		await page.getByTestId('plan-rename-input').press('Enter');
+		await expect(page.getByTestId('plan-rename-dialog')).toBeHidden();
+		await expect(page.getByTestId('plan-heading')).toHaveText('Spring plan');
+		await expect(page.getByTestId('plan-switcher')).toContainText('Spring plan');
+		await page.getByRole('button', { name: 'Undo', exact: true }).click();
+		await expect(page.getByTestId('plan-heading')).toHaveText(original);
+	});
+
+	test('an empty name keeps the previous name', async ({ page }) => {
+		await openExample(page);
+		const original = (await storedPlan(page)).heading;
+		await page.getByTestId('plan-switcher').click();
+		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
+		await page.getByTestId('plan-rename-input').fill('   ');
+		await page.getByTestId('plan-rename-ok').click();
+		await expect(page.getByTestId('plan-heading')).toHaveText(original);
+	});
+
+	test('duplicate adds a copy suffix', async ({ page }) => {
+		await openExample(page);
+		const original = (await storedPlan(page)).heading;
+		await page.getByTestId('plan-switcher').click();
+		await page.getByRole('menuitem', { name: 'Duplicate plan' }).click();
+		await expect(page.getByTestId('plan-heading')).toHaveText(`${original} (copy)`);
+	});
+
+	test('Escape closes the rename dialog without a change', async ({ page }) => {
+		await openExample(page);
+		const original = (await storedPlan(page)).heading;
+		await page.getByTestId('plan-switcher').click();
+		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
+		await page.getByTestId('plan-rename-input').fill('Other');
+		await page.keyboard.press('Escape');
+		await expect(page.getByTestId('plan-rename-dialog')).toBeHidden();
+		await expect(page.getByTestId('plan-heading')).toHaveText(original);
 	});
 
 	test('a change in one tab shows in the other tab', async ({ context }) => {

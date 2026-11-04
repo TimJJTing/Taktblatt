@@ -211,7 +211,7 @@
 	"export_all": "Export all plans",
 	"import_error_title": "This file cannot be imported",
 	"import_error_body": "The app did not change any data. Fix these errors and try again.",
-	"import_error_more": "and {count} more errors",
+	"import_error_more": "Other errors: {count}",
 	"import_conflict_title": "Some plans already exist",
 	"import_conflict_body": "These plans have the same ID as a plan in this browser. Choose what to do with each one.",
 	"import_conflict_existing": "Existing plan: “{name}”",
@@ -219,5 +219,7 @@
 	"import_keep_both": "Keep both",
 	"import_done_one": "Plan imported",
 	"import_done_many": "{count} plans imported",
-	"import_date_warnings": "{count} dependencies break the date rule. Open a task to see the warning."
+	"import_date_warnings": "Dependencies that break the date rule: {count}. Open a task to see the warning.",
+	"import_error_storage": "The browser storage is full. The app did not change any data. Delete plans that you do not need and try again.",
+	"import_error_read": "The app cannot read this file. The app did not change any data."
 }

@@ -5,13 +5,12 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { toast } from 'svelte-sonner';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import { buttonVariants } from '#lib/components/ui/button/index.js';
-	import { Button } from '#lib/components/ui/button/index.js';
+	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
-	import { isComposing } from '#lib/browser/keyboard.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updatePlan } from '#lib/state/commands.js';
 	import { getViewer } from '#lib/state/viewer.svelte.js';
@@ -48,11 +47,19 @@
 		confirmOpen = false;
 		const deleted = ws.deletePlan(ws.plan.id);
 		if (!deleted) return;
+		// Undo puts back the expanded rows too.
+		const expanded = viewer.expandedIds(deleted.plan.id);
 		viewer.forgetPlan(deleted.plan.id);
 		toast(m.plan_deleted(), {
 			description: nameOf(deleted.plan.heading),
 			duration: 10_000,
-			action: { label: m.action_undo(), onClick: () => ws.restorePlan(deleted) }
+			action: {
+				label: m.action_undo(),
+				onClick: () => {
+					ws.restorePlan(deleted);
+					viewer.restorePlan(deleted.plan.id, expanded);
+				}
+			}
 		});
 	}
 </script>
@@ -113,7 +120,14 @@
 </AlertDialog.Root>
 
 <Dialog.Root bind:open={renameOpen}>
-	<Dialog.Content class="sm:max-w-sm">
+	<Dialog.Content
+		class="sm:max-w-sm"
+		data-testid="plan-rename-dialog"
+		onEscapeKeydown={(event) => {
+			event.preventDefault();
+			if (!isComposing(event)) renameOpen = false;
+		}}
+	>
 		<form
 			class="flex flex-col gap-4"
 			onsubmit={(event) => {
@@ -123,6 +137,7 @@
 		>
 			<Dialog.Header>
 				<Dialog.Title>{m.plan_rename_title()}</Dialog.Title>
+				<Dialog.Description class="sr-only">{m.plan_rename_label()}</Dialog.Description>
 			</Dialog.Header>
 			<Input
 				bind:value={renameValue}
@@ -135,10 +150,10 @@
 				}}
 			/>
 			<Dialog.Footer>
-				<Dialog.Close type="button" class={buttonVariants({ variant: 'outline' })}>
+				<Button type="button" variant="outline" onclick={() => (renameOpen = false)}>
 					{m.action_cancel()}
-				</Dialog.Close>
-				<Button type="submit">{m.action_rename()}</Button>
+				</Button>
+				<Button type="submit" data-testid="plan-rename-ok">{m.action_rename()}</Button>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>

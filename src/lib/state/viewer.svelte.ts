@@ -80,6 +80,18 @@ export class ViewerState {
 		this.save();
 	}
 
+	/** Returns the ids of the expanded tasks of a plan. */
+	expandedIds(planId: string): string[] {
+		return [...(this.expanded[planId] ?? [])];
+	}
+
+	/** Puts back the expanded tasks of a plan. Use it after `forgetPlan`, for example on Undo. */
+	restorePlan(planId: string, ids: readonly string[]): void {
+		if (ids.length === 0) return;
+		this.expanded = { ...this.expanded, [planId]: [...ids] };
+		this.save();
+	}
+
 	/** Removes the viewer state of a plan that does not exist any more. */
 	forgetPlan(planId: string): void {
 		if (!(planId in this.expanded)) return;
