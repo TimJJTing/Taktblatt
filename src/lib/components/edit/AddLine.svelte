@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import { motionDuration } from '#lib/motion.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -20,10 +21,8 @@
 </script>
 
 <div
-	class={cn(
-		'add-line relative h-5 transition-opacity duration-200 [@media(hover:none)]:opacity-100',
-		className
-	)}
+	class={cn('add-line relative h-5 transition-opacity [@media(hover:none)]:opacity-100', className)}
+	style:transition-duration="{motionDuration(200)}ms"
 >
 	<div
 		class="absolute top-1/2 right-0 h-px bg-border"

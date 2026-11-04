@@ -235,7 +235,7 @@
 		role="group"
 		aria-label={m.gantt_label()}
 		class={cn(
-			'rounded-md border bg-background',
+			'rounded-md border bg-background [--gantt-label:128px] sm:[--gantt-label:192px]',
 			viewer.ganttPinned && 'flex h-(--gantt-height) flex-col',
 			stuck &&
 				'fixed top-(--gantt-top) left-(--gantt-left) z-30 w-(--gantt-width) rounded-t-none shadow-md'
@@ -255,11 +255,11 @@
 			)}
 			data-testid="gantt-scroller"
 		>
-			<div class="relative" style:min-width="{LABEL_WIDTH + TIMELINE_MIN_WIDTH}px">
+			<div class="relative" style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)">
 				<div class="sticky top-0 z-20 flex border-b bg-background" style:height="{HEADER_HEIGHT}px">
 					<div
 						class="sticky left-0 z-10 flex shrink-0 items-center border-r bg-background px-1"
-						style:width="{LABEL_WIDTH}px"
+						style:width={LABEL_WIDTH}
 					>
 						<Toggle
 							size="sm"
@@ -292,7 +292,7 @@
 				>
 					<div
 						class="sticky left-0 z-10 flex shrink-0 items-center border-r bg-background px-2 text-xs text-muted-foreground"
-						style:width="{LABEL_WIDTH}px"
+						style:width={LABEL_WIDTH}
 					>
 						{m.legend_milestones()}
 					</div>
@@ -333,7 +333,7 @@
 
 				<div
 					class="absolute right-0 bottom-0 z-0"
-					style:left="{LABEL_WIDTH}px"
+					style:left={LABEL_WIDTH}
 					style:top="{HEADER_HEIGHT}px"
 					bind:clientWidth={timelineWidth}
 				>

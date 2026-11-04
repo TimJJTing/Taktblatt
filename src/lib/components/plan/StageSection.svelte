@@ -149,92 +149,96 @@
 		</DropdownMenu.Root>
 	</header>
 
-	<table class="w-full table-fixed border-collapse text-sm" aria-label={stageName}>
-		<colgroup>
-			<col class="w-8" />
-			<col />
-			<col class="w-[26%]" />
-			<col class="w-24" />
-			<col class="w-36" />
-			<col class="w-9" />
-		</colgroup>
-		<thead>
-			<tr
-				class="border-b text-left text-xs text-muted-foreground"
-				style="border-top: 2px solid {stageColorVar(stage.color)}"
-			>
-				<th class="py-1.5 pl-1 font-medium"><span class="sr-only">{m.column_done()}</span></th>
-				<th class="px-1.5 py-1.5 font-medium">{m.column_task()}</th>
-				<th class="px-1.5 py-1.5 font-medium">{m.column_deliverable()}</th>
-				<th class="px-1.5 py-1.5 font-medium">{m.column_target()}</th>
-				<th class="px-1.5 py-1.5 font-medium">{m.column_owner()}</th>
-				<th class="py-1.5"><span class="sr-only">{m.column_more()}</span></th>
-			</tr>
-		</thead>
-		{#each tasks as task (task.id)}
-			{@const children = ws.index.children.get(task.id) ?? []}
-			{@const expanded = viewer.isExpanded(ws.plan.id, task.id)}
-			<tbody
-				class="group/task relative"
-				animate:flip={{ duration: flipDuration, easing: cubicOut }}
-			>
-				{#each [task, ...(expanded ? children : [])] as rowTask (rowTask.id)}
-					{@const eff = effectiveValues(rowTask, ws.index.children.get(rowTask.id) ?? [])}
-					<tr
-						data-grid-row
-						data-task-id={rowTask.id}
-						class={cn(
-							'border-b transition-colors duration-300',
-							rowTask.parentId !== null ? 'border-border/50' : 'border-border',
-							eff.done === 'done' && 'text-muted-foreground',
-							editing.highlightId === rowTask.id && 'bg-accent/60',
-							editing.flashId === rowTask.id && 'row-flash'
-						)}
-						style:animation-duration={editing.flashId === rowTask.id
-							? `${motionDuration(FLASH_MS)}ms`
-							: undefined}
-						onpointerenter={() => (editing.highlightId = rowTask.id)}
-						onpointerleave={() =>
-							editing.highlightId === rowTask.id && (editing.highlightId = null)}
-						onfocusin={() => (editing.highlightId = rowTask.id)}
-						animate:flip={{ duration: flipDuration, easing: cubicOut }}
-						data-testid="task-row"
-					>
-						<TaskRow task={rowTask} {ownerSuggestions} onTitleDone={discardIfEmpty} />
+	<!-- On a phone the table scrolls sideways. From 768 px all columns fit. -->
+	<div class="relative overflow-x-auto">
+		<table class="w-full min-w-[640px] table-fixed border-collapse text-sm" aria-label={stageName}>
+			<colgroup>
+				<col class="w-8" />
+				<col />
+				<col class="w-[26%]" />
+				<col class="w-24" />
+				<col class="w-36" />
+				<col class="w-9" />
+			</colgroup>
+			<thead>
+				<tr
+					class="border-b text-left text-xs text-muted-foreground"
+					style="border-top: 2px solid {stageColorVar(stage.color)}"
+				>
+					<th class="py-1.5 pl-1 font-medium"><span class="sr-only">{m.column_done()}</span></th>
+					<th class="px-1.5 py-1.5 font-medium">{m.column_task()}</th>
+					<th class="px-1.5 py-1.5 font-medium">{m.column_deliverable()}</th>
+					<th class="px-1.5 py-1.5 font-medium">{m.column_target()}</th>
+					<th class="px-1.5 py-1.5 font-medium">{m.column_owner()}</th>
+					<th class="py-1.5"><span class="sr-only">{m.column_more()}</span></th>
+				</tr>
+			</thead>
+			{#each tasks as task (task.id)}
+				{@const children = ws.index.children.get(task.id) ?? []}
+				{@const expanded = viewer.isExpanded(ws.plan.id, task.id)}
+				<tbody
+					class="group/task relative"
+					animate:flip={{ duration: flipDuration, easing: cubicOut }}
+				>
+					{#each [task, ...(expanded ? children : [])] as rowTask (rowTask.id)}
+						{@const eff = effectiveValues(rowTask, ws.index.children.get(rowTask.id) ?? [])}
+						<tr
+							data-grid-row
+							data-task-id={rowTask.id}
+							class={cn(
+								'border-b transition-colors',
+								rowTask.parentId !== null ? 'border-border/50' : 'border-border',
+								eff.done === 'done' && 'text-muted-foreground',
+								editing.highlightId === rowTask.id && 'bg-accent/60',
+								editing.flashId === rowTask.id && 'row-flash'
+							)}
+							style:transition-duration="{motionDuration(300)}ms"
+							style:animation-duration={editing.flashId === rowTask.id
+								? `${motionDuration(FLASH_MS)}ms`
+								: undefined}
+							onpointerenter={() => (editing.highlightId = rowTask.id)}
+							onpointerleave={() =>
+								editing.highlightId === rowTask.id && (editing.highlightId = null)}
+							onfocusin={() => (editing.highlightId = rowTask.id)}
+							animate:flip={{ duration: flipDuration, easing: cubicOut }}
+							data-testid="task-row"
+						>
+							<TaskRow task={rowTask} {ownerSuggestions} onTitleDone={discardIfEmpty} />
+						</tr>
+					{/each}
+					<tr aria-hidden="false" class="h-0">
+						<td colspan="6" class="relative h-0 p-0">
+							<AddLine
+								label={m.subtask_add({ task: task.title || m.task_untitled() })}
+								indent={56}
+								onAdd={() => newTask(task.id)}
+								class="absolute inset-x-0 -top-2.5 z-10 opacity-0 group-focus-within/task:opacity-100 group-hover/task:opacity-100"
+								testId="add-subtask"
+							/>
+						</td>
 					</tr>
-				{/each}
-				<tr aria-hidden="false" class="h-0">
-					<td colspan="6" class="relative h-0 p-0">
+				</tbody>
+			{/each}
+			<tbody>
+				{#if tasks.length === 0}
+					<tr>
+						<td colspan="6" class="px-1.5 py-2 text-sm text-muted-foreground">{m.stage_empty()}</td>
+					</tr>
+				{/if}
+				<tr>
+					<td colspan="6" class="px-0 pt-3 pb-1">
 						<AddLine
-							label={m.subtask_add({ task: task.title || m.task_untitled() })}
-							indent={56}
-							onAdd={() => newTask(task.id)}
-							class="absolute inset-x-0 -top-2.5 z-10 opacity-0 group-focus-within/task:opacity-100 group-hover/task:opacity-100"
-							testId="add-subtask"
+							label={m.task_add({ stage: stageName })}
+							indent={32}
+							onAdd={() => newTask(null)}
+							class="opacity-0 group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 [@media(hover:none)]:opacity-100"
+							testId="add-task"
 						/>
 					</td>
 				</tr>
 			</tbody>
-		{/each}
-		<tbody>
-			{#if tasks.length === 0}
-				<tr>
-					<td colspan="6" class="px-1.5 py-2 text-sm text-muted-foreground">{m.stage_empty()}</td>
-				</tr>
-			{/if}
-			<tr>
-				<td colspan="6" class="px-0 pt-3 pb-1">
-					<AddLine
-						label={m.task_add({ stage: stageName })}
-						indent={32}
-						onAdd={() => newTask(null)}
-						class="opacity-0 group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 [@media(hover:none)]:opacity-100"
-						testId="add-task"
-					/>
-				</td>
-			</tr>
-		</tbody>
-	</table>
+		</table>
+	</div>
 </section>
 
 <AlertDialog.Root bind:open={confirmDelete}>

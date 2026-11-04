@@ -117,7 +117,7 @@ test.describe('work plan', () => {
 
 		await stage(page, 0).getByTestId('stage-menu').click();
 		await page.getByRole('menuitem', { name: 'Delete stage…' }).click();
-		await expect(page.getByRole('alertdialog')).toContainText('5 tasks');
+		await expect(page.getByRole('alertdialog')).toContainText('Tasks deleted with the stage: 5');
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 		await expect(page.getByTestId('stage')).toHaveCount(3);
 	});

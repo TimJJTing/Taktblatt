@@ -94,7 +94,7 @@
 			highlighted ? 'bg-accent' : 'bg-background',
 			subtask && 'pl-6'
 		)}
-		style:width="{LABEL_WIDTH}px"
+		style:width={LABEL_WIDTH}
 		style:transition-duration={colorDuration}
 		{...hover}
 	>
@@ -126,7 +126,7 @@
 				!subtask && 'font-medium',
 				done && 'text-muted-foreground line-through decoration-muted-foreground/50'
 			)}
-			title={m.gantt_show_row()}
+			title="{titleText}: {m.gantt_show_row()}"
 			onclick={() => onJump(row.id)}
 			data-testid="gantt-label">{titleText}</button
 		>

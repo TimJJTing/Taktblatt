@@ -4,7 +4,7 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 
 | Term                       | Meaning                                                                                                                                 | Do not use               |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Plan**                   | One project plan. It contains stages, tasks, milestones, bands, remarks and the header and footer fields.                               | project, document, board |
+| **Plan**                   | One plan for a project. It contains stages, tasks, milestones, bands, remarks and the header and footer fields.                         | project, document, board |
 | **Stage**                  | A group of tasks in a plan. A stage has a title, a description and a color.                                                             | phase, section           |
 | **Task**                   | A work entry with no parent (level 1).                                                                                                  | activity, item           |
 | **Subtask**                | A task with a parent (level 2). A subtask cannot have subtasks.                                                                         | child item, sub-item     |

@@ -47,20 +47,27 @@
 	class="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/75"
 >
 	<div class="flex h-12 w-full items-center gap-2">
-		<span class="px-1 font-semibold tracking-tight">{m.app_name()}</span>
-		<span class="text-muted-foreground" aria-hidden="true">/</span>
+		<span class="shrink-0 px-1 font-semibold tracking-tight max-sm:hidden">{m.app_name()}</span>
+		<span class="shrink-0 text-muted-foreground max-sm:hidden" aria-hidden="true">/</span>
 		<PlanSwitcher />
 
-		<div class="ml-auto flex items-center gap-1">
+		<div class="ml-auto flex shrink-0 items-center gap-1">
 			<Button
 				variant="ghost"
 				size="sm"
+				class="max-sm:px-2"
 				onclick={(event) => preview.show(event.currentTarget)}
 				data-testid="preview-open"
 			>
 				<EyeIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_preview()}</span>
 			</Button>
-			<Button variant="ghost" size="sm" onclick={() => window.print()} data-testid="print">
+			<Button
+				variant="ghost"
+				size="sm"
+				class="max-sm:px-2"
+				onclick={() => window.print()}
+				data-testid="print"
+			>
 				<PrinterIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_print()}</span>
 			</Button>
 			<ImportButton />

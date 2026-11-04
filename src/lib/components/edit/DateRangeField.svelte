@@ -20,7 +20,7 @@
 		/** The document language. It controls the date format. */
 		locale: string;
 		label: string;
-		/** Set to false for a range that must have both dates (for example the project range). */
+		/** Set to false for a range that must have both dates (for example the plan range). */
 		allowEmpty?: boolean;
 		onCommit: (range: { start: ISODate | null; end: ISODate | null }) => void;
 		trigger: Snippet<[{ props: Record<string, unknown> }]>;

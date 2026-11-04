@@ -69,7 +69,7 @@
 		class={buttonVariants({
 			variant: 'ghost',
 			size: 'sm',
-			class: 'max-w-64 justify-between gap-2'
+			class: 'max-w-64 min-w-0 shrink justify-between gap-2'
 		})}
 		aria-label={m.plan_switcher_label()}
 		data-testid="plan-switcher"

@@ -4,8 +4,11 @@
  */
 import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.js';
 
-/** The width of the label column. */
-export const LABEL_WIDTH = 192;
+/**
+ * The width of the label column. It is a CSS variable, so a phone can use a narrower column:
+ * 128 px below the sm breakpoint and 192 px from it (see the classes on the Gantt root).
+ */
+export const LABEL_WIDTH = 'var(--gantt-label)';
 /** The minimum width of the timeline area. On a phone, the Gantt scrolls horizontally. */
 export const TIMELINE_MIN_WIDTH = 640;
 export const HEADER_HEIGHT = 28;
