@@ -14,9 +14,16 @@ export const ROW_HEIGHT = 28;
 /** The duration of the row and line motion, before motionDuration. */
 export const ROW_MOTION_MS = 240;
 
-/** The vertical center of a task row, from the top of the milestone row. */
-export function rowCenterY(row: number): number {
-	return MILESTONE_ROW_HEIGHT + row * ROW_HEIGHT + ROW_HEIGHT / 2;
+/**
+ * The vertical center of a task row. `top` is the height above the first row (the milestone row)
+ * and `rowHeight` is the height of a row. The defaults are the screen values.
+ */
+export function rowCenterY(
+	row: number,
+	top: number = MILESTONE_ROW_HEIGHT,
+	rowHeight: number = ROW_HEIGHT
+): number {
+	return top + row * rowHeight + rowHeight / 2;
 }
 
 /** An elbow path from the end of the predecessor to the start of the dependent. */

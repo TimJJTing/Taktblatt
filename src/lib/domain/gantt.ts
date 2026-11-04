@@ -6,8 +6,9 @@
  * Refer to docs/spec.md, section 5.4.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date';
-import { effectiveValues, type DoneState, type TaskIndex } from './derive';
+import { effectiveValues, orderedMilestones, type DoneState, type TaskIndex } from './derive';
 import { effectiveDependencies } from './dependencies';
+import type { Band, Milestone } from './schema';
 
 /** The visible range of the timeline. Both dates are inclusive. */
 export interface GanttWindow {
@@ -260,4 +261,26 @@ export function spanX(
 export function milestoneX(win: GanttWindow, date: ISODate): number | null {
 	if (date < win.start || date > win.end) return null;
 	return centerX(win, date);
+}
+
+/** The bands that show in the window, with their clipped span. A band outside the window is left out. */
+export function visibleBands(
+	win: GanttWindow,
+	bands: readonly Band[]
+): { band: Band; x0: number; x1: number }[] {
+	return bands.flatMap((band) => {
+		const span = spanX(win, band);
+		return span ? [{ band, ...span }] : [];
+	});
+}
+
+/** The milestones that show in the window, in date order, with their labels and x. */
+export function visibleMilestones(
+	win: GanttWindow,
+	milestones: readonly Milestone[]
+): { label: string; milestone: Milestone; x: number }[] {
+	return orderedMilestones(milestones).flatMap((item) => {
+		const x = milestoneX(win, item.milestone.date);
+		return x === null ? [] : [{ ...item, x }];
+	});
 }

@@ -11,7 +11,6 @@ import {
 	addRemarkSection,
 	updateRemarkSection,
 	updatePlan,
-	setPaper,
 	updateFooter,
 	discardNewTask,
 	reorderStages,
@@ -254,9 +253,9 @@ describe('timeline commands', () => {
 		const ws = open();
 		expect(ws.plan.paper).toBe('a4');
 		ws.history.clear();
-		setPaper(ws, 'a4');
+		updatePlan(ws, { paper: 'a4' });
 		expect(ws.history.canUndo).toBe(false);
-		setPaper(ws, 'letter');
+		updatePlan(ws, { paper: 'letter' });
 		expect(ws.plan.paper).toBe('letter');
 		expect(ws.undo()).toBe(true);
 		expect(ws.plan.paper).toBe('a4');

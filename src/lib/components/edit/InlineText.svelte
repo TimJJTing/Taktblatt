@@ -15,8 +15,6 @@
 		/** The accessible name of the field. */
 		label: string;
 		placeholder?: string;
-		/** The printed text when the value is empty. The placeholder does not print. */
-		printFallback?: string;
 		multiline?: boolean;
 		preserveWhitespace?: boolean;
 		maxLength?: number;
@@ -42,7 +40,6 @@
 		value,
 		label,
 		placeholder = '',
-		printFallback = '',
 		multiline = false,
 		preserveWhitespace = false,
 		maxLength,
@@ -137,7 +134,7 @@
 			maxlength={maxLength}
 			rows="2"
 			class={cn(
-				'field-sizing-content w-full resize-none rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60 print:hidden',
+				'field-sizing-content w-full resize-none rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60',
 				inputClass
 			)}
 			onkeydown={onKeydown}
@@ -151,7 +148,7 @@
 			{placeholder}
 			maxlength={maxLength}
 			class={cn(
-				'w-full min-w-0 rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60 print:hidden',
+				'w-full min-w-0 rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60',
 				inputClass
 			)}
 			onkeydown={onKeydown}
@@ -166,7 +163,7 @@
 		{disabled}
 		aria-label={value ? `${label}: ${value}` : label}
 		class={cn(
-			'block w-full min-w-0 cursor-text rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent print:hidden',
+			'block w-full min-w-0 cursor-text rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent',
 			multiline ? 'whitespace-pre-wrap' : 'truncate',
 			className
 		)}
@@ -177,12 +174,4 @@
 	>
 		{#if value}{value}{:else}<span class="text-muted-foreground/70">{placeholder}</span>{/if}
 	</button>
-{/if}
-
-{#if value || printFallback}
-	<span class="hidden print:contents">
-		<span class={cn('block', multiline && 'whitespace-pre-wrap', className)}
-			>{value || printFallback}</span
-		>
-	</span>
 {/if}

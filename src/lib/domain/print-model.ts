@@ -8,7 +8,6 @@ import type { ISODate } from './date';
 import { readyCount } from './dependencies';
 import {
 	effectiveValues,
-	orderedMilestones,
 	stageDeliverables,
 	stageProgress,
 	stageSpan,
@@ -18,10 +17,10 @@ import {
 import {
 	dependencyLines,
 	ganttRows,
-	milestoneX,
 	monthTicks,
-	spanX,
 	todayX,
+	visibleBands,
+	visibleMilestones,
 	type DependencyLine,
 	type GanttRow,
 	type MonthTick
@@ -78,6 +77,8 @@ export interface TableRow {
 	task: Task;
 	/** 0 for a task, 1 for a subtask. */
 	level: 0 | 1;
+	/** True when the task has subtasks. Its values are derived. */
+	isParent: boolean;
 	eff: EffectiveValues;
 	ready: number;
 }
@@ -161,14 +162,8 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 			rows,
 			lines: dependencyLines(index, rows),
 			ticks: monthTicks(win),
-			bands: plan.bands.flatMap((band) => {
-				const span = spanX(win, band);
-				return span ? [{ band, ...span }] : [];
-			}),
-			milestones: orderedMilestones(plan.milestones).flatMap((item) => {
-				const x = milestoneX(win, item.milestone.date);
-				return x === null ? [] : [{ ...item, x }];
-			}),
+			bands: visibleBands(win, plan.bands),
+			milestones: visibleMilestones(win, plan.milestones),
 			today: todayX(win, today),
 			keep: 3,
 			gap: GAP.section,
@@ -227,6 +222,7 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 			tableRows.push({
 				task,
 				level: 0,
+				isParent: children.length > 0,
 				eff: effectiveValues(task, children),
 				ready: readyCount(index, task.id)
 			});
@@ -235,6 +231,7 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 				tableRows.push({
 					task: child,
 					level: 1,
+					isParent: false,
 					eff: effectiveValues(child, index.children.get(child.id)),
 					ready: readyCount(index, child.id)
 				});

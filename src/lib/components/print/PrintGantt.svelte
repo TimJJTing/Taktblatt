@@ -5,28 +5,30 @@
 	A dependency line shows only when both of its rows are in the same fragment.
 -->
 <script lang="ts">
-	import CircleIcon from '@lucide/svelte/icons/circle';
-	import DiamondIcon from '@lucide/svelte/icons/diamond';
-	import FlagIcon from '@lucide/svelte/icons/flag';
-	import StarIcon from '@lucide/svelte/icons/star';
-	import type { Component } from 'svelte';
-	import { bandStyle, stageHex } from './paper-colors.js';
+	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
+	import {
+		bandFill,
+		bandPaperTint,
+		stagePaperColor,
+		subtaskFill
+	} from '#lib/components/plan/colors.js';
+	import { clipEdges, elbowPath, rowCenterY } from '#lib/components/timeline/gantt-layout.js';
+	import { markLabel } from '#lib/components/timeline/mark-label.js';
+	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.js';
+	import { readyCount } from '#lib/domain/dependencies.js';
+	import { effectiveOf } from '#lib/domain/derive.js';
+	import { formatDate, formatMonth, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import type { GanttSegment } from '#lib/domain/print-model.js';
+	import type { Locale } from '#lib/domain/schema.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { cn } from '#lib/utils.js';
 	import {
 		GANTT_LABEL_WIDTH,
 		GANTT_MILESTONE_HEIGHT,
 		GANTT_MONTH_HEIGHT,
 		GANTT_ROW_HEIGHT
 	} from './print-layout.js';
-	import { clipEdges, elbowPath } from '#lib/components/timeline/gantt-layout.js';
-	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { readyCount } from '#lib/domain/dependencies.js';
-	import { effectiveOf } from '#lib/domain/derive.js';
-	import { formatDate, formatMonth, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
-	import type { GanttSegment } from '#lib/domain/print-model.js';
-	import type { Locale, MilestoneSymbol } from '#lib/domain/schema.js';
-	import { m } from '#lib/paraglide/messages.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
 
 	interface Props {
 		segment: GanttSegment;
@@ -45,19 +47,13 @@
 	const ws = getWorkspace();
 	const intl = $derived(intlLocale(locale));
 	const rows = $derived(segment.rows.slice(from, to));
-	const SYMBOLS: Record<MilestoneSymbol, Component<{ class?: string }>> = {
-		diamond: DiamondIcon,
-		flag: FlagIcon,
-		star: StarIcon,
-		circle: CircleIcon
-	};
-	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, stageHex(s.color)])));
+	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, stagePaperColor(s.color)])));
 	const timelineWidth = $derived(Math.max(0, width - GANTT_LABEL_WIDTH));
 	const bodyTop = $derived(first ? GANTT_MILESTONE_HEIGHT : 0);
 	const lines = $derived(
 		segment.lines.filter((l) => l.row0 >= from && l.row0 < to && l.row1 >= from && l.row1 < to)
 	);
-	const centerY = (row: number) => bodyTop + (row - from) * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2;
+	const centerY = (row: number) => rowCenterY(row - from, bodyTop, GANTT_ROW_HEIGHT);
 	const marker = $derived(`arrow-${uid}`);
 </script>
 
@@ -107,7 +103,7 @@
 				</div>
 				<div class="relative flex-1">
 					{#each segment.milestones as item (item.milestone.id)}
-						{@const Symbol = SYMBOLS[item.milestone.symbol]}
+						{@const Symbol = MILESTONE_SYMBOLS[item.milestone.symbol]}
 						<span
 							role="img"
 							class="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 text-[9px] font-medium"
@@ -133,8 +129,8 @@
 			{@const done = row.done === 'done'}
 			{@const mark = row.mark}
 			{@const eff = effectiveOf(ws.index, row.id)}
-			{@const base = colors.get(row.stageId) ?? stageHex('slate')}
-			{@const fill = row.level === 1 ? `color-mix(in srgb, ${base} 55%, white)` : base}
+			{@const base = colors.get(row.stageId) ?? stagePaperColor('slate')}
+			{@const fill = row.level === 1 ? subtaskFill(base) : base}
 			<div
 				data-item={from + i}
 				data-testid="sheet-gantt-row"
@@ -159,16 +155,7 @@
 				</div>
 				<div class="relative flex-1">
 					{#if mark.kind === 'bar' || mark.kind === 'point'}
-						{@const name = m.gantt_bar(
-							{
-								task: title,
-								dates:
-									mark.kind === 'point'
-										? formatDate(mark.date, intl)
-										: formatRangeDisplay(eff?.start ?? null, eff?.end ?? null, intl)
-							},
-							{ locale }
-						)}
+						{@const name = markLabel({ mark, title, dates: eff, done, intl }, locale)}
 						{#if mark.kind === 'bar'}
 							<div
 								role="img"
@@ -196,6 +183,7 @@
 								)}
 								style:left="{mark.x * 100}%"
 								style:background={fill}
+								data-testid="sheet-gantt-point"
 							></div>
 						{/if}
 					{:else if mark.kind === 'outside'}
@@ -209,7 +197,8 @@
 							class={cn(
 								'absolute top-1/2 -translate-y-1/2 text-[11px] leading-none text-paper-ink-3',
 								mark.side === 'before' ? 'left-0.5' : 'right-0.5'
-							)}>{mark.side === 'before' ? '‹' : '›'}</span
+							)}
+							data-testid="sheet-gantt-outside">{mark.side === 'before' ? '‹' : '›'}</span
 						>
 					{:else}
 						<span class="absolute top-1/2 left-2 -translate-y-1/2 text-paper-ink-3 italic">
@@ -224,24 +213,33 @@
 		<div
 			class="pointer-events-none absolute inset-y-0 right-0 z-0"
 			style:left="{GANTT_LABEL_WIDTH}px"
-			aria-hidden="true"
 		>
 			{#each segment.ticks.slice(1) as tick (tick.month)}
 				<div
 					class="absolute inset-y-0 border-l border-paper-rule-2"
 					style:left="{tick.x0 * 100}%"
+					aria-hidden="true"
 				></div>
 			{/each}
 			{#each segment.bands as item (item.band.id)}
 				<div
+					role="img"
+					aria-label={m.gantt_band(
+						{
+							title: item.band.title,
+							range: formatRangeDisplay(item.band.start, item.band.end, intl)
+						},
+						{ locale }
+					)}
 					class="absolute inset-y-0 overflow-hidden"
-					style="{bandStyle(item.band.color)}; left: {item.x0 * 100}%; width: {(item.x1 - item.x0) *
-						100}%"
+					style:background={bandFill(bandPaperTint(item.band.color))}
+					style:left="{item.x0 * 100}%"
+					style:width="{(item.x1 - item.x0) * 100}%"
 					data-testid="sheet-gantt-band"
 				>
 					<span
 						class="absolute bottom-0.5 left-1 max-w-full truncate pr-1 text-[8px] text-paper-ink-3"
-						>{item.band.title}</span
+						aria-hidden="true">{item.band.title}</span
 					>
 				</div>
 			{/each}
@@ -251,14 +249,19 @@
 					style:left="{segment.today * 100}%"
 					data-testid="sheet-gantt-today"
 				>
+					<!-- The label sits below the milestone row, so it does not cover a milestone. -->
 					<span
-						class="absolute top-0.5 left-1 bg-white/80 px-0.5 text-[8px] leading-tight font-medium"
-						>{m.gantt_today({}, { locale })}</span
+						class="absolute left-1 bg-paper/80 px-0.5 text-[8px] leading-tight font-medium"
+						style:top="{bodyTop + 2}px"
+						data-testid="sheet-gantt-today-label">{m.gantt_today({}, { locale })}</span
 					>
 				</div>
 			{/if}
 			{#if timelineWidth > 0 && lines.length > 0}
-				<svg class="absolute inset-0 size-full overflow-visible text-paper-ink-3">
+				<svg
+					class="absolute inset-0 size-full overflow-visible text-paper-ink-3"
+					aria-hidden="true"
+				>
 					<defs>
 						<marker
 							id={marker}

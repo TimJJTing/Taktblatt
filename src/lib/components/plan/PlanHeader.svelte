@@ -1,7 +1,7 @@
 <!--
 	The plan header fields: subheading, heading, plan range and objective.
 	The parent section of the page has the id "header". Each field saves on blur.
-	An empty subheading or objective does not print. Dates use the document language.
+	Dates use the document language.
 -->
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
@@ -20,7 +20,7 @@
 	);
 </script>
 
-<div class:print:hidden={!ws.plan.subheading}>
+<div>
 	<InlineText
 		value={ws.plan.subheading}
 		label={m.field_subheading()}
@@ -36,7 +36,6 @@
 		value={ws.plan.heading}
 		label={m.field_heading()}
 		placeholder={m.untitled_plan()}
-		printFallback={m.untitled_plan()}
 		maxLength={LIMITS.heading}
 		class="line-clamp-2 text-wrap whitespace-normal"
 		onCommit={(heading) => {
@@ -60,22 +59,19 @@
 				{...props}
 				variant="ghost"
 				size="sm"
-				class="print:hidden"
 				data-testid="project-range">{rangeText}</Button
 			>{/snippet}
 	</DateRangeField>
-	<span class="hidden print:inline">{rangeText}</span>
 	<Button
 		variant="outline"
 		size="sm"
-		class="print:hidden"
 		disabled={!span}
 		onclick={() => {
 			if (span) updatePlan(ws, { range: span });
 		}}>{m.range_fit_tasks()}</Button
 	>
 </div>
-<div class="flex items-baseline gap-1 text-sm" class:print:hidden={!ws.plan.objective}>
+<div class="flex items-baseline gap-1 text-sm">
 	<span class="shrink-0 font-medium">{m.field_objective()}</span>
 	<InlineText
 		value={ws.plan.objective}

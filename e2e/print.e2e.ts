@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, row, storedPlan } from './helpers';
+import { openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
 
 declare global {
 	interface Window {
@@ -16,29 +16,12 @@ async function openPreview(page: Page) {
 	await expect(sheets(page).first()).toBeVisible();
 }
 
-type StoredPlan = Awaited<ReturnType<typeof storedPlan>>;
-
-/** Changes the stored plan, then reloads. */
-async function editStoredPlan(page: Page, change: (plan: StoredPlan) => void) {
-	const plan = await storedPlan(page);
-	change(plan);
-	await page.evaluate((next) => {
-		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
-		const key = `taktblatt:plan:${index.activeId}`;
-		const data = JSON.parse(localStorage.getItem(key)!);
-		data.plan = next;
-		localStorage.setItem(key, JSON.stringify(data));
-	}, plan);
-	await page.reload();
-	await expect(page.getByTestId('plan-heading')).toBeVisible();
-}
-
 const addDays = (date: string, days: number) =>
 	new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 /** Adds many tasks to the first stage. The Gantt and the table then need more than one sheet. */
 async function addManyTasks(page: Page, count: number) {
-	await editStoredPlan(page, (plan) => {
+	await writeStoredPlan(page, (plan) => {
 		const stageId = plan.stages[0].id;
 		for (let i = 0; i < count; i++) {
 			plan.tasks.push({
@@ -320,13 +303,13 @@ test('the Print button calls window.print', async ({ page }) => {
 test('the print today line uses the footer date', async ({ page }) => {
 	await openExample(page);
 	// The footer date of the example is today. Move it outside the range: the line disappears.
-	await editStoredPlan(page, (plan) => {
+	await writeStoredPlan(page, (plan) => {
 		plan.footer.date = addDays(plan.range.end, 30);
 	});
 	await openPreview(page);
 	await expect(sheets(page).first().getByTestId('sheet-gantt-today')).toHaveCount(0);
 	await page.keyboard.press('Escape');
-	await editStoredPlan(page, (plan) => {
+	await writeStoredPlan(page, (plan) => {
 		plan.footer.date = addDays(plan.range.start, 10);
 	});
 	await openPreview(page);
@@ -335,7 +318,7 @@ test('the print today line uses the footer date', async ({ page }) => {
 
 test('the sheets use the document language, not the UI language', async ({ page }) => {
 	await openExample(page);
-	await editStoredPlan(page, (plan) => {
+	await writeStoredPlan(page, (plan) => {
 		plan.locale = 'de';
 	});
 	await openPreview(page);
@@ -347,4 +330,112 @@ test('the sheets use the document language, not the UI language', async ({ page 
 	await expect(first).toHaveAttribute('lang', 'de');
 	// The preview chrome keeps the UI language.
 	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
+});
+
+test('open dialogs do not print, and the sheets do', async ({ page }) => {
+	await openExample(page);
+	await row(page, 'Sowing').getByTestId('task-details').click();
+	await expect(page.getByTestId('task-dialog')).toBeVisible();
+	await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+	await page.emulateMedia({ media: 'print' });
+	await expect(page.getByTestId('task-dialog')).toBeHidden();
+	await expect(page.getByTestId('sheet').first()).toBeVisible();
+	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	await page.emulateMedia({ media: 'screen' });
+});
+
+test('print commits a field that is still in edit mode', async ({ page }) => {
+	await openExample(page);
+	await page.getByTestId('plan-heading').click();
+	await page.getByTestId('plan-heading-input').fill('Typed but not saved');
+	await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+	await expect(sheets(page).first()).toContainText('Typed but not saved');
+	await expect(page.getByTestId('plan-heading')).toContainText('Typed but not saved');
+});
+
+test('printing from the preview keeps no screen shadow on the sheets', async ({ page }) => {
+	await openExample(page);
+	await openPreview(page);
+	await expect(sheets(page).first()).not.toHaveCSS('box-shadow', 'none');
+	await page.emulateMedia({ media: 'print' });
+	await expect(sheets(page).first()).toHaveCSS('box-shadow', 'none');
+});
+
+test('the paper size control follows the radio keyboard pattern', async ({ page }) => {
+	await openExample(page);
+	await openPreview(page);
+	const a4 = page.getByTestId('paper-a4');
+	const letter = page.getByTestId('paper-letter');
+	await expect(a4).toHaveAttribute('tabindex', '0');
+	await expect(letter).toHaveAttribute('tabindex', '-1');
+	await a4.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(letter).toBeFocused();
+	await expect(letter).toHaveAttribute('aria-checked', 'true');
+	await expect(letter).toHaveAttribute('tabindex', '0');
+	await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', 'letter');
+	await page.keyboard.press('Home');
+	await expect(a4).toBeFocused();
+	await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', 'a4');
+	await page.keyboard.press('End');
+	await expect(letter).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(a4).toBeFocused();
+});
+
+test('the target column of the sheets follows the workspace rule', async ({ page }) => {
+	await openExample(page);
+	// Keep the start dates and remove the end dates. A parent then has no derived end.
+	await writeStoredPlan(page, (plan) => {
+		for (const task of plan.tasks) {
+			if (task.start) task.end = null;
+		}
+	});
+	const workspace = new Map<string, string>();
+	for (const item of await page.getByTestId('task-row').all()) {
+		const title = await item.getByTestId('task-title').innerText();
+		workspace.set(title, (await item.getByTestId('task-target').innerText()).trim());
+	}
+	await openPreview(page);
+	let checked = 0;
+	for (const item of await page.getByTestId('sheet-task-row').all()) {
+		const cells = item.locator('td');
+		const title = (await cells.nth(1).innerText()).trim();
+		const target = (await cells.nth(3).innerText()).trim();
+		const shown = workspace.get(title);
+		// A task without a date has a placeholder text in the workspace and an en dash on paper.
+		if (shown === undefined || !/–$/.test(shown)) continue;
+		expect(target).toBe(shown);
+		checked++;
+	}
+	expect(checked).toBeGreaterThan(0);
+});
+
+test('the today label does not cover the milestone row', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.footer.date = addDays(plan.range.start, 10);
+	});
+	await openPreview(page);
+	const first = sheets(page).first();
+	const label = (await first.getByTestId('sheet-gantt-today-label').boundingBox())!;
+	const milestones = (await first.locator('[data-part="extra"]').boundingBox())!;
+	expect(label.y).toBeGreaterThanOrEqual(milestones.y + milestones.height - 0.5);
+});
+
+test('the printed Gantt names points and marks tasks outside the range', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		const point = plan.tasks.find((t) => t.title === 'Sowing')!;
+		point.start = addDays(plan.range.start, 5);
+		point.end = null;
+		const outside = plan.tasks.find((t) => t.title === 'Watering rota')!;
+		outside.start = addDays(plan.range.end, 20);
+		outside.end = addDays(plan.range.end, 25);
+	});
+	await openPreview(page);
+	const first = sheets(page).first();
+	await expect(first.getByTestId('sheet-gantt-point')).toHaveCount(1);
+	await expect(first.getByTestId('sheet-gantt-point')).toHaveAttribute('aria-label', /: /);
+	await expect(first.getByTestId('sheet-gantt-outside')).toHaveCount(1);
 });

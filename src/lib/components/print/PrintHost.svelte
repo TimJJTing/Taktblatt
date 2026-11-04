@@ -21,6 +21,9 @@
 	);
 
 	function beforePrint() {
+		// An inline field in edit mode holds the new text in a draft. Blur commits it.
+		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		flushSync();
 		if (preview.open) return;
 		preview.printing = true;
 		// The browser lays out the page right after this event. Render and measure now.
@@ -51,10 +54,11 @@
 	{@html pageRule}
 </svelte:head>
 
-{#if preview.open}
-	<PreviewDialog />
-{:else if preview.printing}
-	<div data-print-root>
+<!-- Print hides every other element of the body (src/routes/layout.css). This root stays. -->
+<div data-print-host class="contents">
+	{#if preview.open}
+		<PreviewDialog />
+	{:else if preview.printing}
 		<Sheets screen={false} />
-	</div>
-{/if}
+	{/if}
+</div>

@@ -144,15 +144,18 @@
 /*
  * Print. The app never prints the workspace. Print shows the paginated sheets (PrintHost).
  * The sheets are always light and set their own colors.
+ * Open dialogs, popovers, tooltips and menus are portals in the body, outside the workspace.
+ * Print hides each element of the body, except the one that holds the print host.
  */
 @media print {
 	html,
 	body {
 		margin: 0;
-		background: #fff;
+		background: var(--color-paper);
 	}
 	[data-workspace],
-	[data-sonner-toaster] {
+	[data-sonner-toaster],
+	body > :not(:has([data-print-host])):not([data-print-host]) {
 		display: none !important;
 	}
 }

@@ -24,15 +24,7 @@ import {
 	createTask
 } from '#lib/domain/factory.js';
 import { renameOwner } from '#lib/domain/owners.js';
-import type {
-	Band,
-	Milestone,
-	PaperSize,
-	Plan,
-	RemarkSection,
-	Stage,
-	Task
-} from '#lib/domain/schema.js';
+import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from '#lib/domain/schema.js';
 import type { Workspace } from './workspace.svelte.js';
 
 export type TaskPatch = Partial<
@@ -50,14 +42,6 @@ export function updatePlan(
 	patch: Partial<Pick<Plan, 'heading' | 'subheading' | 'objective' | 'range' | 'locale' | 'paper'>>
 ): void {
 	ws.commit((plan) => Object.assign(plan, normalizePlan({ ...plan, ...patch })));
-}
-
-/** Sets the paper size of the print output. The same size does not make an undo step. */
-export function setPaper(ws: Workspace, paper: PaperSize): void {
-	if (ws.plan.paper === paper) return;
-	ws.commit((plan) => {
-		plan.paper = paper;
-	});
 }
 
 export function updateFooter(ws: Workspace, patch: Partial<Plan['footer']>): void {

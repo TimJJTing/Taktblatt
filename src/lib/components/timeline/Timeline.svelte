@@ -24,7 +24,7 @@
 	const row = 'flex flex-wrap items-center gap-x-3 gap-y-2';
 	const legend = 'flex flex-wrap items-center gap-x-4 gap-y-2';
 	const entryButton =
-		'flex items-center gap-2 rounded px-2 py-1 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring print:hidden';
+		'flex items-center gap-2 rounded px-2 py-1 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring';
 </script>
 
 {#snippet swatch(background: string)}
@@ -53,10 +53,9 @@
 					<button type="button" class={entryButton} onclick={() => (milestone = item.milestone)}
 						>{text}</button
 					>
-					<span class="hidden print:inline">{text}</span>
 				</li>
 			{/each}
-			<li class="print:hidden">
+			<li>
 				<Button
 					size="icon-sm"
 					variant="outline"
@@ -75,12 +74,9 @@
 					<button type="button" class={entryButton} onclick={() => (band = item)}
 						>{@render swatch(bandTintVar(item.color))}{text}</button
 					>
-					<span class="hidden items-center gap-2 print:flex"
-						>{@render swatch(bandTintVar(item.color))}{text}</span
-					>
 				</li>
 			{/each}
-			<li class="print:hidden">
+			<li>
 				<Button
 					size="icon-sm"
 					variant="outline"

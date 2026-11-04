@@ -3,7 +3,7 @@
 	The description has at most three lines. An empty description does not show.
 -->
 <script lang="ts">
-	import { stageHex } from './paper-colors.js';
+	import { stagePaperColor } from '#lib/components/plan/colors.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
 	import type { CardsSegment } from '#lib/domain/print-model.js';
 	import type { Locale } from '#lib/domain/schema.js';
@@ -35,7 +35,7 @@
 			{@const label = m.stage_label({ n: card.number }, { locale })}
 			<article
 				class="min-w-0 border border-t-[3px] border-paper-rule p-2.5"
-				style:border-top-color={stageHex(card.stage.color)}
+				style:border-top-color={stagePaperColor(card.stage.color)}
 				data-testid="sheet-stage-card"
 			>
 				<p class="text-[9px] font-medium tracking-wide text-paper-ink-3 uppercase">

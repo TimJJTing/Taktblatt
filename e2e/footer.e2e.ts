@@ -37,9 +37,13 @@ test.describe('footer', () => {
 		await expect(page.getByTestId('footer-date')).toHaveText('Date');
 	});
 
-	test('an empty footer does not print', async ({ page }) => {
+	test('an empty footer shows only the page number on the sheet', async ({ page }) => {
 		await openApp(page);
-		await page.emulateMedia({ media: 'print' });
-		await expect(page.locator('footer')).toBeHidden();
+		await page.getByTestId('preview-open').click();
+		const sheet = page.getByTestId('sheet').first();
+		await expect(sheet).toBeVisible();
+		await expect(sheet.getByTestId('sheet-footer-left')).toBeEmpty();
+		await expect(sheet.getByTestId('sheet-footer-right')).toHaveCount(0);
+		await expect(sheet.getByTestId('page-number')).toHaveText(/^1 \/ \d+$/);
 	});
 });

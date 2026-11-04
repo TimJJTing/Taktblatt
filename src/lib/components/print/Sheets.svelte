@@ -204,7 +204,7 @@
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
-		background: #fff;
+		background: var(--color-paper);
 		color: var(--color-paper-ink);
 		color-scheme: light;
 		font-family: var(--font-sans);
@@ -241,7 +241,12 @@
 	}
 	.sheet-list-screen .sheet {
 		flex: none;
-		box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+	}
+	/* The shadow is for the screen only. Print from the preview and direct print look the same. */
+	@media screen {
+		.sheet-list-screen .sheet {
+			box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+		}
 	}
 	@media print {
 		.sheet-measurer {
@@ -253,7 +258,6 @@
 		.sheet {
 			break-after: page;
 			break-inside: avoid;
-			box-shadow: none;
 			/* A little less than the page. This avoids an empty page from a rounding error. */
 			height: calc(var(--sheet-h) - 0.3mm);
 		}

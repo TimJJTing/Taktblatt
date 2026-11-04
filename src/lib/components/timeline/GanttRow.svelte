@@ -12,9 +12,9 @@
 	import { Tween } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
+	import { subtaskFill } from '#lib/components/plan/colors.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveOf } from '#lib/domain/derive.js';
-	import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
 	import type { GanttMark, GanttRow } from '#lib/domain/gantt.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -22,6 +22,7 @@
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { cn } from '#lib/utils.js';
 	import { clipEdges, LABEL_WIDTH, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.js';
+	import { markLabel } from './mark-label.js';
 
 	interface Props {
 		row: GanttRow;
@@ -47,20 +48,9 @@
 	const subtask = $derived(row.level === 1);
 	const mark = $derived(row.mark);
 
-	const markName = $derived.by(() => {
-		if (mark.kind !== 'bar' && mark.kind !== 'point') return '';
-		const dates =
-			mark.kind === 'point'
-				? formatDate(mark.date, locale)
-				: formatRangeDisplay(eff?.start ?? null, eff?.end ?? null, locale);
-		const parts = [m.gantt_bar({ task: titleText, dates })];
-		if (done) parts.push(m.gantt_done());
-		if (mark.kind === 'bar' && mark.clipStart) parts.push(m.gantt_clipped_start());
-		if (mark.kind === 'bar' && mark.clipEnd) parts.push(m.gantt_clipped_end());
-		return parts.join(', ');
-	});
+	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, done, intl: locale }));
 
-	const fill = $derived(subtask ? `color-mix(in oklab, ${color} 55%, transparent)` : color);
+	const fill = $derived(subtask ? subtaskFill(color) : color);
 
 	const y = new Tween(untrack(() => row.row * ROW_HEIGHT));
 	$effect(() => {
@@ -111,7 +101,7 @@
 		{#if row.isParent}
 			<button
 				type="button"
-				class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring print:hidden"
+				class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
 				aria-expanded={row.expanded}
 				aria-label={row.expanded
 					? m.task_collapse({ task: titleText })
@@ -126,7 +116,7 @@
 				>
 			</button>
 		{:else}
-			<span class="size-5 shrink-0 print:hidden" aria-hidden="true"></span>
+			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
 		<ReadyDot count={ready} />
 		<button

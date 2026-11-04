@@ -21,6 +21,26 @@ export async function storedPlan(page: Page) {
 	});
 }
 
+type StoredPlan = Awaited<ReturnType<typeof storedPlan>>;
+
+/** Changes the stored plan in localStorage, then reloads the app. */
+export async function writeStoredPlan(
+	page: Page,
+	change: (plan: StoredPlan) => void
+): Promise<void> {
+	const plan = await storedPlan(page);
+	change(plan);
+	await page.evaluate((next) => {
+		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+		const key = `taktblatt:plan:${index.activeId}`;
+		const data = JSON.parse(localStorage.getItem(key)!);
+		data.plan = next;
+		localStorage.setItem(key, JSON.stringify(data));
+	}, plan);
+	await page.reload();
+	await expect(page.getByTestId('plan-heading')).toBeVisible();
+}
+
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
 
 /** Finds a row by the exact text of its title cell. */

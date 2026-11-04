@@ -3,7 +3,7 @@
 	It is static text. Entries have no buttons. Dates use the document language.
 -->
 <script lang="ts">
-	import { bandStyle, stageHex } from './paper-colors.js';
+	import { bandPaperTint, bandFill, stagePaperColor } from '#lib/components/plan/colors.js';
 	import { orderedMilestones } from '#lib/domain/derive.js';
 	import { formatDate, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
 	import type { LegendSegment } from '#lib/domain/print-model.js';
@@ -35,7 +35,7 @@
 				<li class="flex items-center gap-1.5">
 					<span
 						class="size-2 shrink-0 rounded-[1px]"
-						style:background={stageHex(stage.color)}
+						style:background={stagePaperColor(stage.color)}
 						aria-hidden="true"
 					></span>{stage.title || m.stage_title_placeholder({ n: i + 1 }, { locale })}
 				</li>
@@ -49,7 +49,7 @@
 				<li class="flex items-center gap-1.5">
 					<span
 						class="size-2 shrink-0 rounded-[1px] border border-paper-rule"
-						style={bandStyle(band.color)}
+						style:background={bandFill(bandPaperTint(band.color))}
 						aria-hidden="true"
 					></span>{band.title} ({formatRangeDisplay(band.start, band.end, intl)})
 				</li>

@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
-import { chooseOption, openApp, openExample, row, stage, storedPlan, titles } from './helpers';
+import {
+	chooseOption,
+	openApp,
+	openExample,
+	row,
+	stage,
+	storedPlan,
+	titles,
+	writeStoredPlan
+} from './helpers';
 
 test('header fields commit, cancel and keep the previous required heading', async ({ page }) => {
 	await openApp(page);
@@ -197,14 +206,9 @@ test('an outside click does not add a new band', async ({ page }) => {
 test('legend dates use the plan language, not the UI language', async ({ page }) => {
 	await openExample(page);
 	// Change the document language of the stored plan to German. The UI stays English.
-	await page.evaluate(() => {
-		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
-		const key = `taktblatt:plan:${index.activeId}`;
-		const data = JSON.parse(localStorage.getItem(key)!);
-		data.plan.locale = 'de';
-		localStorage.setItem(key, JSON.stringify(data));
+	await writeStoredPlan(page, (plan) => {
+		plan.locale = 'de';
 	});
-	await page.reload();
 	await expect(page.getByRole('button', { name: 'Add milestone', exact: true })).toBeVisible();
 	const milestone = (await storedPlan(page)).milestones[0];
 	const german = new Intl.DateTimeFormat('de', {

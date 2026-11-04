@@ -15,7 +15,7 @@
 	const ws = getWorkspace();
 </script>
 
-<div class="grid grid-cols-1 gap-4 md:grid-cols-3 print:grid-cols-3">
+<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 	{#each ws.plan.stages as stage, i (stage.id)}
 		{@const span = stageSpan(ws.index, stage.id)}
 		{@const label = m.stage_label({ n: i + 1 })}
@@ -32,7 +32,7 @@
 			<h3 class="mb-2 text-lg font-semibold">
 				<StageTitle {stage} number={i + 1} testId="overview-stage-title" />
 			</h3>
-			<div class="text-sm print:line-clamp-3" class:print:hidden={!stage.description}>
+			<div class="text-sm">
 				<InlineText
 					value={stage.description}
 					label={m.field_description()}

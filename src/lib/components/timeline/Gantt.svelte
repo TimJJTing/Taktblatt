@@ -5,30 +5,25 @@
 	The pin keeps the chart below the app header. The chart then has its own vertical scroll.
 -->
 <script lang="ts">
-	import CircleIcon from '@lucide/svelte/icons/circle';
-	import DiamondIcon from '@lucide/svelte/icons/diamond';
-	import FlagIcon from '@lucide/svelte/icons/flag';
 	import PinIcon from '@lucide/svelte/icons/pin';
-	import StarIcon from '@lucide/svelte/icons/star';
-	import { untrack, type Component } from 'svelte';
+	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import { innerHeight } from 'svelte/reactivity/window';
 	import { appHeader } from '#lib/components/app/app-layout.svelte.js';
 	import { Toggle } from '#lib/components/ui/toggle/index.js';
-	import { bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
+	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
 	import { todayISO } from '#lib/domain/date.js';
-	import { orderedMilestones } from '#lib/domain/derive.js';
 	import { formatDate, formatMonth, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
 	import {
 		dependencyLines,
 		ganttRows,
-		milestoneX,
 		monthTicks,
-		spanX,
-		todayX
+		todayX,
+		visibleBands,
+		visibleMilestones
 	} from '#lib/domain/gantt.js';
-	import type { Band, Milestone, MilestoneSymbol } from '#lib/domain/schema.js';
+	import type { Band, Milestone } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getEditing } from '#lib/state/editing.svelte.js';
@@ -47,6 +42,7 @@
 		ROW_MOTION_MS,
 		TIMELINE_MIN_WIDTH
 	} from './gantt-layout.js';
+	import { MILESTONE_SYMBOLS } from './milestone-symbols.js';
 
 	interface Props {
 		onBand: (band: Band) => void;
@@ -59,12 +55,6 @@
 	const viewer = getViewer();
 	const editing = getEditing();
 
-	const SYMBOLS: Record<MilestoneSymbol, Component<{ class?: string }>> = {
-		diamond: DiamondIcon,
-		flag: FlagIcon,
-		star: StarIcon,
-		circle: CircleIcon
-	};
 	const MARKER_ID = 'gantt-arrow';
 
 	const win = $derived(ws.plan.range);
@@ -102,18 +92,8 @@
 		};
 	});
 	const today = $derived(todayX(win, todayDate));
-	const bands = $derived(
-		ws.plan.bands.flatMap((band) => {
-			const span = spanX(win, band);
-			return span ? [{ band, ...span }] : [];
-		})
-	);
-	const milestones = $derived(
-		orderedMilestones(ws.plan.milestones).flatMap((item) => {
-			const x = milestoneX(win, item.milestone.date);
-			return x === null ? [] : [{ ...item, x }];
-		})
-	);
+	const bands = $derived(visibleBands(win, ws.plan.bands));
+	const milestones = $derived(visibleMilestones(win, ws.plan.milestones));
 
 	const bodyHeight = new Tween(untrack(() => rows.length * ROW_HEIGHT));
 	$effect(() => {
@@ -249,16 +229,16 @@
 
 <svelte:window onscroll={updateStuck} onresize={updateStuck} />
 
-<div bind:this={slot} style:height={stuck ? `${boxHeight}px` : undefined} class="print:h-auto!">
+<div bind:this={slot} style:height={stuck ? `${boxHeight}px` : undefined}>
 	<div
 		bind:offsetHeight={boxHeight}
 		role="group"
 		aria-label={m.gantt_label()}
 		class={cn(
 			'rounded-md border bg-background',
-			viewer.ganttPinned && 'flex h-(--gantt-height) flex-col print:block print:h-auto',
+			viewer.ganttPinned && 'flex h-(--gantt-height) flex-col',
 			stuck &&
-				'fixed top-(--gantt-top) left-(--gantt-left) z-30 w-(--gantt-width) rounded-t-none shadow-md print:static print:w-auto'
+				'fixed top-(--gantt-top) left-(--gantt-left) z-30 w-(--gantt-width) rounded-t-none shadow-md'
 		)}
 		style:--gantt-height="{height}px"
 		style:--gantt-top="{headerHeight}px"
@@ -271,9 +251,7 @@
 			bind:this={scroller}
 			class={cn(
 				'overflow-x-auto',
-				viewer.ganttPinned
-					? 'min-h-0 flex-1 overflow-y-auto print:overflow-visible'
-					: 'overflow-y-hidden'
+				viewer.ganttPinned ? 'min-h-0 flex-1 overflow-y-auto' : 'overflow-y-hidden'
 			)}
 			data-testid="gantt-scroller"
 		>
@@ -285,7 +263,7 @@
 					>
 						<Toggle
 							size="sm"
-							class="h-6 min-w-6 px-1.5 print:hidden"
+							class="h-6 min-w-6 px-1.5"
 							aria-label={m.gantt_pin()}
 							title={m.gantt_pin()}
 							pressed={viewer.ganttPinned}
@@ -320,7 +298,7 @@
 					</div>
 					<div class="relative flex-1">
 						{#each milestones as item (item.milestone.id)}
-							{@const Symbol = SYMBOLS[item.milestone.symbol]}
+							{@const Symbol = MILESTONE_SYMBOLS[item.milestone.symbol]}
 							<button
 								type="button"
 								class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
@@ -375,7 +353,7 @@
 							class="absolute inset-y-0 overflow-hidden text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 							style:left="{item.x0 * 100}%"
 							style:width="{(item.x1 - item.x0) * 100}%"
-							style:background="color-mix(in oklab, {bandTintVar(item.band.color)} 60%, transparent)"
+							style:background={bandFill(bandTintVar(item.band.color))}
 							aria-label={name}
 							title={name}
 							onclick={() => onBand(item.band)}
@@ -435,7 +413,7 @@
 				aria-valuemax={percent(limits.max)}
 				aria-valuetext="{percent(height)} %"
 				tabindex="0"
-				class="flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center border-t hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring print:hidden"
+				class="flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center border-t hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 				onkeydown={onSeparatorKey}
 				onpointerdown={onSeparatorDown}
 				onpointermove={onSeparatorMove}

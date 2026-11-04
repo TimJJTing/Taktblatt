@@ -4,9 +4,9 @@
 	Rows are static. A parent row shows its derived values. Labels use the document language.
 -->
 <script lang="ts">
-	import { stageHex } from './paper-colors.js';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { formatDay, formatMonthSpan, intlLocale } from '#lib/domain/format.js';
+	import { stagePaperColor } from '#lib/components/plan/colors.js';
+	import { formatMonthSpan, formatTarget, intlLocale } from '#lib/domain/format.js';
 	import type { StageSegment } from '#lib/domain/print-model.js';
 	import type { Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -23,7 +23,7 @@
 	let { segment, from, to, first, locale }: Props = $props();
 
 	const intl = $derived(intlLocale(locale));
-	const color = $derived(stageHex(segment.stage.color));
+	const color = $derived(stagePaperColor(segment.stage.color));
 	const name = $derived(
 		segment.stage.title || m.stage_title_placeholder({ n: segment.number }, { locale })
 	);
@@ -32,12 +32,6 @@
 	);
 	const rows = $derived(segment.rows.slice(from, to));
 	const th = 'border-b border-paper-rule px-1.5 py-1 text-left font-medium text-paper-ink-3';
-
-	function target(eff: { start: string | null; end: string | null }): string {
-		if (eff.end) return formatDay(eff.end, intl);
-		if (eff.start) return `${formatDay(eff.start, intl)} –`;
-		return '–';
-	}
 </script>
 
 {#if first}
@@ -134,7 +128,9 @@
 					</div>
 				</td>
 				<td class={cn(cell, 'break-words')}>{row.task.deliverable}</td>
-				<td class={cn(cell, 'whitespace-nowrap tabular-nums')}>{target(row.eff)}</td>
+				<td class={cn(cell, 'whitespace-nowrap tabular-nums')}
+					>{formatTarget(row.eff, row.isParent, intl) || '–'}</td
+				>
 				<td class={cn(cell, 'break-words')}>{row.eff.owners.join(', ')}</td>
 			</tr>
 		{/each}
