@@ -1,18 +1,69 @@
 <script lang="ts">
-	import LanguageMenu from '#lib/components/app/LanguageMenu.svelte';
+	import { toast } from 'svelte-sonner';
+	import AppHeader from '#lib/components/app/AppHeader.svelte';
+	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { isModKey, isTextEditing } from '#lib/browser/keyboard.js';
+	import { LOCALES, type Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getLocale } from '#lib/paraglide/runtime.js';
+	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
+	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
+
+	const uiLocale = (): Locale => {
+		const locale = getLocale();
+		return (LOCALES as readonly string[]).includes(locale) ? (locale as Locale) : 'en';
+	};
+
+	const ws = setWorkspace(new Workspace(localStorage, uiLocale));
+	setViewer(new ViewerState(localStorage));
+
+	const title = $derived(ws.plan.heading.trim() || m.untitled_plan());
+
+	function onKeydown(event: KeyboardEvent) {
+		if (!isModKey(event) || event.altKey) return;
+		const key = event.key.toLowerCase();
+		if (key === 's') {
+			// The app saves automatically. The toast confirms it.
+			event.preventDefault();
+			toast.success(m.saved_toast(), { description: m.saved_toast_detail(), id: 'saved' });
+			return;
+		}
+		if (isTextEditing(event.target)) return;
+		const redo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey);
+		if (redo) {
+			event.preventDefault();
+			ws.redo();
+		} else if (key === 'z') {
+			event.preventDefault();
+			ws.undo();
+		}
+	}
+
+	function onStorage(event: StorageEvent) {
+		if (event.storageArea !== localStorage) return;
+		ws.handleStorageEvent(event);
+	}
 </script>
 
 <svelte:head>
-	<title>{m.app_name()}</title>
+	<title>{title} · {m.app_name()}</title>
 </svelte:head>
 
-<header
-	class="sticky top-0 z-30 flex h-12 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur"
->
-	<span class="font-semibold">{m.app_name()}</span>
-	<span class="text-sm text-muted-foreground">{m.app_tagline()}</span>
-	<div class="ml-auto"><LanguageMenu /></div>
-</header>
+<svelte:window onkeydown={onKeydown} onstorage={onStorage} />
 
-<main class="mx-auto max-w-6xl px-4 py-8"></main>
+<AppHeader />
+<DamagedNotice />
+
+<main class="mx-auto max-w-6xl px-4 py-8">
+	{#if ws.isPristine}
+		<div class="flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm">
+			<span class="text-muted-foreground">{m.example_prompt()}</span>
+			<Button size="sm" variant="outline" onclick={() => ws.loadExample()}
+				>{m.example_load()}</Button
+			>
+		</div>
+	{/if}
+	<h1 class="mt-6 text-2xl font-semibold" data-testid="plan-heading">{title}</h1>
+	<p class="text-sm text-muted-foreground" data-testid="task-count">{ws.plan.tasks.length}</p>
+</main>

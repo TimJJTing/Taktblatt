@@ -9,8 +9,8 @@ test('the UI language changes and stays after a reload', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Language' }).click();
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
-	await expect(page.getByRole('banner')).toContainText('Ein einfacher Projektplaner');
+	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 	await page.reload();
-	await expect(page.getByRole('banner')).toContainText('Ein einfacher Projektplaner');
+	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 });

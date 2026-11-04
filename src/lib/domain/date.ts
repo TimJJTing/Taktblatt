@@ -22,3 +22,8 @@ export function todayISO(now: Date = new Date()): ISODate {
 	const d = String(now.getDate()).padStart(2, '0');
 	return `${y}-${m}-${d}`;
 }
+
+/** Returns the current time as an ISO timestamp. */
+export function nowISO(): string {
+	return new Date().toISOString();
+}
