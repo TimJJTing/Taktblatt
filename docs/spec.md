@@ -1,18 +1,18 @@
 # Taktblatt — Specification v1
 
-This document is the reference for the implementation. It replaces the design spec v0.1 of the artifact. All open and proposed items in v0.1 have a decision here.
+This specification is the reference for the implementation. It replaces the design spec v0.1 of the artifact. It records a decision for each open or proposed question in v0.1.
 
-The text follows ASD-STE100 (Simplified Technical English). Words in **bold** are defined in [GLOSSARY.md](../GLOSSARY.md).
+The text follows ASD-STE100 (Simplified Technical English). [GLOSSARY.md](../GLOSSARY.md) defines the terms in **bold**.
 
 ## 0. Product
 
-- Taktblatt is a simple and lightweight project planner.
+- Taktblatt shows a project plan as a timeline, stages, milestones and a work table.
 - Taktblatt is a static web app. It has no server and no authentication.
 - The app keeps all data in the browser `localStorage`. It sends no data on the network.
 - The app does not collect analytics or telemetry.
 - The app works offline. You can install it as a PWA.
 - You can import a **plan** from a JSON file. You can export a plan to a JSON file.
-- The printed output (print or "Save as PDF") follows the artifact design. The screen layout is different and is made for editing.
+- The printed output (print or "Save as PDF") follows the artifact design. The workspace provides controls to edit the plan.
 - The design artifact contains real example data. The app must not use these values.
 
 ## 1. Data model
@@ -37,10 +37,10 @@ interface BackupFile {
 
 interface Plan {
 	id: string;
-	heading: string; // required
-	subheading: string; // optional
+	heading: string; // editor: required
+	subheading: string; // empty text is valid
 	range: { start: ISODate; end: ISODate }; // the Gantt window
-	objective: string; // max 250 characters
+	objective: string; // editor: max 250 characters
 	locale: Locale; // the document language
 	paper: 'a4' | 'letter';
 	footer: { note: string; version: string; date: ISODate | null; right: string };
@@ -55,7 +55,7 @@ interface Plan {
 
 interface Stage {
 	id: string;
-	title: string; // required, max 30 characters
+	title: string; // editor: required, max 30 characters
 	description: string;
 	color: StageColor; // a key of the curated palette
 }
@@ -64,7 +64,7 @@ interface Task {
 	id: string;
 	stageId: string;
 	parentId: string | null; // null = task; else subtask. Max depth is 2.
-	title: string; // required
+	title: string; // editor: required
 	deliverable: string;
 	start: ISODate | null;
 	end: ISODate | null;
@@ -98,6 +98,8 @@ interface RemarkSection {
 }
 ```
 
+The `required` title rules and text length limits above are editor constraints. They are not import constraints. The schema requires string fields but permits empty titles and text beyond the editor limits.
+
 ### 1.1 Rules for the data
 
 - Every file and every stored plan has a `schemaVersion`. The app migrates old versions when it loads them.
@@ -107,24 +109,24 @@ interface RemarkSection {
 
 ## 2. Derived values
 
-A **derived** value is calculated from other data. The user cannot edit a derived value directly. Each derived value has one calculation. All views use the same calculation.
+The app calculates a **derived value** from other data. The user cannot edit a derived value directly. Each derived value has one calculation. All views use the same calculation.
 
-| Value                   | Rule                                                                                                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Parent `start`          | The earliest `start` of its subtasks. Empty values are skipped. All empty → empty.                                                                                                        |
-| Parent `end`            | The latest `end` of its subtasks. Empty values are skipped. All empty → empty.                                                                                                            |
-| Parent `owners`         | The union of the owners of its subtasks.                                                                                                                                                  |
-| Parent `done`           | All subtasks done → done. Some subtasks done → indeterminate. No subtasks done → not done.                                                                                                |
-| Parent fallback         | The parent keeps its own `start`, `end`, `owners` and `done` in storage. These values are hidden while the parent has subtasks. They come back when the last subtask is deleted or moved. |
-| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Items without `start` go last.                                                  |
-| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The reorder is animated (FLIP).                                                                |
-| Milestone labels        | M1 … Mn, numbered by date order.                                                                                                                                                          |
-| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                             |
-| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". No dates: hidden.                                         |
-| Stage deliverables      | The list of task deliverables of the stage, in task order. Empty values are skipped.                                                                                                      |
-| Stage progress          | "x / y done". y is the number of tasks in the stage (not subtasks). x is the number of done tasks.                                                                                        |
-| Page numbers            | "n / N". Calculated by the paginator (section 7).                                                                                                                                         |
-| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                          |
+| Value                   | Rule                                                                                                                                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parent `start`          | The earliest `start` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                  |
+| Parent `end`            | The latest `end` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                      |
+| Parent `owners`         | The union of the owners of its subtasks.                                                                                                                                                              |
+| Parent `done`           | All subtasks done → done. Some subtasks done → indeterminate. No subtasks done → not done.                                                                                                            |
+| Parent fallback         | The parent keeps its own `start`, `end`, `owners` and `done` in storage. The app hides these values while the parent has subtasks. The app shows them again when you delete or move the last subtask. |
+| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Tasks or subtasks without `start` go last.                                                  |
+| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The app animates the new order (FLIP).                                                                     |
+| Milestone labels        | The app numbers milestones M1 … Mn by date order.                                                                                                                                                     |
+| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                                         |
+| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". The app hides the months when no tasks have dates.                    |
+| Stage deliverables      | The list of task deliverables of the stage, in task order. The app skips empty values.                                                                                                                |
+| Stage progress          | "x / y done". y is the number of tasks in the stage (not subtasks). x is the number of done tasks.                                                                                                    |
+| Page numbers            | "n / N". The paginator calculates these values (section 7).                                                                                                                                           |
+| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                                      |
 
 ## 3. Dependencies
 
@@ -132,7 +134,7 @@ A **derived** value is calculated from other data. The user cannot edit a derive
 
 - A task or subtask stores its **own dependencies** in `dependsOn`. The app stores ids. The app shows the current titles.
 - The **effective dependencies** of a subtask are its own dependencies.
-- The effective dependencies of a parent are the union of its own dependencies and the dependencies of all its subtasks. Dependencies that point at its own subtasks are not included.
+- The effective dependencies of a parent are the union of its own dependencies and the dependencies of all its subtasks. The app excludes dependencies that point at its own subtasks.
 - The task modal shows the inherited dependencies of a parent as read-only chips. Each chip shows the subtask that it comes from.
 
 ### 3.2 Validation
@@ -154,9 +156,9 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - A stage move does not change the effective graph or any date. It never causes a conflict.
 - A parent change can cause conflicts. Before the move, the app shows the **move-conflict dialog**. The dialog lists:
-  - **Remove dependency (cycle):** each own dependency of the moved item that causes a cycle.
-  - **Remove dependency (parent and child):** a dependency of the new parent on the moved item.
-  - **Clear date:** the `start` or the `end` of the moved item, when the new derived dates of the new parent break the date rule.
+  - **Remove dependency (cycle):** each own dependency that causes a cycle for the task or subtask that you move.
+  - **Remove dependency (parent and child):** a dependency of the new parent on the task or subtask that you move.
+  - **Clear date:** the `start` or the `end` of the task or subtask that you move, when the new derived dates of the new parent break the date rule.
   - **Warning only:** date-rule breaks on the old parent. The app does not change data for these. It shows the usual warning after the move.
 - The dialog has two buttons: **Remove and move** and **Cancel**.
 - **Remove and move** applies all listed removals and the move as one undo step.
@@ -181,7 +183,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - The app keeps more than one plan. One plan is active.
 - The header has a plan switcher. The switcher can create, rename, duplicate and delete plans.
-- Deleting a plan needs a confirmation. After the deletion, a toast shows an **Undo** button for 10 seconds.
+- The app asks you to confirm before it deletes a plan. After the deletion, a toast shows an **Undo** button for 10 seconds.
 - On the first start, the app creates an empty plan:
   - heading "Untitled plan" (as a placeholder), one empty stage;
   - the range is the current month plus the next two months;
@@ -190,15 +192,15 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 ### 4.2 localStorage keys
 
-| Key                             | Content                                      |
-| ------------------------------- | -------------------------------------------- |
-| `taktblatt:index`               | The list of plan ids and the active plan id. |
-| `taktblatt:plan:<id>`           | One plan, with `schemaVersion`.              |
-| `taktblatt:ui`                  | The **viewer state** (section 4.4).          |
-| `taktblatt:locale`              | The UI language (part of the viewer state).  |
-| `taktblatt:damaged:<timestamp>` | The raw text of damaged data.                |
+| Key                                  | Content                                      |
+| ------------------------------------ | -------------------------------------------- |
+| `taktblatt:index`                    | The list of plan ids and the active plan id. |
+| `taktblatt:plan:<id>`                | One plan, with `schemaVersion`.              |
+| `taktblatt:ui`                       | The **viewer state** (section 4.4).          |
+| `taktblatt:locale`                   | The UI language (part of the viewer state).  |
+| `taktblatt:damaged:<timestamp>:<id>` | The raw text of damaged data.                |
 
-### 4.3 Saving
+### 4.3 Save
 
 - The app saves automatically after each commit.
 - **Cmd/Ctrl+S** does not do a save. It shows a "Saved" toast. It prevents the browser save dialog.
@@ -228,6 +230,8 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - **Export this plan** writes a `PlanFile`.
 - **Export all plans** writes a `BackupFile`.
 - Import accepts both kinds. The app validates the file. If the file is not valid, the app shows the errors and does not change data.
+- Import rejects duplicate ids within each plan’s stages, tasks, milestones, bands or remark sections. It also rejects dependencies between a parent and its own subtask, and cycles in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
+- Import permits date-rule conflicts and shows warnings for them.
 - Import adds each plan as a new plan. If a plan with the same `id` exists, a dialog shows **Replace** and **Keep both**. **Keep both** gives the copy a new id and adds " (copy)" to its heading.
 
 ## 5. Screen: the workspace
@@ -237,10 +241,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - The workspace is one page that scrolls. The sections are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
 - A sticky section navigation shows these sections.
 - The app header contains: plan switcher, section navigation, Preview, Print, Import, Export, UI language, Undo and Redo.
-- Full editing works at 768 px width and more. On a phone, you can read the plan and do basic edits. The Gantt and the table scroll horizontally.
+- All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and mark tasks done. The Gantt and the table scroll horizontally.
 - Dark mode follows the system setting. Print is always light.
 
-### 5.2 General editing
+### 5.2 Edit fields
 
 - Click a field to edit it. A blur saves. Enter commits a single-line field. Esc cancels.
 - In the table: Tab and Shift+Tab move between cells. Enter commits and moves to the same cell in the next row.
@@ -250,10 +254,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 ### 5.3 Header fields
 
-- **Subheading:** single line, optional. The app stores it as typed. CSS makes it uppercase. Hidden in print when empty.
-- **Heading:** required, max 2 lines (about 80 characters). Empty on blur → the previous value comes back.
+- **Subheading:** single line, optional. The app stores it as typed. CSS makes it uppercase. The app hides it in print when empty.
+- **Heading (editor):** required, max 2 lines (about 80 characters). Empty on blur → the previous value comes back.
 - **Project range:** a date range picker. It sets the Gantt window. A **Fit to tasks** button sets the range to the dates of all tasks.
-- **Objective:** short text, max 250 characters. The label "Objective:" is fixed. Hidden in print when empty.
+- **Objective (editor):** text, max 250 characters. The label text is "Objective:". The app hides it in print when empty.
 
 ### 5.4 Timeline (Gantt)
 
@@ -262,14 +266,14 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - A task needs a **valid range** (start and end set, start ≤ end) to show a bar.
 - A task with only one date shows a point marker at that date.
 - A task with no dates shows the title and a muted "No dates" cue.
-- A bar outside the window is clipped at the edge. The clipped edge has a mark.
+- The app clips a bar outside the window at the edge. The clipped edge has a mark.
 - Done tasks have a muted bar and label.
 - Bars are read-only. You edit dates in the table or in the task modal.
 - **Labels:** click a label to scroll to its table row. The row flashes one time. You cannot edit a label in the Gantt.
-- **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When the Gantt is pinned, it scrolls to show the bar.
-- **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. Hidden when the date is outside the range.
-- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When a parent is expanded, the lines connect to the subtask that owns the dependency. When a parent is collapsed, the lines connect to the parent bar. Duplicate lines are merged. The lines move with an animation when you expand or collapse.
-- **Bands:** any number. Each band has a title, a range and a tint. Overlapping bands are semi-transparent. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete**, with a confirmation.
+- **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Gantt, the app scrolls it to show the bar.
+- **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
+- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When you expand a parent, the lines connect to the subtask that owns the dependency. When you collapse a parent, the lines connect to the parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse.
+- **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete**, with a confirmation.
 - **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone to edit it.
 - **Stage legend:** the stage colors and titles.
 - **Pin:** a toggle pins the Gantt below the app header.
@@ -282,8 +286,8 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 - Three cards for each row. More cards go to the next row. Cards in a row have the same height.
 - A card shows "STAGE N · months", the title, the description and the derived deliverables.
-- The title: click to edit. Single line, required, max 30 characters. Empty → "Stage N".
-- The description: click to edit. Free text. Clamped to 3 lines in print.
+- The title: click to edit. Editor constraints: single line, required, max 30 characters. Empty → "Stage N".
+- The description: click to edit. Free text. The app limits it to 3 lines in print.
 
 ### 5.6 Work plan
 
@@ -293,14 +297,14 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - **Add stage:** a "+" line between two stages and after the last stage. It adds an empty stage. An empty stage stays after blur.
 - **Delete stage:** in the stage menu. The confirmation shows the effect, for example "5 tasks, 2 dependents". The app deletes the tasks of the stage. You can undo it.
 - **Columns:** Done | Task | Deliverable | Target | Owner | "…".
-- **Done:** a checkbox. Done rows are muted. On a parent, the checkbox is derived and can be indeterminate.
-- **Target:** shows the `end` date. Hover shows the full range. Click opens the date picker. It can be empty. On a parent, it is derived.
-- **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. On a parent, the owners are derived. The chip menu has **Rename everywhere**. This renames the owner in all tasks of the plan.
+- **Done:** a checkbox. The app dims done rows. For a parent, the app calculates the checkbox state from its subtasks. The state can be indeterminate.
+- **Target:** shows the `end` date. Hover shows the full range. Click opens the date picker. It can be empty. For a parent, the app calculates it from the subtask dates.
+- **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. For a parent, the app calculates the owners from its subtasks. The chip menu has **Rename everywhere**. This renames the owner in all tasks of the plan.
 - **Tasks and subtasks:** a parent has a chevron. Other tasks have a spacer, so the titles align. Subtask rows indent the title cell only.
 - **Add task:** a "+" line at the end of the stage. It starts at the task indent.
 - **Add subtask:** a "+" line after the last subtask of a parent. It starts at the subtask indent. It shows when the task or one of its subtasks has hover or focus. On a task without subtasks, it adds the first subtask and expands the task.
 - The two "+" buttons are on the same vertical axis (the center of the table). The two lines are on different rows, with a vertical gap between them.
-- **Empty rows:** a new row that is empty on blur is removed.
+- **Empty rows:** the app removes a new row that is empty on blur.
 - **"…" button:** opens the task modal.
 
 ### 5.7 Task modal
@@ -308,10 +312,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - The modal shows all fields of the task: title, deliverable, range, owners, done, note, dependencies.
 - It also shows **Stage** and **Parent**.
   - **Stage** moves a task and its subtasks to a different stage.
-  - **Parent** is "None" or a task without subtasks in the same stage. "None" changes a subtask to a task. A task without subtasks can become a subtask.
+  - **Parent** is "None" or another top-level task in the same stage, with or without subtasks. "None" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
   - A parent change can open the move-conflict dialog (section 3.3).
 - **Note:** plain text. Type "@" to mention a task.
-- **Dependencies:** a mention picker. Type words to filter. Enter selects. Candidates that break a rule are hidden. A parent also shows its inherited dependencies as read-only chips.
+- **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a rule. A parent also shows its inherited dependencies as read-only chips.
 - Each field saves on blur.
 - **OK** closes the modal. **Delete** opens a confirmation that shows the effect, for example "2 subtasks, 3 dependents".
 - Esc closes the modal. The focus stays in the modal while it is open. On close, the focus goes back to the "…" button.
@@ -319,16 +323,16 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ### 5.8 Remarks
 
 - A remark section has an editable title and bullets.
-- Remark sections are at the end of the document, after all stages.
+- Remark sections are at the end of the plan, after all stages.
 - Two sections for each row.
 - A "+" line in a section adds an empty bullet. Enter at the end of a bullet adds the next bullet. Backspace on an empty bullet removes it.
-- Empty bullets are removed on blur (after trimming spaces).
-- A "+" line after the last section adds a section. Its title is in edit mode. An empty section with no bullets is removed on blur.
+- The app trims spaces and removes empty bullets on blur.
+- A "+" line after the last section adds a section. Its title is in edit mode. The app removes an empty section with no bullets on blur.
 - Sections have a drag handle (it also works with the keyboard), and **Move up** and **Move down** in their menu.
 
 ### 5.9 Footer
 
-- **Left:** note · version · date. Three fields. Empty parts are not shown.
+- **Left:** note · version · date. Three fields. The app hides empty parts.
 - **Right:** a note and the page number. The app calculates the page number.
 - The plan stores these fields one time. All pages show the same values.
 - The date picker has a **Today** button. The app does not set the date automatically.
@@ -339,7 +343,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - The **document language** is a plan setting (`locale`). It controls the printed labels (for example "Objective:", "Timeline", the column titles) and the date formats. A new plan gets the current UI language.
 - Supported languages: English (`en`), German (`de`), Traditional Chinese (`zh-TW`), Japanese (`ja`).
 - English is the source. A missing key falls back to English.
-- The `de`, `zh-TW` and `ja` texts are machine drafts. They need a review by a native speaker.
+- The `de`, `zh-TW` and `ja` texts are machine drafts. A native speaker must review them.
 - Dates use `Intl`. Weeks start on Monday.
 
 ## 7. Preview and print
@@ -353,7 +357,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
   - A stage header always stays with its first rows. When a table continues on the next page, the table header repeats.
   - Remarks come after all stages.
   - Each page has the footer with "n / N".
-- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets. If the preview is not open, the app renders the sheets on `beforeprint`. The workspace layout is never printed.
+- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets. If the preview is not open, the app renders the sheets on `beforeprint`. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
 - Print has no animations and no controls.
@@ -361,10 +365,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 ## 8. Motion
 
 - Elements that come in or go out use Svelte transitions.
-- Sorting uses `animate:flip`.
+- The app uses `animate:flip` when the task order changes.
 - Numbers and geometry use `Tween` or `Spring`: progress counts, bar positions, the range rescale.
 - Durations are 150 – 300 ms, ease-out.
-- When `prefers-reduced-motion` is set, there is no motion.
+- When the viewer selects `prefers-reduced-motion`, the app disables motion.
 - Preview and print have no motion.
 
 ## 9. Visual language (print)
@@ -379,5 +383,5 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - Vitest unit tests for the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import.
 - Playwright end-to-end tests for the main flows and for pagination.
 - GitHub Actions run lint, type check, unit tests and end-to-end tests on each push and pull request.
-- Dependabot updates `npm` and `github-actions` every week. Minor and patch updates are grouped. Major updates have separate pull requests.
+- Dependabot updates `npm` and `github-actions` every week. Dependabot groups minor and patch updates. Major updates have separate pull requests.
 - License: MIT.

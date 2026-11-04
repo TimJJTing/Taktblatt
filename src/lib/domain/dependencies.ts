@@ -4,6 +4,7 @@
  */
 import { effectiveOf, effectiveValues, indexTasks, type TaskIndex } from './derive';
 import type { Plan, Task } from './schema';
+import { removeMentions } from './mentions';
 
 // ---------------------------------------------------------------------------
 // Effective graph
@@ -133,23 +134,6 @@ export function readyCount(index: TaskIndex, id: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Mentions
-// ---------------------------------------------------------------------------
-
-export const MENTION_PATTERN = /@\[task:([^\]\s]+)\]/g;
-
-export function mentionToken(id: string): string {
-	return `@[task:${id}]`;
-}
-
-/** Removes the mention tokens of the given task ids from a note. */
-export function removeMentions(note: string, ids: ReadonlySet<string>): string {
-	return note
-		.replace(MENTION_PATTERN, (token, id: string) => (ids.has(id) ? '' : token))
-		.replace(/ {2,}/g, ' ');
-}
-
-// ---------------------------------------------------------------------------
 // Deletion
 // ---------------------------------------------------------------------------
 
@@ -162,15 +146,29 @@ export interface DeleteImpact {
 }
 
 export function deleteImpact(plan: Plan, taskIds: readonly string[]): DeleteImpact {
-	const ids = new Set<string>();
-	for (const id of taskIds) {
-		ids.add(id);
-		for (const t of plan.tasks) if (t.parentId === id) ids.add(t.id);
+	const index = indexTasks(plan.tasks);
+	const roots = new Set(taskIds.filter((id) => index.byId.has(id)));
+	const ids = new Set(roots);
+	for (const id of roots) {
+		for (const child of index.children.get(id) ?? []) ids.add(child.id);
 	}
 	const dependents = plan.tasks.filter(
 		(t) => !ids.has(t.id) && t.dependsOn.some((d) => ids.has(d))
 	);
-	return { ids: [...ids], subtasks: ids.size - taskIds.length, dependents: dependents.length };
+	return {
+		ids: [...ids],
+		subtasks: [...ids].filter((id) => index.byId.get(id)?.parentId !== null).length,
+		dependents: dependents.length
+	};
+}
+
+/** Returns the task and dependency counts for a stage deletion. */
+export function stageDeleteImpact(plan: Plan, id: string): { tasks: number; dependents: number } {
+	const taskIds = plan.tasks
+		.filter((t) => t.stageId === id && t.parentId === null)
+		.map((t) => t.id);
+	const impact = deleteImpact(plan, taskIds);
+	return { tasks: impact.ids.length, dependents: impact.dependents };
 }
 
 /** Deletes tasks and their subtasks. Removes them from all dependency lists and notes. Mutates the plan. */
@@ -217,14 +215,15 @@ function applyMoveTo(tasks: Task[], id: string, target: MoveTarget): Task[] {
 
 /** Returns true when the move is allowed by the structure rules (depth, stage). */
 export function isValidMoveTarget(plan: Plan, id: string, target: MoveTarget): boolean {
-	const task = plan.tasks.find((t) => t.id === id);
+	const index = indexTasks(plan.tasks);
+	const task = index.byId.get(id);
 	if (!task || !plan.stages.some((s) => s.id === target.stageId)) return false;
 	if (target.parentId === null) return true;
 	if (target.parentId === id) return false;
-	const parent = plan.tasks.find((t) => t.id === target.parentId);
+	const parent = index.byId.get(target.parentId);
 	if (!parent || parent.parentId !== null || parent.stageId !== target.stageId) return false;
 	// A task with subtasks cannot become a subtask (max depth 2).
-	return !plan.tasks.some((t) => t.parentId === id);
+	return !index.children.get(id)?.length;
 }
 
 function brokenEdgesAround(index: TaskIndex, nodeId: string): DateWarning[] {
@@ -306,7 +305,5 @@ export function applyMove(
 			task[fix.field] = null;
 		}
 	}
-	task.stageId = target.stageId;
-	task.parentId = target.parentId;
-	for (const child of plan.tasks) if (child.parentId === id) child.stageId = target.stageId;
+	plan.tasks = applyMoveTo(plan.tasks, id, target);
 }

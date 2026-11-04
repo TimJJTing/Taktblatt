@@ -1,17 +1,16 @@
 /**
  * The workspace store. It holds the plan list and the active plan.
  * All changes to a plan go through `commit`. One commit is one undo step.
- * Refer to ADR 3.
+ * Plan lifecycle operations and undo/redo are the explicit exception in ADR 3.
  */
 import { getContext, setContext } from 'svelte';
 import { nowISO } from '#lib/domain/date.js';
 import { indexTasks, type TaskIndex } from '#lib/domain/derive.js';
-import { createExamplePlan } from '#lib/domain/example.js';
 import { createEmptyPlan } from '#lib/domain/factory.js';
 import { withNewIds } from '#lib/domain/io.js';
 import type { Locale, Plan } from '#lib/domain/schema.js';
 import { History } from './history.svelte';
-import { KEYS, PlanStorage } from './storage';
+import { KEYS, PlanStorage, type LoadResult } from './storage';
 
 export interface PlanSummary {
 	id: string;
@@ -44,7 +43,7 @@ export class Workspace {
 	plans = $state<PlanSummary[]>([]);
 	/** The active plan. Views read it and must not change it directly. Use `commit`. */
 	plan = $state<Plan>(null as unknown as Plan);
-	/** Damaged data that the app found at start. The UI shows a notice. */
+	/** Damaged stored data that the app found. The UI shows a notice. */
 	damaged = $state<DamagedNotice[]>([]);
 
 	/** The task lookup tables. Every view uses this one index. */
@@ -66,24 +65,21 @@ export class Workspace {
 	// -------------------------------------------------------------------------
 
 	private load(): void {
-		const index = this.storage.loadIndex();
+		const index = this.recoverStored(this.storage.loadIndex());
 		let planIds: string[] = [];
 		let activeId: string | null = null;
 		if (index.ok === true) {
 			planIds = index.value.planIds;
 			activeId = index.value.activeId;
-		} else if (index.ok === false) {
-			this.reportDamaged(index.raw);
 		}
 		// Plans in storage that are not in the index are added at the end.
 		for (const id of this.storage.storedPlanIds()) if (!planIds.includes(id)) planIds.push(id);
 
 		const plans: Plan[] = [];
 		for (const id of planIds) {
-			const result = this.storage.loadPlan(id);
+			const result = this.recoverStored(this.storage.loadPlan(id));
 			if (result.ok === true) plans.push(result.value);
 			else if (result.ok === false) {
-				this.reportDamaged(result.raw);
 				this.storage.removePlan(id);
 			}
 		}
@@ -98,9 +94,13 @@ export class Workspace {
 		this.saveIndex();
 	}
 
-	private reportDamaged(raw: string): void {
-		const key = this.storage.keepDamaged(raw);
-		this.damaged = [...this.damaged, { key, raw }];
+	/** Keeps invalid stored text and adds a notice before the caller continues. */
+	private recoverStored<T>(result: LoadResult<T>): LoadResult<T> {
+		if (result.ok === false) {
+			const key = this.storage.keepDamaged(result.raw);
+			this.damaged = [...this.damaged, { key, raw: result.raw }];
+		}
+		return result;
 	}
 
 	private saveIndex(): void {
@@ -172,14 +172,6 @@ export class Workspace {
 		);
 	}
 
-	/** Replaces the content of the active plan with the example. You can undo it. */
-	loadExample(): void {
-		const example = createExamplePlan(this.plan.locale);
-		this.commit((plan) => {
-			Object.assign(plan, { ...example, id: plan.id, createdAt: plan.createdAt });
-		});
-	}
-
 	// -------------------------------------------------------------------------
 	// Plan list
 	// -------------------------------------------------------------------------
@@ -192,7 +184,7 @@ export class Workspace {
 
 	switchTo(id: string): void {
 		if (id === this.plan.id) return;
-		const result = this.storage.loadPlan(id);
+		const result = this.recoverStored(this.storage.loadPlan(id));
 		if (result.ok !== true) return;
 		this.activate(result.value);
 	}
@@ -222,7 +214,7 @@ export class Workspace {
 		const loaded =
 			id === this.plan.id
 				? { ok: true as const, value: $state.snapshot(this.plan) as Plan }
-				: this.storage.loadPlan(id);
+				: this.recoverStored(this.storage.loadPlan(id));
 		if (position < 0 || loaded.ok !== true) return null;
 		const wasActive = id === this.plan.id;
 		this.storage.removePlan(id);
@@ -290,7 +282,7 @@ export class Workspace {
 	allPlans(): Plan[] {
 		return this.plans.flatMap((summary) => {
 			if (summary.id === this.plan.id) return [$state.snapshot(this.plan) as Plan];
-			const result = this.storage.loadPlan(summary.id);
+			const result = this.recoverStored(this.storage.loadPlan(summary.id));
 			return result.ok === true ? [result.value] : [];
 		});
 	}
@@ -302,10 +294,10 @@ export class Workspace {
 	/** Handles a `storage` event from a different tab. The last write wins. */
 	handleStorageEvent(event: Pick<StorageEvent, 'key' | 'newValue'>): void {
 		if (event.key === KEYS.index) {
-			const index = this.storage.loadIndex();
+			const index = this.recoverStored(this.storage.loadIndex());
 			if (index.ok !== true) return;
 			const plans = index.value.planIds.flatMap((id) => {
-				const r = this.storage.loadPlan(id);
+				const r = this.recoverStored(this.storage.loadPlan(id));
 				return r.ok === true ? [summaryOf(r.value)] : [];
 			});
 			if (plans.length > 0) this.plans = plans;
@@ -315,7 +307,9 @@ export class Workspace {
 		}
 		if (event.key?.startsWith(KEYS.planPrefix)) {
 			// Read the current value. A queued event can contain an older value.
-			const result = this.storage.loadPlan(event.key.slice(KEYS.planPrefix.length));
+			const result = this.recoverStored(
+				this.storage.loadPlan(event.key.slice(KEYS.planPrefix.length))
+			);
 			if (result.ok !== true) return;
 			if (event.key === KEYS.plan(this.plan.id)) {
 				this.plan = result.value;

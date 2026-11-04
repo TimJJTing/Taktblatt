@@ -77,11 +77,15 @@
 			pendingMove = { target, conflicts };
 			return;
 		}
-		moveTask(ws, task.id, target, []);
+		moveTask(ws, task.id, { target, fixes: [] });
 	}
 
 	function confirmMove() {
-		if (task && pendingMove) moveTask(ws, task.id, pendingMove.target, pendingMove.conflicts.fixes);
+		if (task && pendingMove)
+			moveTask(ws, task.id, {
+				target: pendingMove.target,
+				fixes: pendingMove.conflicts.fixes
+			});
 		pendingMove = null;
 	}
 

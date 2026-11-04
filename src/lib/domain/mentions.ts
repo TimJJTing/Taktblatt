@@ -2,7 +2,18 @@
  * Mentions in notes. The stored note has tokens `@[task:<id>]`.
  * In the editor, a token shows as `@[Title]`, so a person can read it.
  */
-import { MENTION_PATTERN, mentionToken } from './dependencies';
+export const MENTION_PATTERN = /@\[task:([^\]\s]+)\]/g;
+
+export function mentionToken(id: string): string {
+	return `@[task:${id}]`;
+}
+
+/** Removes the mention tokens of the given task ids from a note. */
+export function removeMentions(note: string, ids: ReadonlySet<string>): string {
+	return note
+		.replace(MENTION_PATTERN, (token, id: string) => (ids.has(id) ? '' : token))
+		.replace(/ {2,}/g, ' ');
+}
 
 export type NoteSegment = { kind: 'text'; text: string } | { kind: 'mention'; id: string };
 

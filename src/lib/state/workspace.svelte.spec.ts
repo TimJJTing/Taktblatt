@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyPlan, createTask } from '#lib/domain/factory.js';
+import { loadExample } from './commands';
 import { MemoryStorage } from './memory-storage';
 import { KEYS } from './storage';
 import { ViewerState } from './viewer.svelte';
@@ -107,7 +108,7 @@ describe('Workspace', () => {
 	it('loads the example into a pristine plan and can undo it', () => {
 		const { ws } = open();
 		const id = ws.plan.id;
-		ws.loadExample();
+		loadExample(ws);
 		expect(ws.plan.id).toBe(id);
 		expect(ws.plan.tasks.length).toBeGreaterThan(0);
 		ws.undo();
@@ -185,4 +186,32 @@ describe('ViewerState', () => {
 		expect(again.ganttPinned).toBe(true);
 		expect(again.ganttHeight).toBe(0.5);
 	});
+});
+
+it.each(['switch', 'plan-event', 'index-event', 'export', 'delete'])(
+	'keeps invalid stored data and reports it during %s',
+	(action) => {
+		const { storage, ws } = open();
+		const id = ws.plan.id;
+		ws.createPlan();
+		const activeId = ws.plan.id;
+		storage.setItem(KEYS.plan(id), '{broken');
+		if (action === 'switch') ws.switchTo(id);
+		if (action === 'plan-event') ws.handleStorageEvent({ key: KEYS.plan(id), newValue: '{broken' });
+		if (action === 'index-event')
+			ws.handleStorageEvent({ key: KEYS.index, newValue: storage.getItem(KEYS.index) });
+		if (action === 'export') ws.allPlans();
+		if (action === 'delete') ws.deletePlan(id);
+		expect(ws.damaged).toHaveLength(1);
+		expect(storage.getItem(ws.damaged[0].key)).toBe('{broken');
+		expect(ws.plan.id).toBe(activeId);
+	}
+);
+
+it('keeps an invalid index received from another tab', () => {
+	const { storage, ws } = open();
+	storage.setItem(KEYS.index, 'invalid');
+	ws.handleStorageEvent({ key: KEYS.index, newValue: 'invalid' });
+	expect(ws.damaged).toHaveLength(1);
+	expect(storage.getItem(ws.damaged[0].key)).toBe('invalid');
 });

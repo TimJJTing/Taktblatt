@@ -15,7 +15,12 @@ export async function openExample(page: Page): Promise<void> {
 
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
 
+/** Finds a row by the exact text of its title cell. */
+export const row = (page: Page, title: string) =>
+	page.getByTestId('task-row').filter({
+		has: page.getByTestId('task-title').and(page.getByText(title, { exact: true }))
+	});
+
 /** The task titles of a stage, in display order. */
-export async function titles(page: Page, stageIndex: number): Promise<string[]> {
-	return stage(page, stageIndex).getByTestId('task-title').allInnerTexts();
-}
+export const titles = (page: Page, stageIndex: number) =>
+	stage(page, stageIndex).getByTestId('task-title');

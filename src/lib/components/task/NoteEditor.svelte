@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import {
 		fromEditorText,
 		matchesWords,
@@ -26,6 +27,8 @@
 
 	let { note, tasks, selfId, onCommit }: Props = $props();
 
+	const id = $props.id();
+	let display = $state<HTMLButtonElement | null>(null);
 	let editing = $state(false);
 	let text = $state('');
 	// Each mention keeps its id at its text range.
@@ -45,6 +48,9 @@
 					.slice(0, 6)
 	);
 
+	const listOpen = $derived(query !== null && candidates.length > 0);
+	const activeIndex = $derived(Math.min(active, candidates.length - 1));
+
 	async function start() {
 		const converted = toEditorText(note, (id) => titleOf(id) || undefined);
 		text = converted.text;
@@ -54,11 +60,19 @@
 		area?.focus();
 	}
 
-	function save() {
+	function finish(cancel: boolean, focusDisplay: boolean) {
+		if (!editing) return;
 		editing = false;
 		query = null;
-		const next = fromEditorText(text, mentions, tasks).trim();
-		if (next !== note) onCommit(next);
+		if (!cancel) {
+			const next = fromEditorText(text, mentions, tasks).trim();
+			if (next !== note) onCommit(next);
+		} else {
+			const stored = toEditorText(note, (id) => titleOf(id) || undefined);
+			text = stored.text;
+			mentions = stored.mentions;
+		}
+		if (focusDisplay) tick().then(() => display?.focus());
 	}
 
 	function beforeInput() {
@@ -118,7 +132,13 @@
 	}
 
 	function onKeydown(event: KeyboardEvent) {
-		if (query !== null && candidates.length > 0) {
+		if (isComposing(event)) return;
+		if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+			event.preventDefault();
+			finish(false, true);
+			return;
+		}
+		if (listOpen) {
 			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 				event.preventDefault();
 				const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -127,15 +147,15 @@
 			}
 			if (event.key === 'Enter' || event.key === 'Tab') {
 				event.preventDefault();
-				insert(candidates[active]);
+				insert(candidates[activeIndex]);
 				return;
 			}
 		}
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			event.stopPropagation();
-			if (query !== null) query = null;
-			else save();
+			if (listOpen) query = null;
+			else finish(true, true);
 		}
 	}
 </script>
@@ -146,28 +166,36 @@
 			bind:this={area}
 			value={text}
 			aria-label={m.field_note()}
+			role="combobox"
+			aria-autocomplete="list"
+			aria-expanded={listOpen}
+			aria-controls={listOpen ? `${id}-options` : undefined}
+			aria-activedescendant={listOpen ? `${id}-option-${activeIndex}` : undefined}
 			placeholder={m.field_note_placeholder()}
 			class="field-sizing-content min-h-20 w-full resize-none rounded-md border bg-background px-2.5 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
 			onbeforeinput={beforeInput}
 			oninput={onInput}
 			onclick={readQuery}
 			onkeydown={onKeydown}
-			onblur={save}
+			onblur={() => finish(false, false)}
 			data-testid="note-input"></textarea>
-		{#if query !== null && candidates.length > 0}
+		{#if listOpen}
 			<div
 				class="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-popover p-1 text-sm shadow-md"
 				role="listbox"
+				id={`${id}-options`}
 				aria-label={m.dependency_search()}
 			>
 				{#each candidates as task, i (task.id)}
 					<button
 						type="button"
 						role="option"
-						aria-selected={i === active}
+						id={`${id}-option-${i}`}
+						tabindex="-1"
+						aria-selected={i === activeIndex}
 						class={cn(
 							'block w-full truncate rounded-sm px-2 py-1 text-left',
-							i === active && 'bg-accent'
+							i === activeIndex && 'bg-accent'
 						)}
 						onmousedown={(e) => {
 							e.preventDefault();
@@ -183,6 +211,7 @@
 	</div>
 {:else}
 	<button
+		bind:this={display}
 		type="button"
 		class="min-h-20 w-full rounded-md border border-transparent px-2.5 py-2 text-left text-sm whitespace-pre-wrap transition-colors hover:border-border hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
 		onclick={start}

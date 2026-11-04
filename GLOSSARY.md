@@ -4,13 +4,13 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 
 | Term                       | Meaning                                                                                                                                 | Do not use               |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Plan**                   | One project document. It contains stages, tasks, milestones, bands, remarks and the header and footer fields.                           | project, document, board |
+| **Plan**                   | One project plan. It contains stages, tasks, milestones, bands, remarks and the header and footer fields.                               | project, document, board |
 | **Stage**                  | A group of tasks in a plan. A stage has a title, a description and a color.                                                             | phase, section           |
 | **Task**                   | A work entry with no parent (level 1).                                                                                                  | activity, item           |
 | **Subtask**                | A task with a parent (level 2). A subtask cannot have subtasks.                                                                         | child item, sub-item     |
 | **Parent**                 | A task that has one or more subtasks.                                                                                                   | group                    |
 | **Derived value**          | A value that the app calculates from other data. The user cannot edit it directly.                                                      | computed field           |
-| **Fallback value**         | The own value of a parent that is hidden while the parent has subtasks.                                                                 |                          |
+| **Fallback value**         | The own value of a parent. The app hides it while the parent has subtasks.                                                              |                          |
 | **Own dependencies**       | The ids in the `dependsOn` field of a task or subtask.                                                                                  |                          |
 | **Effective dependencies** | For a subtask: its own dependencies. For a parent: the union of its own dependencies and those of its subtasks, minus its own subtasks. |                          |
 | **Date rule**              | A cannot be a dependency of B if `A.start > B.end`.                                                                                     |                          |
@@ -19,13 +19,13 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 | **Move-conflict dialog**   | The dialog that lists the changes that a move needs before it can occur.                                                                |                          |
 | **Milestone**              | A dated event in the plan. Labels M1 … Mn follow date order.                                                                            |                          |
 | **Band**                   | A titled time range that shows as a tint behind the Gantt bars.                                                                         | annotated range, period  |
-| **Remark section**         | A titled list of bullets at the end of the document.                                                                                    | note section             |
+| **Remark section**         | A titled list of bullets at the end of the plan.                                                                                        | note section             |
 | **Mention**                | A token `@[task:<id>]` in a note. The app shows it with the current task title.                                                         |                          |
-| **Workspace**              | The screen layout for editing.                                                                                                          | editor                   |
+| **Workspace**              | The screen layout with controls to edit a plan.                                                                                         | editor                   |
 | **Preview**                | The read-only screen layout that shows the paginated sheets.                                                                            | print view               |
 | **Sheet**                  | One printed page (A4 or US Letter).                                                                                                     |                          |
 | **Paginator**              | The code that puts blocks on sheets.                                                                                                    |                          |
 | **Viewer state**           | Settings for one browser only. They are not in the plan file.                                                                           | user settings            |
-| **UI language**            | The language of the app controls. A viewer setting.                                                                                     |                          |
-| **Document language**      | The language of the printed labels and date formats. A plan setting.                                                                    |                          |
+| **UI language**            | The language of the app controls. Part of the viewer state.                                                                             |                          |
+| **Document language**      | The language of the printed labels and date formats. A field in the plan.                                                               |                          |
 | **Commit**                 | The end of one edit: blur, Enter, a checkbox, a picker, a modal action. One commit is one undo step.                                    |                          |

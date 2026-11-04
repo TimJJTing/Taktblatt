@@ -71,7 +71,7 @@ A **task** has `parentId: null`. A **subtask** has the id of a task in `parentId
 | `title`        | string           |                                                             |
 | `deliverable`  | string           |                                                             |
 | `start`, `end` | date \| `null`   |                                                             |
-| `owners`       | string[]         | Compared without case, after trimming.                      |
+| `owners`       | string[]         | Compared without case, after the app trims them.            |
 | `done`         | boolean          |                                                             |
 | `note`         | string           | Plain text. Can contain mention tokens `@[task:<id>]`.      |
 | `dependsOn`    | string[]         | Ids of other tasks of the plan. Not its own id.             |

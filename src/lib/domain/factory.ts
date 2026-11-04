@@ -68,5 +68,3 @@ export function createEmptyPlan(locale: Locale, today: ISODate = todayISO()): Pl
 		updatedAt: now
 	};
 }
-
-export const __test = { monthStart, monthEnd };

@@ -15,6 +15,7 @@
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
 	import { stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
 	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
@@ -24,8 +25,7 @@
 		addTask,
 		moveStage,
 		removeStage,
-		removeTasks,
-		stageDeleteImpact,
+		discardNewTask,
 		updateStage
 	} from '#lib/state/commands.js';
 	import { getEditing } from '#lib/state/editing.svelte.js';
@@ -61,32 +61,13 @@
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
 
-	function isEmpty(task: Task): boolean {
-		return (
-			task.title.trim() === '' &&
-			task.deliverable.trim() === '' &&
-			task.start === null &&
-			task.end === null &&
-			task.owners.length === 0 &&
-			task.note.trim() === '' &&
-			task.dependsOn.length === 0 &&
-			!ws.plan.tasks.some((t) => t.parentId === task.id)
-		);
-	}
-
-	/** Removes a new task that stayed empty. If it is the newest commit, it leaves no undo step. */
 	function discardIfEmpty(task: Task) {
-		const current = ws.plan.tasks.find((t) => t.id === task.id);
-		if (!current || !isEmpty(current)) return;
-		// The newest commit added this task: remove the commit. Else delete the task (an undo step).
-		const before = ws.history.peek();
-		if (before && !before.tasks.some((t) => t.id === task.id)) ws.rollback();
-		else removeTasks(ws, [task.id]);
+		discardNewTask(ws, task.id);
 	}
 
 	function newTask(parentId: string | null) {
 		if (parentId) viewer.setExpanded(ws.plan.id, parentId, true);
-		editing.newTaskId = addTask(ws, stage.id, parentId);
+		editing.newTaskId = addTask(ws, stage.id, { parentId });
 	}
 </script>
 

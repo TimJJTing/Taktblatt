@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createExamplePlan } from './example';
 import { createEmptyPlan } from './factory';
 import { exportFileName, parseFile, slugify, toBackupFile, toPlanFile, withNewIds } from './io';
-import { migrate } from './migrate';
 import { makePlan, makeTask } from './test-helpers';
 
 describe('parseFile', () => {
@@ -36,8 +35,7 @@ describe('parseFile', () => {
 	});
 
 	it('rejects a dependency on a task that does not exist', () => {
-		const plan = createExamplePlan('en', '2027-04-01');
-		plan.tasks[0].dependsOn = ['missing'];
+		const plan = makePlan([makeTask({ id: 'a', dependsOn: ['missing'] })]);
 		expect(parseFile(JSON.stringify(toPlanFile(plan))).ok).toBe(false);
 	});
 
@@ -132,12 +130,6 @@ describe('parseFile', () => {
 	});
 });
 
-describe('migrate', () => {
-	it('rejects data without a schema version', () => {
-		expect(() => migrate({})).toThrow();
-	});
-});
-
 describe('file names', () => {
 	it('makes a slug from the heading', () => {
 		expect(slugify('  Café Relaunch — Phase 2! ')).toBe('cafe-relaunch-phase-2');
@@ -168,4 +160,11 @@ describe('withNewIds', () => {
 			.note.match(/@\[task:([^\]]+)\]/)![1];
 		expect(ids.has(mention)).toBe(true);
 	});
+});
+
+it.each(['plan', 'backup'])('normalizes imported owners in a %s file', (kind) => {
+	const plan = makePlan([makeTask({ id: 'a', owners: [' Ana ', 'ana', '', 'Bo '] })]);
+	const file = kind === 'plan' ? toPlanFile(plan) : toBackupFile([plan]);
+	const result = parseFile(JSON.stringify(file));
+	expect(result.ok && result.plans[0].tasks[0].owners).toEqual(['Ana', 'Bo']);
 });

@@ -2,6 +2,8 @@
 import * as v from 'valibot';
 import type { ISODate } from './date';
 import { createId } from './ids';
+import { MENTION_PATTERN, mentionToken } from './mentions';
+import { normalizeOwners } from './owners';
 import { migrate, MigrationError } from './migrate';
 import { AnyFileSchema, SCHEMA_VERSION, type BackupFile, type Plan, type PlanFile } from './schema';
 
@@ -31,10 +33,11 @@ export function parseFile(text: string): ParseResult {
 			})
 		};
 	}
-	return {
-		ok: true,
-		plans: result.output.kind === 'plan' ? [result.output.plan] : result.output.plans
-	};
+	const plans = result.output.kind === 'plan' ? [result.output.plan] : result.output.plans;
+	for (const plan of plans) {
+		for (const task of plan.tasks) task.owners = normalizeOwners(task.owners);
+	}
+	return { ok: true, plans };
 }
 
 export function toPlanFile(plan: Plan): PlanFile {
@@ -77,8 +80,8 @@ export function withNewIds(plan: Plan): Plan {
 		t.stageId = id(t.stageId);
 		t.parentId = t.parentId === null ? null : id(t.parentId);
 		t.dependsOn = t.dependsOn.map(id);
-		t.note = t.note.replace(/@\[task:([^\]\s]+)\]/g, (token, old: string) =>
-			map.has(old) ? `@[task:${map.get(old)}]` : token
+		t.note = t.note.replace(MENTION_PATTERN, (token, old: string) =>
+			map.has(old) ? mentionToken(map.get(old)!) : token
 		);
 	}
 	for (const m of copy.milestones) m.id = createId();
