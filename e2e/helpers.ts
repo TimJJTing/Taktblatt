@@ -24,3 +24,9 @@ export const row = (page: Page, title: string) =>
 /** The task titles of a stage, in display order. */
 export const titles = (page: Page, stageIndex: number) =>
 	stage(page, stageIndex).getByTestId('task-title');
+
+/** Opens a select by its test id and picks the option with the exact name. */
+export async function chooseOption(page: Page, testId: string, name: string): Promise<void> {
+	await page.getByTestId(testId).click();
+	await page.getByRole('option', { name, exact: true }).click();
+}

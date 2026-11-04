@@ -8,6 +8,9 @@
 	import { LOCALES, type Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
+	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
+	import StageOverview from '#lib/components/plan/StageOverview.svelte';
+	import Timeline from '#lib/components/timeline/Timeline.svelte';
 	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
@@ -68,13 +71,26 @@
 			>
 		</div>
 	{/if}
-	<h1 class="mt-6 text-2xl font-semibold" data-testid="plan-heading">{title}</h1>
+	<PlanHeader />
+	<section id="timeline" class="mt-10 scroll-mt-28" aria-labelledby="timeline-title">
+		<h2 id="timeline-title" class="mb-4 text-sm font-semibold uppercase">{m.section_timeline()}</h2>
+		<Timeline />
+	</section>
+	<section id="stage-overview" class="mt-10 scroll-mt-28" aria-labelledby="overview-title">
+		<h2 id="overview-title" class="mb-4 text-sm font-semibold uppercase">
+			{m.section_stage_overview()}
+		</h2>
+		<StageOverview />
+	</section>
 
-	<section id="work-plan" class="mt-10 scroll-mt-16" aria-labelledby="work-plan-title">
+	<section id="work-plan" class="mt-10 scroll-mt-28" aria-labelledby="work-plan-title">
 		<h2 id="work-plan-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
 			{m.section_work_plan()}
 		</h2>
 		<WorkPlan />
+	</section>
+	<section id="remarks" class="mt-10 scroll-mt-28" aria-labelledby="remarks-title">
+		<h2 id="remarks-title" class="text-sm font-semibold uppercase">{m.section_remarks()}</h2>
 	</section>
 </main>
 

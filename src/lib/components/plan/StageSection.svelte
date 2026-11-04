@@ -11,14 +11,14 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
-	import InlineText from '#lib/components/edit/InlineText.svelte';
+	import StageTitle from '#lib/components/plan/StageTitle.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
 	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
-	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
+	import { type Stage, type Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
@@ -102,14 +102,7 @@
 		>
 			<span class="shrink-0">{m.stage_label({ n: number })} ·</span>
 			<span class="min-w-0">
-				<InlineText
-					value={stage.title}
-					label={m.stage_title_placeholder({ n: number })}
-					placeholder={m.stage_title_placeholder({ n: number })}
-					maxLength={LIMITS.stageTitle}
-					onCommit={(title) => updateStage(ws, stage.id, { title })}
-					testId="stage-title"
-				/>
+				<StageTitle {stage} {number} />
 			</span>
 			{#if months}
 				<span

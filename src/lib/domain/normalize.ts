@@ -1,6 +1,6 @@
 /** Removes extra spaces from entity fields before a content change. */
 import { normalizeOwners } from './owners';
-import type { Plan, Task, Stage, RemarkSection } from './schema';
+import type { Band, Milestone, Plan, Task, Stage, RemarkSection } from './schema';
 
 export const normalizeTask = (task: Task): Task => ({
 	...task,
@@ -22,7 +22,7 @@ export const normalizeRemark = (section: RemarkSection): RemarkSection => ({
 export const normalizePlan = (plan: Plan): Plan => ({
 	...plan,
 	heading: plan.heading.trim(),
-	subheading: plan.subheading.trim(),
+	subheading: plan.subheading,
 	objective: plan.objective.trim()
 });
 export const normalizeFooter = (footer: Plan['footer']): Plan['footer'] => ({
@@ -40,3 +40,13 @@ export function isPermutation(current: readonly string[], ids: readonly string[]
 		ids.every((id) => known.has(id))
 	);
 }
+
+export const normalizeMilestone = (milestone: Milestone): Milestone => ({
+	...milestone,
+	title: milestone.title.trim(),
+	description: milestone.description.trim()
+});
+export const normalizeBand = (band: Band): Band => ({
+	...band,
+	title: band.title.trim()
+});

@@ -274,7 +274,7 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
 - **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When you expand a parent, the lines connect to the subtask that owns the dependency. When you collapse a parent, the lines connect to the parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse.
 - **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete**, with a confirmation.
-- **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone to edit it.
+- **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete**, with a confirmation.
 - **Stage legend:** the stage colors and titles.
 - **Pin:** a toggle pins the Gantt below the app header.
   - The default height is 35 % of the viewport. The maximum is 50 %. The minimum is 120 px.
