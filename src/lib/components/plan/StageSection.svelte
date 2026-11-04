@@ -16,7 +16,7 @@
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
-	import { stageProgress, stageSpan } from '#lib/domain/derive.js';
+	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
 	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
@@ -31,6 +31,7 @@
 	import { getEditing } from '#lib/state/editing.svelte.js';
 	import { getViewer } from '#lib/state/viewer.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { cn } from '#lib/utils.js';
 	import StageColorPicker from './StageColorPicker.svelte';
 	import TaskRow from './TaskRow.svelte';
 	import { stageColorVar } from './colors.js';
@@ -49,6 +50,10 @@
 
 	const tasks = $derived(ws.index.stageTasks.get(stage.id) ?? []);
 	const progress = $derived(stageProgress(ws.index, stage.id));
+	// Let the message place the animated done count in the locale's word order.
+	const progressText = $derived(
+		m.stage_progress({ done: '{done}', total: progress.total }).split('{done}')
+	);
 	const span = $derived(stageSpan(ws.index, stage.id));
 	const months = $derived(
 		span ? formatMonthSpan(span.start, span.end, intlLocale(ws.plan.locale)) : ''
@@ -117,9 +122,9 @@
 			class="ml-auto text-xs whitespace-nowrap text-muted-foreground"
 			data-testid="stage-progress"
 		>
-			{#key progress.total}
-				<AnimatedNumber value={progress.done} /> / {progress.total}
-			{/key}
+			<span aria-hidden="true">
+				{progressText[0]}<AnimatedNumber value={progress.done} />{progressText[1]}
+			</span>
 			<span class="sr-only">{m.stage_progress({ done: progress.done, total: progress.total })}</span
 			>
 		</span>
@@ -178,12 +183,28 @@
 				class="group/task relative"
 				animate:flip={{ duration: flipDuration, easing: cubicOut }}
 			>
-				<TaskRow {task} {ownerSuggestions} onTitleDone={discardIfEmpty} />
-				{#if expanded}
-					{#each children as child (child.id)}
-						<TaskRow task={child} {ownerSuggestions} onTitleDone={discardIfEmpty} />
-					{/each}
-				{/if}
+				{#each [task, ...(expanded ? children : [])] as rowTask (rowTask.id)}
+					{@const eff = effectiveValues(rowTask, ws.index.children.get(rowTask.id) ?? [])}
+					<tr
+						data-grid-row
+						data-task-id={rowTask.id}
+						class={cn(
+							'border-b transition-colors duration-300',
+							rowTask.parentId !== null ? 'border-border/50' : 'border-border',
+							eff.done === 'done' && 'text-muted-foreground',
+							editing.highlightId === rowTask.id && 'bg-accent/60',
+							editing.flashId === rowTask.id && 'animate-[row-flash_1.2s_ease-out_1]'
+						)}
+						onpointerenter={() => (editing.highlightId = rowTask.id)}
+						onpointerleave={() =>
+							editing.highlightId === rowTask.id && (editing.highlightId = null)}
+						onfocusin={() => (editing.highlightId = rowTask.id)}
+						animate:flip={{ duration: flipDuration, easing: cubicOut }}
+						data-testid="task-row"
+					>
+						<TaskRow task={rowTask} {ownerSuggestions} onTitleDone={discardIfEmpty} />
+					</tr>
+				{/each}
 				<tr aria-hidden="false" class="h-0">
 					<td colspan="6" class="relative h-0 p-0">
 						<AddLine
