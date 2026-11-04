@@ -1,12 +1,13 @@
 <!-- A number that tweens to its new value, so the eye can follow the change. -->
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion, Tween } from 'svelte/motion';
+	import { Tween } from 'svelte/motion';
+	import { motionDuration } from '#lib/motion.js';
 
 	let { value }: { value: number } = $props();
 
 	const tween = Tween.of(() => value, {
-		duration: () => (prefersReducedMotion.current ? 0 : 300),
+		duration: () => motionDuration(300),
 		easing: cubicOut
 	});
 </script>

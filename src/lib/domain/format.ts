@@ -37,6 +37,18 @@ export function formatRange(start: ISODate, end: ISODate, locale: string, withYe
 	return formatter(locale, options).formatRange(toDate(start), toDate(end));
 }
 
+/** A full range, a single known date, or an en dash when neither date is set. */
+export function formatRangeDisplay(
+	start: ISODate | null,
+	end: ISODate | null,
+	locale: string
+): string {
+	if (start && end) return formatRange(start, end, locale);
+	if (start) return formatDate(start, locale);
+	if (end) return formatDate(end, locale);
+	return '–';
+}
+
 /** "Nov" or "Nov – Dec". */
 export function formatMonthSpan(start: ISODate, end: ISODate, locale: string): string {
 	const f = formatter(locale, { month: 'short' });

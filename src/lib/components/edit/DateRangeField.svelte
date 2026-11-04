@@ -1,10 +1,11 @@
 <!--
 	A date range editor in a popover: a calendar and two text fields.
-	The change commits when the popover closes. Either date can be empty.
+	An ordinary close commits the change. Escape cancels the change. Either date can be empty.
 -->
 <script lang="ts">
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import type { Snippet } from 'svelte';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
@@ -55,12 +56,27 @@
 		placeholder = parseDate(anchor);
 	}
 
-	function onOpenChange(next: boolean) {
+	function onOpenChange(next: boolean, cancel = false) {
 		if (next) {
 			reset();
+			open = true;
 			return;
 		}
-		commit();
+		if (!open) return;
+		if (!cancel) {
+			const validStart = readText('start');
+			const validEnd = readText('end');
+			if (validStart && validEnd) commit();
+		}
+		open = false;
+		reset();
+	}
+
+	function onEscapeKeydown(event: KeyboardEvent) {
+		event.preventDefault();
+		if (isComposing(event)) return;
+		event.stopPropagation();
+		onOpenChange(false, true);
 	}
 
 	function commit() {
@@ -70,14 +86,15 @@
 	}
 
 	function readText(which: 'start' | 'end') {
+		if (!open) return false;
 		const text = (which === 'start' ? startText : endText).trim();
 		// The field shows the formatted value. Do not parse it again.
-		if (text === show(which === 'start' ? draftStart : draftEnd)) return;
+		if (text === show(which === 'start' ? draftStart : draftEnd)) return true;
 		const year = Number((draftStart ?? draftEnd ?? todayISO()).slice(0, 4));
 		const parsed = text === '' ? null : parseUserDate(text, tag, year);
 		if (text !== '' && parsed === null) {
 			error = m.date_invalid({ example });
-			return;
+			return false;
 		}
 		if (which === 'start') draftStart = parsed;
 		else draftEnd = parsed;
@@ -85,6 +102,7 @@
 		validate();
 		if (which === 'start') startText = show(draftStart);
 		else endText = show(draftEnd);
+		return true;
 	}
 
 	function validate() {
@@ -109,13 +127,13 @@
 	}
 </script>
 
-<Popover.Root bind:open {onOpenChange}>
+<Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger>
 		{#snippet child({ props })}
 			{@render trigger({ props: { ...props, 'aria-label': label } })}
 		{/snippet}
 	</Popover.Trigger>
-	<Popover.Content class="w-auto p-0" align="start">
+	<Popover.Content class="w-auto p-0" align="start" {onEscapeKeydown}>
 		<div class="flex flex-col gap-2 p-3 pb-0">
 			<div class="grid grid-cols-2 gap-2">
 				<label class="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -123,7 +141,7 @@
 					<Input
 						bind:value={startText}
 						onblur={() => readText('start')}
-						onkeydown={(e) => e.key === 'Enter' && readText('start')}
+						onkeydown={(e) => !isComposing(e) && e.key === 'Enter' && readText('start')}
 						class="h-8 text-sm text-foreground"
 						data-testid="date-start"
 					/>
@@ -133,7 +151,7 @@
 					<Input
 						bind:value={endText}
 						onblur={() => readText('end')}
-						onkeydown={(e) => e.key === 'Enter' && readText('end')}
+						onkeydown={(e) => !isComposing(e) && e.key === 'Enter' && readText('end')}
 						class="h-8 text-sm text-foreground"
 						data-testid="date-end"
 					/>
@@ -159,8 +177,7 @@
 			<Button
 				size="sm"
 				onclick={() => {
-					commit();
-					open = false;
+					onOpenChange(false);
 				}}
 				disabled={!!error}>{m.date_done()}</Button
 			>

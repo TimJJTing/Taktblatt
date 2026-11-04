@@ -1,6 +1,6 @@
 # Taktblatt
 
-Taktblatt is a simple and lightweight project planner. It shows a plan as a Gantt timeline, stages, milestones and a detailed work table. You can print the plan or save it as a PDF.
+Taktblatt is a project planner. It shows a plan as a Gantt timeline, stages, milestones and a detailed work table. You can print the plan or save it as a PDF.
 
 - The app has no server and no account.
 - The app keeps all data in your browser (`localStorage`).
@@ -31,12 +31,12 @@ Taktblatt is a simple and lightweight project planner. It shows a plan as a Gant
 
 ### Do the checks
 
-| Command                  | Check                                         |
-| ------------------------ | --------------------------------------------- |
-| `pnpm lint`              | Formatting (Prettier) and code rules (ESLint) |
-| `pnpm check`             | Types (svelte-check)                          |
-| `pnpm exec vitest --run` | Unit tests                                    |
-| `pnpm test:e2e`          | End-to-end tests (Playwright)                 |
+| Command                | Check                                     |
+| ---------------------- | ----------------------------------------- |
+| `pnpm lint`            | Format (Prettier) and code rules (ESLint) |
+| `pnpm check`           | Types (svelte-check)                      |
+| `pnpm test:unit --run` | Unit tests                                |
+| `pnpm test:e2e`        | End-to-end tests (Playwright)             |
 
 ### Format the code
 
@@ -50,7 +50,7 @@ The app has these UI languages: English, German, Traditional Chinese and Japanes
 
 The message files are in `messages/`. English (`en.json`) is the source.
 
-## Documents
+## Documentation
 
 - [Specification](docs/spec.md)
 - [Architecture decision records](docs/adr/README.md)

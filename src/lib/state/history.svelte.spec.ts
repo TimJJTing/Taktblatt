@@ -28,4 +28,17 @@ describe('History', () => {
 		expect(h.undo(3)).toBe(2);
 		expect(h.undo(2)).toBeNull();
 	});
+
+	it('clears the redo stack when it drops the newest step', () => {
+		const h = new History<number>();
+		h.record(1);
+		h.record(2);
+		h.record(3);
+		expect(h.undo(4)).toBe(3);
+		expect(h.canRedo).toBe(true);
+		expect(h.drop()).toBe(2);
+		expect(h.peek()).toBe(1);
+		expect(h.canRedo).toBe(false);
+		expect(h.redo(2)).toBeNull();
+	});
 });

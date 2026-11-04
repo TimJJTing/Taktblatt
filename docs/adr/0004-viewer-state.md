@@ -8,7 +8,7 @@ Some settings are personal: the expanded tasks, the pinned Gantt, its height, th
 
 ## Decision
 
-- These settings are **viewer state**. The app keeps them under the `taktblatt:ui` key.
+- These settings are **viewer state**. The app keeps the UI language under `taktblatt:locale`. It keeps the other viewer settings under `taktblatt:ui`.
 - The export does not include viewer state.
 - The Gantt and the table share one expand state for each plan.
 - Print uses the current expand state.

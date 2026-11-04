@@ -8,9 +8,9 @@ The app has no server and no authentication. All data is local.
 
 ## Decision
 
-- SvelteKit with `adapter-static`. SSR is off. The app shell is prerendered.
+- SvelteKit with `adapter-static`. SSR is off. SvelteKit prerenders the app shell.
 - A service worker caches the app. A web manifest makes the app installable.
-- The font is self-hosted with `@fontsource`.
+- The app serves the font from its own static files with `@fontsource`.
 - The app does not send requests at runtime. It has no analytics and no telemetry.
 
 ## Consequences

@@ -1,6 +1,7 @@
 <!-- The stage color swatch. It opens the curated palette. A color that another stage uses has a warning. -->
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { STAGE_COLOR_KEYS, type StageColor } from '#lib/domain/palette.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -16,10 +17,45 @@
 
 	let { value, used, onChange }: Props = $props();
 	let open = $state(false);
+	let group = $state<HTMLDivElement | null>(null);
+	let focusedColor = $state<StageColor | null>(null);
+
+	function onOpenChange(next: boolean) {
+		focusedColor = value;
+		open = next;
+	}
+
+	function onKeydown(event: KeyboardEvent, key: StageColor) {
+		if (isComposing(event)) return;
+		const index = STAGE_COLOR_KEYS.indexOf(key);
+		let next: number;
+		switch (event.key) {
+			case 'ArrowRight':
+			case 'ArrowDown':
+				next = (index + 1) % STAGE_COLOR_KEYS.length;
+				break;
+			case 'ArrowLeft':
+			case 'ArrowUp':
+				next = (index - 1 + STAGE_COLOR_KEYS.length) % STAGE_COLOR_KEYS.length;
+				break;
+			case 'Home':
+				next = 0;
+				break;
+			case 'End':
+				next = STAGE_COLOR_KEYS.length - 1;
+				break;
+			default:
+				return;
+		}
+		event.preventDefault();
+		focusedColor = STAGE_COLOR_KEYS[next];
+		onChange(focusedColor);
+		group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+	}
 	const duplicate = $derived(used.includes(value));
 </script>
 
-<Popover.Root bind:open>
+<Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger
 		class={cn(
 			'size-3.5 shrink-0 rounded-[4px] transition-transform outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -29,8 +65,16 @@
 		aria-label={m.stage_color({ color: colorName(value) })}
 		data-testid="stage-color"
 	/>
-	<Popover.Content class="w-auto p-2" align="start">
+	<Popover.Content
+		class="w-auto p-2"
+		align="start"
+		onOpenAutoFocus={(event) => {
+			event.preventDefault();
+			group?.querySelector<HTMLButtonElement>('[tabindex="0"]')?.focus();
+		}}
+	>
 		<div
+			bind:this={group}
 			class="grid grid-cols-4 gap-1.5"
 			role="radiogroup"
 			aria-label={m.stage_color({ color: '' })}
@@ -39,6 +83,8 @@
 				<button
 					type="button"
 					role="radio"
+					tabindex={key === (focusedColor ?? value) ? 0 : -1}
+					onkeydown={(event) => onKeydown(event, key)}
 					aria-checked={key === value}
 					aria-label={colorName(key)}
 					title={used.includes(key)

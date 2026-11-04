@@ -4,10 +4,13 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import {
 		fromEditorText,
 		matchesWords,
 		noteSegments,
+		replaceEditorText,
+		type EditorMention,
 		toEditorText
 	} from '#lib/domain/mentions.js';
 	import type { Task } from '#lib/domain/schema.js';
@@ -24,11 +27,13 @@
 
 	let { note, tasks, selfId, onCommit }: Props = $props();
 
+	const id = $props.id();
+	let display = $state<HTMLButtonElement | null>(null);
 	let editing = $state(false);
 	let text = $state('');
-	// The title-to-id map of one edit. The UI does not read it, so it does not need reactivity.
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity
-	let ids = new Map<string, string>();
+	// Each mention keeps its id at its text range.
+	let mentions: EditorMention[] = [];
+	let selection = { start: 0, end: 0 };
 	let area = $state<HTMLTextAreaElement | null>(null);
 	let query = $state<string | null>(null);
 	let active = $state(0);
@@ -43,20 +48,64 @@
 					.slice(0, 6)
 	);
 
+	const listOpen = $derived(query !== null && candidates.length > 0);
+	const activeIndex = $derived(Math.min(active, candidates.length - 1));
+
 	async function start() {
 		const converted = toEditorText(note, (id) => titleOf(id) || undefined);
 		text = converted.text;
-		ids = converted.ids;
+		mentions = converted.mentions;
 		editing = true;
 		await tick();
 		area?.focus();
 	}
 
-	function save() {
+	function finish(cancel: boolean, focusDisplay: boolean) {
+		if (!editing) return;
 		editing = false;
 		query = null;
-		const next = fromEditorText(text, ids, tasks).trim();
-		if (next !== note) onCommit(next);
+		if (!cancel) {
+			const next = fromEditorText(text, mentions, tasks).trim();
+			if (next !== note) onCommit(next);
+		} else {
+			const stored = toEditorText(note, (id) => titleOf(id) || undefined);
+			text = stored.text;
+			mentions = stored.mentions;
+		}
+		if (focusDisplay) tick().then(() => display?.focus());
+	}
+
+	function beforeInput() {
+		if (area) selection = { start: area.selectionStart, end: area.selectionEnd };
+	}
+
+	function onInput() {
+		if (!area) return;
+		const next = area.value;
+		if (next === text) {
+			readQuery();
+			return;
+		}
+		// The caret bounds keep equal text on each side of a deletion in the correct place.
+		let start = 0;
+		const limit = Math.min(selection.start, area.selectionStart);
+		while (start < limit && text[start] === next[start]) start++;
+		let suffix = 0;
+		const suffixLimit = Math.min(text.length - selection.end, next.length - area.selectionEnd);
+		while (
+			suffix < suffixLimit &&
+			text[text.length - suffix - 1] === next[next.length - suffix - 1]
+		)
+			suffix++;
+		const updated = replaceEditorText(
+			{ text, mentions },
+			start,
+			text.length - suffix,
+			next.slice(start, next.length - suffix)
+		);
+		text = updated.text;
+		mentions = updated.mentions;
+		readQuery();
 	}
 
 	/** Finds an "@query" that ends at the caret. */
@@ -73,8 +122,9 @@
 		const caret = area.selectionStart;
 		const start = caret - query.length - 1;
 		const mention = `@[${task.title}] `;
-		ids.set(task.title, task.id);
-		text = text.slice(0, start) + mention + text.slice(caret);
+		const updated = replaceEditorText({ text, mentions }, start, caret, mention, task);
+		text = updated.text;
+		mentions = updated.mentions;
 		query = null;
 		await tick();
 		area.selectionStart = area.selectionEnd = start + mention.length;
@@ -82,7 +132,13 @@
 	}
 
 	function onKeydown(event: KeyboardEvent) {
-		if (query !== null && candidates.length > 0) {
+		if (isComposing(event)) return;
+		if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+			event.preventDefault();
+			finish(false, true);
+			return;
+		}
+		if (listOpen) {
 			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 				event.preventDefault();
 				const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -91,15 +147,15 @@
 			}
 			if (event.key === 'Enter' || event.key === 'Tab') {
 				event.preventDefault();
-				insert(candidates[active]);
+				insert(candidates[activeIndex]);
 				return;
 			}
 		}
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			event.stopPropagation();
-			if (query !== null) query = null;
-			else save();
+			if (listOpen) query = null;
+			else finish(true, true);
 		}
 	}
 </script>
@@ -108,29 +164,38 @@
 	<div class="relative">
 		<textarea
 			bind:this={area}
-			bind:value={text}
+			value={text}
 			aria-label={m.field_note()}
+			role="combobox"
+			aria-autocomplete="list"
+			aria-expanded={listOpen}
+			aria-controls={listOpen ? `${id}-options` : undefined}
+			aria-activedescendant={listOpen ? `${id}-option-${activeIndex}` : undefined}
 			placeholder={m.field_note_placeholder()}
 			class="field-sizing-content min-h-20 w-full resize-none rounded-md border bg-background px-2.5 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-			oninput={readQuery}
+			onbeforeinput={beforeInput}
+			oninput={onInput}
 			onclick={readQuery}
 			onkeydown={onKeydown}
-			onblur={save}
+			onblur={() => finish(false, false)}
 			data-testid="note-input"></textarea>
-		{#if query !== null && candidates.length > 0}
+		{#if listOpen}
 			<div
 				class="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-popover p-1 text-sm shadow-md"
 				role="listbox"
+				id={`${id}-options`}
 				aria-label={m.dependency_search()}
 			>
 				{#each candidates as task, i (task.id)}
 					<button
 						type="button"
 						role="option"
-						aria-selected={i === active}
+						id={`${id}-option-${i}`}
+						tabindex="-1"
+						aria-selected={i === activeIndex}
 						class={cn(
 							'block w-full truncate rounded-sm px-2 py-1 text-left',
-							i === active && 'bg-accent'
+							i === activeIndex && 'bg-accent'
 						)}
 						onmousedown={(e) => {
 							e.preventDefault();
@@ -146,6 +211,7 @@
 	</div>
 {:else}
 	<button
+		bind:this={display}
 		type="button"
 		class="min-h-20 w-full rounded-md border border-transparent px-2.5 py-2 text-left text-sm whitespace-pre-wrap transition-colors hover:border-border hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
 		onclick={start}

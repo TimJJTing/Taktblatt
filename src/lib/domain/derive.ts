@@ -4,7 +4,7 @@
  */
 import type { ISODate } from './date';
 import { normalizeOwners } from './owners';
-import type { Milestone, Plan, Task } from './schema';
+import type { Milestone, Task } from './schema';
 
 export type DoneState = 'done' | 'partial' | 'open';
 
@@ -141,9 +141,14 @@ export function orderedMilestones(
 		.map((milestone, i) => ({ label: `M${i + 1}`, milestone }));
 }
 
-/** The range that contains all task dates. Null when no task has a date. */
-export function tasksSpan(plan: Plan): { start: ISODate; end: ISODate } | null {
-	const dates = plan.tasks.flatMap((t) => [t.start, t.end]).filter((d): d is ISODate => d !== null);
+/** The range that contains all effective task dates. Null when no task has a date. */
+export function tasksSpan(index: TaskIndex): { start: ISODate; end: ISODate } | null {
+	const dates: ISODate[] = [];
+	for (const id of index.byId.keys()) {
+		const eff = effectiveOf(index, id)!;
+		if (eff.start) dates.push(eff.start);
+		if (eff.end) dates.push(eff.end);
+	}
 	if (dates.length === 0) return null;
 	dates.sort();
 	return { start: dates[0], end: dates[dates.length - 1] };

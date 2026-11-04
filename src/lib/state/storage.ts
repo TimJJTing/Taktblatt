@@ -3,6 +3,7 @@
  * Refer to docs/spec.md, section 4.2.
  */
 import * as v from 'valibot';
+import { createId } from '#lib/domain/ids.js';
 import { migrate } from '#lib/domain/migrate.js';
 import { PlanSchema, SCHEMA_VERSION, type Plan } from '#lib/domain/schema.js';
 
@@ -59,7 +60,9 @@ export class PlanStorage {
 
 	/** Keeps damaged data under a backup key. Returns the key. */
 	keepDamaged(raw: string, now: Date = new Date()): string {
-		const key = KEYS.damaged(now.toISOString());
+		const prefix = KEYS.damaged(now.toISOString());
+		let key = `${prefix}:${createId()}`;
+		while (this.storage.getItem(key) !== null) key = `${prefix}:${createId()}`;
 		this.storage.setItem(key, raw);
 		return key;
 	}

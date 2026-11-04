@@ -7,7 +7,6 @@
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
@@ -16,21 +15,23 @@
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { stageProgress, stageSpan } from '#lib/domain/derive.js';
+	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
+	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
 	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
 		addTask,
 		moveStage,
 		removeStage,
-		removeTasks,
-		stageDeleteImpact,
+		discardNewTask,
 		updateStage
 	} from '#lib/state/commands.js';
 	import { getEditing } from '#lib/state/editing.svelte.js';
 	import { getViewer } from '#lib/state/viewer.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { cn } from '#lib/utils.js';
 	import StageColorPicker from './StageColorPicker.svelte';
 	import TaskRow from './TaskRow.svelte';
 	import { stageColorVar } from './colors.js';
@@ -49,6 +50,10 @@
 
 	const tasks = $derived(ws.index.stageTasks.get(stage.id) ?? []);
 	const progress = $derived(stageProgress(ws.index, stage.id));
+	// Let the message place the animated done count in the locale's word order.
+	const progressText = $derived(
+		m.stage_progress({ done: '{done}', total: progress.total }).split('{done}')
+	);
 	const span = $derived(stageSpan(ws.index, stage.id));
 	const months = $derived(
 		span ? formatMonthSpan(span.start, span.end, intlLocale(ws.plan.locale)) : ''
@@ -56,37 +61,18 @@
 	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
 	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
 	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));
-	const flipDuration = $derived(prefersReducedMotion.current ? 0 : 280);
+	const flipDuration = $derived(motionDuration(280));
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
 
-	function isEmpty(task: Task): boolean {
-		return (
-			task.title.trim() === '' &&
-			task.deliverable.trim() === '' &&
-			task.start === null &&
-			task.end === null &&
-			task.owners.length === 0 &&
-			task.note.trim() === '' &&
-			task.dependsOn.length === 0 &&
-			!ws.plan.tasks.some((t) => t.parentId === task.id)
-		);
-	}
-
-	/** Removes a new task that stayed empty. If it is the newest commit, it leaves no undo step. */
 	function discardIfEmpty(task: Task) {
-		const current = ws.plan.tasks.find((t) => t.id === task.id);
-		if (!current || !isEmpty(current)) return;
-		// The newest commit added this task: remove the commit. Else delete the task (an undo step).
-		const before = ws.history.peek();
-		if (before && !before.tasks.some((t) => t.id === task.id)) ws.rollback();
-		else removeTasks(ws, [task.id]);
+		discardNewTask(ws, task.id);
 	}
 
 	function newTask(parentId: string | null) {
 		if (parentId) viewer.setExpanded(ws.plan.id, parentId, true);
-		editing.newTaskId = addTask(ws, stage.id, parentId);
+		editing.newTaskId = addTask(ws, stage.id, { parentId });
 	}
 </script>
 
@@ -126,8 +112,9 @@
 				/>
 			</span>
 			{#if months}
-				<span class="shrink-0 font-normal text-muted-foreground" transition:fade={{ duration: 150 }}
-					>({months})</span
+				<span
+					class="shrink-0 font-normal text-muted-foreground"
+					transition:fade={{ duration: motionDuration(150) }}>({months})</span
 				>
 			{/if}
 		</h3>
@@ -135,9 +122,9 @@
 			class="ml-auto text-xs whitespace-nowrap text-muted-foreground"
 			data-testid="stage-progress"
 		>
-			{#key progress.total}
-				<AnimatedNumber value={progress.done} /> / {progress.total}
-			{/key}
+			<span aria-hidden="true">
+				{progressText[0]}<AnimatedNumber value={progress.done} />{progressText[1]}
+			</span>
 			<span class="sr-only">{m.stage_progress({ done: progress.done, total: progress.total })}</span
 			>
 		</span>
@@ -196,12 +183,28 @@
 				class="group/task relative"
 				animate:flip={{ duration: flipDuration, easing: cubicOut }}
 			>
-				<TaskRow {task} {ownerSuggestions} onTitleDone={discardIfEmpty} />
-				{#if expanded}
-					{#each children as child (child.id)}
-						<TaskRow task={child} {ownerSuggestions} onTitleDone={discardIfEmpty} />
-					{/each}
-				{/if}
+				{#each [task, ...(expanded ? children : [])] as rowTask (rowTask.id)}
+					{@const eff = effectiveValues(rowTask, ws.index.children.get(rowTask.id) ?? [])}
+					<tr
+						data-grid-row
+						data-task-id={rowTask.id}
+						class={cn(
+							'border-b transition-colors duration-300',
+							rowTask.parentId !== null ? 'border-border/50' : 'border-border',
+							eff.done === 'done' && 'text-muted-foreground',
+							editing.highlightId === rowTask.id && 'bg-accent/60',
+							editing.flashId === rowTask.id && 'animate-[row-flash_1.2s_ease-out_1]'
+						)}
+						onpointerenter={() => (editing.highlightId = rowTask.id)}
+						onpointerleave={() =>
+							editing.highlightId === rowTask.id && (editing.highlightId = null)}
+						onfocusin={() => (editing.highlightId = rowTask.id)}
+						animate:flip={{ duration: flipDuration, easing: cubicOut }}
+						data-testid="task-row"
+					>
+						<TaskRow task={rowTask} {ownerSuggestions} onTitleDone={discardIfEmpty} />
+					</tr>
+				{/each}
 				<tr aria-hidden="false" class="h-0">
 					<td colspan="6" class="relative h-0 p-0">
 						<AddLine

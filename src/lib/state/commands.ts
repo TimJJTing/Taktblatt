@@ -1,16 +1,21 @@
 /**
  * Named edits of the active plan. Views call these functions. Each call is one commit (one undo step).
- * The functions keep the domain rules. Views must not change the plan in other ways.
+ * Views must use these functions to change plan content.
+ * Plan creation, switching, deletion, duplication, import, undo and redo stay on Workspace.
+ * These plan lifecycle and history operations are the explicit exception in ADR 3.
  */
+import { applyMove, deleteTasks, type MoveFix, type MoveTarget } from '#lib/domain/dependencies.js';
+import { createExamplePlan } from '#lib/domain/example.js';
 import {
-	applyMove,
-	deleteImpact,
-	deleteTasks,
-	type MoveFix,
-	type MoveTarget
-} from '#lib/domain/dependencies.js';
+	isPermutation,
+	normalizeTask,
+	normalizeStage,
+	normalizeRemark,
+	normalizePlan,
+	normalizeFooter
+} from '#lib/domain/normalize.js';
 import { createRemarkSection, createStage, createTask } from '#lib/domain/factory.js';
-import { normalizeOwners, renameOwner } from '#lib/domain/owners.js';
+import { renameOwner } from '#lib/domain/owners.js';
 import type { Plan, RemarkSection, Stage, Task } from '#lib/domain/schema.js';
 import type { Workspace } from './workspace.svelte.js';
 
@@ -28,11 +33,11 @@ export function updatePlan(
 	ws: Workspace,
 	patch: Partial<Pick<Plan, 'heading' | 'subheading' | 'objective' | 'range' | 'locale' | 'paper'>>
 ): void {
-	ws.commit((plan) => Object.assign(plan, patch));
+	ws.commit((plan) => Object.assign(plan, normalizePlan({ ...plan, ...patch })));
 }
 
 export function updateFooter(ws: Workspace, patch: Partial<Plan['footer']>): void {
-	ws.commit((plan) => Object.assign(plan.footer, patch));
+	ws.commit((plan) => Object.assign(plan.footer, normalizeFooter({ ...plan.footer, ...patch })));
 }
 
 // -------------------------------------------------------------------------
@@ -42,11 +47,10 @@ export function updateFooter(ws: Workspace, patch: Partial<Plan['footer']>): voi
 export function addTask(
 	ws: Workspace,
 	stageId: string,
-	parentId: string | null,
-	patch: TaskPatch = {}
+	payload: { parentId: string | null; patch?: TaskPatch } = { parentId: null }
 ): string {
-	const task = { ...createTask(stageId, parentId), ...patch };
-	if (task.owners) task.owners = normalizeOwners(task.owners);
+	// A new task can stay empty while the user edits it.
+	const task = normalizeTask({ ...createTask(stageId, payload.parentId), ...payload.patch });
 	ws.commit((plan) => {
 		plan.tasks.push(task);
 	});
@@ -57,10 +61,7 @@ export function updateTask(ws: Workspace, id: string, patch: TaskPatch): void {
 	ws.commit((plan) => {
 		const task = findTask(plan, id);
 		if (!task) return;
-		Object.assign(task, patch);
-		if (patch.owners) task.owners = normalizeOwners(patch.owners);
-		if (patch.title !== undefined) task.title = patch.title.trim();
-		if (patch.deliverable !== undefined) task.deliverable = patch.deliverable.trim();
+		Object.assign(task, normalizeTask({ ...task, ...patch }));
 	});
 }
 
@@ -71,10 +72,9 @@ export function removeTasks(ws: Workspace, ids: readonly string[]): void {
 export function moveTask(
 	ws: Workspace,
 	id: string,
-	target: MoveTarget,
-	fixes: readonly MoveFix[]
+	payload: { target: MoveTarget; fixes: readonly MoveFix[] }
 ): void {
-	ws.commit((plan) => applyMove(plan, id, target, fixes));
+	ws.commit((plan) => applyMove(plan, id, payload.target, payload.fixes));
 }
 
 /** Renames an owner in all tasks of the plan. */
@@ -92,7 +92,7 @@ export function renameOwnerEverywhere(ws: Workspace, from: string, to: string): 
 
 /** Adds an empty stage at `position`. Returns its id. */
 export function addStage(ws: Workspace, position: number): string {
-	const stage = createStage(ws.plan.stages.map((s) => s.color));
+	const stage = normalizeStage(createStage(ws.plan.stages.map((s) => s.color)));
 	ws.commit((plan) => {
 		plan.stages.splice(position, 0, stage);
 	});
@@ -103,9 +103,7 @@ export function updateStage(ws: Workspace, id: string, patch: Partial<Omit<Stage
 	ws.commit((plan) => {
 		const stage = plan.stages.find((s) => s.id === id);
 		if (!stage) return;
-		Object.assign(stage, patch);
-		if (patch.title !== undefined) stage.title = patch.title.trim();
-		if (patch.description !== undefined) stage.description = patch.description.trim();
+		Object.assign(stage, normalizeStage({ ...stage, ...patch }));
 	});
 }
 
@@ -121,19 +119,17 @@ export function moveStage(ws: Workspace, id: string, delta: -1 | 1): void {
 
 /** Sets the stage order. `ids` must contain all stage ids. */
 export function reorderStages(ws: Workspace, ids: readonly string[]): void {
+	if (
+		!isPermutation(
+			ws.plan.stages.map((item) => item.id),
+			ids
+		)
+	)
+		return;
 	ws.commit((plan) => {
-		if (ids.length !== plan.stages.length) return;
 		const byId = new Map(plan.stages.map((s) => [s.id, s]));
-		plan.stages = ids.map((id) => byId.get(id)!).filter(Boolean);
+		plan.stages = ids.map((id) => byId.get(id)!);
 	});
-}
-
-export function stageDeleteImpact(plan: Plan, id: string): { tasks: number; dependents: number } {
-	const taskIds = plan.tasks
-		.filter((t) => t.stageId === id && t.parentId === null)
-		.map((t) => t.id);
-	const impact = deleteImpact(plan, taskIds);
-	return { tasks: impact.ids.length, dependents: impact.dependents };
 }
 
 /** Deletes a stage and its tasks. */
@@ -155,7 +151,8 @@ export function addRemarkSection(
 	ws: Workspace,
 	patch: Partial<Omit<RemarkSection, 'id'>> = {}
 ): string {
-	const section = { ...createRemarkSection(), ...patch };
+	// Keep an empty section so the user can edit it.
+	const section = normalizeRemark({ ...createRemarkSection(), ...patch });
 	ws.commit((plan) => {
 		plan.remarks.push(section);
 	});
@@ -170,9 +167,7 @@ export function updateRemarkSection(
 	ws.commit((plan) => {
 		const section = plan.remarks.find((r) => r.id === id);
 		if (!section) return;
-		Object.assign(section, patch);
-		section.title = section.title.trim();
-		section.bullets = section.bullets.map((b) => b.trim()).filter((b) => b.length > 0);
+		Object.assign(section, normalizeRemark({ ...section, ...patch }));
 		if (section.title === '' && section.bullets.length === 0) {
 			plan.remarks = plan.remarks.filter((r) => r.id !== id);
 		}
@@ -196,9 +191,42 @@ export function moveRemarkSection(ws: Workspace, id: string, delta: -1 | 1): voi
 }
 
 export function reorderRemarks(ws: Workspace, ids: readonly string[]): void {
+	if (
+		!isPermutation(
+			ws.plan.remarks.map((item) => item.id),
+			ids
+		)
+	)
+		return;
 	ws.commit((plan) => {
-		if (ids.length !== plan.remarks.length) return;
 		const byId = new Map(plan.remarks.map((r) => [r.id, r]));
-		plan.remarks = ids.map((id) => byId.get(id)!).filter(Boolean);
+		plan.remarks = ids.map((id) => byId.get(id)!);
 	});
+}
+
+/** Replaces the active plan content with the example. */
+export function loadExample(ws: Workspace): void {
+	const example = createExamplePlan(ws.plan.locale);
+	ws.commit((plan) => Object.assign(plan, { ...example, id: plan.id, createdAt: plan.createdAt }));
+}
+
+/** Removes an empty task. Drops its creation step if it is the newest step. */
+export function discardNewTask(ws: Workspace, id: string): void {
+	const task = findTask(ws.plan, id);
+	if (
+		!task ||
+		task.title.trim() ||
+		task.deliverable.trim() ||
+		task.start ||
+		task.end ||
+		task.owners.length ||
+		task.note.trim() ||
+		task.dependsOn.length ||
+		task.done ||
+		ws.index.children.get(id)?.length
+	)
+		return;
+	const before = ws.history.peek();
+	if (before && !before.tasks.some((task) => task.id === id)) ws.rollback();
+	else ws.commit((plan) => deleteTasks(plan, [id]));
 }

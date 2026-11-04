@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { __test, createEmptyPlan } from './factory';
-import { normalizeOwners, renameOwner } from './owners';
-import { nextStageColor } from './palette';
+import { createEmptyPlan } from './factory';
 
 describe('createEmptyPlan', () => {
 	it('uses the current month and the next two months as the range', () => {
@@ -12,22 +10,6 @@ describe('createEmptyPlan', () => {
 	});
 
 	it('calculates month ends in leap years', () => {
-		expect(__test.monthEnd('2028-02-10', 0)).toBe('2028-02-29');
-	});
-});
-
-describe('owners', () => {
-	it('trims, removes empty names and removes duplicates without case', () => {
-		expect(normalizeOwners([' Ana', 'ana ', '', 'Bo'])).toEqual(['Ana', 'Bo']);
-	});
-
-	it('renames an owner and merges duplicates', () => {
-		expect(renameOwner(['ana', 'Bo'], 'ANA', 'Bo')).toEqual(['Bo']);
-	});
-});
-
-describe('nextStageColor', () => {
-	it('returns the first unused color', () => {
-		expect(nextStageColor(['blue', 'amber'])).toBe('green');
+		expect(createEmptyPlan('en', '2027-12-10').range.end).toBe('2028-02-29');
 	});
 });

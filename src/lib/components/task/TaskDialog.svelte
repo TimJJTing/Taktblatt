@@ -22,7 +22,7 @@
 		type MoveTarget
 	} from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
-	import { formatRange, intlLocale } from '#lib/domain/format.js';
+	import { formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
 	import { allOwners } from '#lib/domain/owners.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { moveTask, removeTasks, renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
@@ -77,11 +77,15 @@
 			pendingMove = { target, conflicts };
 			return;
 		}
-		moveTask(ws, task.id, target, []);
+		moveTask(ws, task.id, { target, fixes: [] });
 	}
 
 	function confirmMove() {
-		if (task && pendingMove) moveTask(ws, task.id, pendingMove.target, pendingMove.conflicts.fixes);
+		if (task && pendingMove)
+			moveTask(ws, task.id, {
+				target: pendingMove.target,
+				fixes: pendingMove.conflicts.fixes
+			});
 		pendingMove = null;
 	}
 
@@ -153,7 +157,7 @@
 				<dd>
 					{#if isParent}
 						<span class="px-1.5 text-foreground/80" title={m.target_derived()}>
-							{eff.start && eff.end ? formatRange(eff.start, eff.end, locale) : '–'}
+							{formatRangeDisplay(eff.start, eff.end, locale)}
 						</span>
 					{:else}
 						<DateRangeField
@@ -170,10 +174,8 @@
 									class="rounded-sm px-1.5 py-0.5 text-left hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
 									data-testid="dialog-range"
 								>
-									{#if task.start && task.end}
-										{formatRange(task.start, task.end, locale)}
-									{:else if task.start || task.end}
-										{formatRange(task.start ?? task.end!, task.end ?? task.start!, locale)}
+									{#if task.start || task.end}
+										{formatRangeDisplay(task.start, task.end, locale)}
 									{:else}
 										<span class="text-muted-foreground">{m.target_empty()}</span>
 									{/if}

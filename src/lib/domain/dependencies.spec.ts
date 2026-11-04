@@ -9,10 +9,11 @@ import {
 	effectiveDependencies,
 	inheritedDependencies,
 	isValidMoveTarget,
-	mentionToken,
 	moveConflicts,
-	readyCount
+	readyCount,
+	stageDeleteImpact
 } from './dependencies';
+import { mentionToken } from './mentions';
 import { makePlan, makeTask } from './test-helpers';
 
 describe('effectiveDependencies', () => {
@@ -233,4 +234,31 @@ describe('moves', () => {
 		applyMove(plan, 'p', { stageId: 's2', parentId: null }, []);
 		expect(plan.tasks.map((t) => t.stageId)).toEqual(['s2', 's2']);
 	});
+});
+
+it('counts actual removed subtasks for repeated, overlapping and unknown roots', () => {
+	const plan = makePlan([
+		makeTask({ id: 'p' }),
+		makeTask({ id: 'c', parentId: 'p' }),
+		makeTask({ id: 'other', dependsOn: ['c'] })
+	]);
+	expect(deleteImpact(plan, ['p', 'p', 'c', 'missing'])).toEqual({
+		ids: ['p', 'c'],
+		subtasks: 1,
+		dependents: 1
+	});
+	expect(deleteImpact(plan, ['missing'])).toEqual({ ids: [], subtasks: 0, dependents: 0 });
+});
+
+it('counts stage tasks, subtasks and external dependents', () => {
+	const plan = makePlan(
+		[
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'c', parentId: 'p' }),
+			makeTask({ id: 'other', stageId: 's2', dependsOn: ['p', 'c'] })
+		],
+		['s1', 's2']
+	);
+	expect(stageDeleteImpact(plan, 's1')).toEqual({ tasks: 2, dependents: 1 });
+	expect(stageDeleteImpact(plan, 'missing')).toEqual({ tasks: 0, dependents: 0 });
 });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatDay, formatMonthSpan, formatRange, parseUserDate } from './format';
+import {
+	formatDate,
+	formatDay,
+	formatMonthSpan,
+	formatRange,
+	formatRangeDisplay,
+	parseUserDate
+} from './format';
 
 describe('format', () => {
 	it('formats short days in the document language', () => {
@@ -15,6 +22,23 @@ describe('format', () => {
 	it('formats a range across years', () => {
 		expect(formatRange('2026-11-01', '2027-01-31', 'en-US')).toMatch(
 			/Nov 1, 2026\s–\sJan 31, 2027/
+		);
+	});
+});
+
+describe('formatRangeDisplay', () => {
+	it.each(['en-US', 'de', 'zh-TW', 'ja'])('formats all range states in %s', (locale) => {
+		expect(formatRangeDisplay(null, null, locale)).toBe('–');
+		expect(formatRangeDisplay('2026-11-01', null, locale)).toBe(formatDate('2026-11-01', locale));
+		expect(formatRangeDisplay(null, '2027-01-31', locale)).toBe(formatDate('2027-01-31', locale));
+		expect(formatRangeDisplay('2026-11-01', '2027-01-31', locale)).toBe(
+			formatRange('2026-11-01', '2027-01-31', locale)
+		);
+	});
+
+	it('formats equal endpoints as a full range', () => {
+		expect(formatRangeDisplay('2026-11-01', '2026-11-01', 'en-US')).toBe(
+			formatRange('2026-11-01', '2026-11-01', 'en-US')
 		);
 	});
 });

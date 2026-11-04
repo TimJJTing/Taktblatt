@@ -4,7 +4,7 @@ Status: accepted (2026-11-05)
 
 ## Context
 
-The app supports English, German, Traditional Chinese and Japanese. A plan is a document. A document can have a language that is different from the language of the person who edits it.
+The app supports English, German, Traditional Chinese and Japanese. A plan can have a language that is different from the language of the person who edits it.
 
 ## Decision
 

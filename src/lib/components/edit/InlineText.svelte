@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -64,6 +65,7 @@
 	});
 
 	function finish(focusDisplay: boolean) {
+		if (!editing) return;
 		const text = draft;
 		editing = false;
 		if (!cancelled && text.trim() !== value.trim()) onCommit(text);
@@ -72,12 +74,13 @@
 	}
 
 	function onKeydown(event: KeyboardEvent) {
+		if (isComposing(event)) return;
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			event.stopPropagation();
 			cancelled = true;
 			finish(true);
-		} else if (event.key === 'Enter' && !event.isComposing) {
+		} else if (event.key === 'Enter') {
 			if (multiline && !(event.metaKey || event.ctrlKey)) return;
 			event.preventDefault();
 			finish(!onEnter);

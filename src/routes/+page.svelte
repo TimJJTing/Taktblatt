@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { loadExample } from '#lib/state/commands.js';
 	import { toast } from 'svelte-sonner';
 	import AppHeader from '#lib/components/app/AppHeader.svelte';
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
@@ -63,8 +64,7 @@
 	{#if ws.isPristine}
 		<div class="flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm">
 			<span class="text-muted-foreground">{m.example_prompt()}</span>
-			<Button size="sm" variant="outline" onclick={() => ws.loadExample()}
-				>{m.example_load()}</Button
+			<Button size="sm" variant="outline" onclick={() => loadExample(ws)}>{m.example_load()}</Button
 			>
 		</div>
 	{/if}

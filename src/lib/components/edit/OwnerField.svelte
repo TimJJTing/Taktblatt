@@ -5,6 +5,7 @@
 <script lang="ts">
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { isComposing } from '#lib/browser/keyboard.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -38,6 +39,28 @@
 			.slice(0, 6);
 	});
 
+	const showSuggestions = $derived(filtered.length > 0);
+
+	function onOpenChange(next: boolean, cancel = false) {
+		if (!next && open) {
+			if (!cancel) add(text);
+			text = '';
+		}
+		open = next;
+	}
+
+	function onEscapeKeydown(event: KeyboardEvent) {
+		event.preventDefault();
+		if (isComposing(event)) return;
+		event.stopPropagation();
+		// The suggestions are part of the popover, not a separate list. Esc closes the popover and discards the typed name.
+		onOpenChange(false, true);
+	}
+
+	function guardSubmit(event: KeyboardEvent) {
+		if (event.key === 'Enter' && isComposing(event)) event.preventDefault();
+	}
+
 	function add(name: string) {
 		const value = name.trim();
 		text = '';
@@ -61,7 +84,7 @@
 	}
 </script>
 
-<Popover.Root bind:open>
+<Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger
 		class="flex min-h-6 w-full items-center rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
 		aria-label={owners.length ? `${label}: ${owners.join(', ')}` : label}
@@ -73,7 +96,7 @@
 			<span class="text-sm text-muted-foreground/70">{m.owner_empty()}</span>
 		{/if}
 	</Popover.Trigger>
-	<Popover.Content class="w-64 p-2" align="start">
+	<Popover.Content class="w-64 p-2" align="start" {onEscapeKeydown}>
 		{#if owners.length}
 			<ul class="mb-2 flex flex-wrap gap-1">
 				{#each owners as owner (owner)}
@@ -112,13 +135,14 @@
 		>
 			<Input
 				bind:value={text}
+				onkeydown={guardSubmit}
 				placeholder={m.owner_input()}
 				aria-label={m.owner_input()}
 				class="h-8"
 				data-testid="owner-input"
 			/>
 		</form>
-		{#if filtered.length}
+		{#if showSuggestions}
 			<p class="mt-2 mb-1 px-1 text-xs text-muted-foreground">{m.owner_suggestions()}</p>
 			<ul>
 				{#each filtered as name (name)}
@@ -144,7 +168,7 @@
 				<Dialog.Title>{m.owner_rename_title({ name: renameFrom ?? '' })}</Dialog.Title>
 				<Dialog.Description>{m.owner_rename_body({ name: renameFrom ?? '' })}</Dialog.Description>
 			</Dialog.Header>
-			<Input bind:value={renameTo} aria-label={m.owner_input()} />
+			<Input onkeydown={guardSubmit} bind:value={renameTo} aria-label={m.owner_input()} />
 			<Dialog.Footer>
 				<Button type="button" variant="ghost" onclick={() => (renameFrom = null)}>
 					{m.action_cancel()}

@@ -1,5 +1,10 @@
 /** Keyboard helpers. */
 
+/** Return true while an input method composes text. */
+export function isComposing(event: KeyboardEvent): boolean {
+	return event.isComposing || event.keyCode === 229;
+}
+
 /** Returns true when Cmd (macOS) or Ctrl (other systems) is pressed. */
 export function isModKey(event: KeyboardEvent): boolean {
 	return event.metaKey || event.ctrlKey;

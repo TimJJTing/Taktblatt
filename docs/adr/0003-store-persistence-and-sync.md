@@ -14,10 +14,10 @@ The app has no server. A field can show in many places (heading, stage title, ow
 - The store writes the plan to `localStorage` after each commit. Each plan has its own key.
 - The store listens to the `storage` event. When a different tab changes the active plan, the store loads it. The last write wins.
 - Undo keeps up to 50 snapshots of the plan in memory. The plan is a plain object, so a snapshot is a structured clone.
-- Valibot validates the data on load and on import. Old `schemaVersion` values are migrated on load.
+- Valibot validates the data on load and on import. The app migrates old `schemaVersion` values on load.
 
 ## Consequences
 
 - Sync between views is automatic.
-- Domain logic is easy to test without a browser.
+- Unit tests can call domain functions without a browser.
 - Snapshots use more memory than patches. For a small plan, this is not a problem.
