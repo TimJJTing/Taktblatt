@@ -8,6 +8,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
+	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
@@ -76,3 +77,5 @@
 		<WorkPlan />
 	</section>
 </main>
+
+<TaskDialog />
