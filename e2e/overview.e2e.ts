@@ -78,7 +78,10 @@ test('milestones can be added, edited and deleted through the legend', async ({ 
 	let dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Review');
 	await dialog.getByLabel('Description', { exact: true }).fill('Review the first results.');
-	await dialog.getByLabel('Date', { exact: true }).fill('2027-03-01');
+	await dialog.getByRole('button', { name: 'Date', exact: true }).click();
+	await page.getByTestId('date-value').fill('2027-03-01');
+	await page.getByTestId('date-value').press('Enter');
+	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
 	await chooseOption(page, 'milestone-symbol', 'Star');
 	await dialog.getByRole('button', { name: 'Done', exact: true }).click();
 	const legend = page.getByTestId('milestone-legend');
@@ -91,7 +94,10 @@ test('milestones can be added, edited and deleted through the legend', async ({ 
 	await legend.getByRole('button', { name: /M1 Review/ }).click();
 	dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Final review');
-	await dialog.getByLabel('Date', { exact: true }).fill('2027-04-02');
+	await dialog.getByRole('button', { name: 'Date', exact: true }).click();
+	await page.getByTestId('date-value').fill('2027-04-02');
+	await page.getByTestId('date-value').press('Enter');
+	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
 	await dialog.getByRole('button', { name: 'Done', exact: true }).click();
 	await expect(legend).toContainText('M1 Final review');
 	expect((await storedPlan(page)).milestones[0].date).toBe('2027-04-02');

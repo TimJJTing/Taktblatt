@@ -7,8 +7,9 @@
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
+	import DateField from '#lib/components/edit/DateField.svelte';
 	import { MILESTONE_SYMBOLS, type Milestone } from '#lib/domain/schema.js';
-	import { formatDate, parseUserDate, intlLocale } from '#lib/domain/format.js';
+	import { formatDate, intlLocale } from '#lib/domain/format.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
@@ -20,14 +21,7 @@
 	let title = $state(initial?.title ?? '');
 	let description = $state(initial?.description ?? '');
 	let symbol = $state(initial?.symbol ?? 'diamond');
-	const initialDate = initial?.date ?? ws.plan.range.start;
-	let dateText = $state(formatDate(initialDate, intlLocale(getLocale())));
-	const date = $derived(
-		dateText === formatDate(initialDate, intlLocale(getLocale()))
-			? initialDate
-			: parseUserDate(dateText, intlLocale(getLocale()), Number(initialDate.slice(0, 4)))
-	);
-	const valid = $derived(date !== null);
+	let date = $state(initial?.date ?? ws.plan.range.start);
 	const symbolNames = {
 		diamond: m.symbol_diamond,
 		flag: m.symbol_flag,
@@ -43,7 +37,6 @@
 	}
 	function close(commit: boolean) {
 		if (commit) {
-			if (!date) return;
 			const payload = { title, description, date, symbol };
 			if (entry) updateMilestone(ws, entry.id, payload);
 			else addMilestone(ws, payload);
@@ -85,12 +78,24 @@
 			<label class="grid gap-1 text-sm"
 				>{m.field_description()}<Textarea bind:value={description} /></label
 			>
-			<label class="grid gap-1 text-sm"
-				>{m.field_date()}<Input bind:value={dateText} onkeydown={onKeydown} /></label
-			>
-			{#if !valid}<p role="alert" class="text-sm text-destructive">
-					{m.date_invalid({ example: formatDate(initialDate, intlLocale(getLocale())) })}
-				</p>{/if}
+			<div class="grid gap-1 text-sm">
+				<span>{m.field_date()}</span>
+				<DateField
+					{date}
+					locale={getLocale()}
+					label={m.field_date()}
+					allowEmpty={false}
+					onCommit={(next) => {
+						if (next) date = next;
+					}}
+				>
+					{#snippet trigger({ props })}<Button
+							{...props}
+							variant="outline"
+							data-testid="milestone-date">{formatDate(date, intlLocale(getLocale()))}</Button
+						>{/snippet}
+				</DateField>
+			</div>
 			<div class="grid gap-1 text-sm">
 				<span>{m.field_symbol()}</span>
 				<Select.Root type="single" bind:value={symbol}>
@@ -117,7 +122,7 @@
 				<Button type="button" variant="outline" onclick={() => close(false)}
 					>{m.action_cancel()}</Button
 				>
-				<Button type="submit" disabled={!valid}>{m.date_done()}</Button>
+				<Button type="submit">{m.date_done()}</Button>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
