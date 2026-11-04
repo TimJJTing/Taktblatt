@@ -14,6 +14,7 @@
 </script>
 
 <header
+	data-app-header
 	class="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 print:hidden"
 >
 	<div class="flex h-12 w-full items-center gap-2">

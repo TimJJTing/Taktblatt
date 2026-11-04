@@ -188,6 +188,9 @@
 							editing.highlightId === rowTask.id && 'bg-accent/60',
 							editing.flashId === rowTask.id && 'animate-[row-flash_1.2s_ease-out_1]'
 						)}
+						style:animation-duration={editing.flashId === rowTask.id
+							? `${motionDuration(1200)}ms`
+							: undefined}
 						onpointerenter={() => (editing.highlightId = rowTask.id)}
 						onpointerleave={() =>
 							editing.highlightId === rowTask.id && (editing.highlightId = null)}

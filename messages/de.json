@@ -154,5 +154,20 @@
 	"band_dialog_help": "Titel, Zeitraum und Farbton festlegen.",
 	"milestone_delete_title": "Diesen Meilenstein löschen?",
 	"band_delete_title": "Dieses Zeitband löschen?",
-	"timeline_delete_body": "„{title}“ wird gelöscht. Sie können diese Änderung rückgängig machen."
+	"timeline_delete_body": "„{title}“ wird gelöscht. Sie können diese Änderung rückgängig machen.",
+	"gantt_label": "Zeitachsen-Diagramm",
+	"gantt_today": "Heute",
+	"gantt_no_dates": "Keine Termine",
+	"gantt_invalid_dates": "Beginn liegt nach Ende",
+	"gantt_outside_before": "Vor dem Projektzeitraum",
+	"gantt_outside_after": "Nach dem Projektzeitraum",
+	"gantt_pin": "Zeitachse anheften",
+	"gantt_resize": "Höhe der Zeitachse",
+	"gantt_bar": "{task}: {dates}",
+	"gantt_done": "erledigt",
+	"gantt_clipped_start": "beginnt vor dem Projektzeitraum",
+	"gantt_clipped_end": "endet nach dem Projektzeitraum",
+	"gantt_band": "Zeitband: {title} ({range})",
+	"gantt_milestone": "Meilenstein {label}: {title} ({date})",
+	"gantt_show_row": "Im Arbeitsplan zeigen"
 }

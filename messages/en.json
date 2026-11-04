@@ -154,5 +154,20 @@
 	"band_dialog_help": "Set the title, dates and tint.",
 	"milestone_delete_title": "Delete this milestone?",
 	"band_delete_title": "Delete this band?",
-	"timeline_delete_body": "“{title}” will be deleted. You can undo this change."
+	"timeline_delete_body": "“{title}” will be deleted. You can undo this change.",
+	"gantt_label": "Timeline chart",
+	"gantt_today": "Today",
+	"gantt_no_dates": "No dates",
+	"gantt_invalid_dates": "Start is after end",
+	"gantt_outside_before": "Before the project range",
+	"gantt_outside_after": "After the project range",
+	"gantt_pin": "Pin timeline",
+	"gantt_resize": "Timeline height",
+	"gantt_bar": "{task}: {dates}",
+	"gantt_done": "done",
+	"gantt_clipped_start": "starts before the project range",
+	"gantt_clipped_end": "ends after the project range",
+	"gantt_band": "Band: {title} ({range})",
+	"gantt_milestone": "Milestone {label}: {title} ({date})",
+	"gantt_show_row": "Show in the work plan"
 }

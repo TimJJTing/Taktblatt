@@ -10,6 +10,7 @@
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import BandDialog from '#lib/components/timeline/BandDialog.svelte';
 	import MilestoneDialog from '#lib/components/timeline/MilestoneDialog.svelte';
+	import Gantt from '#lib/components/timeline/Gantt.svelte';
 	const ws = getWorkspace();
 	let milestone = $state<Milestone | null | undefined>(undefined);
 	let band = $state<Band | null | undefined>(undefined);
@@ -18,6 +19,7 @@
 </script>
 
 <div class="space-y-3 text-sm">
+	<Gantt onBand={(item) => (band = item)} onMilestone={(item) => (milestone = item)} />
 	<ul class="flex flex-wrap gap-x-5 gap-y-2" aria-label={m.legend_stages()}>
 		{#each ws.plan.stages as stage, i (stage.id)}
 			<li class="flex items-center gap-2">

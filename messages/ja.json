@@ -154,5 +154,20 @@
 	"band_dialog_help": "タイトル、期間、色合いを設定します。",
 	"milestone_delete_title": "このマイルストーンを削除しますか？",
 	"band_delete_title": "この帯を削除しますか？",
-	"timeline_delete_body": "「{title}」を削除します。この変更は元に戻せます。"
+	"timeline_delete_body": "「{title}」を削除します。この変更は元に戻せます。",
+	"gantt_label": "タイムラインのチャート",
+	"gantt_today": "今日",
+	"gantt_no_dates": "日付なし",
+	"gantt_invalid_dates": "開始日が終了日より後です",
+	"gantt_outside_before": "プロジェクト期間より前",
+	"gantt_outside_after": "プロジェクト期間より後",
+	"gantt_pin": "タイムラインを固定",
+	"gantt_resize": "タイムラインの高さ",
+	"gantt_bar": "{task}：{dates}",
+	"gantt_done": "完了",
+	"gantt_clipped_start": "プロジェクト期間より前に開始",
+	"gantt_clipped_end": "プロジェクト期間より後に終了",
+	"gantt_band": "帯：{title}（{range}）",
+	"gantt_milestone": "マイルストーン {label}：{title}（{date}）",
+	"gantt_show_row": "作業計画で表示"
 }

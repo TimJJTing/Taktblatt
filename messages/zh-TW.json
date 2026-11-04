@@ -154,5 +154,20 @@
 	"band_dialog_help": "設定標題、日期範圍與色調。",
 	"milestone_delete_title": "刪除此里程碑？",
 	"band_delete_title": "刪除此色帶？",
-	"timeline_delete_body": "將刪除「{title}」。您可以復原此變更。"
+	"timeline_delete_body": "將刪除「{title}」。您可以復原此變更。",
+	"gantt_label": "時間軸圖表",
+	"gantt_today": "今天",
+	"gantt_no_dates": "無日期",
+	"gantt_invalid_dates": "開始日期晚於結束日期",
+	"gantt_outside_before": "在專案期間之前",
+	"gantt_outside_after": "在專案期間之後",
+	"gantt_pin": "固定時間軸",
+	"gantt_resize": "時間軸高度",
+	"gantt_bar": "{task}：{dates}",
+	"gantt_done": "已完成",
+	"gantt_clipped_start": "開始於專案期間之前",
+	"gantt_clipped_end": "結束於專案期間之後",
+	"gantt_band": "色帶：{title}（{range}）",
+	"gantt_milestone": "里程碑 {label}：{title}（{date}）",
+	"gantt_show_row": "在工作計畫中顯示"
 }
