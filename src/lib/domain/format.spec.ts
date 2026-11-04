@@ -5,7 +5,8 @@ import {
 	formatMonthSpan,
 	formatRange,
 	formatRangeDisplay,
-	parseUserDate
+	parseUserDate,
+	readTypedDate
 } from './format';
 
 describe('format', () => {
@@ -62,5 +63,24 @@ describe('parseUserDate', () => {
 	it('rejects dates that do not exist', () => {
 		expect(parseUserDate('2/30/2027', 'en-US', 2030)).toBeNull();
 		expect(parseUserDate('hello', 'en-US', 2030)).toBeNull();
+	});
+});
+
+describe('readTypedDate', () => {
+	it('keeps the current date when the text shows it', () => {
+		expect(readTypedDate(' Jan 5, 2027 ', '2027-01-05', 'en-US', 2027)).toEqual({ kind: 'same' });
+		expect(readTypedDate('', null, 'en-US', 2027)).toEqual({ kind: 'same' });
+	});
+
+	it('reads empty text as no date', () => {
+		expect(readTypedDate('', '2027-01-05', 'en-US', 2027)).toEqual({ kind: 'date', date: null });
+	});
+
+	it('reads a typed date', () => {
+		expect(readTypedDate('2/3', null, 'en-US', 2028)).toEqual({ kind: 'date', date: '2028-02-03' });
+	});
+
+	it('rejects text that is not a date', () => {
+		expect(readTypedDate('soon', null, 'en-US', 2027)).toEqual({ kind: 'invalid' });
 	});
 });

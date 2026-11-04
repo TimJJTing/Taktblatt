@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	addTask,
+	addMilestone,
+	updateMilestone,
+	removeMilestone,
+	addBand,
+	updateBand,
+	removeBand,
 	updateTask,
 	addRemarkSection,
 	updateRemarkSection,
@@ -62,7 +68,7 @@ describe('commands', () => {
 		updateFooter(ws, { note: ' Note ', version: ' v1 ', right: ' Right ' });
 		expect(ws.plan).toMatchObject({
 			heading: 'Plan',
-			subheading: 'Sub',
+			subheading: ' Sub ',
 			objective: 'Goal',
 			footer: { note: 'Note', version: 'v1', right: 'Right' }
 		});
@@ -97,5 +103,115 @@ describe('commands', () => {
 		updateTask(ws, id, { done: true });
 		discardNewTask(ws, id);
 		expect(ws.plan.tasks).toHaveLength(2);
+	});
+});
+
+describe('timeline commands', () => {
+	it('adds, updates and deletes a milestone with one commit for each change', () => {
+		const ws = open();
+		const commit = vi.spyOn(ws, 'commit');
+		const id = addMilestone(ws, {
+			title: ' Review ',
+			description: ' Discuss ',
+			date: '2027-03-01',
+			symbol: 'flag'
+		});
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(ws.plan.milestones[0]).toMatchObject({
+			id,
+			title: 'Review',
+			description: 'Discuss',
+			date: '2027-03-01',
+			symbol: 'flag'
+		});
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.milestones).toEqual([]);
+		expect(ws.undo()).toBe(false);
+		ws.redo();
+		ws.history.clear();
+		updateMilestone(ws, id, {
+			title: ' Launch ',
+			description: ' Ship ',
+			date: '2027-04-01',
+			symbol: 'star'
+		});
+		expect(commit).toHaveBeenCalledTimes(2);
+		expect(ws.plan.milestones[0]).toMatchObject({
+			title: 'Launch',
+			description: 'Ship',
+			date: '2027-04-01',
+			symbol: 'star'
+		});
+		ws.undo();
+		expect(ws.plan.milestones[0].title).toBe('Review');
+		expect(ws.undo()).toBe(false);
+		ws.history.clear();
+		removeMilestone(ws, id);
+		expect(commit).toHaveBeenCalledTimes(3);
+		expect(ws.plan.milestones).toEqual([]);
+		ws.undo();
+		expect(ws.plan.milestones[0].id).toBe(id);
+		expect(ws.undo()).toBe(false);
+	});
+
+	it('adds, updates and deletes a band with one commit for each change', () => {
+		const ws = open();
+		const commit = vi.spyOn(ws, 'commit');
+		const id = addBand(ws, {
+			title: ' Review ',
+			start: '2027-01-01',
+			end: '2027-02-01',
+			color: 'blue'
+		});
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(ws.plan.bands[0]).toMatchObject({
+			id,
+			title: 'Review',
+			start: '2027-01-01',
+			end: '2027-02-01',
+			color: 'blue'
+		});
+		ws.undo();
+		expect(ws.plan.bands).toEqual([]);
+		expect(ws.undo()).toBe(false);
+		ws.redo();
+		ws.history.clear();
+		updateBand(ws, id, {
+			title: ' Launch ',
+			start: '2027-03-01',
+			end: '2027-04-01',
+			color: 'green'
+		});
+		expect(commit).toHaveBeenCalledTimes(2);
+		expect(ws.plan.bands[0]).toMatchObject({
+			title: 'Launch',
+			start: '2027-03-01',
+			end: '2027-04-01',
+			color: 'green'
+		});
+		ws.undo();
+		expect(ws.plan.bands[0].title).toBe('Review');
+		expect(ws.undo()).toBe(false);
+		ws.history.clear();
+		removeBand(ws, id);
+		expect(commit).toHaveBeenCalledTimes(3);
+		expect(ws.plan.bands).toEqual([]);
+		ws.undo();
+		expect(ws.plan.bands[0].id).toBe(id);
+		expect(ws.undo()).toBe(false);
+	});
+
+	it('does not record unchanged or missing timeline entries', () => {
+		const ws = open();
+		const milestone = addMilestone(ws, { title: 'Review', description: 'Discuss' });
+		const band = addBand(ws, { title: 'Launch' });
+		ws.history.clear();
+		updateMilestone(ws, milestone, { title: ' Review ', description: ' Discuss ' });
+		updateBand(ws, band, { title: ' Launch ' });
+		updateMilestone(ws, 'missing', { title: 'No' });
+		updateBand(ws, 'missing', { title: 'No' });
+		removeMilestone(ws, 'missing');
+		removeBand(ws, 'missing');
+		expect(ws.history.canUndo).toBe(false);
 	});
 });

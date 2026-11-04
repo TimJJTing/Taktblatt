@@ -2,7 +2,7 @@
 import { todayISO, type ISODate } from './date';
 import { createId } from './ids';
 import { nextStageColor } from './palette';
-import type { Locale, Plan, RemarkSection, Stage, Task } from './schema';
+import type { Band, Milestone, Locale, Plan, RemarkSection, Stage, Task } from './schema';
 
 /** Returns the first day of the month of `date`, plus `months` months. */
 function monthStart(date: ISODate, months: number): ISODate {
@@ -67,4 +67,12 @@ export function createEmptyPlan(locale: Locale, today: ISODate = todayISO()): Pl
 		createdAt: now,
 		updatedAt: now
 	};
+}
+
+export function createMilestone(date: ISODate = todayISO()): Milestone {
+	return { id: createId(), title: '', description: '', date, symbol: 'diamond' };
+}
+
+export function createBand(start: ISODate = todayISO(), end: ISODate = start): Band {
+	return { id: createId(), title: '', start, end, color: 'gray' };
 }

@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { motionDuration } from '#lib/motion.js';
 	import { isComposing } from '#lib/browser/keyboard.js';
 	import { cn } from '#lib/utils.js';
 
@@ -12,7 +13,10 @@
 		/** The accessible name of the field. */
 		label: string;
 		placeholder?: string;
+		/** The printed text when the value is empty. The placeholder does not print. */
+		printFallback?: string;
 		multiline?: boolean;
+		preserveWhitespace?: boolean;
 		maxLength?: number;
 		/** Start in edit mode, for example for a new row. */
 		autoEdit?: boolean;
@@ -32,7 +36,9 @@
 		value,
 		label,
 		placeholder = '',
+		printFallback = '',
 		multiline = false,
+		preserveWhitespace = false,
 		maxLength,
 		autoEdit = false,
 		disabled = false,
@@ -68,7 +74,8 @@
 		if (!editing) return;
 		const text = draft;
 		editing = false;
-		if (!cancelled && text.trim() !== value.trim()) onCommit(text);
+		if (!cancelled && (preserveWhitespace ? text !== value : text.trim() !== value.trim()))
+			onCommit(text);
 		onDone?.(cancelled ? value : text);
 		if (focusDisplay) tick().then(() => display?.focus());
 	}
@@ -106,7 +113,7 @@
 			maxlength={maxLength}
 			rows="2"
 			class={cn(
-				'field-sizing-content w-full resize-none rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60',
+				'field-sizing-content w-full resize-none rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60 print:hidden',
 				inputClass
 			)}
 			onkeydown={onKeydown}
@@ -120,7 +127,7 @@
 			{placeholder}
 			maxlength={maxLength}
 			class={cn(
-				'w-full min-w-0 rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60',
+				'w-full min-w-0 rounded-sm bg-background px-1.5 py-0.5 outline-2 outline-ring/60 print:hidden',
 				inputClass
 			)}
 			onkeydown={onKeydown}
@@ -135,14 +142,23 @@
 		{disabled}
 		aria-label={value ? `${label}: ${value}` : label}
 		class={cn(
-			'block w-full min-w-0 cursor-text rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent',
+			'block w-full min-w-0 cursor-text rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent print:hidden',
 			multiline ? 'whitespace-pre-wrap' : 'truncate',
 			className
 		)}
+		style:transition-duration={`${motionDuration(150)}ms`}
 		onclick={startEdit}
 		onkeydown={onDisplayKeydown}
 		data-testid={testId}
 	>
 		{#if value}{value}{:else}<span class="text-muted-foreground/70">{placeholder}</span>{/if}
 	</button>
+{/if}
+
+{#if value || printFallback}
+	<span class="hidden print:contents">
+		<span class={cn('block', multiline && 'whitespace-pre-wrap', className)}
+			>{value || printFallback}</span
+		>
+	</span>
 {/if}

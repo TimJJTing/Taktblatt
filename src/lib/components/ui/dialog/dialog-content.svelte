@@ -2,6 +2,7 @@
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { cn, type WithoutChildrenOrChild } from '#lib/utils.js';
 	import DialogOverlay from './dialog-overlay.svelte';
 	import DialogPortal from './dialog-portal.svelte';
@@ -11,6 +12,7 @@
 	let {
 		ref = $bindable(null),
 		class: className,
+		style,
 		portalProps,
 		children,
 		showCloseButton = true,
@@ -20,6 +22,11 @@
 		children: Snippet;
 		showCloseButton?: boolean;
 	} = $props();
+
+	// The open and close motion follows motionDuration (reduced motion: no motion).
+	const motionStyle = $derived(
+		`animation-duration: ${motionDuration(100)}ms; transition-duration: ${motionDuration(100)}ms;${style ? ` ${style}` : ''}`
+	);
 </script>
 
 <DialogPortal {...portalProps}>
@@ -32,6 +39,7 @@
 			className
 		)}
 		{...restProps}
+		style={motionStyle}
 	>
 		{@render children?.()}
 		{#if showCloseButton}

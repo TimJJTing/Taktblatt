@@ -12,11 +12,19 @@ import {
 	normalizeStage,
 	normalizeRemark,
 	normalizePlan,
-	normalizeFooter
+	normalizeFooter,
+	normalizeMilestone,
+	normalizeBand
 } from '#lib/domain/normalize.js';
-import { createRemarkSection, createStage, createTask } from '#lib/domain/factory.js';
+import {
+	createBand,
+	createMilestone,
+	createRemarkSection,
+	createStage,
+	createTask
+} from '#lib/domain/factory.js';
 import { renameOwner } from '#lib/domain/owners.js';
-import type { Plan, RemarkSection, Stage, Task } from '#lib/domain/schema.js';
+import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from '#lib/domain/schema.js';
 import type { Workspace } from './workspace.svelte.js';
 
 export type TaskPatch = Partial<
@@ -229,4 +237,58 @@ export function discardNewTask(ws: Workspace, id: string): void {
 	const before = ws.history.peek();
 	if (before && !before.tasks.some((task) => task.id === id)) ws.rollback();
 	else ws.commit((plan) => deleteTasks(plan, [id]));
+}
+
+// -------------------------------------------------------------------------
+// Milestones and bands
+// -------------------------------------------------------------------------
+
+/** Adds a milestone. Returns its id. */
+export function addMilestone(ws: Workspace, patch: Partial<Omit<Milestone, 'id'>> = {}): string {
+	const milestone = normalizeMilestone({ ...createMilestone(), ...patch });
+	ws.commit((plan) => {
+		plan.milestones.push(milestone);
+	});
+	return milestone.id;
+}
+
+export function updateMilestone(
+	ws: Workspace,
+	id: string,
+	patch: Partial<Omit<Milestone, 'id'>>
+): void {
+	ws.commit((plan) => {
+		const milestone = plan.milestones.find((item) => item.id === id);
+		if (!milestone) return;
+		Object.assign(milestone, normalizeMilestone({ ...milestone, ...patch }));
+	});
+}
+
+export function removeMilestone(ws: Workspace, id: string): void {
+	ws.commit((plan) => {
+		plan.milestones = plan.milestones.filter((item) => item.id !== id);
+	});
+}
+
+/** Adds a band. Returns its id. */
+export function addBand(ws: Workspace, patch: Partial<Omit<Band, 'id'>> = {}): string {
+	const band = normalizeBand({ ...createBand(), ...patch });
+	ws.commit((plan) => {
+		plan.bands.push(band);
+	});
+	return band.id;
+}
+
+export function updateBand(ws: Workspace, id: string, patch: Partial<Omit<Band, 'id'>>): void {
+	ws.commit((plan) => {
+		const band = plan.bands.find((item) => item.id === id);
+		if (!band) return;
+		Object.assign(band, normalizeBand({ ...band, ...patch }));
+	});
+}
+
+export function removeBand(ws: Workspace, id: string): void {
+	ws.commit((plan) => {
+		plan.bands = plan.bands.filter((item) => item.id !== id);
+	});
 }

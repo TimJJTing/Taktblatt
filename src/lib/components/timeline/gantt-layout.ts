@@ -1,0 +1,57 @@
+/**
+ * Screen layout of the Gantt: sizes in pixels and small drawing helpers.
+ * The geometry (fractions of the width) comes from #lib/domain/gantt.
+ */
+import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.js';
+
+/** The width of the label column. */
+export const LABEL_WIDTH = 192;
+/** The minimum width of the timeline area. On a phone, the Gantt scrolls horizontally. */
+export const TIMELINE_MIN_WIDTH = 640;
+export const HEADER_HEIGHT = 28;
+export const MILESTONE_ROW_HEIGHT = 28;
+export const ROW_HEIGHT = 28;
+/** The duration of the row and line motion, before motionDuration. */
+export const ROW_MOTION_MS = 240;
+
+/** The vertical center of a task row, from the top of the milestone row. */
+export function rowCenterY(row: number): number {
+	return MILESTONE_ROW_HEIGHT + row * ROW_HEIGHT + ROW_HEIGHT / 2;
+}
+
+/** An elbow path from the end of the predecessor to the start of the dependent. */
+export function elbowPath(x0: number, y0: number, x1: number, y1: number): string {
+	const out = x0 + 6;
+	if (x1 >= out + 4) return `M ${x0} ${y0} H ${out} V ${y1} H ${x1}`;
+	// The dependent starts before the predecessor ends: go around between the rows.
+	const mid = (y0 + y1) / 2;
+	return `M ${x0} ${y0} H ${out} V ${mid} H ${x1 - 6} V ${y1} H ${x1}`;
+}
+
+/** A clip path that gives a jagged edge to each clipped side of a bar. */
+export function clipEdges(clipStart: boolean, clipEnd: boolean): string | undefined {
+	if (!clipStart && !clipEnd) return undefined;
+	const left = clipStart ? ['4px 100%', '0 75%', '4px 50%', '0 25%', '4px 0'] : ['0 100%', '0 0'];
+	const right = clipEnd
+		? [
+				'calc(100% - 4px) 0',
+				'100% 25%',
+				'calc(100% - 4px) 50%',
+				'100% 75%',
+				'calc(100% - 4px) 100%'
+			]
+		: ['100% 0', '100% 100%'];
+	return `polygon(${[...left, ...right].join(', ')})`;
+}
+
+/** The limits of the pinned height in pixels, for a viewport height. */
+export function heightLimits(viewport: number): { min: number; max: number } {
+	const max = GANTT_HEIGHT.max * viewport;
+	return { min: Math.min(GANTT_HEIGHT.minPx, max), max };
+}
+
+/** The pinned height in pixels, clamped to the limits. */
+export function pinnedHeight(fraction: number, viewport: number): number {
+	const { min, max } = heightLimits(viewport);
+	return Math.min(max, Math.max(min, fraction * viewport));
+}

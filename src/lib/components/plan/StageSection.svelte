@@ -11,14 +11,13 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
-	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
 	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
-	import { LIMITS, type Stage, type Task } from '#lib/domain/schema.js';
+	import { type Stage, type Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
@@ -28,11 +27,12 @@
 		discardNewTask,
 		updateStage
 	} from '#lib/state/commands.js';
-	import { getEditing } from '#lib/state/editing.svelte.js';
+	import { FLASH_MS, getEditing } from '#lib/state/editing.svelte.js';
 	import { getViewer } from '#lib/state/viewer.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { cn } from '#lib/utils.js';
 	import StageColorPicker from './StageColorPicker.svelte';
+	import StageTitle from './StageTitle.svelte';
 	import TaskRow from './TaskRow.svelte';
 	import { stageColorVar } from './colors.js';
 
@@ -77,7 +77,7 @@
 </script>
 
 <section
-	class="group/stage scroll-mt-24"
+	class="group/stage scroll-mt-anchor"
 	aria-labelledby="stage-{stage.id}-title"
 	data-testid="stage"
 	data-stage-id={stage.id}
@@ -102,14 +102,7 @@
 		>
 			<span class="shrink-0">{m.stage_label({ n: number })} ·</span>
 			<span class="min-w-0">
-				<InlineText
-					value={stage.title}
-					label={m.stage_title_placeholder({ n: number })}
-					placeholder={m.stage_title_placeholder({ n: number })}
-					maxLength={LIMITS.stageTitle}
-					onCommit={(title) => updateStage(ws, stage.id, { title })}
-					testId="stage-title"
-				/>
+				<StageTitle {stage} {number} />
 			</span>
 			{#if months}
 				<span
@@ -193,8 +186,11 @@
 							rowTask.parentId !== null ? 'border-border/50' : 'border-border',
 							eff.done === 'done' && 'text-muted-foreground',
 							editing.highlightId === rowTask.id && 'bg-accent/60',
-							editing.flashId === rowTask.id && 'animate-[row-flash_1.2s_ease-out_1]'
+							editing.flashId === rowTask.id && 'row-flash'
 						)}
+						style:animation-duration={editing.flashId === rowTask.id
+							? `${motionDuration(FLASH_MS)}ms`
+							: undefined}
 						onpointerenter={() => (editing.highlightId = rowTask.id)}
 						onpointerleave={() =>
 							editing.highlightId === rowTask.id && (editing.highlightId = null)}
