@@ -1,0 +1,19 @@
+# 4. Viewer state is not in the plan
+
+Status: accepted (2026-11-05)
+
+## Context
+
+Some settings are personal: the expanded tasks, the pinned Gantt, its height, the UI language. If these are in the plan, an import from a different person changes your view.
+
+## Decision
+
+- These settings are **viewer state**. The app keeps them under the `taktblatt:ui` key.
+- The export does not include viewer state.
+- The Gantt and the table share one expand state for each plan.
+- Print uses the current expand state.
+
+## Consequences
+
+- Two persons can have different views of the same plan file.
+- A printed plan depends on the expand state of the person who prints it.
