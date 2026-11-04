@@ -8,7 +8,7 @@ export type ISODate = string;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Returns true when the value is a real calendar date in "YYYY-MM-DD" format. */
-export function isISODate(value: string): value is ISODate {
+export function isISODate(value: string): boolean {
 	if (!ISO_DATE.test(value)) return false;
 	const [y, m, d] = value.split('-').map(Number);
 	const date = new Date(Date.UTC(y, m - 1, d));

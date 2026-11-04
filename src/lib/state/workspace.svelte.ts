@@ -131,6 +131,18 @@ export class Workspace {
 		this.persist();
 	}
 
+	/**
+	 * Reverts the newest commit and removes it from the history. There is no redo for it.
+	 * Use it to discard a new entry that stayed empty, so that it does not leave an undo step.
+	 */
+	rollback(): boolean {
+		const previous = this.history.drop();
+		if (!previous) return false;
+		this.plan = previous;
+		this.persist();
+		return true;
+	}
+
 	undo(): boolean {
 		const previous = this.history.undo($state.snapshot(this.plan) as Plan);
 		if (!previous) return false;
