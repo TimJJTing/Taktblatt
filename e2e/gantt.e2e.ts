@@ -1,11 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import {
-	dependencyArrowMatches,
-	dependencyContrast,
-	openExample,
-	row,
-	storedPlan
-} from './helpers';
+import { dependencyArrowFades, dependencyContrast, openExample, row, storedPlan } from './helpers';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 
@@ -38,13 +32,17 @@ test('outgoing dependency lines become fainter when their source is done', async
 	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeDisabled();
 	const plan = await storedPlan(page);
 	const sowing = plan.tasks.find((task) => task.title === 'Sowing')!;
-	const line = gantt(page).locator(`[data-testid="gantt-dependency"][data-from="${sowing.id}"]`);
+	const harvest = plan.tasks.find((task) => task.title === 'First harvest')!;
+	const line = gantt(page).locator(
+		`[data-testid="gantt-dependency"][data-from="${sowing.id}"][data-to="${harvest.id}"]`
+	);
+	await expect(line).toHaveCount(1);
 	const normal = await dependencyContrast(line);
 	await row(page, 'First harvest').getByTestId('task-done').click();
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
 	await row(page, 'Sowing').getByTestId('task-done').click();
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
-	await expect.poll(() => dependencyArrowMatches(line)).toBe(true);
+	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();

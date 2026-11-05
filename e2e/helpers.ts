@@ -52,15 +52,21 @@ export async function dependencyContrast(line: Locator, paper = false): Promise<
 	}, paper);
 }
 
-/** Checks that a dependency arrow uses the same color as its line. */
-export async function dependencyArrowMatches(line: Locator): Promise<boolean> {
+/**
+ * Checks that a dependency arrow fades with its line.
+ * The arrow must be the end marker of the line, so the line opacity applies to it.
+ * The marker and its path must not set their own opacity.
+ */
+export async function dependencyArrowFades(line: Locator): Promise<boolean> {
 	return line.evaluate((element) => {
-		const style = getComputedStyle(element);
-		const markerId = style.markerEnd.match(/#([^")]+)/)?.[1];
-		const arrow = markerId && document.getElementById(markerId)?.querySelector('path');
-		if (!arrow) return false;
-		const fill = getComputedStyle(arrow).fill;
-		return fill === 'context-stroke' || fill === style.stroke;
+		const markerId = getComputedStyle(element).markerEnd.match(/#([^")]+)/)?.[1];
+		const marker = markerId ? document.getElementById(markerId) : null;
+		const arrow = marker?.querySelector('path');
+		if (!(marker instanceof SVGMarkerElement) || !arrow) return false;
+		return [marker, arrow].every((node) => {
+			const style = getComputedStyle(node);
+			return Number(style.opacity) === 1 && Number(style.fillOpacity) === 1;
+		});
 	});
 }
 

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
-	dependencyArrowMatches,
+	dependencyArrowFades,
 	dependencyContrast,
 	formatted,
 	openApp,
@@ -51,7 +51,7 @@ test('Preview and print use fainter dependency lines from done sources', async (
 	await row(page, 'Site survey').getByTestId('task-done').click();
 	await openPreview(page);
 	await expect.poll(() => dependencyContrast(line, true)).toBeLessThan(normal);
-	await expect.poll(() => dependencyArrowMatches(line)).toBe(true);
+	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
 	await expect(sheets(page)).toHaveCount(sheetCount);
 	const previewContrast = await dependencyContrast(line, true);
 	await page.emulateMedia({ media: 'print' });
