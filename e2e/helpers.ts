@@ -13,6 +13,21 @@ export async function openExample(page: Page): Promise<void> {
 	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
 }
 
+/** Opens Settings and waits for its opening animation. */
+export async function openSettings(page: Page): Promise<Locator> {
+	const trigger = page.getByTestId('settings-menu');
+	await expect(trigger).toBeVisible();
+	await trigger.click();
+	const menu = page.getByRole('menu');
+	await expect(menu).toBeVisible();
+	await menu.evaluate(async (element) => {
+		await Promise.all(
+			element.getAnimations({ subtree: true }).map((animation) => animation.finished)
+		);
+	});
+	return menu;
+}
+
 /** Reads the active plan from localStorage. */
 export async function storedPlan(page: Page) {
 	return page.evaluate(() => {

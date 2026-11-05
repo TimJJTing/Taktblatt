@@ -1,13 +1,84 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openApp, openSettings } from './helpers';
 
 test('the app shell shows the app name', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByRole('banner')).toContainText('Taktblatt');
 });
 
+test('one Settings menu contains the theme and language choices', async ({ page }) => {
+	await openApp(page);
+	await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(1);
+	await expect(page.getByRole('button', { name: 'Language', exact: true })).toHaveCount(0);
+	const menu = await openSettings(page);
+	const theme = menu.getByRole('group', { name: 'Theme', exact: true });
+	const language = menu.getByRole('group', { name: 'Language', exact: true });
+	await expect(theme.getByRole('menuitemradio')).toHaveCount(3);
+	await expect(language.getByRole('menuitemradio')).toHaveText([
+		'English',
+		'Deutsch',
+		'繁體中文',
+		'日本語'
+	]);
+	await expect(theme.getByRole('menuitemradio', { name: 'System', exact: true })).toBeChecked();
+	await expect(language.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
+	await expect(menu.getByRole('separator')).toHaveCount(1);
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('settings-menu')).toBeFocused();
+});
+
+test('keyboard language selection closes Settings and cancel returns focus without losing the theme', async ({
+	page
+}) => {
+	await openApp(page);
+	await openSettings(page);
+	await page
+		.getByRole('group', { name: 'Theme', exact: true })
+		.getByRole('menuitemradio', { name: 'Dark', exact: true })
+		.click();
+	await editHeading(page, 'Garden');
+	await openSettings(page);
+	await page.keyboard.press('End');
+	await expect(page.getByRole('menuitemradio', { name: '日本語', exact: true })).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ArrowUp');
+	await expect(page.getByRole('menuitemradio', { name: 'Deutsch', exact: true })).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(dialog(page)).toBeVisible();
+	await expect(page.getByRole('menu')).toHaveCount(0);
+	await page.getByTestId('language-reload-cancel').click();
+	await expect(dialog(page)).toHaveCount(0);
+	await expect(page.getByTestId('settings-menu')).toBeFocused();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+	await openSettings(page);
+	await expect(
+		page
+			.getByRole('group', { name: 'Language', exact: true })
+			.getByRole('menuitemradio', { name: 'English', exact: true })
+	).toBeChecked();
+	await page.keyboard.press('Escape');
+	await pickGerman(page);
+	await expect(dialog(page)).toBeVisible();
+	await expect(page.getByRole('menu')).toHaveCount(0);
+	await page.getByTestId('language-reload-confirm').click();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+	await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+	expect(await page.evaluate(() => localStorage.getItem('taktblatt:theme'))).toBe('dark');
+	await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
+	await expect(page.getByTestId('settings-menu')).toHaveAccessibleName('Einstellungen');
+	await openSettings(page);
+	await expect(
+		page
+			.getByRole('group', { name: 'Sprache', exact: true })
+			.getByRole('menuitemradio', { name: 'Deutsch', exact: true })
+	).toBeChecked();
+});
+
 test('the UI language changes and stays after a reload', async ({ page }) => {
 	await page.goto('/');
-	await page.getByRole('button', { name: 'Language' }).click();
+	await openSettings(page);
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 	await page.reload();
@@ -78,7 +149,7 @@ test.describe('the first UI language comes from the browser', () => {
 
 test('a chosen language is saved under taktblatt:locale', async ({ page }) => {
 	await page.goto('/');
-	await page.getByRole('button', { name: 'Language' }).click();
+	await openSettings(page);
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	expect(await stored(page)).toBe('de');
@@ -98,7 +169,7 @@ async function editHeading(page: Page, text: string) {
 }
 
 async function pickGerman(page: Page) {
-	await page.getByRole('button', { name: 'Language' }).click();
+	await openSettings(page);
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 }
 
@@ -114,7 +185,7 @@ test.describe('a language change that would drop work', () => {
 		await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 		expect(await stored(page)).toBe('en');
 		// The menu still shows English as the chosen language.
-		await page.getByRole('button', { name: 'Language' }).click();
+		await openSettings(page);
 		await expect(page.getByRole('menuitemradio', { name: 'English' })).toBeChecked();
 		await page.keyboard.press('Escape');
 		// The edit is still undoable.
@@ -185,7 +256,7 @@ test.describe('a language change in another tab', () => {
 		await editHeading(b, 'Garden');
 		await pickGerman(a);
 		await expect(dialog(b)).toBeVisible();
-		await a.getByRole('button', { name: 'Sprache' }).click();
+		await openSettings(a);
 		await a.getByRole('menuitemradio', { name: 'English' }).click();
 		await expect(a.locator('html')).toHaveAttribute('lang', 'en');
 		await expect(dialog(b)).toHaveCount(0);
@@ -229,7 +300,7 @@ test('another open tab reloads in the new UI language', async ({ context }) => {
 	await first.goto('/');
 	await second.goto('/');
 	await expect(second.getByTestId('plan-switcher')).toHaveText('Untitled plan');
-	await first.getByRole('button', { name: 'Language' }).click();
+	await openSettings(first);
 	await first.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 	await expect(second.locator('html')).toHaveAttribute('lang', 'de');
 	await expect(second.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');

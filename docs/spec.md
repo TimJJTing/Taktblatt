@@ -210,6 +210,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 | `taktblatt:plan:<id>`                | One plan, with `schemaVersion`.              |
 | `taktblatt:ui`                       | The **viewer state** (section 4.4).          |
 | `taktblatt:locale`                   | The UI language (part of the viewer state).  |
+| `taktblatt:theme`                    | The screen theme preference.                 |
 | `taktblatt:damaged:<timestamp>:<id>` | The raw text of damaged data.                |
 
 ### 4.3 Save
@@ -227,10 +228,11 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 The viewer state is for one browser only. It is not in the plan file. The export does not include it.
 
 - the UI language;
+- the screen theme (`light`, `dark` or `system`);
 - the expanded tasks, for each plan (shared by the Gantt and the table);
 - the pinned state and the height of the Gantt.
 
-The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. An unreadable value gives the default settings.
+The app keeps the expanded tasks and the Gantt settings as `expanded`, `ganttPinned` and `ganttHeight` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`. An unreadable value gives the default settings.
 
 ### 4.5 Undo
 
@@ -257,9 +259,13 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 
 - The workspace is one page that scrolls. The parts are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
 - The sticky app header has a second row, **Plan sections**. It is a navigation with a link to each part.
-- The first row of the app header contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and UI language.
+- The first row of the app header contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and Settings.
 - All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and mark tasks done. The Gantt and the table scroll horizontally.
-- Dark mode follows the system setting. Print is always light.
+- The **Settings** menu has two labeled radio groups. **Theme** has three choices: **Light**, **Dark** and **System**. A separator comes before **Language**, which has **English**, **Deutsch**, **繁體中文** and **日本語**. Each group shows its selected choice with a check mark. The menu supports pointer and keyboard input. Its labels use the UI language. The header has one Settings button with a gear icon.
+- The default theme is **System**. It follows changes to the system theme while the app is open. **Light** and **Dark** override the system theme.
+- A theme change applies at once. It does not reload the page, change plan data or clear the undo history. The app saves the choice in this browser. It restores the choice after a reload, also offline. An import does not change it.
+- Preview sheets and printed sheets are always light. The Preview dialog controls use the screen theme.
+- The browser and PWA theme-color metadata follows the resolved screen theme, including an explicit light or dark choice.
 
 ### 5.2 Edit fields
 
@@ -366,6 +372,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
+- Choose the UI language under **Settings → Language**. The checked language is the language this tab shows. Choosing a language closes Settings before a reload or a confirmation dialog. Canceling the dialog returns focus to Settings.
 - The first UI language comes from the browser language list. The app uses the first supported language in the list. A region variant matches its base language (`de-AT` gives `de`). `zh-Hant` and `zh-TW`, `zh-HK` and `zh-MO` give `zh-TW`. Simplified or unspecified Chinese and all other languages give English. The app saves the detected language on the first visit. A later change of the browser language has no effect.
 - There is one language: the UI language. It controls the texts, the date formats and the printed labels (for example "Objective:", "Timeline", the column titles). A plan has no language setting.
 - Plan files are language-neutral. Dates are stored as ISO `YYYY-MM-DD`. The app formats them with the UI language when it shows or prints them. The same file shows and prints in German for a German UI and in Japanese for a Japanese UI.

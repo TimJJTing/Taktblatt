@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, planIds, row, storedPlan } from './helpers';
+import { openApp, openExample, openSettings, planIds, row, storedPlan } from './helpers';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -68,7 +68,7 @@ test.describe('export', () => {
 test.describe('import', () => {
 	test('importing a plan in another language leaves the UI language alone', async ({ page }) => {
 		const file = await exportedExample(page);
-		await page.getByRole('button', { name: 'Language' }).click();
+		await openSettings(page);
 		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 		// The plan has history, so the app asks before it reloads.
 		await page.getByTestId('language-reload-confirm').click();
@@ -82,7 +82,7 @@ test.describe('import', () => {
 		// The old language key of the file is dropped.
 		expect((await storedPlan(page)).locale).toBeUndefined();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-		await expect(page.getByRole('button', { name: 'Sprache' })).toBeVisible();
+		await expect(page.getByTestId('settings-menu')).toHaveAccessibleName('Einstellungen');
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
 		await page.reload();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');

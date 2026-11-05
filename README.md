@@ -65,7 +65,7 @@ Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print
 
 ### Languages
 
-The app has four UI languages: English, German, Traditional Chinese and Japanese. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
+The app has four UI languages: English, German, Traditional Chinese and Japanese. Open **Settings → Language** to select one. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
 
 ### Privacy
 
@@ -75,7 +75,7 @@ The app has four UI languages: English, German, Traditional Chinese and Japanese
 
 ### Dark mode
 
-The app follows the theme of your system. The printed sheets are always light.
+Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark** or **System**. The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
 
 ![The workspace in dark mode](docs/screenshots/workspace-dark.png)
 
