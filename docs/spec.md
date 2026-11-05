@@ -375,7 +375,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
   - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
 - The labels on the sheets use the document language.
 - A dependency line shows on a sheet only when both of its rows are on that sheet.
-- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, the Print button and Cmd/Ctrl+P render the sheets first and then open the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint`. The app never prints the workspace layout.
+- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, the Print button and Cmd/Ctrl+P render the sheets first and then open the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
 - Print has no animations and no controls.

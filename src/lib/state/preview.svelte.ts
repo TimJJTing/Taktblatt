@@ -4,6 +4,7 @@
  * when the preview is not open.
  */
 import { flushSync, getContext, setContext, tick } from 'svelte';
+import { isTextEditing } from '#lib/browser/keyboard.js';
 
 export class PreviewState {
 	open = $state(false);
@@ -19,13 +20,15 @@ export class PreviewState {
 
 	/**
 	 * Renders and measures the sheets for a print without the preview.
-	 * Chrome does not run the first render of a template inside `beforeprint`: it throws
-	 * ("callback is no longer runnable"). So the app calls this before the print starts.
+	 * Chrome refuses the callback of the Trusted Types policy of Svelte (`createHTML`) inside
+	 * `beforeprint`. The first render of a template then throws. So the app calls this before
+	 * the print starts.
 	 */
 	renderSheets(): void {
 		// An inline field in edit mode holds the new text in a draft. Blur commits it.
 		// This must come first: the commit can render new blocks.
-		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		const active = document.activeElement;
+		if (active instanceof HTMLElement && isTextEditing(active)) active.blur();
 		flushSync();
 		if (this.open) return;
 		this.printing = true;
@@ -38,6 +41,27 @@ export class PreviewState {
 	print(): void {
 		this.renderSheets();
 		window.print();
+		// Normally `afterprint` or the end of the print media has reset the flag by now.
+		// If not (print is off, or a webview ignores it), the next input of the user resets it.
+		if (this.printing) this.resetOnInput();
+	}
+
+	private stopWaiting: (() => void) | null = null;
+
+	private resetOnInput(): void {
+		this.stopWaiting?.();
+		const reset = () => {
+			this.stopWaiting?.();
+			this.printing = false;
+		};
+		const options = { capture: true };
+		window.addEventListener('pointerdown', reset, options);
+		window.addEventListener('keydown', reset, options);
+		this.stopWaiting = () => {
+			window.removeEventListener('pointerdown', reset, options);
+			window.removeEventListener('keydown', reset, options);
+			this.stopWaiting = null;
+		};
 	}
 
 	hide(): void {

@@ -291,6 +291,7 @@ test('the Print button calls window.print', async ({ page }) => {
 	await openExample(page);
 	await page.evaluate(() => {
 		window.__printed = 0;
+		// The stub sends no `afterprint`. The sheets stay until the next input of the user.
 		window.print = () => {
 			window.__printed += 1;
 		};
@@ -497,4 +498,35 @@ test('a field in edit mode is committed before the sheets render for print', asy
 	expect(sheetsAtPrint).toBeGreaterThan(0);
 	expect((await storedPlan(page)).objective).toBe('Grow food together.');
 	await expect(sheets(page).first()).toContainText('Grow food together.');
+});
+
+test('the sheets go away at the next input when the print sends no end event', async ({ page }) => {
+	await openExample(page);
+	// A no-op print: no `afterprint` and no change of the print media.
+	await page.evaluate(() => {
+		window.print = () => {};
+	});
+	await page.getByTestId('print').click();
+	await expect(sheets(page).first()).toBeAttached();
+	await page.getByTestId('plan-heading').click();
+	await expect(sheets(page)).toHaveCount(0);
+	await page.getByTestId('print').click();
+	await expect(sheets(page).first()).toBeAttached();
+	await page.keyboard.press('Shift');
+	await expect(sheets(page)).toHaveCount(0);
+});
+
+test('the beforeprint fallback commits a field in edit mode', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.objective = '';
+	});
+	await page.getByTestId('plan-objective').click();
+	await page.getByTestId('plan-objective-input').fill('Grow food together.');
+	// A print from the browser menu sends only the events.
+	await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+	expect((await storedPlan(page)).objective).toBe('Grow food together.');
+	await expect(sheets(page).first()).toContainText('Grow food together.');
+	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	await expect(sheets(page)).toHaveCount(0);
 });

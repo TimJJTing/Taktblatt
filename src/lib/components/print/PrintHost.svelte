@@ -53,7 +53,12 @@
 		<PreviewDialog />
 	{:else if preview.printing}
 		<!-- A render error must not show the error page. A print without sheets is the worst case. -->
-		<svelte:boundary onerror={() => (preview.printing = false)}>
+		<svelte:boundary
+			onerror={(error) => {
+				console.error(error);
+				preview.printing = false;
+			}}
+		>
 			<Sheets screen={false} />
 		</svelte:boundary>
 	{/if}

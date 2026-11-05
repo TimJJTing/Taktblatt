@@ -45,7 +45,7 @@
 		if (key === 'p' && !event.shiftKey) {
 			// The sheets render first. This follows the same path as the Print button.
 			event.preventDefault();
-			preview.print();
+			if (!event.repeat) preview.print();
 			return;
 		}
 		if (isTextEditing(event.target)) return;
