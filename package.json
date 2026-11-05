@@ -19,12 +19,14 @@
 		"browser": "playwright cli",
 		"browser:setup": "playwright cli install --skills=agents",
 		"icons": "node scripts/make-icons.mjs",
-		"i18n": "paraglide-js compile --project ./project.inlang --silent"
+		"i18n": "paraglide-js compile --project ./project.inlang --silent && node scripts/check-i18n.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@fontsource-variable/ibm-plex-sans": "^5.3.0",
 		"@inlang/paraglide-js": "^2.29.3",
+		"@inlang/plugin-m-function-matcher": "^2.4.3",
+		"@inlang/plugin-message-format": "^4.6.0",
 		"@internationalized/date": "^3.12.4",
 		"@lucide/svelte": "^1.68.0",
 		"@playwright/test": "^1.60.0",
