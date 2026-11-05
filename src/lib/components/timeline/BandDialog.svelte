@@ -13,7 +13,7 @@
 	import * as Select from '#lib/components/ui/select/index.js';
 	import type { Band } from '#lib/domain/schema.js';
 	import { BAND_TINT_KEYS } from '#lib/domain/palette.js';
-	import { colorName } from '#lib/components/plan/colors.js';
+	import { bandFill, bandTintVar, colorName } from '#lib/components/plan/colors.js';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import { formatRangeDisplay } from '#lib/domain/format.js';
 	import { uiIntl } from '#lib/ui-language.js';
@@ -101,11 +101,27 @@
 				<span>{m.field_tint()}</span>
 				<Select.Root type="single" bind:value={color}>
 					<Select.Trigger class="w-full" aria-label={m.field_tint()} data-testid="band-tint">
-						{colorName(color)}
+						<span class="flex items-center gap-2">
+							<span
+								data-slot="tint-swatch"
+								aria-hidden="true"
+								class="size-4 shrink-0 rounded-sm border border-foreground/30"
+								style:background={bandFill(bandTintVar(color))}
+							></span>
+							{colorName(color)}
+						</span>
 					</Select.Trigger>
 					<Select.Content>
 						{#each BAND_TINT_KEYS as value (value)}
-							<Select.Item {value} label={colorName(value)}>{colorName(value)}</Select.Item>
+							<Select.Item {value} label={colorName(value)}>
+								<span
+									data-slot="tint-swatch"
+									aria-hidden="true"
+									class="size-4 shrink-0 rounded-sm border border-foreground/30"
+									style:background={bandFill(bandTintVar(value))}
+								></span>
+								{colorName(value)}
+							</Select.Item>
 						{/each}
 					</Select.Content>
 				</Select.Root>

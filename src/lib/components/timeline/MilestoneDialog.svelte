@@ -13,7 +13,8 @@
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
 	import DateField from '#lib/components/edit/DateField.svelte';
-	import { MILESTONE_SYMBOLS, type Milestone } from '#lib/domain/schema.js';
+	import { MILESTONE_SYMBOLS, type Milestone, type MilestoneSymbol } from '#lib/domain/schema.js';
+	import { MILESTONE_SYMBOLS as symbolIcons } from './milestone-symbols.js';
 	import { formatDate } from '#lib/domain/format.js';
 	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -27,11 +28,18 @@
 	let description = $state(initial?.description ?? '');
 	let symbol = $state(initial?.symbol ?? 'diamond');
 	let date = $state(initial?.date ?? ws.plan.range.start);
-	const symbolNames = {
+	const symbolNames: Record<MilestoneSymbol, () => string> = {
 		diamond: m.symbol_diamond,
 		flag: m.symbol_flag,
 		star: m.symbol_star,
-		circle: m.symbol_circle
+		circle: m.symbol_circle,
+		triangle: m.symbol_triangle,
+		square: m.symbol_square,
+		hexagon: m.symbol_hexagon,
+		pentagon: m.symbol_pentagon,
+		pin: m.symbol_pin,
+		bookmark: m.symbol_bookmark,
+		heart: m.symbol_heart
 	};
 	let confirmDelete = $state(false);
 	let open = $state(true);
@@ -108,11 +116,19 @@
 						aria-label={m.field_symbol()}
 						data-testid="milestone-symbol"
 					>
-						{symbolNames[symbol]()}
+						{@const Icon = symbolIcons[symbol]}
+						<span class="flex items-center gap-2">
+							<Icon class="size-4 fill-current" aria-hidden="true" />
+							{symbolNames[symbol]()}
+						</span>
 					</Select.Trigger>
 					<Select.Content>
 						{#each MILESTONE_SYMBOLS as value (value)}
-							<Select.Item {value} label={symbolNames[value]()}>{symbolNames[value]()}</Select.Item>
+							{@const Icon = symbolIcons[value]}
+							<Select.Item {value} label={symbolNames[value]()}>
+								<Icon class="size-4 fill-current" aria-hidden="true" />
+								{symbolNames[value]()}
+							</Select.Item>
 						{/each}
 					</Select.Content>
 				</Select.Root>

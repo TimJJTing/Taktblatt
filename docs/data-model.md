@@ -82,13 +82,15 @@ A parent keeps its own `start`, `end`, `owners` and `done`. The app does not sho
 
 ## Milestone
 
-| Field         | Type                                      |
-| ------------- | ----------------------------------------- |
-| `id`          | string                                    |
-| `title`       | string                                    |
-| `description` | string                                    |
-| `date`        | date                                      |
-| `symbol`      | `diamond` \| `flag` \| `star` \| `circle` |
+| Field         | Type                                                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | string                                                                                                                           |
+| `title`       | string                                                                                                                           |
+| `description` | string                                                                                                                           |
+| `date`        | date                                                                                                                             |
+| `symbol`      | `diamond` \| `flag` \| `star` \| `circle` \| `triangle` \| `square` \| `hexagon` \| `pentagon` \| `pin` \| `bookmark` \| `heart` |
+
+The `pin` key represents a map pin. Symbol keys are language-neutral. The UI language controls the displayed names.
 
 ## Band
 
@@ -131,3 +133,5 @@ The app shows the path of each wrong field, for example `plan.range.start`. It d
 ## Versions
 
 When the schema changes, the `schemaVersion` increases by 1. The app migrates old files when it reads them. It cannot read files from a newer app version.
+
+Exception: the milestone symbols `triangle`, `square`, `hexagon`, `pentagon`, `pin`, `bookmark` and `heart` do not increase the version. The change only adds values, so all existing v1 files stay valid. App builds before this change reject a plan or backup file that uses one of these symbols.

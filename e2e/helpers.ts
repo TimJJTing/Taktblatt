@@ -123,6 +123,52 @@ export async function chooseOption(page: Page, testId: string, name: string): Pr
 	await page.getByRole('option', { name, exact: true }).click();
 }
 
+/** Opens a select and waits for focus and its opening animation. */
+export async function openSelect(page: Page, testId: string): Promise<Locator> {
+	const trigger = page.getByTestId(testId);
+	await trigger.click();
+	await expect(trigger).toBeFocused();
+	const listbox = page.getByRole('listbox');
+	await expect(listbox).toBeVisible();
+	await listbox.evaluate(async (element) => {
+		await Promise.all(
+			element.getAnimations({ subtree: true }).map((animation) => animation.finished)
+		);
+	});
+	return listbox;
+}
+
+/** Checks that a decorative preview comes before the text name in the DOM. */
+export async function expectPreviewBeforeName(
+	container: Locator,
+	selector: string,
+	name: string
+): Promise<void> {
+	const preview = container.locator(selector);
+	await expect(preview).toHaveCount(1);
+	await expect(preview).toHaveAttribute('aria-hidden', 'true');
+	await expect
+		.poll(() =>
+			container.evaluate(
+				(element, { selector, name }) => {
+					const preview = element.querySelector(selector)!;
+					const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+					while (walker.nextNode()) {
+						const text = walker.currentNode;
+						if (text.textContent?.trim() === name) {
+							return Boolean(
+								preview.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING
+							);
+						}
+					}
+					return false;
+				},
+				{ selector, name }
+			)
+		)
+		.toBe(true);
+}
+
 /** The same format as formatDate in src/lib/domain/format.ts for English. */
 export const formatted = (date: string) =>
 	new Intl.DateTimeFormat('en-US', {
