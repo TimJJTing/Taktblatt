@@ -63,6 +63,10 @@
 	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));
 	const flipDuration = $derived(motionDuration(280));
 
+	// The band (top) and the bottom line are inset shadows, because a border does not stick with its cell.
+	const headCell =
+		'sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-20 bg-background py-1.5 font-medium shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)]';
+
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
 
@@ -77,7 +81,7 @@
 </script>
 
 <section
-	class="group/stage scroll-mt-anchor"
+	class="group/stage @container scroll-mt-anchor"
 	aria-labelledby="stage-{stage.id}-title"
 	data-testid="stage"
 	data-stage-id={stage.id}
@@ -150,8 +154,9 @@
 	</header>
 
 	<!-- The table is at least 640 px wide. A narrower wrapper scrolls the table horizontally.
-		The wrapper is also the container for the pinned "+" buttons. -->
-	<div class="@container relative overflow-x-auto">
+		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
+		so the header band can stick below the app header and the pinned Gantt. -->
+	<div class="relative @max-[640px]:overflow-x-auto">
 		<table class="w-full min-w-[640px] table-fixed border-collapse text-sm" aria-label={stageName}>
 			<colgroup>
 				<col class="w-8" />
@@ -163,15 +168,15 @@
 			</colgroup>
 			<thead>
 				<tr
-					class="border-b text-left text-xs text-muted-foreground"
-					style="border-top: 2px solid {stageColorVar(stage.color)}"
+					class="text-left text-xs text-muted-foreground"
+					style="--stage-band: {stageColorVar(stage.color)}"
 				>
-					<th class="py-1.5 pl-1 font-medium"><span class="sr-only">{m.column_done()}</span></th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_task()}</th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_deliverable()}</th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_target()}</th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_owner()}</th>
-					<th class="py-1.5"><span class="sr-only">{m.column_more()}</span></th>
+					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_done()}</span></th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_task()}</th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_deliverable()}</th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_target()}</th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_owner()}</th>
+					<th class={headCell}><span class="sr-only">{m.column_more()}</span></th>
 				</tr>
 			</thead>
 			{#each tasks as task (task.id)}

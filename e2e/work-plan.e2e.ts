@@ -142,6 +142,26 @@ test.describe('work plan', () => {
 		expect(await page.evaluate(() => window.scrollY)).toBe(before);
 	});
 
+	test('a stage keeps its colored header band at the top while the page scrolls', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 1000, height: 400 });
+		await openExample(page);
+		const section = stage(page, 0);
+		const band = section.locator('thead th').first();
+		await section.scrollIntoViewIfNeeded();
+		// Scroll until the natural place of the band is 25 px above the bottom of the app header.
+		const headerBottom = (await page.locator('header').first().boundingBox())!.height;
+		const y = await band.evaluate(
+			(el, offset) => el.getBoundingClientRect().top + window.scrollY - offset,
+			headerBottom - 25
+		);
+		await page.evaluate((top) => window.scrollTo(0, top), y);
+		const header = (await page.locator('header').first().boundingBox())!;
+		const box = (await band.boundingBox())!;
+		expect(Math.abs(box.y - (header.y + header.height))).toBeLessThanOrEqual(1);
+	});
+
 	test('a stage moves with the keyboard drag handle', async ({ page }) => {
 		await openExample(page);
 		const stageTitles = page.getByTestId('stage-title');
