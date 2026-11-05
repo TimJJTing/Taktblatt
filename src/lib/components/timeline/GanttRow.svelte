@@ -121,7 +121,7 @@
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} />
+		<ReadyDot count={ready} reserve />
 		<button
 			type="button"
 			class={cn(
