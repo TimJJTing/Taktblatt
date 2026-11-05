@@ -115,6 +115,7 @@ test('the sheet count is stable and the sheets have no controls', async ({ page 
 
 test('the paper size changes the sheet size, is one undo step, and persists', async ({ page }) => {
 	await openExample(page);
+	// Reload to start with an empty undo history.
 	await page.reload();
 	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
 	const undo = page.getByRole('button', { name: 'Undo', exact: true });
@@ -149,7 +150,7 @@ test('the paper size changes the sheet size, is one undo step, and persists', as
 	const count = await sheets(page).count();
 	await expect(sheets(page).last().getByTestId('page-number')).toHaveText(`${count} / ${count}`);
 
-	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+	await page.keyboard.press('ControlOrMeta+z');
 	await assertPaper('a4');
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('preview')).toHaveCount(0);

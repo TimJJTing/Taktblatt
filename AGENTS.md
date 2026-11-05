@@ -79,6 +79,15 @@ Run colocated Vitest `*.spec.ts` and reactive `*.svelte.spec.ts` tests with `pnp
 
 Reuse `e2e/helpers.ts` for shared browser setup and interactions. Extend the helpers when needed instead of duplicating them in tests.
 
+Write stable E2E tests:
+
+- In calendar date-change tests, select a date that differs from the initial date.
+- Get local-date expectations from the browser date.
+- Read animated geometry in one snapshot. Retry all related checks together.
+- In history tests, start from an empty history and check Undo and Redo.
+- In popover tests, wait for focus and animation completion.
+- In scroll tests, monitor the full interaction, including temporary changes.
+
 ## Commit & Pull Request Guidelines
 
 Create or switch to a separate branch before you commit changes. Do not commit directly to `main`. Submit changes to `main` through a pull request.
