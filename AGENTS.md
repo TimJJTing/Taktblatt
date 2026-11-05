@@ -90,7 +90,7 @@ Write stable E2E tests:
 
 ## Commit & Pull Request Guidelines
 
-Create or switch to a separate branch before you commit changes. Do not commit directly to `main`. Submit changes to `main` through a pull request.
+Create or switch to a separate branch before you commit changes. Give the branch a name that tells its purpose, for example `fix/stable-chevron-test`. Do not commit directly to `main`. Submit changes to `main` through a pull request. A pull request can merge only when the `CI passed` check succeeds. This check needs lint, type check, unit tests and end-to-end tests to pass. Refer to `docs/adr/0011-required-ci-checks.md`.
 
 Use `feat:`, `fix:`, `refactor:`, `docs:`, or `chore:` with imperative descriptions, following Git history. PRs must explain the change and list validation results. Link related issues when available and include screenshots for visual changes.
 
