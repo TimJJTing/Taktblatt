@@ -2,7 +2,6 @@ import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
-import { paraglideOptions } from './scripts/paraglide-options.js';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
@@ -17,7 +16,7 @@ export default defineConfig({
 			},
 			adapter: adapter({ fallback: '404.html' })
 		}),
-		paraglideVitePlugin(paraglideOptions)
+		paraglideVitePlugin({ project: './project.inlang' })
 	],
 	test: {
 		expect: { requireAssertions: true },

@@ -77,7 +77,7 @@ test.describe('import', () => {
 		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
 		expect((await storedPlan(page)).locale).toBe('ja');
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-		await expect(page.getByTestId('plan-switcher')).not.toBeEmpty();
+		await expect(page.getByRole('button', { name: 'Sprache' })).toBeVisible();
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
 		await page.reload();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');

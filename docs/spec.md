@@ -351,7 +351,8 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 ## 6. Language
 
-- The **UI language** is a viewer setting. The default is the browser language.
+- The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
+- The first UI language comes from the browser language list. The app uses the first supported language in the list. A region variant matches its base language (`de-AT` gives `de`). `zh-Hant` and `zh-TW`, `zh-HK` and `zh-MO` give `zh-TW`. Simplified or unspecified Chinese and all other languages give English. The app saves the detected language on the first visit. A later change of the browser language has no effect.
 - The **document language** is a plan setting (`locale`). It controls the printed labels (for example "Objective:", "Timeline", the column titles) and the date formats. A new plan gets the current UI language.
 - Supported languages: English (`en`), German (`de`), Traditional Chinese (`zh-TW`), Japanese (`ja`).
 - English is the source. A missing key falls back to English.
