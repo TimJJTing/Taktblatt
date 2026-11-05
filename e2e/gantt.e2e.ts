@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dependencyArrowFades, dependencyContrast, openExample, row, storedPlan } from './helpers';
+import {
+	dependencyArrowFades,
+	dependencyContrast,
+	defaultPanelHeight,
+	expectPanelHeight,
+	expectStickyBelowHeader,
+	openExample,
+	row,
+	storedPlan
+} from './helpers';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 
@@ -199,7 +208,9 @@ test('the linked highlight works in both directions', async ({ page }) => {
 	await expect(row(page, 'First harvest')).toHaveClass(/bg-accent/);
 });
 
-test('the pinned Gantt resizes with the keyboard within its limits', async ({ page }) => {
+test('the pinned Timeline section resizes with the keyboard within its limits', async ({
+	page
+}) => {
 	await openExample(page);
 	const pin = page.getByTestId('gantt-pin');
 	await expect(pin).toHaveAttribute('aria-pressed', 'false');
@@ -209,35 +220,48 @@ test('the pinned Gantt resizes with the keyboard within its limits', async ({ pa
 	const handle = page.getByRole('separator', { name: 'Timeline height' });
 	await expect(handle).toHaveAttribute('aria-valuenow', '35');
 	const viewport = page.viewportSize()!.height;
-	const height = async () => (await gantt(page).boundingBox())!.height;
-	const before = await height();
-	expect(before).toBeCloseTo(viewport * 0.35, 0);
+	const panel = page.getByTestId('timeline-panel');
+	await expectPanelHeight(page, defaultPanelHeight(page));
 
 	await handle.focus();
 	await handle.press('ArrowDown');
 	await expect(handle).toHaveAttribute('aria-valuenow', '37');
-	expect(await height()).toBeGreaterThan(before);
+	await expectPanelHeight(page, viewport * 0.37);
+	await handle.press('PageUp');
+	await expectPanelHeight(page, viewport * 0.27);
+	await handle.press('PageDown');
+	await expectPanelHeight(page, viewport * 0.37);
+	// Clamp PageDown from 47 percent, then PageUp near the minimum.
+	await handle.press('PageDown');
+	await expectPanelHeight(page, viewport * 0.47);
+	await handle.press('PageDown');
+	await expectPanelHeight(page, viewport * 0.5);
 
 	await handle.press('End');
 	await expect(handle).toHaveAttribute('aria-valuenow', '50');
 	await handle.press('ArrowDown');
 	await expect(handle).toHaveAttribute('aria-valuenow', '50');
-	expect(await height()).toBeLessThanOrEqual(viewport * 0.5 + 1);
+	await expectPanelHeight(page, viewport * 0.5);
 
 	await handle.press('Home');
 	await expect(handle).toHaveAttribute('aria-valuenow', String(Math.round((120 / viewport) * 100)));
 	await handle.press('ArrowUp');
-	expect(await height()).toBeGreaterThanOrEqual(119);
-	expect(await height()).toBeLessThanOrEqual(121);
+	await expectPanelHeight(page, 120);
 
-	// The pinned chart stays below the app header when the page scrolls.
-	await row(page, 'First harvest').scrollIntoViewIfNeeded();
-	const header = (await page.locator('[data-app-header]').boundingBox())!;
-	await expect
-		.poll(async () => (await gantt(page).boundingBox())!.y)
-		.toBeCloseTo(header.y + header.height, 0);
+	await handle.press('ArrowDown');
+	await expectPanelHeight(page, 120 + viewport * 0.02);
+	await handle.press('PageUp');
+	await expectPanelHeight(page, 120);
+	await handle.press('PageUp');
+	await expectPanelHeight(page, 120);
+	await expectStickyBelowHeader(panel);
 	await page.reload();
 	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByTestId('gantt-resize')).toHaveAttribute(
+		'aria-valuenow',
+		String(Math.round((120 / viewport) * 100))
+	);
+	await expectPanelHeight(page, 120);
 });
 
 test('a band click opens the band dialog', async ({ page }) => {

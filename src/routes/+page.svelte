@@ -92,9 +92,6 @@
 			<PlanHeader />
 		</section>
 		<section id="timeline" class="mt-10 scroll-mt-header" aria-labelledby="timeline-title">
-			<h2 id="timeline-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
-				{m.section_timeline()}
-			</h2>
 			<Timeline />
 		</section>
 		<section id="stage-overview" class="mt-10 scroll-mt-anchor" aria-labelledby="overview-title">
