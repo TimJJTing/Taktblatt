@@ -27,6 +27,49 @@ export const planIds = (page: Page) =>
 
 type StoredPlan = Awaited<ReturnType<typeof storedPlan>>;
 
+/** Reads the contrast of a dependency stroke against its chart background. */
+export async function dependencyContrast(line: Locator, paper = false): Promise<number> {
+	return line.evaluate((element, onPaper) => {
+		const style = getComputedStyle(element);
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		const context = canvas.getContext('2d')!;
+		const luminance = () => {
+			const channels = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map((value) => {
+				const channel = value / 255;
+				return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+			});
+			return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+		};
+		context.fillStyle = style.getPropertyValue(onPaper ? '--color-paper' : '--background');
+		context.fillRect(0, 0, 1, 1);
+		const background = luminance();
+		context.globalAlpha = Number(style.opacity);
+		context.fillStyle = style.stroke;
+		context.fillRect(0, 0, 1, 1);
+		const stroke = luminance();
+		return (Math.max(background, stroke) + 0.05) / (Math.min(background, stroke) + 0.05);
+	}, paper);
+}
+
+/**
+ * Checks that a dependency arrow fades with its line.
+ * The arrow must be the end marker of the line, so the line opacity applies to it.
+ * The marker and its path must not set their own opacity.
+ */
+export async function dependencyArrowFades(line: Locator): Promise<boolean> {
+	return line.evaluate((element) => {
+		const markerId = getComputedStyle(element).markerEnd.match(/#([^")]+)/)?.[1];
+		const marker = markerId ? document.getElementById(markerId) : null;
+		const arrow = marker?.querySelector('path');
+		if (!(marker instanceof SVGMarkerElement) || !arrow) return false;
+		return [marker, arrow].every((node) => {
+			const style = getComputedStyle(node);
+			return Number(style.opacity) === 1 && Number(style.fillOpacity) === 1;
+		});
+	});
+}
+
 /** Changes the stored plan in localStorage, then reloads the app. */
 export async function writeStoredPlan(
 	page: Page,

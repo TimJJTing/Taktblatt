@@ -265,7 +265,9 @@
 						</marker>
 					</defs>
 					{#each lines as line (line.key)}
+						{@const done = segment.rows[line.row0].done === 'done'}
 						<path
+							class={done ? 'opacity-40' : undefined}
 							d={elbowPath(
 								line.x0 * timelineWidth,
 								centerY(line.row0),
