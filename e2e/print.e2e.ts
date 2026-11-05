@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { inflateSync } from 'node:zlib';
 import { formatted, openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
 
 declare global {
@@ -286,6 +287,75 @@ test('the printed PDF has one page for each sheet', async ({ page }) => {
 	// US Letter is 612 x 792 points.
 	expect(text).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+612\s+792\s*\]/);
 });
+
+/** Reads the page drawing commands from a Chromium PDF. It excludes dates and document ids. */
+function pdfPageContent(pdf: Buffer): string[] {
+	const text = pdf.toString('latin1');
+	return Array.from(text.matchAll(/\/Contents (\d+) 0 R/g), ([, id]) => {
+		const object = text.match(new RegExp(`(?:^|\\n)${id} 0 obj\\n([\\s\\S]*?)\\nendobj`));
+		expect(object, `PDF content object ${id}`).not.toBeNull();
+		const stream = object![1].match(/stream\r?\n/);
+		expect(stream, `PDF drawing stream ${id}`).not.toBeNull();
+		const length = Number(object![1].match(/\/Length (\d+)/)![1]);
+		const start = stream!.index! + stream![0].length;
+		const data = object![1].slice(start, start + length);
+		const commands = inflateSync(Buffer.from(data, 'latin1')).toString('latin1');
+		// The browser can omit the white page canvas outside the sheet. Compare the sheet paint.
+		const sheet = commands.match(/(?:^|\n)(0 0 [\d.]+ [\d.]+ re\nW\* n\n[\s\S]*)/);
+		expect(sheet, `PDF sheet drawing commands ${id}`).not.toBeNull();
+		return sheet![1];
+	});
+}
+
+for (const source of ['preview', 'direct'] as const) {
+	test(`print from ${source} keeps Gantt fills when background graphics are off`, async ({
+		page
+	}, testInfo) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			// Cover a point and a completed bar that starts before the visible range.
+			plan.tasks.find((task: { title: string }) => task.title === 'Neighbourhood stall')!.end =
+				null;
+			plan.tasks.find((task: { title: string }) => task.title === 'Site survey')!.start = addDays(
+				plan.range.start,
+				-3
+			);
+		});
+		await row(page, 'Soil preparation').getByTestId('task-toggle').click();
+		if (source === 'preview') await openPreview(page);
+		else await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await page.emulateMedia({ media: 'print' });
+		const first = sheets(page).first();
+		await expect(first.getByTestId('sheet-gantt-row')).toHaveCount(9);
+		await expect(first.getByTestId('sheet-gantt-bar')).toHaveCount(8);
+		await expect(first.getByTestId('sheet-gantt-point')).toHaveCount(1);
+		await expect(first.getByTestId('sheet-gantt-band')).toHaveCount(1);
+		await expect(first.getByTestId('sheet-gantt-dependency')).toHaveCount(5);
+		const count = await sheets(page).count();
+		const withBackgrounds = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+		// A direct print removes its sheets on afterprint. Render them for the second print.
+		if (source === 'direct') {
+			await page.emulateMedia({ media: 'screen' });
+			await page.reload();
+			await expect(page.getByTestId('plan-heading')).toBeVisible();
+			await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+			await expect(sheets(page).first()).toBeAttached();
+			await page.emulateMedia({ media: 'print' });
+		}
+		const withoutBackgrounds = await page.pdf({
+			preferCSSPageSize: true,
+			printBackground: false
+		});
+		await testInfo.attach('background-graphics-off.pdf', {
+			body: withoutBackgrounds,
+			contentType: 'application/pdf'
+		});
+		const expected = pdfPageContent(withBackgrounds);
+		expect(expected).toHaveLength(count);
+		// Compare actual paint, including bars, points, bands, swatches and dependency paths.
+		expect(pdfPageContent(withoutBackgrounds)).toEqual(expected);
+	});
+}
 
 test('the Print button calls window.print', async ({ page }) => {
 	await openExample(page);

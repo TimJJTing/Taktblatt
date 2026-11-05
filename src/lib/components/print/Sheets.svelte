@@ -202,6 +202,9 @@
 		background: var(--color-paper);
 		color: var(--color-paper-ink);
 		color-scheme: light;
+		/* Keep information fills when print background graphics are off. */
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
 		font-family: var(--font-sans);
 		font-size: 11px;
 		line-height: 1.35;
