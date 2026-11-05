@@ -118,7 +118,7 @@ test.describe('a language change that would drop work', () => {
 		await expect(page.getByRole('menuitemradio', { name: 'English' })).toBeChecked();
 		await page.keyboard.press('Escape');
 		// The edit is still undoable.
-		await page.locator('body').press('Control+z');
+		await page.locator('body').press('ControlOrMeta+z');
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
 	});
 
@@ -190,7 +190,7 @@ test.describe('a language change in another tab', () => {
 		await expect(a.locator('html')).toHaveAttribute('lang', 'en');
 		await expect(dialog(b)).toHaveCount(0);
 		// Tab B did not reload: its history is still there.
-		await b.locator('body').press('Control+z');
+		await b.locator('body').press('ControlOrMeta+z');
 		await expect(b.getByTestId('plan-heading')).toHaveText('Untitled plan');
 	});
 
