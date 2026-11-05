@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample, row } from './helpers';
+import { openExample, row, storedPlan } from './helpers';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 
@@ -42,6 +42,67 @@ test('expand and collapse are shared between the Gantt and the table', async ({ 
 	await expect(ganttRow(page, 'Soil test')).toHaveCount(0);
 	await expect(gantt(page).getByTestId('gantt-dependency')).toHaveCount(4);
 });
+
+for (const surface of ['table', 'Gantt'] as const) {
+	for (const action of ['expand', 'collapse'] as const) {
+		test(`a pointer click on the ${surface} chevron to ${action} clears focus and highlight`, async ({
+			page
+		}) => {
+			await openExample(page);
+			const parent = row(page, 'Soil preparation');
+			const tableToggle = parent.getByTestId('task-toggle');
+			const ganttToggle = ganttRow(page, 'Soil preparation').getByTestId('gantt-toggle');
+			const expanding = action === 'expand';
+			if (!expanding) await tableToggle.click();
+
+			const edited = expanding ? parent : row(page, 'Soil test');
+			const taskId = await edited.getAttribute('data-task-id');
+			await edited.getByTestId('task-deliverable').click();
+			const input = edited.getByTestId('task-deliverable-input');
+			const draft = `Saved on ${surface} ${action}`;
+			await input.fill(draft);
+			await expect(input).toBeFocused();
+			await expect(page.locator('table:focus-within')).toHaveCount(1);
+
+			const toggle = surface === 'table' ? tableToggle : ganttToggle;
+			await toggle.click();
+			await expect(tableToggle).toHaveAttribute('aria-expanded', String(expanding));
+			await expect(ganttToggle).toHaveAttribute('aria-expanded', String(expanding));
+			await expect(row(page, 'Soil test')).toHaveCount(expanding ? 1 : 0);
+			await expect(ganttRow(page, 'Soil test')).toHaveCount(expanding ? 1 : 0);
+			await expect
+				.poll(
+					async () => (await storedPlan(page)).tasks.find((task) => task.id === taskId)?.deliverable
+				)
+				.toBe(draft);
+			await expect.soft(toggle).not.toBeFocused();
+			await expect.soft(page.locator('table:focus-within')).toHaveCount(0);
+			await expect.soft(gantt(page).locator('[data-highlighted]')).toHaveCount(0);
+			await expect
+				.soft(page.getByTestId('task-row').and(page.locator('[class~="bg-accent/60"]')))
+				.toHaveCount(0);
+
+			await row(page, 'Site survey').hover();
+			await expect(ganttRow(page, 'Site survey')).toHaveAttribute('data-highlighted', 'true');
+		});
+	}
+
+	test(`keyboard activation of the ${surface} chevron retains focus`, async ({ page }) => {
+		await openExample(page);
+		const tableToggle = row(page, 'Soil preparation').getByTestId('task-toggle');
+		const ganttToggle = ganttRow(page, 'Soil preparation').getByTestId('gantt-toggle');
+		const toggle = surface === 'table' ? tableToggle : ganttToggle;
+		await toggle.focus();
+		for (const key of ['Enter', 'Space']) {
+			for (const expanded of [true, false]) {
+				await toggle.press(key);
+				await expect(toggle).toBeFocused();
+				await expect(tableToggle).toHaveAttribute('aria-expanded', String(expanded));
+				await expect(ganttToggle).toHaveAttribute('aria-expanded', String(expanded));
+			}
+		}
+	});
+}
 
 test('a label click scrolls to the table row and flashes it', async ({ page }) => {
 	await openExample(page);

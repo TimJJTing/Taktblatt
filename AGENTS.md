@@ -81,6 +81,8 @@ Reuse `e2e/helpers.ts` for shared browser setup and interactions. Extend the hel
 
 ## Commit & Pull Request Guidelines
 
+Create or switch to a separate branch before you commit changes. Do not commit directly to `main`. Submit changes to `main` through a pull request.
+
 Use `feat:`, `fix:`, `refactor:`, `docs:`, or `chore:` with imperative descriptions, following Git history. PRs must explain the change and list validation results. Link related issues when available and include screenshots for visual changes.
 
 ## Localization & Data Boundaries
