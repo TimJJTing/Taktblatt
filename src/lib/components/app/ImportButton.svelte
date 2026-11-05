@@ -5,7 +5,7 @@
 	If the browser cannot save, the import undoes its own writes and shows an error.
 -->
 <script lang="ts">
-	import UploadIcon from '@lucide/svelte/icons/upload';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { toast } from 'svelte-sonner';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -120,7 +120,7 @@
 				data-testid="import-open"
 				onclick={() => input?.click()}
 			>
-				<UploadIcon aria-hidden="true" />
+				<DownloadIcon aria-hidden="true" />
 			</Button>
 		{/snippet}
 	</Tooltip.Trigger>

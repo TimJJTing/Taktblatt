@@ -28,6 +28,14 @@ async function exportedExample(page: Page) {
 	return (await readDownload(page, 'Export this plan')).file;
 }
 
+test.describe('icons', () => {
+	test('import points into the tray and export points out of it', async ({ page }) => {
+		await openApp(page);
+		await expect(page.getByTestId('import-open').locator('svg')).toHaveClass(/lucide-download/);
+		await expect(page.getByTestId('export-menu').locator('svg')).toHaveClass(/lucide-upload/);
+	});
+});
+
 test.describe('export', () => {
 	test('"Export this plan" writes a plan file without viewer state', async ({ page }) => {
 		await openExample(page);

@@ -3,7 +3,7 @@
 	The file contains plan data only. It never contains viewer state.
 -->
 <script lang="ts">
-	import DownloadIcon from '@lucide/svelte/icons/download';
+	import UploadIcon from '@lucide/svelte/icons/upload';
 	import { mergeProps } from 'bits-ui';
 	import { downloadText } from '#lib/browser/download.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -45,7 +45,7 @@
 							aria-label={m.action_export()}
 							data-testid="export-menu"
 						>
-							<DownloadIcon aria-hidden="true" />
+							<UploadIcon aria-hidden="true" />
 						</Button>
 					{/snippet}
 				</DropdownMenu.Trigger>
