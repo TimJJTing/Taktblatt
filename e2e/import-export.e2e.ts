@@ -64,6 +64,26 @@ test.describe('export', () => {
 });
 
 test.describe('import', () => {
+	test('importing a plan in another language leaves the UI language alone', async ({ page }) => {
+		const file = await exportedExample(page);
+		await page.getByRole('button', { name: 'Language' }).click();
+		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		// The file comes from a user with another language (Japanese).
+		file.plan.id = 'japanese-plan';
+		file.plan.heading = 'Japanese plan';
+		file.plan.locale = 'ja';
+		await importJson(page, file);
+		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
+		expect((await storedPlan(page)).locale).toBe('ja');
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		await expect(page.getByTestId('plan-switcher')).not.toBeEmpty();
+		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
+		await page.reload();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
+	});
+
 	test('a valid file with a new id becomes a new active plan', async ({ page }) => {
 		const file = await exportedExample(page);
 		file.plan.id = 'imported-plan';

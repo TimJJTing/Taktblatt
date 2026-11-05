@@ -17,7 +17,7 @@
 		"test:e2e": "playwright test",
 		"e2e:install": "playwright install --with-deps chromium",
 		"icons": "node scripts/make-icons.mjs",
-		"i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy localStorage preferredLanguage baseLocale --emit-ts-declarations --silent"
+		"i18n": "node scripts/i18n.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
