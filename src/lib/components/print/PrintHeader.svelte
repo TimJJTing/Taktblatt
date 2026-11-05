@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
 	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 

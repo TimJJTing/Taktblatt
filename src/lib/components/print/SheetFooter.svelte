@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
 	import { formatDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { Plan } from '#lib/domain/schema.js';
 
 	interface Props {

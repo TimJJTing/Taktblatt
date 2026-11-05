@@ -9,7 +9,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { tasksSpan } from '#lib/domain/derive.js';
 	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { LIMITS } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updatePlan } from '#lib/state/commands.js';

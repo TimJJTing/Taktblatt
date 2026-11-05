@@ -7,7 +7,7 @@
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { stagePaperColor } from '#lib/components/plan/colors.js';
 	import { formatMonthSpan, formatTarget } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { StageSegment } from '#lib/domain/print-model.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';

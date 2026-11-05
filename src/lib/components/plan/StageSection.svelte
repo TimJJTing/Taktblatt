@@ -17,7 +17,7 @@
 	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
 	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { type Stage, type Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';

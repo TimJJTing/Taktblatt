@@ -224,6 +224,7 @@ test('the dates follow the UI language when it changes', async ({ page }) => {
 	const milestone = (await storedPlan(page)).milestones[0];
 	await page.getByRole('button', { name: 'Language' }).click();
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	const german = new Intl.DateTimeFormat('de', {
 		year: 'numeric',
 		month: 'short',
@@ -233,7 +234,6 @@ test('the dates follow the UI language when it changes', async ({ page }) => {
 	await expect(page.getByTestId('milestone-legend')).toContainText(
 		`${milestone.title} (${german})`
 	);
-	expect((await storedPlan(page)).locale).toBeUndefined();
 });
 
 test('section navigation stops below the pinned Gantt', async ({ page }) => {

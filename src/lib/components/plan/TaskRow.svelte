@@ -17,7 +17,7 @@
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';

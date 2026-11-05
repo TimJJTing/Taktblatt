@@ -6,7 +6,7 @@
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { allOwners } from '#lib/domain/owners.js';
 	import type { Stage } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';

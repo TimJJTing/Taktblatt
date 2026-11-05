@@ -5,6 +5,7 @@
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { isModKey, isTextEditing } from '#lib/browser/keyboard.js';
+	import { localStorageKey } from '#lib/paraglide/runtime.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
 	import StageOverview from '#lib/components/plan/StageOverview.svelte';
@@ -54,6 +55,11 @@
 
 	function onStorage(event: StorageEvent) {
 		if (event.storageArea !== localStorage) return;
+		// Another tab changed the UI language. Reload, so this tab does not mix two languages.
+		if (event.key === localStorageKey) {
+			location.reload();
+			return;
+		}
 		ws.handleStorageEvent(event);
 	}
 </script>

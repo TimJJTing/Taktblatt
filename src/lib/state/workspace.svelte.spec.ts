@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyPlan, createTask } from '#lib/domain/factory.js';
+import { SCHEMA_VERSION } from '#lib/domain/schema.js';
 import { loadExample } from './commands';
 import { MemoryStorage } from './memory-storage';
 import { KEYS, StorageWriteError } from './storage';
@@ -12,6 +13,22 @@ const open = (storage = new MemoryStorage()) => ({
 });
 
 describe('Workspace', () => {
+	it('drops an old locale key from a stored plan at the next save', () => {
+		const storage = new MemoryStorage();
+		const plan = createEmptyPlan('2027-04-01');
+		const stored = JSON.stringify({
+			schemaVersion: SCHEMA_VERSION,
+			plan: { ...plan, locale: 'ja' }
+		});
+		storage.setItem(KEYS.plan(plan.id), stored);
+		storage.setItem(KEYS.index, JSON.stringify({ planIds: [plan.id], activeId: plan.id }));
+		const ws = new Workspace(storage);
+		ws.commit((p) => (p.heading = 'Roadmap'));
+		const raw = storage.getItem(KEYS.plan(plan.id))!;
+		expect(raw).toContain('Roadmap');
+		expect(raw).not.toContain('locale');
+	});
+
 	it('creates an empty plan on the first start and saves it', () => {
 		const { storage, ws } = open();
 		expect(ws.plans).toHaveLength(1);

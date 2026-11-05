@@ -5,7 +5,7 @@
 <script lang="ts">
 	import { stagePaperColor } from '#lib/components/plan/colors.js';
 	import { formatMonthSpan } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { CardsSegment } from '#lib/domain/print-model.js';
 	import { m } from '#lib/paraglide/messages.js';
 

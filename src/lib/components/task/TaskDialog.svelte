@@ -23,7 +23,7 @@
 	} from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
 	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { allOwners } from '#lib/domain/owners.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { moveTask, removeTasks, renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
@@ -49,7 +49,7 @@
 	const ownerSuggestions = $derived(
 		allOwners(
 			ws.plan.tasks.map((t) => t.owners),
-			uiIntl()
+			locale
 		)
 	);
 	const stageNumber = (id: string) => ws.plan.stages.findIndex((s) => s.id === id) + 1;

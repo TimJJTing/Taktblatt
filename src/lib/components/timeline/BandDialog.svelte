@@ -16,7 +16,7 @@
 	import { colorName } from '#lib/components/plan/colors.js';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { addBand, updateBand, removeBand } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';

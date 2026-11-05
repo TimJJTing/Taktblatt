@@ -19,7 +19,7 @@ export function normalizeOwners(names: readonly string[]): string[] {
 }
 
 /** Returns all distinct owners, sorted for suggestions. `locale` is the BCP 47 tag for the order. */
-export function allOwners(lists: Iterable<readonly string[]>, locale?: string): string[] {
+export function allOwners(lists: Iterable<readonly string[]>, locale: string): string[] {
 	const merged: string[] = [];
 	for (const list of lists) merged.push(...list);
 	return normalizeOwners(merged).sort((a, b) => a.localeCompare(b, locale));

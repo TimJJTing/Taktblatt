@@ -18,7 +18,7 @@
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveOf } from '#lib/domain/derive.js';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { GanttSegment } from '#lib/domain/print-model.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';

@@ -7,7 +7,7 @@
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import { stageDeliverables, stageSpan } from '#lib/domain/derive.js';
 	import { formatMonthSpan } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updateStage } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';

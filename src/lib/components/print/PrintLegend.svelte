@@ -6,7 +6,7 @@
 	import { bandPaperTint, bandFill, stagePaperColor } from '#lib/components/plan/colors.js';
 	import { orderedMilestones } from '#lib/domain/derive.js';
 	import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { LegendSegment } from '#lib/domain/print-model.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';

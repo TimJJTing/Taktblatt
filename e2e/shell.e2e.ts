@@ -86,3 +86,15 @@ test('a chosen language is saved under taktblatt:locale', async ({ page }) => {
 	expect(await stored(page)).toBe('de');
 	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 });
+
+test('another open tab reloads in the new UI language', async ({ context }) => {
+	const first = await context.newPage();
+	const second = await context.newPage();
+	await first.goto('/');
+	await second.goto('/');
+	await expect(second.getByTestId('plan-switcher')).toHaveText('Untitled plan');
+	await first.getByRole('button', { name: 'Language' }).click();
+	await first.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await expect(second.locator('html')).toHaveAttribute('lang', 'de');
+	await expect(second.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
+});

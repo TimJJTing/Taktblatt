@@ -357,8 +357,6 @@ test('the sheets of an English plan show German labels and dates in the German U
 		timeZone: 'UTC'
 	}).format(new Date(`${plan.footer.date}T00:00:00Z`));
 	await expect(first.locator('.sheet-footer')).toContainText(german);
-	// The stored plan has no language.
-	expect((await storedPlan(page)).locale).toBeUndefined();
 });
 
 test('open dialogs do not print, and the sheets do', async ({ page }) => {

@@ -14,7 +14,7 @@
 	import { Calendar } from '#lib/components/ui/calendar/index.js';
 	import { todayISO, type ISODate } from '#lib/domain/date.js';
 	import { formatDate, readTypedDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {

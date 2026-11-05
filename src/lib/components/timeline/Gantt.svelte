@@ -15,7 +15,7 @@
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
 	import { todayISO } from '#lib/domain/date.js';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import {
 		dependencyLines,
 		ganttRows,

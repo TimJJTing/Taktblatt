@@ -7,7 +7,7 @@
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { formatDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/domain/locale.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updateFooter } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';

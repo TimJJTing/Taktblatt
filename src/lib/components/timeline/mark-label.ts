@@ -1,7 +1,7 @@
 /** The accessible name of a bar or a point of the Gantt. The screen Gantt and the printed Gantt share it. */
 import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
 import type { GanttMark } from '#lib/domain/gantt.js';
-import { uiIntl } from '#lib/domain/locale.js';
+import { uiIntl } from '#lib/ui-language.js';
 import { m } from '#lib/paraglide/messages.js';
 
 interface MarkLabelInput {
