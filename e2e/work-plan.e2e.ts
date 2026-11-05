@@ -219,12 +219,16 @@ test.describe('work plan', () => {
 				const addTaskBox = (await first.getByTestId('add-task').boundingBox())!;
 				return addTaskBox.y - (tableBox.y + tableBox.height);
 			})
-			.toBeLessThanOrEqual(6);
+			.toBeLessThanOrEqual(12);
 		const addTask = (await first.getByTestId('add-task').boundingBox())!;
 
-		const parent = row(page, 'Soil preparation');
-		await parent.getByTestId('task-toggle').click();
-		const addSubtask = (await first.getByTestId('add-subtask').first().boundingBox())!;
+		const addSubtask = (await first.getByTestId('add-subtask').last().boundingBox())!;
+		// The strip of the last add-subtask line must not cover the add-task button.
+		expect(addTask.y).toBeGreaterThanOrEqual(addSubtask.y + addSubtask.height);
+		await first.getByTestId('add-task').click({
+			trial: true,
+			position: { x: addTask.width / 2, y: 2 }
+		});
 		const addStage = (await page.getByTestId('add-stage').boundingBox())!;
 		expect(addStage.width).toBeGreaterThan(addTask.width);
 		expect(addTask.width).toBeGreaterThan(addSubtask.width);

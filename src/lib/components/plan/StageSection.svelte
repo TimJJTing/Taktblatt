@@ -248,8 +248,9 @@
 		</table>
 	</div>
 	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis.
-		Directly under the table, so the line belongs to this stage and not to the gap to the next stage. -->
-	<div class="pb-1">
+		Directly under the table, so the line belongs to this stage and not to the gap to the next stage.
+		The top padding clears the strip of the last "add subtask" line. -->
+	<div class="pt-2.5 pb-1">
 		<AddLine
 			label={m.task_add({ stage: stageName })}
 			indent={32}

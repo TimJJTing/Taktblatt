@@ -5,6 +5,7 @@
 	width. An ancestor that has the width of the scroll container must be a `@container` (the button uses `cqw` units).
 	`size` sets the size of the button: "sm" for the lowest level (subtask), "md" (default) for the middle
 	level (task, remark), "lg" for the top level (stage, remark section). All sizes are centered on the rule.
+	The line itself lets pointer events through, so an invisible line never blocks the content below it.
 	The parent controls the visibility with `class` (hover or focus-within of a scope).
 -->
 <script lang="ts">
@@ -46,7 +47,10 @@
 </script>
 
 <div
-	class={cn('add-line relative h-5 transition-opacity [@media(hover:none)]:opacity-100', className)}
+	class={cn(
+		'add-line pointer-events-none relative h-5 transition-opacity [@media(hover:none)]:opacity-100',
+		className
+	)}
 	style:transition-duration={`${motionDuration(200)}ms`}
 >
 	<div
@@ -60,7 +64,7 @@
 			aria-label={label}
 			title={label}
 			class={cn(
-				'absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition hover:scale-110 hover:border-foreground/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none',
+				"pointer-events-auto absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition after:absolute after:-inset-0.5 after:content-[''] hover:scale-110 hover:border-foreground/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
 				sizes[size].button
 			)}
 			onclick={onAdd}

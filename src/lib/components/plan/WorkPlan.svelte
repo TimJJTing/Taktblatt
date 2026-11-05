@@ -41,7 +41,7 @@
 >
 	{#each items as stage, i (stage.id)}
 		<div animate:flip={{ duration: flipDuration }} class="flex flex-col">
-			<div class="group/gap py-1">
+			<div class="group/gap pt-4 pb-1">
 				<AddLine
 					label={m.stage_add()}
 					size="lg"
