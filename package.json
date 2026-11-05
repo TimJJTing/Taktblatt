@@ -16,6 +16,8 @@
 		"test": "pnpm test:unit --run && playwright test",
 		"test:e2e": "playwright test",
 		"e2e:install": "playwright install --with-deps chromium",
+		"browser": "playwright cli",
+		"browser:setup": "playwright cli install --skills=agents",
 		"icons": "node scripts/make-icons.mjs",
 		"i18n": "paraglide-js compile --project ./project.inlang --silent"
 	},

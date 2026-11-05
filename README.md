@@ -124,6 +124,25 @@ The app follows the theme of your system. The printed sheets are always light.
 
 1. Run `pnpm format`.
 
+### Browser automation for coding agents
+
+Use the [Playwright agent CLI](https://playwright.dev/agent-cli/introduction) for interactive browser checks. The installed Playwright dependency includes the CLI; no global package is needed.
+
+1. Run `pnpm browser:setup` to initialize the workspace and install the official skill in `.agents/skills/playwright-cli/`.
+2. Run `pnpm e2e:install` if Chromium is not installed yet.
+3. Start the app with `pnpm dev`. In another terminal, run:
+
+```sh
+pnpm browser open http://localhost:5173
+pnpm browser snapshot
+pnpm browser screenshot
+pnpm browser close
+```
+
+Use the URL reported by Vite if port 5173 is occupied. Read the snapshot for element references, then use commands such as `pnpm browser click <ref>` or `pnpm browser fill <ref> "text"`. Refresh the snapshot after page changes. Run `pnpm browser --help` for all commands, and add `--headed` to `open` to see the browser.
+
+`pnpm browser` automatically loads `.playwright/cli.config.json`: headless Chromium, an isolated browser profile, English locale, and a 1280×900 viewport. Generated snapshots and screenshots are ignored in `.playwright-cli/`. After upgrading Playwright, rerun `pnpm browser:setup` to refresh the bundled skill. CLI sessions support exploration; `pnpm test:e2e` runs the regression suite used by CI.
+
 ### Project structure
 
 | Folder                | Content                                                  |
