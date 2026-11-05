@@ -152,9 +152,17 @@
 		if (!row) return;
 		const behavior = scrollBehavior();
 		if (viewer.ganttPinned) {
-			// The same offset as the scroll-mt-anchor class: header, pinned section and 1rem.
+			// Clear the sticky stage header and any sticky column headers at the target row.
+			const stage = row.closest('section[data-stage-id]');
+			const stageHeader = stage?.querySelector('header');
+			const columnHeader = stage?.querySelector('thead th');
+			const stageHeight = stageHeader?.getBoundingClientRect().height ?? 0;
+			const columnHeight =
+				columnHeader && getComputedStyle(columnHeader).position === 'sticky'
+					? columnHeader.getBoundingClientRect().height
+					: 0;
 			const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-			const offset = headerHeight + pinnedTimeline.height + rem;
+			const offset = headerHeight + pinnedTimeline.height + stageHeight + columnHeight + rem;
 			window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - offset, behavior });
 		} else {
 			row.scrollIntoView({ block: 'center', behavior });

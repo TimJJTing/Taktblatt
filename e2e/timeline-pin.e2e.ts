@@ -56,11 +56,17 @@ test('the pin keeps the heading, chart and legends together and clears row jumps
 	await expect
 		.poll(() =>
 			row(page, 'Site survey').evaluate((element) => {
-				const panel = document.querySelector('[data-testid="timeline-panel"]')!;
-				return element.getBoundingClientRect().top - panel.getBoundingClientRect().bottom;
+				const section = element.closest('[data-testid="stage"]')!;
+				const header = section.querySelector(':scope > header')!.getBoundingClientRect();
+				const columns = section.querySelector('thead')!.getBoundingClientRect();
+				const columnCell = section.querySelector('thead th')!.getBoundingClientRect();
+				return (
+					element.getBoundingClientRect().top -
+					Math.max(header.bottom, columns.bottom, columnCell.bottom)
+				);
 			})
 		)
-		.toBeGreaterThanOrEqual(0);
+		.toBeGreaterThanOrEqual(-1);
 	await expectStickyBelowHeader(panel);
 	await pin.click();
 	await expect(pin).toHaveAttribute('aria-pressed', 'false');

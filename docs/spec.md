@@ -339,6 +339,14 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 ### 5.6 Work plan
 
 - **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done". Click the title to edit it.
+- **Sticky stage headers:** while a stage scrolls, its header stays below the app header and the pinned Timeline section. The header stays within its stage. It scrolls out when the stage ends.
+  - The app header and pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
+  - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height, including wrapped text.
+  - Below a stage width of 640 px, the separate color band stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
+  - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.
+  - A jump from a pinned Timeline label shows the task below its stage header and any sticky table column headers.
+  - Keyboard focus on a task control clears the stage header and any sticky table column headers.
+  - Preview and printed sheets keep their existing headers, content and pagination. Sticky workspace headers do not appear on sheets.
 - **Color picker:** a curated palette of 8 colors. The picker shows a warning when two stages have similar colors. A new stage gets the next unused color.
 - **Stage order:** a drag handle (it also works with the keyboard), and **Move up** and **Move down** in the stage menu.
 - **Add stage:** a "+" line between two stages and after the last stage. It adds an empty stage. An empty stage stays after blur.

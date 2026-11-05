@@ -1,5 +1,15 @@
 import { expect, test } from '@playwright/test';
-import { expectStickyBelowHeader, openApp, openExample, row, stage, titles } from './helpers';
+import {
+	GANTT_HEIGHT,
+	defaultPanelHeight,
+	expectPanelHeight,
+	expectStickyStageStack,
+	openApp,
+	openExample,
+	row,
+	stage,
+	titles
+} from './helpers';
 
 test.describe('work plan', () => {
 	test('a new task gets a title, and Escape removes an empty new task', async ({ page }) => {
@@ -211,13 +221,12 @@ test.describe('work plan', () => {
 		}
 	});
 
-	test('a stage keeps its colored header band at the top while the page scrolls', async ({
+	test('a stage keeps its title and colored column header below the app header while scrolling', async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 1000, height: 400 });
 		await openExample(page);
-		const band = stage(page, 0).locator('thead th').first();
-		await expectStickyBelowHeader(band);
+		await expectStickyStageStack(stage(page, 0));
 	});
 
 	test('on a narrow screen the header cells stay in the table', async ({ page }) => {
@@ -235,14 +244,182 @@ test.describe('work plan', () => {
 			.toBeLessThanOrEqual(1);
 	});
 
-	test('on a narrow screen the colored band stays at the top while the page scrolls', async ({
+	test('on a narrow screen the stage title and colored band stay visible while scrolling', async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 600, height: 400 });
 		await openExample(page);
-		const band = stage(page, 0).getByTestId('stage-band');
-		await expectStickyBelowHeader(band);
+		const section = stage(page, 0);
+		await expectStickyStageStack(section);
+		await section.locator('table').evaluate((table) => (table.parentElement!.scrollLeft = 100));
+		await expect
+			.poll(() => section.locator('table').evaluate((table) => table.parentElement!.scrollLeft))
+			.toBeGreaterThan(0);
+		await expectStickyStageStack(section);
 	});
+
+	for (const width of [1000, 390]) {
+		test(`stage headers clear a resized pinned Timeline at ${width} px`, async ({ page }) => {
+			await page.setViewportSize({ width, height: 900 });
+			await page.emulateMedia({ reducedMotion: 'reduce' });
+			await openExample(page);
+			await page.getByTestId('gantt-pin').click();
+			await page.getByTestId('gantt-resize').press('Home');
+			await expectPanelHeight(page, GANTT_HEIGHT.minPx);
+			await expectStickyStageStack(stage(page, 0));
+			await page.getByTestId('gantt-resize').press('PageDown');
+			await expectPanelHeight(page, GANTT_HEIGHT.minPx + 90);
+			await expectStickyStageStack(stage(page, 0));
+		});
+	}
+
+	for (const width of [1000, 390]) {
+		test(`the pinned Timeline covers outgoing stage headers at ${width} px`, async ({ page }) => {
+			await page.setViewportSize({ width, height: 900 });
+			await page.emulateMedia({ reducedMotion: 'reduce' });
+			await openExample(page);
+			await page.getByTestId('gantt-pin').click();
+			await expectPanelHeight(page, defaultPanelHeight(page));
+			const first = stage(page, 0);
+			await expectStickyStageStack(first);
+			for (const remaining of [0.75, 0.5, 0.25]) {
+				await first.evaluate(async (element, fraction) => {
+					const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+					const panel = document
+						.querySelector('[data-testid="timeline-panel"]')!
+						.getBoundingClientRect();
+					const header = element.querySelector(':scope > header')!.getBoundingClientRect();
+					window.scrollTo(
+						0,
+						window.scrollY +
+							element.getBoundingClientRect().bottom -
+							app.bottom -
+							panel.height -
+							header.height * fraction
+					);
+					await new Promise(requestAnimationFrame);
+				}, remaining);
+				// Read overlap and the painted target together while the stage header leaves its scope.
+				await expect
+					.poll(() =>
+						first.evaluate((element) => {
+							const panel = document.querySelector('[data-testid="timeline-panel"]')!;
+							const panelBox = panel.getBoundingClientRect();
+							const header = element.querySelector(':scope > header')!.getBoundingClientRect();
+							const top = Math.max(panelBox.top, header.top);
+							const bottom = Math.min(panelBox.bottom, header.bottom);
+							const left = Math.max(panelBox.left, header.left);
+							const right = Math.min(panelBox.right, header.right);
+							const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+							return {
+								overlaps: bottom - top > 1 && right > left,
+								timelineOnTop: hit !== null && panel.contains(hit)
+							};
+						})
+					)
+					.toEqual({ overlaps: true, timelineOnTop: true });
+			}
+		});
+	}
+
+	test('stage header offsets follow height changes and release at the next stage', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 1000, height: 700 });
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await openExample(page);
+		const first = stage(page, 0);
+		await expectStickyStageStack(first);
+		const wideHeight = await first
+			.locator(':scope > header')
+			.evaluate((header) => header.getBoundingClientRect().height);
+		// Change the measured height without changing the title's established truncation.
+		await first.locator(':scope > header').evaluate((header, height) => {
+			(header as HTMLElement).style.minHeight = `${height + 24}px`;
+		}, wideHeight);
+		await expectStickyStageStack(first);
+		await page.setViewportSize({ width: 390, height: 700 });
+		await expectStickyStageStack(first);
+		await expect
+			.poll(() =>
+				first.locator(':scope > header').evaluate((header) => header.getBoundingClientRect().height)
+			)
+			.toBeGreaterThan(wideHeight);
+		await expectStickyStageStack(stage(page, 1));
+		await expect
+			.poll(() =>
+				first.evaluate((element) => {
+					const header = element.querySelector(':scope > header')!.getBoundingClientRect();
+					const next = document
+						.querySelectorAll('[data-testid="stage"]')[1]
+						.querySelector(':scope > header')!
+						.getBoundingClientRect();
+					return header.bottom <= next.top;
+				})
+			)
+			.toBe(true);
+		const menu = stage(page, 1).getByTestId('stage-menu');
+		await menu.focus();
+		await menu.press('Enter');
+		await expect(page.getByRole('menuitem', { name: 'Move up' })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(menu).toBeFocused();
+	});
+
+	for (const pinned of [false, true]) {
+		test(`Tab reveals a task control below the full sticky stage stack (pinned: ${pinned})`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width: 1280, height: 800 });
+			await page.emulateMedia({ reducedMotion: 'reduce' });
+			await openExample(page);
+			if (pinned) {
+				await page.getByTestId('gantt-pin').click();
+				await page.getByTestId('gantt-resize').press('Home');
+				await expectPanelHeight(page, GANTT_HEIGHT.minPx);
+			}
+			const first = stage(page, 0);
+			const checkbox = first.getByTestId('task-done').first();
+			await checkbox.evaluate(async (element) => {
+				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+				const pinnedHeight =
+					parseFloat(
+						getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
+					) || 0;
+				const header = element
+					.closest('[data-testid="stage"]')!
+					.querySelector(':scope > header')!
+					.getBoundingClientRect();
+				const bounds = element.getBoundingClientRect();
+				const center = app.bottom + pinnedHeight + header.height / 2;
+				window.scrollTo(0, window.scrollY + bounds.top + bounds.height / 2 - center);
+				await new Promise(requestAnimationFrame);
+			});
+			await first
+				.getByTestId('stage-menu')
+				.evaluate((element) => (element as HTMLElement).focus({ preventScroll: true }));
+			await page.keyboard.press('Tab');
+			await expect(checkbox).toBeFocused();
+			await expect
+				.poll(() =>
+					checkbox.evaluate((element) => {
+						const section = element.closest('[data-testid="stage"]')!;
+						const header = section.querySelector(':scope > header')!.getBoundingClientRect();
+						const columns = section.querySelector('thead th')!.getBoundingClientRect();
+						const bounds = element.getBoundingClientRect();
+						const hit = document.elementFromPoint(
+							bounds.left + bounds.width / 2,
+							bounds.top + bounds.height / 2
+						);
+						return (
+							bounds.top >= Math.max(header.bottom, columns.bottom) - 1 &&
+							(hit === element || element.contains(hit))
+						);
+					})
+				)
+				.toBe(true);
+		});
+	}
 
 	test('a stage moves with the keyboard drag handle', async ({ page }) => {
 		await openExample(page);

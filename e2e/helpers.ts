@@ -295,6 +295,39 @@ export async function expectStickyBelowHeader(band: Locator): Promise<void> {
 		.toBeLessThanOrEqual(1);
 }
 
+/** Scrolls into a stage and checks its complete sticky header stack in one snapshot. */
+export async function expectStickyStageStack(section: Locator): Promise<void> {
+	await section.evaluate((element) => {
+		const root = getComputedStyle(document.documentElement);
+		const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+		const pinned = parseFloat(root.getPropertyValue('--gantt-pinned-h')) || 0;
+		window.scrollTo(
+			0,
+			element.getBoundingClientRect().top + window.scrollY - app.bottom - pinned + 60
+		);
+	});
+	await expect
+		.poll(() =>
+			section.evaluate((element) => {
+				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+				const pinned =
+					parseFloat(
+						getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
+					) || 0;
+				const header = element.querySelector(':scope > header')!.getBoundingClientRect();
+				const narrow = element.getBoundingClientRect().width < 640;
+				const band = element
+					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
+					.getBoundingClientRect();
+				return {
+					headerAligned: Math.abs(header.top - app.bottom - pinned) <= 1,
+					bandAligned: Math.abs(band.top - header.bottom) <= 1
+				};
+			})
+		)
+		.toEqual({ headerAligned: true, bandAligned: true });
+}
+
 /** Finds a row by the exact text of its title cell. */
 export const row = (page: Page, title: string) =>
 	page.getByTestId('task-row').filter({
