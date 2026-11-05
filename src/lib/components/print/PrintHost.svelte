@@ -36,6 +36,14 @@
 		preview.printing = false;
 	}
 
+	// Cmd/Ctrl+P takes the same way as the Print button: the sheets render before the print starts.
+	function onKeydown(event: KeyboardEvent) {
+		if (event.key.toLowerCase() !== 'p' || event.shiftKey || event.altKey) return;
+		if (!(event.ctrlKey || event.metaKey)) return;
+		event.preventDefault();
+		preview.print();
+	}
+
 	// Some browsers do not send `afterprint`. The end of the print media is the second signal.
 	$effect(() => {
 		const query = window.matchMedia('print');
@@ -47,7 +55,7 @@
 	});
 </script>
 
-<svelte:window onbeforeprint={beforePrint} onafterprint={afterPrint} />
+<svelte:window onbeforeprint={beforePrint} onafterprint={afterPrint} onkeydown={onKeydown} />
 
 <svelte:head>
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -->

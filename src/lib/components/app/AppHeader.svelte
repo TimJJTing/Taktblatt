@@ -65,7 +65,7 @@
 				variant="ghost"
 				size="sm"
 				class="max-sm:px-2"
-				onclick={() => window.print()}
+				onclick={() => preview.print()}
 				data-testid="print"
 			>
 				<PrinterIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_print()}</span>

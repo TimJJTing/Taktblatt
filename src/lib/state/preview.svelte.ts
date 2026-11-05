@@ -3,7 +3,7 @@
  * `open` is true while the preview shows. `printing` is true between the print events
  * when the preview is not open.
  */
-import { getContext, setContext, tick } from 'svelte';
+import { flushSync, getContext, setContext, tick } from 'svelte';
 
 export class PreviewState {
 	open = $state(false);
@@ -15,6 +15,21 @@ export class PreviewState {
 	show(opener: HTMLElement | null): void {
 		this.opener = opener;
 		this.open = true;
+	}
+
+	/**
+	 * Opens the print dialog. The sheets render first, before the browser starts the print.
+	 * Chrome does not run the first render of a template inside `beforeprint`: it throws
+	 * ("callback is no longer runnable") and the app shows the error page.
+	 */
+	print(): void {
+		if (!this.open) {
+			this.printing = true;
+			// The first flush renders the hidden blocks. The next flush measures and renders the sheets.
+			flushSync();
+			flushSync();
+		}
+		window.print();
 	}
 
 	hide(): void {

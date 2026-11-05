@@ -439,3 +439,19 @@ test('the printed Gantt names points and marks tasks outside the range', async (
 	await expect(first.getByTestId('sheet-gantt-point')).toHaveAttribute('aria-label', /: /);
 	await expect(first.getByTestId('sheet-gantt-outside')).toHaveCount(1);
 });
+
+test('a print dialog that is cancelled leaves the plan on screen without an error', async ({
+	page
+}) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+	await openExample(page);
+	// No stub: the browser sends the real print events. Headless Chromium returns at once, like a cancel.
+	await page.getByTestId('print').click();
+	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	await expect(page.getByTestId('plan-heading')).toBeVisible();
+	await expect(page.getByRole('heading', { name: '500' })).toHaveCount(0);
+	await expect(sheets(page)).toHaveCount(0);
+	expect(errors).toEqual([]);
+});
