@@ -12,6 +12,7 @@ export const KEYS = {
 	plan: (id: string) => `taktblatt:plan:${id}`,
 	planPrefix: 'taktblatt:plan:',
 	viewer: 'taktblatt:ui',
+	theme: 'taktblatt:theme',
 	damaged: (stamp: string) => `taktblatt:damaged:${stamp}`
 } as const;
 

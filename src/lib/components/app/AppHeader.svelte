@@ -11,8 +11,8 @@
 	import { appHeader } from './app-layout.svelte.js';
 	import ExportMenu from './ExportMenu.svelte';
 	import ImportButton from './ImportButton.svelte';
-	import LanguageMenu from './LanguageMenu.svelte';
 	import PlanSwitcher from './PlanSwitcher.svelte';
+	import SettingsMenu from './SettingsMenu.svelte';
 	import { SECTIONS } from './sections.js';
 
 	const ws = getWorkspace();
@@ -106,7 +106,7 @@
 				</Tooltip.Trigger>
 				<Tooltip.Content>{m.action_redo()} ({isMac ? '⇧⌘Z' : 'Ctrl+Y'})</Tooltip.Content>
 			</Tooltip.Root>
-			<LanguageMenu />
+			<SettingsMenu />
 		</div>
 	</div>
 	<nav aria-label={m.section_navigation()} class="flex w-full gap-1 overflow-x-auto pb-2 text-xs">

@@ -1,6 +1,11 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "Taktblatt",
+	"settings": "Einstellungen",
+	"theme": "Design",
+	"theme_light": "Hell",
+	"theme_dark": "Dunkel",
+	"theme_system": "System",
 	"ui_language": "Sprache",
 	"ui_language_en": "English",
 	"ui_language_de": "Deutsch",

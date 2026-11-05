@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { ModeWatcher } from 'mode-watcher';
+	import { mode, ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '#lib/components/ui/sonner/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
+	import { KEYS } from '#lib/state/storage.js';
+	import { THEME_COLORS } from '#lib/theme.js';
 	import type { LayoutProps } from './$types';
 	import './layout.css';
 
@@ -11,10 +13,16 @@
 	$effect(() => {
 		document.documentElement.lang = getLocale();
 	});
+
+	// The startup script in app.html owns the only theme-color tag. ModeWatcher would add a
+	// second tag after the start, so the layout keeps this tag current instead.
+	$effect(() => {
+		const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+		if (meta && mode.current) meta.content = THEME_COLORS[mode.current];
+	});
 </script>
 
-<!-- The theme follows the system setting. -->
-<ModeWatcher defaultMode="system" disableTransitions />
+<ModeWatcher defaultMode="system" modeStorageKey={KEYS.theme} disableTransitions />
 <Toaster position="bottom-center" />
 <Tooltip.Provider delayDuration={300}>
 	{@render children()}
