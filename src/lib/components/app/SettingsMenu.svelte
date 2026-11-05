@@ -1,5 +1,7 @@
 <script lang="ts">
+	import LanguagesIcon from '@lucide/svelte/icons/languages';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import SunMoonIcon from '@lucide/svelte/icons/sun-moon';
 	import { setMode, userPrefersMode } from 'mode-watcher';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -39,7 +41,10 @@
 		<SettingsIcon aria-hidden="true" />
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" class="min-w-44">
-		<DropdownMenu.Label>{m.theme()}</DropdownMenu.Label>
+		<DropdownMenu.Label class="flex items-center gap-1.5">
+			<SunMoonIcon class="size-3.5" aria-hidden="true" />
+			{m.theme()}
+		</DropdownMenu.Label>
 		<DropdownMenu.RadioGroup
 			value={userPrefersMode.current}
 			onValueChange={chooseTheme}
@@ -52,7 +57,10 @@
 			>
 		</DropdownMenu.RadioGroup>
 		<DropdownMenu.Separator />
-		<DropdownMenu.Label>{m.ui_language()}</DropdownMenu.Label>
+		<DropdownMenu.Label class="flex items-center gap-1.5">
+			<LanguagesIcon class="size-3.5" aria-hidden="true" />
+			{m.ui_language()}
+		</DropdownMenu.Label>
 		<DropdownMenu.RadioGroup
 			value={current}
 			onValueChange={chooseLanguage}
