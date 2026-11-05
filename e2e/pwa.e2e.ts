@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { expectStickyBelowHeader, openApp, openExample } from './helpers';
+import {
+	expectStickyBelowHeader,
+	expectStickyStageStack,
+	openApp,
+	openExample,
+	stage
+} from './helpers';
 
 test.describe('PWA', () => {
 	test('the manifest is linked and describes the app', async ({ page, request }) => {
@@ -59,6 +65,7 @@ test.describe('PWA', () => {
 		await expect(bands).toBeVisible();
 		await expect(bands).toBeInViewport();
 		await expect(bands).toContainText('Frost risk');
+		await expectStickyStageStack(stage(page, 0));
 		await context.setOffline(false);
 	});
 });
