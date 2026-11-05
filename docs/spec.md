@@ -340,6 +340,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 
 - **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done". Click the title to edit it.
 - **Sticky stage headers:** while a stage scrolls, its header stays below the app header and the pinned Timeline section. The header stays within its stage. It scrolls out when the stage ends.
+  - The app header and pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
   - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height, including wrapped text.
   - Below a stage width of 640 px, the separate color band stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
   - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.

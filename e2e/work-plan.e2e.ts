@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
 	GANTT_HEIGHT,
+	defaultPanelHeight,
 	expectPanelHeight,
 	expectStickyStageStack,
 	openApp,
@@ -269,6 +270,55 @@ test.describe('work plan', () => {
 			await page.getByTestId('gantt-resize').press('PageDown');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx + 90);
 			await expectStickyStageStack(stage(page, 0));
+		});
+	}
+
+	for (const width of [1000, 390]) {
+		test(`the pinned Timeline covers outgoing stage headers at ${width} px`, async ({ page }) => {
+			await page.setViewportSize({ width, height: 900 });
+			await page.emulateMedia({ reducedMotion: 'reduce' });
+			await openExample(page);
+			await page.getByTestId('gantt-pin').click();
+			await expectPanelHeight(page, defaultPanelHeight(page));
+			const first = stage(page, 0);
+			await expectStickyStageStack(first);
+			for (const remaining of [0.75, 0.5, 0.25]) {
+				await first.evaluate(async (element, fraction) => {
+					const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+					const panel = document
+						.querySelector('[data-testid="timeline-panel"]')!
+						.getBoundingClientRect();
+					const header = element.querySelector(':scope > header')!.getBoundingClientRect();
+					window.scrollTo(
+						0,
+						window.scrollY +
+							element.getBoundingClientRect().bottom -
+							app.bottom -
+							panel.height -
+							header.height * fraction
+					);
+					await new Promise(requestAnimationFrame);
+				}, remaining);
+				// Read overlap and the painted target together while the stage header leaves its scope.
+				await expect
+					.poll(() =>
+						first.evaluate((element) => {
+							const panel = document.querySelector('[data-testid="timeline-panel"]')!;
+							const panelBox = panel.getBoundingClientRect();
+							const header = element.querySelector(':scope > header')!.getBoundingClientRect();
+							const top = Math.max(panelBox.top, header.top);
+							const bottom = Math.min(panelBox.bottom, header.bottom);
+							const left = Math.max(panelBox.left, header.left);
+							const right = Math.min(panelBox.right, header.right);
+							const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+							return {
+								overlaps: bottom - top > 1 && right > left,
+								timelineOnTop: hit !== null && panel.contains(hit)
+							};
+						})
+					)
+					.toEqual({ overlaps: true, timelineOnTop: true });
+			}
 		});
 	}
 

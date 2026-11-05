@@ -94,7 +94,7 @@
 >
 	<header
 		bind:offsetHeight={headerHeight}
-		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-30 flex items-center gap-2 bg-background pb-2"
+		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-25 flex items-center gap-2 bg-background pb-2"
 	>
 		<!-- Not a <button>: svelte-dnd-action ignores keyboard drag on elements with a "disabled" property. -->
 		<div
