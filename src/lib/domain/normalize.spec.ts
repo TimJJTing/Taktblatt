@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createBand, createEmptyPlan, createMilestone } from '#lib/domain/factory.js';
-import { normalizeBand, normalizeMilestone, normalizePlan } from '#lib/domain/normalize.js';
+import {
+	isPermutation,
+	normalizeBand,
+	normalizeFooter,
+	normalizeMilestone,
+	normalizePlan,
+	normalizeRemark,
+	normalizeStage,
+	normalizeTask
+} from '#lib/domain/normalize.js';
+import { makeTask } from '#lib/domain/test-helpers.js';
 
 describe('timeline normalization', () => {
 	it('trims milestone text and keeps its identity, date and symbol', () => {
@@ -41,4 +51,60 @@ describe('timeline normalization', () => {
 			objective: 'Goal'
 		});
 	});
+});
+
+describe('content normalization', () => {
+	it('trims task text, cleans owners and keeps note spaces', () => {
+		const task = makeTask({
+			id: 't1',
+			title: ' Draft ',
+			deliverable: ' Report ',
+			owners: [' Ana', 'ANA', ' '],
+			note: '  indented\n'
+		});
+		expect(normalizeTask(task)).toEqual({
+			...task,
+			title: 'Draft',
+			deliverable: 'Report',
+			owners: ['Ana'],
+			note: '  indented\n'
+		});
+		expect(task.title).toBe(' Draft ');
+	});
+
+	it('trims stage text and keeps the color', () => {
+		const stage = { id: 's', title: ' Plan ', description: ' Scope\n', color: 'teal' as const };
+		expect(normalizeStage(stage)).toEqual({ ...stage, title: 'Plan', description: 'Scope' });
+	});
+
+	it('trims remark bullets and removes empty bullets', () => {
+		expect(
+			normalizeRemark({ id: 'r', title: ' Risks ', bullets: [' A ', '', '   ', 'B'] })
+		).toEqual({ id: 'r', title: 'Risks', bullets: ['A', 'B'] });
+	});
+
+	it('trims all footer fields', () => {
+		expect(
+			normalizeFooter({ note: ' N ', version: ' v2 ', date: '2027-01-01', right: ' R ' })
+		).toEqual({
+			note: 'N',
+			date: '2027-01-01',
+			version: 'v2',
+			right: 'R'
+		});
+	});
+});
+
+describe('isPermutation', () => {
+	it('accepts the same ids in any order', () => {
+		expect(isPermutation(['a', 'b', 'c'], ['c', 'a', 'b'])).toBe(true);
+		expect(isPermutation([], [])).toBe(true);
+	});
+
+	it.each([[['a']], [['a', 'b', 'c', 'd']], [['a', 'a', 'b']], [['a', 'b', 'x']]])(
+		'rejects %j for the ids a, b and c',
+		(ids) => {
+			expect(isPermutation(['a', 'b', 'c'], ids)).toBe(false);
+		}
+	);
 });

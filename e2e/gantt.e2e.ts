@@ -68,6 +68,46 @@ test('expand and collapse are shared between the Gantt and the table', async ({ 
 	await expect(gantt(page).getByTestId('gantt-dependency')).toHaveCount(4);
 });
 
+const HIGHLIGHTED =
+	'[data-testid="task-row"][class~="bg-accent/60"], [data-testid="gantt"] [data-highlighted]';
+
+/**
+ * Records the highlighted rows in the first frame after the next click.
+ * The page can scroll after a collapse. A row that then moves under the resting pointer gets a
+ * real hover highlight. The first frame comes before this hover, so it shows the click result.
+ */
+const recordHighlightAfterClick = (page: Page) =>
+	page.evaluate((selector) => {
+		const target = window as unknown as { afterClick?: (string | null)[] };
+		delete target.afterClick;
+		addEventListener(
+			'click',
+			() =>
+				requestAnimationFrame(() => {
+					target.afterClick = [...document.querySelectorAll(selector)].map((element) =>
+						element.getAttribute('data-task-id')
+					);
+				}),
+			{ once: true }
+		);
+	}, HIGHLIGHTED);
+
+const highlightAfterClick = (page: Page) =>
+	page.evaluate(() => (window as unknown as { afterClick?: (string | null)[] }).afterClick);
+
+/** Returns the ids of highlighted rows that the pointer is not over. */
+const highlightsNotFromHover = (page: Page, pointer: { x: number; y: number }) =>
+	page.evaluate(
+		({ x, y, selector }) => {
+			const hovered = document.elementFromPoint(x, y)?.closest('[data-task-id]');
+			const under = hovered?.getAttribute('data-task-id') ?? null;
+			return [...document.querySelectorAll(selector)]
+				.map((element) => element.getAttribute('data-task-id'))
+				.filter((id) => id !== under);
+		},
+		{ ...pointer, selector: HIGHLIGHTED }
+	);
+
 for (const surface of ['table', 'Gantt'] as const) {
 	for (const action of ['expand', 'collapse'] as const) {
 		test(`a pointer click on the ${surface} chevron to ${action} clears focus and highlight`, async ({
@@ -90,7 +130,11 @@ for (const surface of ['table', 'Gantt'] as const) {
 			await expect(page.locator('table:focus-within')).toHaveCount(1);
 
 			const toggle = surface === 'table' ? tableToggle : ganttToggle;
-			await toggle.click();
+			await toggle.scrollIntoViewIfNeeded();
+			const box = (await toggle.boundingBox())!;
+			const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+			await recordHighlightAfterClick(page);
+			await page.mouse.click(pointer.x, pointer.y);
 			await expect(tableToggle).toHaveAttribute('aria-expanded', String(expanding));
 			await expect(ganttToggle).toHaveAttribute('aria-expanded', String(expanding));
 			await expect(row(page, 'Soil test')).toHaveCount(expanding ? 1 : 0);
@@ -102,10 +146,11 @@ for (const surface of ['table', 'Gantt'] as const) {
 				.toBe(draft);
 			await expect.soft(toggle).not.toBeFocused();
 			await expect.soft(page.locator('table:focus-within')).toHaveCount(0);
-			await expect.soft(gantt(page).locator('[data-highlighted]')).toHaveCount(0);
+			await expect.poll(() => highlightAfterClick(page)).toEqual([]);
+			// Later, only a hover highlight of the row under the pointer can stay.
 			await expect
-				.soft(page.getByTestId('task-row').and(page.locator('[class~="bg-accent/60"]')))
-				.toHaveCount(0);
+				.soft(() => expect(highlightsNotFromHover(page, pointer)).resolves.toEqual([]))
+				.toPass();
 
 			await row(page, 'Site survey').hover();
 			await expect(ganttRow(page, 'Site survey')).toHaveAttribute('data-highlighted', 'true');

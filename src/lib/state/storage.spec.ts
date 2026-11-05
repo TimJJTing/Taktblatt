@@ -1,7 +1,7 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { MemoryStorage } from './memory-storage';
 import { createEmptyPlan } from '#lib/domain/factory.js';
-import { SCHEMA_VERSION } from '#lib/domain/schema.js';
+import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.js';
 import { KEYS, PlanStorage } from './storage';
 
 it('keeps each damaged value when timestamps are equal', () => {
@@ -27,4 +27,95 @@ it('loads a stored plan that still has the old locale key and drops the key', ()
 	const result = plans.loadPlan(plan.id);
 	expect(result.ok).toBe(true);
 	if (result.ok === true) expect(result.value).not.toHaveProperty('locale');
+});
+
+describe('PlanStorage', () => {
+	const setup = () => {
+		const storage = new MemoryStorage();
+		return { storage, plans: new PlanStorage(storage) };
+	};
+
+	it('reports a missing index and a missing plan', () => {
+		const { plans } = setup();
+		expect(plans.loadIndex()).toEqual({ ok: 'missing' });
+		expect(plans.loadPlan('none')).toEqual({ ok: 'missing' });
+	});
+
+	it('saves and loads the index', () => {
+		const { plans } = setup();
+		const index = { planIds: ['a', 'b'], activeId: 'b' };
+		plans.saveIndex(index);
+		expect(plans.loadIndex()).toEqual({ ok: true, value: index });
+	});
+
+	it.each(['not json', '{"planIds":"a","activeId":null}', '{"planIds":[]}', 'null'])(
+		'returns the raw text of a damaged index: %s',
+		(raw) => {
+			const { storage, plans } = setup();
+			storage.setItem(KEYS.index, raw);
+			expect(plans.loadIndex()).toEqual({ ok: false, raw });
+		}
+	);
+
+	it('saves a plan with the schema version and loads it again', () => {
+		const { storage, plans } = setup();
+		const plan = createEmptyPlan('2027-04-01');
+		plan.heading = 'Roadmap';
+		plans.savePlan(plan);
+		expect(JSON.parse(storage.getItem(KEYS.plan(plan.id))!).schemaVersion).toBe(SCHEMA_VERSION);
+		expect(plans.loadPlan(plan.id)).toEqual({ ok: true, value: plan });
+	});
+
+	it.each([
+		['text that is not JSON', () => 'oops'],
+		['a plan without a schema version', (plan: Plan) => JSON.stringify({ plan })],
+		[
+			'a plan from a newer app version',
+			(plan: Plan) => JSON.stringify({ schemaVersion: SCHEMA_VERSION + 1, plan })
+		],
+		[
+			'a plan with an invalid field',
+			(plan: Plan) =>
+				JSON.stringify({ schemaVersion: SCHEMA_VERSION, plan: { ...plan, paper: 'a3' } })
+		]
+	])('returns the raw text of %s', (_name, make) => {
+		const { storage, plans } = setup();
+		const plan = createEmptyPlan('2027-04-01');
+		const raw = make(plan);
+		storage.setItem(KEYS.plan(plan.id), raw);
+		expect(plans.loadPlan(plan.id)).toEqual({ ok: false, raw });
+	});
+
+	it('restores raw plan and index text, and removes the key for null', () => {
+		const { storage, plans } = setup();
+		const plan = createEmptyPlan('2027-04-01');
+		plans.savePlan(plan);
+		plans.saveIndex({ planIds: [plan.id], activeId: plan.id });
+		const rawPlan = plans.rawPlan(plan.id);
+		const rawIndex = plans.rawIndex();
+		plans.savePlan({ ...plan, heading: 'Changed' });
+		plans.saveIndex({ planIds: [], activeId: null });
+		plans.restoreRawPlan(plan.id, rawPlan);
+		plans.restoreRawIndex(rawIndex);
+		expect(plans.rawPlan(plan.id)).toBe(rawPlan);
+		expect(plans.rawIndex()).toBe(rawIndex);
+		plans.restoreRawPlan(plan.id, null);
+		plans.restoreRawIndex(null);
+		expect(storage.getItem(KEYS.plan(plan.id))).toBeNull();
+		expect(storage.getItem(KEYS.index)).toBeNull();
+	});
+
+	it('lists all stored plans, also plans that are not in the index, and nothing else', () => {
+		const { storage, plans } = setup();
+		const a = createEmptyPlan('2027-04-01');
+		const b = createEmptyPlan('2027-04-01');
+		plans.savePlan(a);
+		plans.savePlan(b);
+		plans.saveIndex({ planIds: [a.id], activeId: a.id });
+		plans.keepDamaged('x');
+		storage.setItem(KEYS.viewer, '{}');
+		expect(plans.storedPlanIds().sort()).toEqual([a.id, b.id].sort());
+		plans.removePlan(b.id);
+		expect(plans.storedPlanIds()).toEqual([a.id]);
+	});
 });

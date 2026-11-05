@@ -14,3 +14,4 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 8   | [Print blocks are separate components](0008-print-blocks.md)                                     | Accepted (amended by ADR 9) | 2026-11-04 |
 | 9   | [One language: plan files are language-neutral](0009-one-language-plan-files-are-neutral.md)     | Accepted                    | 2026-11-05 |
 | 10  | [Load the inlang plugins from node_modules](0010-local-inlang-plugins.md)                        | Accepted                    | 2026-11-05 |
+| 11  | [Required CI checks before a merge to main](0011-required-ci-checks.md)                          | Accepted                    | 2026-11-05 |

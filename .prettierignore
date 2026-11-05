@@ -10,3 +10,9 @@ bun.lockb
 
 # Upstream agent skill documentation
 /.agents/skills/playwright-cli/
+
+# Files that the inlang SDK generates. Its nested .gitignore ignores them, but Prettier reads only
+# the root .gitignore. Keep the tracked project files.
+/project.inlang/*
+!/project.inlang/settings.json
+!/project.inlang/paraglide.config.js

@@ -1,9 +1,14 @@
 name: CI
 
+# Each pull request to main, each merge queue entry and each push to main must pass all jobs.
+# Set the "CI passed" check as required in the branch protection rule for main.
+# Refer to docs/adr/0011-required-ci-checks.md.
+
 on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -13,9 +18,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  lint:
+    name: Lint and type check
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -26,8 +32,36 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm check
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The client unit tests run in Chromium.
       - run: pnpm e2e:install
       - run: pnpm test:unit --run
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:install
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -35,3 +69,23 @@ jobs:
           name: playwright-report
           path: test-results/
           retention-days: 7
+
+  # One stable check name for branch protection. It fails when a job above fails or is cancelled.
+  passed:
+    name: CI passed
+    if: always()
+    needs: [lint, unit, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check the job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "A required job did not succeed."
+              exit 1
+            fi
+          done

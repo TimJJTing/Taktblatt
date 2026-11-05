@@ -16,8 +16,16 @@ import {
 	reorderStages,
 	reorderRemarks,
 	discardNewRemarkSection,
-	moveRemarkSection
+	moveRemarkSection,
+	addStage,
+	updateStage,
+	moveStage,
+	removeStage,
+	removeTasks,
+	renameOwnerEverywhere,
+	loadExample
 } from './commands';
+import { mentionToken } from '#lib/domain/mentions.js';
 import { MemoryStorage } from './memory-storage';
 import { Workspace } from './workspace.svelte';
 
@@ -262,5 +270,135 @@ describe('timeline commands', () => {
 		expect(ws.history.canUndo).toBe(false);
 		ws.redo();
 		expect(ws.plan.paper).toBe('letter');
+	});
+});
+
+describe('stage commands', () => {
+	it('adds a stage at a position with the next free color as one undo step', () => {
+		const ws = open();
+		const first = ws.plan.stages[0];
+		ws.history.clear();
+		const id = addStage(ws, 0);
+		expect(ws.plan.stages.map((s) => s.id)).toEqual([id, first.id]);
+		expect(ws.plan.stages[0].color).not.toBe(first.color);
+		const last = addStage(ws, ws.plan.stages.length);
+		expect(ws.plan.stages.at(-1)?.id).toBe(last);
+		ws.undo();
+		ws.undo();
+		expect(ws.plan.stages.map((s) => s.id)).toEqual([first.id]);
+		expect(ws.history.canUndo).toBe(false);
+	});
+
+	it('trims stage text on update and ignores a missing stage', () => {
+		const ws = open();
+		const id = ws.plan.stages[0].id;
+		ws.history.clear();
+		updateStage(ws, 'missing', { title: 'No' });
+		expect(ws.history.canUndo).toBe(false);
+		updateStage(ws, id, { title: ' Build ', description: ' Code ', color: 'red' });
+		expect(ws.plan.stages[0]).toMatchObject({ title: 'Build', description: 'Code', color: 'red' });
+		ws.undo();
+		expect(ws.plan.stages[0].title).toBe('');
+	});
+
+	it('moves a stage and ignores moves past the ends', () => {
+		const ws = open();
+		const a = ws.plan.stages[0].id;
+		const b = addStage(ws, 1);
+		ws.history.clear();
+		moveStage(ws, a, -1);
+		moveStage(ws, b, 1);
+		moveStage(ws, 'missing', 1);
+		expect(ws.history.canUndo).toBe(false);
+		moveStage(ws, a, 1);
+		expect(ws.plan.stages.map((s) => s.id)).toEqual([b, a]);
+		ws.undo();
+		expect(ws.plan.stages.map((s) => s.id)).toEqual([a, b]);
+	});
+
+	it('removes a stage with its tasks and subtasks and cleans references as one undo step', () => {
+		const ws = open();
+		const keep = ws.plan.stages[0].id;
+		const drop = addStage(ws, 1);
+		const parent = addTask(ws, drop);
+		const child = addTask(ws, drop, { parentId: parent });
+		const other = addTask(ws, keep, {
+			parentId: null,
+			patch: { title: 'Other', dependsOn: [parent], note: `See ${mentionToken(child)} now` }
+		});
+		ws.history.clear();
+		const before = $state.snapshot(ws.plan);
+		removeStage(ws, drop);
+		expect(ws.plan.stages.map((s) => s.id)).toEqual([keep]);
+		expect(ws.plan.tasks.map((t) => t.id)).toEqual([other]);
+		expect(ws.plan.tasks[0].dependsOn).toEqual([]);
+		expect(ws.plan.tasks[0].note).not.toContain('@[task:');
+		expect(ws.undo()).toBe(true);
+		expect($state.snapshot(ws.plan)).toEqual(before);
+		expect(ws.history.canUndo).toBe(false);
+	});
+});
+
+describe('task commands', () => {
+	it('removes several tasks with their subtasks in one undo step', () => {
+		const ws = open();
+		const stage = ws.plan.stages[0].id;
+		const a = addTask(ws, stage, { parentId: null, patch: { title: 'A' } });
+		addTask(ws, stage, { parentId: a, patch: { title: 'A1' } });
+		const b = addTask(ws, stage, { parentId: null, patch: { title: 'B' } });
+		const c = addTask(ws, stage, { parentId: null, patch: { title: 'C', dependsOn: [b] } });
+		ws.history.clear();
+		removeTasks(ws, [a, b, 'missing']);
+		expect(ws.plan.tasks.map((t) => t.id)).toEqual([c]);
+		expect(ws.plan.tasks[0].dependsOn).toEqual([]);
+		ws.undo();
+		expect(ws.plan.tasks).toHaveLength(4);
+		expect(ws.history.canUndo).toBe(false);
+	});
+
+	it('ignores an update of a missing task', () => {
+		const ws = open();
+		ws.history.clear();
+		updateTask(ws, 'missing', { title: 'No' });
+		expect(ws.history.canUndo).toBe(false);
+	});
+});
+
+describe('renameOwnerEverywhere', () => {
+	it('renames an owner in all tasks, merges duplicates and makes one undo step', () => {
+		const ws = open();
+		const stage = ws.plan.stages[0].id;
+		addTask(ws, stage, { parentId: null, patch: { owners: ['ana', 'Bo'] } });
+		addTask(ws, stage, { parentId: null, patch: { owners: ['ANA'] } });
+		addTask(ws, stage, { parentId: null, patch: { owners: ['Cy'] } });
+		ws.history.clear();
+		renameOwnerEverywhere(ws, 'Ana', ' Bo ');
+		expect(ws.plan.tasks.map((t) => t.owners)).toEqual([['Bo'], ['Bo'], ['Cy']]);
+		ws.undo();
+		expect(ws.plan.tasks.map((t) => t.owners)).toEqual([['ana', 'Bo'], ['ANA'], ['Cy']]);
+		expect(ws.history.canUndo).toBe(false);
+	});
+
+	it('ignores an empty new name', () => {
+		const ws = open();
+		addTask(ws, ws.plan.stages[0].id, { parentId: null, patch: { owners: ['Ana'] } });
+		ws.history.clear();
+		renameOwnerEverywhere(ws, 'Ana', '   ');
+		expect(ws.plan.tasks[0].owners).toEqual(['Ana']);
+		expect(ws.history.canUndo).toBe(false);
+	});
+});
+
+describe('loadExample', () => {
+	it('keeps the plan id and creation time', () => {
+		const ws = open();
+		const { id, createdAt } = ws.plan;
+		ws.history.clear();
+		loadExample(ws);
+		expect(ws.plan.id).toBe(id);
+		expect(ws.plan.createdAt).toBe(createdAt);
+		expect(ws.plan.tasks.length).toBeGreaterThan(0);
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.tasks).toEqual([]);
 	});
 });
