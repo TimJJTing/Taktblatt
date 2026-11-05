@@ -16,14 +16,7 @@ export default defineConfig({
 			},
 			adapter: adapter({ fallback: '404.html' })
 		}),
-		paraglideVitePlugin({
-			project: './project.inlang',
-			outdir: './src/lib/paraglide',
-			emitTsDeclarations: true,
-			// The app is a static SPA. The UI language is viewer state, so do not use the URL.
-			strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
-			localStorageKey: 'taktblatt:locale'
-		})
+		paraglideVitePlugin({ project: './project.inlang' })
 	],
 	test: {
 		expect: { requireAssertions: true },

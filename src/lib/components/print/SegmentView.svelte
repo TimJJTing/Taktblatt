@@ -5,7 +5,6 @@
 -->
 <script lang="ts">
 	import type { Segment } from '#lib/domain/print-model.js';
-	import type { Locale } from '#lib/domain/schema.js';
 	import PrintCards from './PrintCards.svelte';
 	import PrintGantt from './PrintGantt.svelte';
 	import PrintHeader from './PrintHeader.svelte';
@@ -18,26 +17,25 @@
 		from: number;
 		to: number;
 		first: boolean;
-		locale: Locale;
 		/** The width of the sheet content in pixels. 0 while the paginator measures. */
 		width: number;
 		/** A key that is unique for the fragment. */
 		uid: string;
 	}
 
-	let { segment, from, to, first, locale, width, uid }: Props = $props();
+	let { segment, from, to, first, width, uid }: Props = $props();
 </script>
 
 {#if segment.kind === 'header'}
-	<PrintHeader {locale} />
+	<PrintHeader />
 {:else if segment.kind === 'gantt'}
-	<PrintGantt {segment} {from} {to} {first} {locale} {width} {uid} />
+	<PrintGantt {segment} {from} {to} {first} {width} {uid} />
 {:else if segment.kind === 'legend'}
-	<PrintLegend {segment} {locale} />
+	<PrintLegend {segment} />
 {:else if segment.kind === 'cards'}
-	<PrintCards {segment} {from} {to} {first} {locale} />
+	<PrintCards {segment} {from} {to} {first} />
 {:else if segment.kind === 'stage'}
-	<PrintStage {segment} {from} {to} {first} {locale} />
+	<PrintStage {segment} {from} {to} {first} />
 {:else}
-	<PrintRemarks {segment} {from} {to} {first} {locale} />
+	<PrintRemarks {segment} {from} {to} {first} />
 {/if}

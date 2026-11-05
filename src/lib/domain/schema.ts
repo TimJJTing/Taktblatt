@@ -9,7 +9,6 @@ import { indexTasks } from './derive';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette';
 
 export const SCHEMA_VERSION = 1;
-export const LOCALES = ['en', 'de', 'zh-TW', 'ja'] as const;
 export const MILESTONE_SYMBOLS = ['diamond', 'flag', 'star', 'circle'] as const;
 export const PAPER_SIZES = ['a4', 'letter'] as const;
 
@@ -75,7 +74,6 @@ export const PlanSchema = v.pipe(
 		subheading: v.string(),
 		range: v.object({ start: ISODateSchema, end: ISODateSchema }),
 		objective: v.string(),
-		locale: v.picklist(LOCALES),
 		paper: v.picklist(PAPER_SIZES),
 		footer: v.object({
 			note: v.string(),
@@ -196,7 +194,6 @@ export const BackupFileSchema = v.object({
 
 export const AnyFileSchema = v.variant('kind', [PlanFileSchema, BackupFileSchema]);
 
-export type Locale = (typeof LOCALES)[number];
 export type MilestoneSymbol = (typeof MILESTONE_SYMBOLS)[number];
 export type PaperSize = (typeof PAPER_SIZES)[number];
 export type Stage = v.InferOutput<typeof StageSchema>;

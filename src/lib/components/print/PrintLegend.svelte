@@ -1,26 +1,26 @@
 <!--
 	One legend row of the timeline: stages, milestones or bands.
-	It is static text. Entries have no buttons. Dates use the document language.
+	It is static text. Entries have no buttons. Dates use the UI language.
 -->
 <script lang="ts">
 	import { bandPaperTint, bandFill, stagePaperColor } from '#lib/components/plan/colors.js';
 	import { orderedMilestones } from '#lib/domain/derive.js';
-	import { formatDate, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { LegendSegment } from '#lib/domain/print-model.js';
-	import type { Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 
-	let { segment, locale }: { segment: LegendSegment; locale: Locale } = $props();
+	let { segment }: { segment: LegendSegment } = $props();
 
 	const ws = getWorkspace();
-	const intl = $derived(intlLocale(locale));
+	const intl = uiIntl();
 	const title = $derived(
 		segment.which === 'stages'
-			? m.legend_stages({}, { locale })
+			? m.legend_stages()
 			: segment.which === 'milestones'
-				? m.legend_milestones({}, { locale })
-				: m.legend_bands({}, { locale })
+				? m.legend_milestones()
+				: m.legend_bands()
 	);
 </script>
 
@@ -37,7 +37,7 @@
 						class="size-2 shrink-0 rounded-[1px]"
 						style:background={stagePaperColor(stage.color)}
 						aria-hidden="true"
-					></span>{stage.title || m.stage_title_placeholder({ n: i + 1 }, { locale })}
+					></span>{stage.title || m.stage_title_placeholder({ n: i + 1 })}
 				</li>
 			{/each}
 		{:else if segment.which === 'milestones'}

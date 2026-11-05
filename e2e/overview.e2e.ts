@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
 	chooseOption,
+	formatted,
 	openApp,
 	openExample,
 	row,
@@ -203,14 +204,29 @@ test('an outside click does not add a new band', async ({ page }) => {
 	expect((await storedPlan(page)).bands).toEqual([]);
 });
 
-test('legend dates use the plan language, not the UI language', async ({ page }) => {
+test('legend dates use the UI language, whatever an old file says', async ({ page }) => {
 	await openExample(page);
-	// Change the document language of the stored plan to German. The UI stays English.
+	// An old plan can still have a language key. It must change nothing. The UI stays English.
 	await writeStoredPlan(page, (plan) => {
-		plan.locale = 'de';
+		plan.locale = 'ja';
 	});
 	await expect(page.getByRole('button', { name: 'Add milestone', exact: true })).toBeVisible();
 	const milestone = (await storedPlan(page)).milestones[0];
+	await expect(page.getByTestId('milestone-legend')).toContainText(
+		`${milestone.title} (${formatted(milestone.date)})`
+	);
+	// The stage card keeps a space before the dot.
+	await expect(page.getByTestId('stage-card-label').first()).toHaveText(/^Stage 1 · \S/);
+});
+
+test('the dates follow the UI language when it changes', async ({ page }) => {
+	await openExample(page);
+	const milestone = (await storedPlan(page)).milestones[0];
+	await page.getByRole('button', { name: 'Language' }).click();
+	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	// The plan has history, so the app asks before it reloads.
+	await page.getByTestId('language-reload-confirm').click();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	const german = new Intl.DateTimeFormat('de', {
 		year: 'numeric',
 		month: 'short',
@@ -220,8 +236,6 @@ test('legend dates use the plan language, not the UI language', async ({ page })
 	await expect(page.getByTestId('milestone-legend')).toContainText(
 		`${milestone.title} (${german})`
 	);
-	// The stage card keeps a space before the dot.
-	await expect(page.getByTestId('stage-card-label').first()).toHaveText(/^Stage 1 · \S/);
 });
 
 test('section navigation stops below the pinned Gantt', async ({ page }) => {

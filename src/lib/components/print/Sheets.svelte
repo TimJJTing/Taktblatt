@@ -35,7 +35,6 @@
 	const viewer = getViewer();
 
 	const paper = $derived(ws.plan.paper);
-	const locale = $derived(ws.plan.locale);
 	const model = $derived(
 		buildPrintModel({
 			plan: ws.plan,
@@ -122,7 +121,7 @@
 	style:--sheet-w={PAPER[paper].width}
 	style:--sheet-h={PAPER[paper].height}
 >
-	<div class="sheet" lang={locale}>
+	<div class="sheet">
 		<div class="sheet-content" data-measure-content>
 			{#each model as segment, i (segment.id)}
 				<div data-segment={i}>
@@ -131,7 +130,6 @@
 						from={0}
 						to={itemCount(segment)}
 						first={true}
-						{locale}
 						width={0}
 						uid="m{i}"
 					/>
@@ -159,7 +157,6 @@
 		{#each current.sheets as sheet (sheet.number)}
 			<section
 				class="sheet"
-				lang={locale}
 				aria-label={m.preview_sheet({ n: sheet.number, total: current.sheets.length })}
 				data-testid="sheet"
 				data-sheet-number={sheet.number}
@@ -175,7 +172,6 @@
 								from={fragment.from}
 								to={fragment.to}
 								first={fragment.first}
-								{locale}
 								width={current.width}
 								uid="s{sheet.number}-{fragment.segment}"
 							/>
@@ -185,7 +181,6 @@
 				<div class="sheet-footer">
 					<SheetFooter
 						footer={ws.plan.footer}
-						{locale}
 						number={sheet.number}
 						total={current.sheets.length}
 					/>

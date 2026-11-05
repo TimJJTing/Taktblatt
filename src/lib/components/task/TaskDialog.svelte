@@ -22,7 +22,8 @@
 		type MoveTarget
 	} from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
-	import { formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { allOwners } from '#lib/domain/owners.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { moveTask, removeTasks, renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
@@ -43,9 +44,14 @@
 	const isParent = $derived(children.length > 0);
 	const eff = $derived(task ? effectiveValues(task, children) : null);
 	const ready = $derived(task ? readyCount(ws.index, task.id) : 0);
-	const locale = $derived(intlLocale(ws.plan.locale));
+	const locale = uiIntl();
 	const titleText = $derived(task?.title || m.task_untitled());
-	const ownerSuggestions = $derived(allOwners(ws.plan.tasks.map((t) => t.owners)));
+	const ownerSuggestions = $derived(
+		allOwners(
+			ws.plan.tasks.map((t) => t.owners),
+			locale
+		)
+	);
 	const stageNumber = (id: string) => ws.plan.stages.findIndex((s) => s.id === id) + 1;
 	const stageName = (id: string) => {
 		const stage = ws.plan.stages.find((s) => s.id === id);
@@ -163,7 +169,6 @@
 						<DateRangeField
 							start={task.start}
 							end={task.end}
-							locale={ws.plan.locale}
 							label={m.field_range()}
 							onCommit={(range) => updateTask(ws, task.id, range)}
 						>

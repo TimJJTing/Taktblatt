@@ -16,15 +16,38 @@ import { makePlan, makeTask } from './test-helpers';
 
 describe('parseFile', () => {
 	it('reads a plan file that the app wrote', () => {
-		const plan = createExamplePlan('en', '2027-04-01');
+		const plan = createExamplePlan('2027-04-01');
 		const result = parseFile(JSON.stringify(toPlanFile(plan)));
 		expect(result).toEqual({ ok: true, plans: [plan] });
 	});
 
 	it('reads a backup file', () => {
-		const plans = [createEmptyPlan('de', '2027-04-01'), createExamplePlan('ja', '2027-04-01')];
+		const plans = [createEmptyPlan('2027-04-01'), createExamplePlan('2027-04-01')];
 		const result = parseFile(JSON.stringify(toBackupFile(plans)));
 		expect(result.ok && result.plans.length).toBe(2);
+	});
+
+	it('reads a file that still has the old locale key and drops the key', () => {
+		const file = toPlanFile(createEmptyPlan('2027-04-01'));
+		const old = { ...file, plan: { ...file.plan, locale: 'ja' } };
+		const result = parseFile(JSON.stringify(old));
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.plans[0]).not.toHaveProperty('locale');
+	});
+
+	it('reads a backup file whose plans still have the old locale key', () => {
+		const plan = createEmptyPlan('2027-04-01');
+		const backup = toBackupFile([plan]);
+		const old = { ...backup, plans: backup.plans.map((p) => ({ ...p, locale: 'de' })) };
+		const result = parseFile(JSON.stringify(old));
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.plans[0]).not.toHaveProperty('locale');
+	});
+
+	it('writes plan and backup files without a language', () => {
+		const plan = createEmptyPlan('2027-04-01');
+		expect(toPlanFile(plan).plan).not.toHaveProperty('locale');
+		expect(JSON.stringify(toBackupFile([plan]))).not.toContain('"locale"');
 	});
 
 	it('rejects text that is not JSON', () => {
@@ -37,7 +60,7 @@ describe('parseFile', () => {
 	});
 
 	it('gives the path of an invalid field', () => {
-		const file = toPlanFile(createEmptyPlan('en', '2027-04-01'));
+		const file = toPlanFile(createEmptyPlan('2027-04-01'));
 		(file.plan.range as { start: string }).start = '2027-13-01';
 		const result = parseFile(JSON.stringify(file));
 		expect(result.ok).toBe(false);
@@ -69,7 +92,7 @@ describe('parseFile', () => {
 	});
 
 	it('rejects a backup file with a repeated plan id', () => {
-		const plan = createEmptyPlan('en', '2027-04-01');
+		const plan = createEmptyPlan('2027-04-01');
 		const result = parseFile(JSON.stringify(toBackupFile([plan, { ...plan, heading: 'Other' }])));
 		expect(result).toEqual({
 			ok: false,
@@ -208,7 +231,7 @@ describe('file names', () => {
 
 describe('withNewIds', () => {
 	it('gives new ids and keeps all references', () => {
-		const plan = createExamplePlan('en', '2027-04-01');
+		const plan = createExamplePlan('2027-04-01');
 		const copy = withNewIds(plan);
 		expect(copy.id).not.toBe(plan.id);
 		const ids = new Set(copy.tasks.map((t) => t.id));
@@ -239,7 +262,7 @@ describe('backupFileName', () => {
 
 describe('serializeFile', () => {
 	it('writes a file that parseFile reads again', () => {
-		const plan = createExamplePlan('en', '2027-04-01');
+		const plan = createExamplePlan('2027-04-01');
 		const text = serializeFile(toBackupFile([plan]));
 		expect(text.endsWith('\n')).toBe(true);
 		expect(parseFile(text)).toEqual({ ok: true, plans: [plan] });

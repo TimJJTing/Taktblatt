@@ -23,7 +23,7 @@ export function makeTask(partial: Partial<Task> & { id: string }): Task {
 }
 
 export function makePlan(tasks: Task[], stageIds: string[] = ['s1']): Plan {
-	const plan = createEmptyPlan('en', '2027-01-10');
+	const plan = createEmptyPlan('2027-01-10');
 	plan.stages = stageIds.map((id) => ({ id, title: id, description: '', color: 'blue' }));
 	plan.tasks = tasks;
 	return plan;

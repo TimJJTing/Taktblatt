@@ -11,14 +11,13 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { RangeCalendar } from '#lib/components/ui/range-calendar/index.js';
 	import { todayISO, type ISODate } from '#lib/domain/date.js';
-	import { formatDate, formatRangeDisplay, intlLocale, readTypedDate } from '#lib/domain/format.js';
+	import { formatDate, formatRangeDisplay, readTypedDate } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
 		start: ISODate | null;
 		end: ISODate | null;
-		/** The document language. It controls the date format. */
-		locale: string;
 		label: string;
 		/** Set to false for a range that must have both dates (for example the plan range). */
 		allowEmpty?: boolean;
@@ -26,7 +25,7 @@
 		trigger: Snippet<[{ props: Record<string, unknown> }]>;
 	}
 
-	let { start, end, locale, label, allowEmpty = true, onCommit, trigger }: Props = $props();
+	let { start, end, label, allowEmpty = true, onCommit, trigger }: Props = $props();
 
 	let open = $state(false);
 	let draftStart = $state<ISODate | null>(null);
@@ -36,7 +35,7 @@
 	let error = $state('');
 	let placeholder = $state<DateValue | undefined>(undefined);
 
-	const tag = $derived(intlLocale(locale));
+	const tag = uiIntl();
 	const show = (d: ISODate | null) => (d ? formatDate(d, tag) : '');
 	const example = $derived(formatDate(todayISO(), tag));
 	// The accessible name of the trigger: "Label: value", or the bare label when both dates are empty.

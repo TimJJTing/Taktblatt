@@ -1,5 +1,5 @@
 /**
- * Date formatting and parsing for the document language.
+ * Date formatting and parsing for the UI language.
  * All functions use UTC, because stored dates have no time zone.
  */
 import { isISODate, type ISODate } from './date';

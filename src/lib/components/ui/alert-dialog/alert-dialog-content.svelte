@@ -12,10 +12,13 @@
 		style,
 		size = 'default',
 		portalProps,
+		overlayClass,
 		...restProps
 	}: WithoutChild<AlertDialogPrimitive.ContentProps> & {
 		size?: 'default' | 'sm';
 		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof AlertDialogPortal>>;
+		/** Classes for the overlay, for example a higher z-index above another dialog. */
+		overlayClass?: string;
 	} = $props();
 
 	// The open and close motion follows motionDuration (reduced motion: no motion).
@@ -25,7 +28,7 @@
 </script>
 
 <AlertDialogPortal {...portalProps}>
-	<AlertDialogOverlay />
+	<AlertDialogOverlay class={overlayClass} />
 	<AlertDialogPrimitive.Content
 		bind:ref
 		data-slot="alert-dialog-content"

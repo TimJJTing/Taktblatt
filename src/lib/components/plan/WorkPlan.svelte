@@ -6,6 +6,7 @@
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { allOwners } from '#lib/domain/owners.js';
 	import type { Stage } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
@@ -16,7 +17,12 @@
 
 	const ws = getWorkspace();
 	const flipDuration = $derived(motionDuration(250));
-	const ownerSuggestions = $derived(allOwners(ws.plan.tasks.map((t) => t.owners)));
+	const ownerSuggestions = $derived(
+		allOwners(
+			ws.plan.tasks.map((t) => t.owners),
+			uiIntl()
+		)
+	);
 
 	/** A local copy while a drag runs. svelte-dnd-action changes it during the drag. */
 	let dragItems = $state<Stage[] | null>(null);
@@ -41,9 +47,10 @@
 >
 	{#each items as stage, i (stage.id)}
 		<div animate:flip={{ duration: flipDuration }} class="flex flex-col">
-			<div class="group/gap py-1">
+			<div class="group/gap pt-4 pb-1">
 				<AddLine
 					label={m.stage_add()}
+					size="lg"
 					onAdd={() => addStage(ws, i)}
 					class="opacity-0 group-focus-within/gap:opacity-100 group-hover/gap:opacity-100"
 					testId="add-stage-before"
@@ -56,6 +63,7 @@
 <div class="group/gap py-3">
 	<AddLine
 		label={m.stage_add()}
+		size="lg"
 		onAdd={() => addStage(ws, ws.plan.stages.length)}
 		class="opacity-40 group-focus-within/gap:opacity-100 group-hover/gap:opacity-100 [@media(hover:none)]:opacity-100"
 		testId="add-stage"

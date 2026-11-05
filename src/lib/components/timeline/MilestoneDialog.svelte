@@ -14,7 +14,8 @@
 	import * as Select from '#lib/components/ui/select/index.js';
 	import DateField from '#lib/components/edit/DateField.svelte';
 	import { MILESTONE_SYMBOLS, type Milestone } from '#lib/domain/schema.js';
-	import { formatDate, intlLocale } from '#lib/domain/format.js';
+	import { formatDate } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { addMilestone, updateMilestone, removeMilestone } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
@@ -86,7 +87,6 @@
 				<span>{m.field_date()}</span>
 				<DateField
 					{date}
-					locale={ws.plan.locale}
 					label={m.field_date()}
 					allowEmpty={false}
 					onCommit={(next) => {
@@ -96,7 +96,7 @@
 					{#snippet trigger({ props })}<Button
 							{...props}
 							variant="outline"
-							data-testid="milestone-date">{formatDate(date, intlLocale(ws.plan.locale))}</Button
+							data-testid="milestone-date">{formatDate(date, uiIntl())}</Button
 						>{/snippet}
 				</DateField>
 			</div>

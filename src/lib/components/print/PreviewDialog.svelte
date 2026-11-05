@@ -112,7 +112,7 @@
 				</button>
 			{/each}
 		</div>
-		<Button size="sm" onclick={() => window.print()} data-testid="preview-print">
+		<Button size="sm" onclick={() => preview.print()} data-testid="preview-print">
 			<PrinterIcon aria-hidden="true" />{m.action_print()}
 		</Button>
 		<Button size="sm" variant="outline" onclick={() => preview.hide()} data-testid="preview-close">

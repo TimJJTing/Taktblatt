@@ -1,14 +1,15 @@
 <!--
 	The timeline section: the Gantt chart and three legends (stages, milestones, bands).
 	A milestone or band in the chart or in a legend opens its dialog. The "+" buttons add a new one.
-	Dates use the document language of the plan.
+	Dates use the UI language.
 -->
 <script lang="ts">
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.js';
 	import { orderedMilestones } from '#lib/domain/derive.js';
-	import { formatDate, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { Band, Milestone } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
@@ -20,7 +21,7 @@
 	let milestone = $state<Milestone | null | undefined>(undefined);
 	let band = $state<Band | null | undefined>(undefined);
 	const milestones = $derived(orderedMilestones(ws.plan.milestones));
-	const locale = $derived(intlLocale(ws.plan.locale));
+	const locale = uiIntl();
 	const row = 'flex flex-wrap items-center gap-x-3 gap-y-2';
 	const legend = 'flex flex-wrap items-center gap-x-4 gap-y-2';
 	const entryButton =

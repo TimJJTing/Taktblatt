@@ -218,5 +218,12 @@
 	"import_done_many": "已匯入 {count} 個計畫",
 	"import_date_warnings": "違反日期規則的相依項目：{count} 個。開啟任務即可查看警告。",
 	"import_error_storage": "瀏覽器儲存空間已滿。應用程式未變更任何資料。請刪除不需要的計畫後再試一次。",
-	"import_error_read": "無法讀取此檔案。應用程式未變更任何資料。"
+	"import_error_read": "無法讀取此檔案。應用程式未變更任何資料。",
+	"ui_language_reload_title": "要切換語言並重新載入嗎？",
+	"ui_language_reload_body": "應用程式會重新載入以切換語言。復原紀錄和所有未儲存的變更都會遺失。",
+	"ui_language_reload_confirm": "切換並重新載入",
+	"ui_language_other_tab_title": "語言已在另一個分頁變更",
+	"ui_language_other_tab_body": "另一個分頁已變更語言。要重新載入以套用嗎？此分頁的復原紀錄和所有未儲存的變更都會遺失。若選擇「稍後再說」，此分頁會維持目前的語言，直到重新載入。",
+	"ui_language_other_tab_reload": "重新載入",
+	"ui_language_other_tab_later": "稍後再說"
 }

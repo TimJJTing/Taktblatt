@@ -3,7 +3,6 @@
 -->
 <script lang="ts">
 	import type { RemarksSegment } from '#lib/domain/print-model.js';
-	import type { Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
@@ -11,10 +10,9 @@
 		from: number;
 		to: number;
 		first: boolean;
-		locale: Locale;
 	}
 
-	let { segment, from, to, first, locale }: Props = $props();
+	let { segment, from, to, first }: Props = $props();
 </script>
 
 {#if first}
@@ -22,7 +20,7 @@
 		data-part="lead"
 		class="pb-1.5 text-[10px] font-semibold tracking-wider text-paper-ink uppercase"
 	>
-		{m.section_remarks({}, { locale })}
+		{m.section_remarks()}
 	</h2>
 {/if}
 {#each segment.rows.slice(from, to) as sections, i (from + i)}
@@ -30,7 +28,7 @@
 		{#each sections as section (section.id)}
 			<section class="min-w-0 border border-paper-rule p-2.5" data-testid="sheet-remark">
 				<h3 class="text-[11px] font-semibold text-paper-ink">
-					{section.title || m.remark_untitled({}, { locale })}
+					{section.title || m.remark_untitled()}
 				</h3>
 				{#if section.bullets.length > 0}
 					<ul

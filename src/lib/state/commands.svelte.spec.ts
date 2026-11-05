@@ -21,7 +21,7 @@ import {
 import { MemoryStorage } from './memory-storage';
 import { Workspace } from './workspace.svelte';
 
-const open = () => new Workspace(new MemoryStorage(), () => 'en');
+const open = () => new Workspace(new MemoryStorage());
 
 describe('commands', () => {
 	it.each(['stages', 'remarks'] as const)('requires an exact permutation for %s', (kind) => {

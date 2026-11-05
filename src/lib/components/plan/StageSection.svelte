@@ -16,7 +16,8 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
 	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
-	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
+	import { formatMonthSpan } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import { type Stage, type Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -55,13 +56,18 @@
 		m.stage_progress({ done: '{done}', total: progress.total }).split('{done}')
 	);
 	const span = $derived(stageSpan(ws.index, stage.id));
-	const months = $derived(
-		span ? formatMonthSpan(span.start, span.end, intlLocale(ws.plan.locale)) : ''
-	);
+	const months = $derived(span ? formatMonthSpan(span.start, span.end, uiIntl()) : '');
 	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
 	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
 	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));
 	const flipDuration = $derived(motionDuration(280));
+
+	// The band (top) and the bottom line are inset shadows, because a border does not stick with its cell.
+	// From 640 px up, the table does not scroll, so the cells stick below the app header and the pinned Gantt.
+	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate band sticks instead.
+	// In forced-colors mode shadows are removed, so borders take over.
+	const headCell =
+		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -77,7 +83,7 @@
 </script>
 
 <section
-	class="group/stage scroll-mt-anchor"
+	class="group/stage @container scroll-mt-anchor"
 	aria-labelledby="stage-{stage.id}-title"
 	data-testid="stage"
 	data-stage-id={stage.id}
@@ -149,9 +155,18 @@
 		</DropdownMenu.Root>
 	</header>
 
-	<!-- The table is at least 640 px wide. A narrower wrapper scrolls the table horizontally.
-		The wrapper is also the container for the pinned "+" buttons. -->
-	<div class="@container relative overflow-x-auto">
+	<!-- Below 640 px only: the band sticks here, because the header cells cannot stick in the scrolling wrapper. -->
+	<div
+		aria-hidden="true"
+		data-testid="stage-band"
+		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-20 h-0.5 @min-[640px]:hidden"
+		style="background: {stageColorVar(stage.color)}"
+	></div>
+	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
+		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
+		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
+		so the header cells can stick below the app header and the pinned Gantt. -->
+	<div class="relative @max-[640px]:overflow-x-auto">
 		<table class="w-full min-w-[640px] table-fixed border-collapse text-sm" aria-label={stageName}>
 			<colgroup>
 				<col class="w-8" />
@@ -163,15 +178,15 @@
 			</colgroup>
 			<thead>
 				<tr
-					class="border-b text-left text-xs text-muted-foreground"
-					style="border-top: 2px solid {stageColorVar(stage.color)}"
+					class="text-left text-xs text-muted-foreground"
+					style="--stage-band: {stageColorVar(stage.color)}"
 				>
-					<th class="py-1.5 pl-1 font-medium"><span class="sr-only">{m.column_done()}</span></th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_task()}</th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_deliverable()}</th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_target()}</th>
-					<th class="px-1.5 py-1.5 font-medium">{m.column_owner()}</th>
-					<th class="py-1.5"><span class="sr-only">{m.column_more()}</span></th>
+					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_done()}</span></th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_task()}</th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_deliverable()}</th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_target()}</th>
+					<th class={cn(headCell, 'px-1.5')}>{m.column_owner()}</th>
+					<th class={headCell}><span class="sr-only">{m.column_more()}</span></th>
 				</tr>
 			</thead>
 			{#each tasks as task (task.id)}
@@ -213,6 +228,7 @@
 								label={m.subtask_add({ task: task.title || m.task_untitled() })}
 								indent={56}
 								pinned
+								size="sm"
 								onAdd={() => newTask(task.id)}
 								class="absolute inset-x-0 -top-2.5 z-10 opacity-0 group-focus-within/task:opacity-100 group-hover/task:opacity-100"
 								testId="add-subtask"
@@ -230,8 +246,10 @@
 			</tbody>
 		</table>
 	</div>
-	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis. -->
-	<div class="pt-3 pb-1">
+	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis.
+		Directly under the table, so the line belongs to this stage and not to the gap to the next stage.
+		The top padding clears the strip of the last "add subtask" line. -->
+	<div class="pt-2.5 pb-1">
 		<AddLine
 			label={m.task_add({ stage: stageName })}
 			indent={32}

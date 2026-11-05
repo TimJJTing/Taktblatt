@@ -54,7 +54,7 @@ Remark sections hold lists of short bullets at the end of the plan. The footer h
 
 ![The preview with the first A4 sheet of the example plan](docs/screenshots/preview.png)
 
-Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print** to print the plan or to save it as a PDF. The printed labels and dates use the document language of the plan.
+Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print** to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
 
 ### Several plans, import, export and offline use
 
@@ -65,7 +65,7 @@ Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print
 
 ### Languages
 
-The app has four UI languages: English, German, Traditional Chinese and Japanese. Each plan also has a document language. It sets the printed labels and the date formats. You can use a UI language that is different from the document language.
+The app has four UI languages: English, German, Traditional Chinese and Japanese. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
 
 ### Privacy
 

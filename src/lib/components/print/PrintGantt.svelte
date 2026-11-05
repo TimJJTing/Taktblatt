@@ -17,9 +17,9 @@
 	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveOf } from '#lib/domain/derive.js';
-	import { formatDate, formatMonth, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/ui-language.js';
 	import type { GanttSegment } from '#lib/domain/print-model.js';
-	import type { Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { cn } from '#lib/utils.js';
@@ -35,17 +35,16 @@
 		from: number;
 		to: number;
 		first: boolean;
-		locale: Locale;
 		/** The width of the sheet content in pixels. 0 while the paginator measures. */
 		width: number;
 		/** A key that is unique for the fragment. It names the arrow marker. */
 		uid: string;
 	}
 
-	let { segment, from, to, first, locale, width, uid }: Props = $props();
+	let { segment, from, to, first, width, uid }: Props = $props();
 
 	const ws = getWorkspace();
-	const intl = $derived(intlLocale(locale));
+	const intl = uiIntl();
 	const rows = $derived(segment.rows.slice(from, to));
 	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, stagePaperColor(s.color)])));
 	const timelineWidth = $derived(Math.max(0, width - GANTT_LABEL_WIDTH));
@@ -62,10 +61,10 @@
 		data-part="lead"
 		class="pb-1.5 text-[10px] font-semibold tracking-wider text-paper-ink uppercase"
 	>
-		{m.section_timeline({}, { locale })}
+		{m.section_timeline()}
 	</h2>
 {/if}
-<div class="text-[9px] text-paper-ink" role="group" aria-label={m.gantt_label({}, { locale })}>
+<div class="text-[9px] text-paper-ink" role="group" aria-label={m.gantt_label()}>
 	<div
 		data-part="repeat"
 		class="flex border-y border-paper-rule text-paper-ink-3"
@@ -99,7 +98,7 @@
 					class="flex shrink-0 items-center border-r border-paper-rule px-1.5 text-paper-ink-3"
 					style:width="{GANTT_LABEL_WIDTH}px"
 				>
-					{m.legend_milestones({}, { locale })}
+					{m.legend_milestones()}
 				</div>
 				<div class="relative flex-1">
 					{#each segment.milestones as item (item.milestone.id)}
@@ -108,14 +107,11 @@
 							role="img"
 							class="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 text-[9px] font-medium"
 							style:left="calc({item.x * 100}% - 6px)"
-							aria-label={m.gantt_milestone(
-								{
-									label: item.label,
-									title: item.milestone.title,
-									date: formatDate(item.milestone.date, intl)
-								},
-								{ locale }
-							)}
+							aria-label={m.gantt_milestone({
+								label: item.label,
+								title: item.milestone.title,
+								date: formatDate(item.milestone.date, intl)
+							})}
 						>
 							<Symbol class="size-3 fill-current" />{item.label}
 						</span>
@@ -125,7 +121,7 @@
 		{/if}
 		{#each rows as row, i (row.id)}
 			{@const task = ws.index.byId.get(row.id)}
-			{@const title = task?.title || m.task_untitled({}, { locale })}
+			{@const title = task?.title || m.task_untitled()}
 			{@const done = row.done === 'done'}
 			{@const mark = row.mark}
 			{@const eff = effectiveOf(ws.index, row.id)}
@@ -144,7 +140,7 @@
 					)}
 					style:width="{GANTT_LABEL_WIDTH}px"
 				>
-					<ReadyDot count={readyCount(ws.index, row.id)} {locale} still />
+					<ReadyDot count={readyCount(ws.index, row.id)} still />
 					<span
 						class={cn(
 							'min-w-0 truncate',
@@ -155,7 +151,7 @@
 				</div>
 				<div class="relative flex-1">
 					{#if mark.kind === 'bar' || mark.kind === 'point'}
-						{@const name = markLabel({ mark, title, dates: eff, done, intl }, locale)}
+						{@const name = markLabel({ mark, title, dates: eff, done })}
 						{#if mark.kind === 'bar'}
 							<div
 								role="img"
@@ -188,9 +184,7 @@
 						{/if}
 					{:else if mark.kind === 'outside'}
 						{@const name =
-							mark.side === 'before'
-								? m.gantt_outside_before({}, { locale })
-								: m.gantt_outside_after({}, { locale })}
+							mark.side === 'before' ? m.gantt_outside_before() : m.gantt_outside_after()}
 						<span
 							role="img"
 							aria-label="{title}: {name}"
@@ -202,9 +196,7 @@
 						>
 					{:else}
 						<span class="absolute top-1/2 left-2 -translate-y-1/2 text-paper-ink-3 italic">
-							{mark.kind === 'none'
-								? m.gantt_no_dates({}, { locale })
-								: m.gantt_invalid_dates({}, { locale })}
+							{mark.kind === 'none' ? m.gantt_no_dates() : m.gantt_invalid_dates()}
 						</span>
 					{/if}
 				</div>
@@ -224,13 +216,10 @@
 			{#each segment.bands as item (item.band.id)}
 				<div
 					role="img"
-					aria-label={m.gantt_band(
-						{
-							title: item.band.title,
-							range: formatRangeDisplay(item.band.start, item.band.end, intl)
-						},
-						{ locale }
-					)}
+					aria-label={m.gantt_band({
+						title: item.band.title,
+						range: formatRangeDisplay(item.band.start, item.band.end, intl)
+					})}
 					class="absolute inset-y-0 overflow-hidden"
 					style:background={bandFill(bandPaperTint(item.band.color))}
 					style:left="{item.x0 * 100}%"
@@ -253,7 +242,7 @@
 					<span
 						class="absolute left-1 bg-paper/80 px-0.5 text-[8px] leading-tight font-medium"
 						style:top="{bodyTop + 2}px"
-						data-testid="sheet-gantt-today-label">{m.gantt_today({}, { locale })}</span
+						data-testid="sheet-gantt-today-label">{m.gantt_today()}</span
 					>
 				</div>
 			{/if}

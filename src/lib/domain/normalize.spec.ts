@@ -30,7 +30,7 @@ describe('timeline normalization', () => {
 	});
 	it('stores subheading text as typed and trims other header fields', () => {
 		const plan = {
-			...createEmptyPlan('en'),
+			...createEmptyPlan(),
 			heading: ' Plan ',
 			subheading: ' Mixed Case  ',
 			objective: ' Goal '

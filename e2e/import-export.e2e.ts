@@ -28,6 +28,14 @@ async function exportedExample(page: Page) {
 	return (await readDownload(page, 'Export this plan')).file;
 }
 
+test.describe('icons', () => {
+	test('import points into the tray and export points out of it', async ({ page }) => {
+		await openApp(page);
+		await expect(page.getByTestId('import-open').locator('svg')).toHaveClass(/lucide-download/);
+		await expect(page.getByTestId('export-menu').locator('svg')).toHaveClass(/lucide-upload/);
+	});
+});
+
 test.describe('export', () => {
 	test('"Export this plan" writes a plan file without viewer state', async ({ page }) => {
 		await openExample(page);
@@ -38,7 +46,9 @@ test.describe('export', () => {
 		expect(Object.keys(file).sort()).toEqual(['kind', 'plan', 'schemaVersion']);
 		expect(file.kind).toBe('plan');
 		const text = JSON.stringify(file);
-		for (const key of ['ganttPinned', 'ganttHeight', 'expanded']) expect(text).not.toContain(key);
+		// The file is language-neutral: dates are ISO and there is no language setting.
+		for (const key of ['ganttPinned', 'ganttHeight', 'expanded', 'locale'])
+			expect(text).not.toContain(key);
 		expect(file.plan.id).toBe((await storedPlan(page)).id);
 	});
 
@@ -56,6 +66,29 @@ test.describe('export', () => {
 });
 
 test.describe('import', () => {
+	test('importing a plan in another language leaves the UI language alone', async ({ page }) => {
+		const file = await exportedExample(page);
+		await page.getByRole('button', { name: 'Language' }).click();
+		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+		// The plan has history, so the app asks before it reloads.
+		await page.getByTestId('language-reload-confirm').click();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		// The file comes from a user with another language (Japanese).
+		file.plan.id = 'japanese-plan';
+		file.plan.heading = 'Japanese plan';
+		file.plan.locale = 'ja';
+		await importJson(page, file);
+		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
+		// The old language key of the file is dropped.
+		expect((await storedPlan(page)).locale).toBeUndefined();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		await expect(page.getByRole('button', { name: 'Sprache' })).toBeVisible();
+		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
+		await page.reload();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
+	});
+
 	test('a valid file with a new id becomes a new active plan', async ({ page }) => {
 		const file = await exportedExample(page);
 		file.plan.id = 'imported-plan';

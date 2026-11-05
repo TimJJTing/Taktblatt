@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
+import { formatted, openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
 
 declare global {
 	interface Window {
 		__printed: number;
+		__printedSheets: number[];
 	}
 }
 
@@ -290,6 +291,7 @@ test('the Print button calls window.print', async ({ page }) => {
 	await openExample(page);
 	await page.evaluate(() => {
 		window.__printed = 0;
+		// The stub sends no `afterprint`. The sheets stay until the next input of the user.
 		window.print = () => {
 			window.__printed += 1;
 		};
@@ -316,20 +318,47 @@ test('the print today line uses the footer date', async ({ page }) => {
 	await expect(sheets(page).first().getByTestId('sheet-gantt-today')).toHaveCount(1);
 });
 
-test('the sheets use the document language, not the UI language', async ({ page }) => {
+test('the sheets use the UI language, whatever an old file says', async ({ page }) => {
 	await openExample(page);
+	// An old plan can still have a language key. It must change nothing. The UI stays English.
 	await writeStoredPlan(page, (plan) => {
-		plan.locale = 'de';
+		plan.locale = 'ja';
 	});
 	await openPreview(page);
+	const first = sheets(page).first();
+	await expect(first).toContainText('Objective:');
+	await expect(first).toContainText('Timeline');
+	await expect(first).toContainText('Today');
+	await expect(first).not.toContainText('目標');
+	await expect(first.locator('.sheet-footer')).toContainText(
+		formatted((await storedPlan(page)).footer.date)
+	);
+});
+
+test('the sheets of an English plan show German labels and dates in the German UI', async ({
+	page
+}) => {
+	await openExample(page);
+	const plan = await storedPlan(page);
+	await page.getByRole('button', { name: 'Language' }).click();
+	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	// The plan has history, so the app asks before it reloads.
+	await page.getByTestId('language-reload-confirm').click();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+	await previewButton(page).click();
+	await expect(sheets(page).first()).toBeVisible();
 	const first = sheets(page).first();
 	await expect(first).toContainText('Ziel:');
 	await expect(first).toContainText('Zeitachse');
 	await expect(first).toContainText('Heute');
 	await expect(first).not.toContainText('Objective:');
-	await expect(first).toHaveAttribute('lang', 'de');
-	// The preview chrome keeps the UI language.
-	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
+	const german = new Intl.DateTimeFormat('de', {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'UTC'
+	}).format(new Date(`${plan.footer.date}T00:00:00Z`));
+	await expect(first.locator('.sheet-footer')).toContainText(german);
 });
 
 test('open dialogs do not print, and the sheets do', async ({ page }) => {
@@ -438,4 +467,93 @@ test('the printed Gantt names points and marks tasks outside the range', async (
 	await expect(first.getByTestId('sheet-gantt-point')).toHaveCount(1);
 	await expect(first.getByTestId('sheet-gantt-point')).toHaveAttribute('aria-label', /: /);
 	await expect(first.getByTestId('sheet-gantt-outside')).toHaveCount(1);
+});
+
+test('a print dialog that is cancelled leaves the plan on screen without an error', async ({
+	page
+}) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+	await openExample(page);
+	// No stub: the real print runs. Headless Chromium returns at once, like a cancel. The test sends `afterprint`.
+	await page.getByTestId('print').click();
+	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	await expect(page.getByTestId('plan-heading')).toBeVisible();
+	await expect(page.getByRole('heading', { name: '500' })).toHaveCount(0);
+	await expect(sheets(page)).toHaveCount(0);
+	expect(errors).toEqual([]);
+});
+
+/** Stubs window.print. It records how many sheets are in the page at the time of the call. */
+async function recordSheetsAtPrint(page: Page) {
+	await page.evaluate(() => {
+		window.__printedSheets = [];
+		window.print = () => {
+			window.__printedSheets.push(document.querySelectorAll('[data-testid="sheet"]').length);
+		};
+	});
+}
+
+test('the sheets are in the page when the Print button opens the print dialog', async ({
+	page
+}) => {
+	await openExample(page);
+	await recordSheetsAtPrint(page);
+	await page.getByTestId('print').click();
+	expect((await page.evaluate(() => window.__printedSheets))[0]).toBeGreaterThan(0);
+});
+
+test('the sheets are in the page when Cmd/Ctrl+P opens the print dialog', async ({ page }) => {
+	await openExample(page);
+	await recordSheetsAtPrint(page);
+	await page.keyboard.press('ControlOrMeta+p');
+	expect((await page.evaluate(() => window.__printedSheets))[0]).toBeGreaterThan(0);
+});
+
+test('a field in edit mode is committed before the sheets render for print', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.objective = '';
+	});
+	await recordSheetsAtPrint(page);
+	await page.getByTestId('plan-objective').click();
+	await page.getByTestId('plan-objective-input').fill('Grow food together.');
+	// The field keeps the focus. Print commits the draft first.
+	await page.keyboard.press('ControlOrMeta+p');
+	const sheetsAtPrint = (await page.evaluate(() => window.__printedSheets))[0];
+	expect(sheetsAtPrint).toBeGreaterThan(0);
+	expect((await storedPlan(page)).objective).toBe('Grow food together.');
+	await expect(sheets(page).first()).toContainText('Grow food together.');
+});
+
+test('the sheets go away at the next input when the print sends no end event', async ({ page }) => {
+	await openExample(page);
+	// A no-op print: no `afterprint` and no change of the print media.
+	await page.evaluate(() => {
+		window.print = () => {};
+	});
+	await page.getByTestId('print').click();
+	await expect(sheets(page).first()).toBeAttached();
+	await page.getByTestId('plan-heading').click();
+	await expect(sheets(page)).toHaveCount(0);
+	await page.getByTestId('print').click();
+	await expect(sheets(page).first()).toBeAttached();
+	await page.keyboard.press('Shift');
+	await expect(sheets(page)).toHaveCount(0);
+});
+
+test('the beforeprint fallback commits a field in edit mode', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.objective = '';
+	});
+	await page.getByTestId('plan-objective').click();
+	await page.getByTestId('plan-objective-input').fill('Grow food together.');
+	// A print from the browser menu sends only the events.
+	await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+	expect((await storedPlan(page)).objective).toBe('Grow food together.');
+	await expect(sheets(page).first()).toContainText('Grow food together.');
+	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	await expect(sheets(page)).toHaveCount(0);
 });

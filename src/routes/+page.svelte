@@ -3,11 +3,11 @@
 	import { toast } from 'svelte-sonner';
 	import AppHeader from '#lib/components/app/AppHeader.svelte';
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
+	import LanguageReloadDialog from '#lib/components/app/LanguageReloadDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { isModKey, isTextEditing } from '#lib/browser/keyboard.js';
-	import { LOCALES, type Locale } from '#lib/domain/schema.js';
+	import { localStorageKey } from '#lib/paraglide/runtime.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
 	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
 	import StageOverview from '#lib/components/plan/StageOverview.svelte';
 	import Timeline from '#lib/components/timeline/Timeline.svelte';
@@ -18,18 +18,15 @@
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
 	import { PreviewState, setPreview } from '#lib/state/preview.svelte.js';
+	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.js';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
 
-	const uiLocale = (): Locale => {
-		const locale = getLocale();
-		return (LOCALES as readonly string[]).includes(locale) ? (locale as Locale) : 'en';
-	};
-
-	const ws = setWorkspace(new Workspace(localStorage, uiLocale));
+	const ws = setWorkspace(new Workspace(localStorage));
 	setViewer(new ViewerState(localStorage));
 	setEditing(new EditingState());
 	const preview = setPreview(new PreviewState());
+	const languageReload = setLanguageReload(new LanguageReload(ws, preview));
 
 	const title = $derived(ws.plan.heading.trim() || m.untitled_plan());
 
@@ -40,6 +37,12 @@
 			// The app saves automatically. The toast confirms it.
 			event.preventDefault();
 			toast.success(m.saved_toast(), { description: m.saved_toast_detail(), id: 'saved' });
+			return;
+		}
+		if (key === 'p' && !event.shiftKey) {
+			// The sheets render first. This follows the same path as the Print button.
+			event.preventDefault();
+			if (!event.repeat) preview.print();
 			return;
 		}
 		if (isTextEditing(event.target)) return;
@@ -55,6 +58,11 @@
 
 	function onStorage(event: StorageEvent) {
 		if (event.storageArea !== localStorage) return;
+		// Another tab changed the UI language. This tab must reload, so it does not mix two languages.
+		if (event.key === localStorageKey) {
+			languageReload.changedInOtherTab(event.newValue);
+			return;
+		}
 		ws.handleStorageEvent(event);
 	}
 </script>
@@ -68,6 +76,7 @@
 <!-- The workspace never prints. Print uses the sheets (PrintHost). The preview makes the workspace inert. -->
 <div data-workspace class="contents" inert={preview.open}>
 	<AppHeader />
+	<LanguageReloadDialog />
 	<DamagedNotice />
 
 	<main class="mx-auto max-w-6xl px-4 py-8 pl-8">

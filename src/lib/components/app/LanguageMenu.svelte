@@ -3,7 +3,8 @@
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale, locales, setLocale, type Locale } from '#lib/paraglide/runtime.js';
+	import { getLocale, locales, type Locale } from '#lib/paraglide/runtime.js';
+	import { getLanguageReload } from '#lib/state/language-reload.svelte.js';
 
 	const labels: Record<Locale, () => string> = {
 		en: m.ui_language_en,
@@ -12,15 +13,20 @@
 		ja: m.ui_language_ja
 	};
 
-	let current = $state(getLocale());
+	const reload = getLanguageReload();
+	// The language of this page. It changes only with the reload.
+	const current = getLocale();
+
+	let menuOpen = $state(false);
 
 	function choose(value: string) {
-		current = value as Locale;
-		setLocale(current);
+		// Close the menu first. The question may open a dialog.
+		menuOpen = false;
+		reload.choose(value as Locale);
 	}
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root bind:open={menuOpen}>
 	<DropdownMenu.Trigger
 		class={buttonVariants({ variant: 'ghost', size: 'sm', class: 'max-sm:px-2' })}
 		aria-label={m.ui_language()}
