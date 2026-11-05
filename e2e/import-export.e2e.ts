@@ -46,7 +46,9 @@ test.describe('export', () => {
 		expect(Object.keys(file).sort()).toEqual(['kind', 'plan', 'schemaVersion']);
 		expect(file.kind).toBe('plan');
 		const text = JSON.stringify(file);
-		for (const key of ['ganttPinned', 'ganttHeight', 'expanded']) expect(text).not.toContain(key);
+		// The file is language-neutral: dates are ISO and there is no language setting.
+		for (const key of ['ganttPinned', 'ganttHeight', 'expanded', 'locale'])
+			expect(text).not.toContain(key);
 		expect(file.plan.id).toBe((await storedPlan(page)).id);
 	});
 
@@ -75,7 +77,8 @@ test.describe('import', () => {
 		file.plan.locale = 'ja';
 		await importJson(page, file);
 		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
-		expect((await storedPlan(page)).locale).toBe('ja');
+		// The old language key of the file is dropped.
+		expect((await storedPlan(page)).locale).toBeUndefined();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 		await expect(page.getByRole('button', { name: 'Sprache' })).toBeVisible();
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');

@@ -29,7 +29,7 @@ The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`.
 
 ## Values
 
-- **Dates** are date-only strings `YYYY-MM-DD`. They are never timestamps.
+- **Dates** are date-only strings `YYYY-MM-DD`. They are never timestamps. They have no language: the app formats them with the UI language.
 - **Timestamps** (`createdAt`, `updatedAt`) are ISO 8601 strings with a time zone.
 - **Ids** are strings. The app makes UUIDs. Other non-empty strings are also valid.
 
@@ -42,7 +42,6 @@ The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`.
 | `subheading`             | string                           | Optional text.                                           |
 | `range`                  | `{ start, end }`                 | Dates. `start` ≤ `end`.                                  |
 | `objective`              | string                           | Max 250 characters in the workspace.                     |
-| `locale`                 | `en` \| `de` \| `zh-TW` \| `ja`  | The document language.                                   |
 | `paper`                  | `a4` \| `letter`                 | The paper size for print.                                |
 | `footer`                 | `{ note, version, date, right }` | `date` is a date or `null`.                              |
 | `stages`                 | Stage[]                          | The array order is the stage order.                      |

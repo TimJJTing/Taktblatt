@@ -29,13 +29,11 @@
 		/** The stage color as a CSS value. */
 		color: string;
 		highlighted: boolean;
-		/** The document locale for dates (BCP 47). */
-		locale: string;
 		onJump: (id: string) => void;
 		onHighlight: (id: string, on: boolean) => void;
 	}
 
-	let { row, color, highlighted, locale, onJump, onHighlight }: Props = $props();
+	let { row, color, highlighted, onJump, onHighlight }: Props = $props();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -48,7 +46,7 @@
 	const subtask = $derived(row.level === 1);
 	const mark = $derived(row.mark);
 
-	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, done, intl: locale }));
+	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, done }));
 
 	const fill = $derived(subtask ? subtaskFill(color) : color);
 

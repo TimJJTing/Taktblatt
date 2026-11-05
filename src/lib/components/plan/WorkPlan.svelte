@@ -6,6 +6,7 @@
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import { allOwners } from '#lib/domain/owners.js';
 	import type { Stage } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
@@ -16,7 +17,12 @@
 
 	const ws = getWorkspace();
 	const flipDuration = $derived(motionDuration(250));
-	const ownerSuggestions = $derived(allOwners(ws.plan.tasks.map((t) => t.owners)));
+	const ownerSuggestions = $derived(
+		allOwners(
+			ws.plan.tasks.map((t) => t.owners),
+			uiIntl()
+		)
+	);
 
 	/** A local copy while a drag runs. svelte-dnd-action changes it during the drag. */
 	let dragItems = $state<Stage[] | null>(null);

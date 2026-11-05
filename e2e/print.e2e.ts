@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
+import { formatted, openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
 
 declare global {
 	interface Window {
@@ -318,20 +318,47 @@ test('the print today line uses the footer date', async ({ page }) => {
 	await expect(sheets(page).first().getByTestId('sheet-gantt-today')).toHaveCount(1);
 });
 
-test('the sheets use the document language, not the UI language', async ({ page }) => {
+test('the sheets use the UI language, whatever an old file says', async ({ page }) => {
 	await openExample(page);
+	// An old plan can still have a language key. It must change nothing. The UI stays English.
 	await writeStoredPlan(page, (plan) => {
-		plan.locale = 'de';
+		plan.locale = 'ja';
 	});
 	await openPreview(page);
+	const first = sheets(page).first();
+	await expect(first).toContainText('Objective:');
+	await expect(first).toContainText('Timeline');
+	await expect(first).toContainText('Today');
+	await expect(first).not.toContainText('目標');
+	await expect(first.locator('.sheet-footer')).toContainText(
+		formatted((await storedPlan(page)).footer.date)
+	);
+});
+
+test('the sheets of an English plan show German labels and dates in the German UI', async ({
+	page
+}) => {
+	await openExample(page);
+	const plan = await storedPlan(page);
+	await page.getByRole('button', { name: 'Language' }).click();
+	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+	await previewButton(page).click();
+	await expect(sheets(page).first()).toBeVisible();
 	const first = sheets(page).first();
 	await expect(first).toContainText('Ziel:');
 	await expect(first).toContainText('Zeitachse');
 	await expect(first).toContainText('Heute');
 	await expect(first).not.toContainText('Objective:');
-	await expect(first).toHaveAttribute('lang', 'de');
-	// The preview chrome keeps the UI language.
-	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
+	const german = new Intl.DateTimeFormat('de', {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'UTC'
+	}).format(new Date(`${plan.footer.date}T00:00:00Z`));
+	await expect(first.locator('.sheet-footer')).toContainText(german);
+	// The stored plan has no language.
+	expect((await storedPlan(page)).locale).toBeUndefined();
 });
 
 test('open dialogs do not print, and the sheets do', async ({ page }) => {

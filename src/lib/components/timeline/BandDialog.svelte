@@ -15,7 +15,8 @@
 	import { BAND_TINT_KEYS } from '#lib/domain/palette.js';
 	import { colorName } from '#lib/components/plan/colors.js';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
-	import { formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { addBand, updateBand, removeBand } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
@@ -82,7 +83,6 @@
 				<DateRangeField
 					{start}
 					{end}
-					locale={ws.plan.locale}
 					label={m.field_range()}
 					allowEmpty={false}
 					onCommit={(range) => {
@@ -93,7 +93,7 @@
 					}}
 				>
 					{#snippet trigger({ props })}<Button {...props} variant="outline"
-							>{formatRangeDisplay(start, end, intlLocale(ws.plan.locale))}</Button
+							>{formatRangeDisplay(start, end, uiIntl())}</Button
 						>{/snippet}
 				</DateRangeField>
 			</div>

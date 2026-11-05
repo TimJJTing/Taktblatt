@@ -8,7 +8,7 @@ import { nowISO } from '#lib/domain/date.js';
 import { indexTasks, type TaskIndex } from '#lib/domain/derive.js';
 import { createEmptyPlan } from '#lib/domain/factory.js';
 import { withNewIds } from '#lib/domain/io.js';
-import type { Locale, Plan } from '#lib/domain/schema.js';
+import type { Plan } from '#lib/domain/schema.js';
 import { History } from './history.svelte';
 import { KEYS, PlanStorage, StorageWriteError, type LoadResult } from './storage';
 
@@ -52,10 +52,7 @@ export class Workspace {
 	readonly history = new History<Plan>();
 	private readonly storage: PlanStorage;
 
-	constructor(
-		storage: Storage,
-		private readonly locale: () => Locale
-	) {
+	constructor(storage: Storage) {
 		this.storage = new PlanStorage(storage);
 		this.load();
 	}
@@ -85,7 +82,7 @@ export class Workspace {
 		}
 
 		if (plans.length === 0) {
-			const plan = createEmptyPlan(this.locale());
+			const plan = createEmptyPlan();
 			this.storage.savePlan(plan);
 			plans.push(plan);
 		}
@@ -190,7 +187,7 @@ export class Workspace {
 	}
 
 	createPlan(): void {
-		const plan = createEmptyPlan(this.locale());
+		const plan = createEmptyPlan();
 		this.storage.savePlan(plan);
 		this.plans = [...this.plans, summaryOf(plan)];
 		this.activate(plan);

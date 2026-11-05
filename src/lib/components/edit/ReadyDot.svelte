@@ -10,14 +10,12 @@
 	interface Props {
 		/** The number of effective dependencies. 0 means off. */
 		count: number;
-		/** The label language. The default is the UI language. */
-		locale?: 'en' | 'de' | 'zh-TW' | 'ja';
 		/** Static output for print: no transition, no animation. */
 		still?: boolean;
 	}
 
-	let { count, locale, still = false }: Props = $props();
-	const label = $derived(m.ready_label({ count }, locale ? { locale } : undefined));
+	let { count, still = false }: Props = $props();
+	const label = $derived(m.ready_label({ count }));
 </script>
 
 {#if count > 0}

@@ -16,7 +16,8 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
 	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
-	import { formatMonthSpan, intlLocale } from '#lib/domain/format.js';
+	import { formatMonthSpan } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import { type Stage, type Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -55,9 +56,7 @@
 		m.stage_progress({ done: '{done}', total: progress.total }).split('{done}')
 	);
 	const span = $derived(stageSpan(ws.index, stage.id));
-	const months = $derived(
-		span ? formatMonthSpan(span.start, span.end, intlLocale(ws.plan.locale)) : ''
-	);
+	const months = $derived(span ? formatMonthSpan(span.start, span.end, uiIntl()) : '');
 	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
 	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
 	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));

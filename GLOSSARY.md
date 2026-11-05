@@ -27,8 +27,7 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 | **Sheet**                  | One printed page (A4 or US Letter).                                                                                                     |                          |
 | **Paginator**              | The code that puts blocks on sheets.                                                                                                    |                          |
 | **Viewer state**           | Settings for one browser only. They are not in the plan file.                                                                           | user settings            |
-| **UI language**            | The language of the app controls. Part of the viewer state.                                                                             |                          |
-| **Document language**      | The language of the printed labels and date formats. A field in the plan.                                                               |                          |
+| **UI language**            | The language of the app controls, the date formats and the printed labels. Part of the viewer state. A plan has no language.            |                          |
 | **Commit**                 | The end of one edit: blur, Enter, a checkbox, a picker, a dialog action. One commit is one undo step.                                   |                          |
 
 ## Rules for UI text

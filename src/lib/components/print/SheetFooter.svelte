@@ -3,20 +3,20 @@
 	Empty parts do not show. The page number "n / N" comes from the paginator.
 -->
 <script lang="ts">
-	import { formatDate, intlLocale } from '#lib/domain/format.js';
+	import { formatDate } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import type { Plan } from '#lib/domain/schema.js';
 
 	interface Props {
 		footer: Plan['footer'];
-		locale: Plan['locale'];
 		number: number;
 		total: number;
 	}
 
-	let { footer, locale, number, total }: Props = $props();
+	let { footer, number, total }: Props = $props();
 
 	const left = $derived(
-		[footer.note, footer.version, footer.date ? formatDate(footer.date, intlLocale(locale)) : '']
+		[footer.note, footer.version, footer.date ? formatDate(footer.date, uiIntl()) : '']
 			.filter((part) => part !== '')
 			.join(' · ')
 	);

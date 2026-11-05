@@ -8,7 +8,7 @@ import { Workspace } from './workspace.svelte';
 
 const open = (storage = new MemoryStorage()) => ({
 	storage,
-	ws: new Workspace(storage, () => 'en')
+	ws: new Workspace(storage)
 });
 
 describe('Workspace', () => {
@@ -23,7 +23,7 @@ describe('Workspace', () => {
 	it('saves each commit and loads the plan again', () => {
 		const { storage, ws } = open();
 		ws.commit((p) => (p.heading = 'Roadmap'));
-		const again = new Workspace(storage, () => 'en');
+		const again = new Workspace(storage);
 		expect(again.plan.heading).toBe('Roadmap');
 		expect(again.plans[0].heading).toBe('Roadmap');
 	});
@@ -55,7 +55,7 @@ describe('Workspace', () => {
 		expect(ws.history.canRedo).toBe(false);
 		expect(ws.redo()).toBe(false);
 		expect(ws.plan.tasks).toHaveLength(0);
-		expect(new Workspace(storage, () => 'en').plan.tasks).toHaveLength(0);
+		expect(new Workspace(storage).plan.tasks).toHaveLength(0);
 	});
 
 	it('keeps damaged data, starts with an empty plan and reports it', () => {
@@ -96,7 +96,7 @@ describe('Workspace', () => {
 	it('imports plans and resolves id conflicts', () => {
 		const { ws } = open();
 		const existing = JSON.parse(JSON.stringify(ws.plan));
-		const incoming = { ...createEmptyPlan('en'), id: existing.id, heading: 'Imported' };
+		const incoming = { ...createEmptyPlan(), id: existing.id, heading: 'Imported' };
 		expect(ws.importConflicts([incoming])).toHaveLength(1);
 		ws.importPlans([incoming], () => 'keep-both', ' (copy)');
 		expect(ws.plans.map((p) => p.heading)).toEqual(['', 'Imported (copy)']);
@@ -117,7 +117,7 @@ describe('Workspace', () => {
 
 	it('loads a change from a different tab', () => {
 		const { storage, ws } = open();
-		const other = new Workspace(storage, () => 'en');
+		const other = new Workspace(storage);
 		other.commit((p) => (p.heading = 'From tab 2'));
 		ws.handleStorageEvent({
 			key: KEYS.plan(ws.plan.id),
@@ -132,7 +132,7 @@ describe('Workspace', () => {
 		(active) => {
 			const { storage, ws } = open();
 			const id = ws.plan.id;
-			const other = new Workspace(storage, () => 'en');
+			const other = new Workspace(storage);
 			if (!active) ws.createPlan();
 			ws.commit((p) => (p.heading = 'Local edit'));
 			other.commit((p) => (p.heading = 'Older write'));
@@ -148,7 +148,7 @@ describe('Workspace', () => {
 	it.each([false, true])('ignores a plan event when its key is gone (removal: %s)', (removal) => {
 		const { storage, ws } = open();
 		ws.commit((p) => (p.heading = 'Local edit'));
-		const other = new Workspace(storage, () => 'en');
+		const other = new Workspace(storage);
 		other.commit((p) => (p.heading = 'Deleted write'));
 		const key = KEYS.plan(ws.plan.id);
 		const newValue = removal ? null : storage.getItem(key);
@@ -162,7 +162,7 @@ describe('Workspace', () => {
 
 	it('loads the current plan for a queued removal event after the key is restored', () => {
 		const { storage, ws } = open();
-		const other = new Workspace(storage, () => 'en');
+		const other = new Workspace(storage);
 		const key = KEYS.plan(ws.plan.id);
 		storage.removeItem(key);
 		const event = { key, newValue: null };
@@ -230,14 +230,14 @@ class QuotaStorage extends MemoryStorage {
 describe('Workspace import when the storage is full', () => {
 	it('restores the stored plans and keeps the list unchanged', () => {
 		const storage = new QuotaStorage();
-		const ws = new Workspace(storage, () => 'en');
+		const ws = new Workspace(storage);
 		const existing = ws.activePlan();
 		const before = Object.fromEntries(
 			[KEYS.index, KEYS.plan(existing.id)].map((key) => [key, storage.getItem(key)])
 		);
 		const replaced = { ...structuredClone(existing), heading: 'Replaced' };
-		const fresh1 = createEmptyPlan('en', '2027-04-01');
-		const fresh2 = createEmptyPlan('en', '2027-04-01');
+		const fresh1 = createEmptyPlan('2027-04-01');
+		const fresh2 = createEmptyPlan('2027-04-01');
 		// The first two plan writes work. The third write fails.
 		storage.failOn = 3;
 		expect(() => ws.importPlans([replaced, fresh1, fresh2], () => 'replace', ' (copy)')).toThrow(
@@ -253,8 +253,8 @@ describe('Workspace import when the storage is full', () => {
 
 	it('restores the plans when only the index write fails', () => {
 		const storage = new QuotaStorage();
-		const ws = new Workspace(storage, () => 'en');
-		const fresh = createEmptyPlan('en', '2027-04-01');
+		const ws = new Workspace(storage);
+		const fresh = createEmptyPlan('2027-04-01');
 		// The plan write works. The index write fails.
 		storage.failOn = 2;
 		expect(() => ws.importPlans([fresh], () => 'keep-both', ' (copy)')).toThrow(StorageWriteError);

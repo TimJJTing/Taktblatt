@@ -5,13 +5,13 @@
  */
 import { dayNumber, isoFromDayNumber, todayISO, type ISODate } from './date';
 import { createId } from './ids';
-import type { Locale, Plan, Task } from './schema';
+import type { Plan, Task } from './schema';
 
 function addDays(date: ISODate, days: number): ISODate {
 	return isoFromDayNumber(dayNumber(date) + days);
 }
 
-export function createExamplePlan(locale: Locale, today: ISODate = todayISO()): Plan {
+export function createExamplePlan(today: ISODate = todayISO()): Plan {
 	const at = (days: number) => addDays(today, days);
 	const now = new Date().toISOString();
 	const stage = { prepare: createId(), grow: createId(), share: createId() };
@@ -72,7 +72,6 @@ export function createExamplePlan(locale: Locale, today: ISODate = todayISO()): 
 		range: { start: at(-21), end: at(80) },
 		objective:
 			'Turn the empty lot into six productive beds and share the first harvest with the neighbourhood.',
-		locale,
 		paper: 'a4',
 		footer: { note: 'Example', version: 'v1', date: today, right: 'Garden volunteers' },
 		stages: [

@@ -2,7 +2,7 @@
 import { todayISO, type ISODate } from './date';
 import { createId } from './ids';
 import { nextStageColor } from './palette';
-import type { Band, Milestone, Locale, Plan, RemarkSection, Stage, Task } from './schema';
+import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema';
 
 /** Returns the first day of the month of `date`, plus `months` months. */
 function monthStart(date: ISODate, months: number): ISODate {
@@ -48,7 +48,7 @@ export function createRemarkSection(): RemarkSection {
  * Returns an empty plan. The range is the current month and the next two months.
  * The heading is empty. The UI shows "Untitled plan" as a placeholder.
  */
-export function createEmptyPlan(locale: Locale, today: ISODate = todayISO()): Plan {
+export function createEmptyPlan(today: ISODate = todayISO()): Plan {
 	const now = new Date().toISOString();
 	return {
 		id: createId(),
@@ -56,7 +56,6 @@ export function createEmptyPlan(locale: Locale, today: ISODate = todayISO()): Pl
 		subheading: '',
 		range: { start: monthStart(today, 0), end: monthEnd(today, 2) },
 		objective: '',
-		locale,
 		paper: 'a4',
 		footer: { note: '', version: '', date: null, right: '' },
 		stages: [createStage()],

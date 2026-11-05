@@ -75,7 +75,6 @@ export const PlanSchema = v.pipe(
 		subheading: v.string(),
 		range: v.object({ start: ISODateSchema, end: ISODateSchema }),
 		objective: v.string(),
-		locale: v.picklist(LOCALES),
 		paper: v.picklist(PAPER_SIZES),
 		footer: v.object({
 			note: v.string(),

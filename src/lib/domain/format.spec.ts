@@ -11,7 +11,7 @@ import {
 } from './format';
 
 describe('format', () => {
-	it('formats short days in the document language', () => {
+	it('formats short days in the given language', () => {
 		expect(formatDay('2027-11-27', 'en-US')).toBe('Nov 27');
 		expect(formatDay('2027-11-27', 'de')).toBe('27. Nov.');
 	});

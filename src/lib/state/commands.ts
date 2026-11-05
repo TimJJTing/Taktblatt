@@ -39,7 +39,7 @@ const findTask = (plan: Plan, id: string) => plan.tasks.find((t) => t.id === id)
 
 export function updatePlan(
 	ws: Workspace,
-	patch: Partial<Pick<Plan, 'heading' | 'subheading' | 'objective' | 'range' | 'locale' | 'paper'>>
+	patch: Partial<Pick<Plan, 'heading' | 'subheading' | 'objective' | 'range' | 'paper'>>
 ): void {
 	ws.commit((plan) => Object.assign(plan, normalizePlan({ ...plan, ...patch })));
 }
@@ -220,7 +220,7 @@ export function reorderRemarks(ws: Workspace, ids: readonly string[]): void {
 
 /** Replaces the active plan content with the example. */
 export function loadExample(ws: Workspace): void {
-	const example = createExamplePlan(ws.plan.locale);
+	const example = createExamplePlan();
 	ws.commit((plan) => Object.assign(plan, { ...example, id: plan.id, createdAt: plan.createdAt }));
 }
 

@@ -5,9 +5,7 @@
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { isModKey, isTextEditing } from '#lib/browser/keyboard.js';
-	import { LOCALES, type Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
 	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
 	import StageOverview from '#lib/components/plan/StageOverview.svelte';
 	import Timeline from '#lib/components/timeline/Timeline.svelte';
@@ -21,12 +19,7 @@
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
 
-	const uiLocale = (): Locale => {
-		const locale = getLocale();
-		return (LOCALES as readonly string[]).includes(locale) ? (locale as Locale) : 'en';
-	};
-
-	const ws = setWorkspace(new Workspace(localStorage, uiLocale));
+	const ws = setWorkspace(new Workspace(localStorage));
 	setViewer(new ViewerState(localStorage));
 	setEditing(new EditingState());
 	const preview = setPreview(new PreviewState());

@@ -1,23 +1,22 @@
 <!--
 	The plan header fields: subheading, heading, plan range and objective.
 	The parent section of the page has the id "header". Each field saves on blur.
-	Dates use the document language.
+	Dates use the UI language.
 -->
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { tasksSpan } from '#lib/domain/derive.js';
-	import { formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import { LIMITS } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updatePlan } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	const ws = getWorkspace();
 	const span = $derived(tasksSpan(ws.index));
-	const rangeText = $derived(
-		formatRangeDisplay(ws.plan.range.start, ws.plan.range.end, intlLocale(ws.plan.locale))
-	);
+	const rangeText = $derived(formatRangeDisplay(ws.plan.range.start, ws.plan.range.end, uiIntl()));
 </script>
 
 <div>
@@ -48,7 +47,6 @@
 	<DateRangeField
 		start={ws.plan.range.start}
 		end={ws.plan.range.end}
-		locale={ws.plan.locale}
 		label={m.field_plan_range()}
 		allowEmpty={false}
 		onCommit={({ start, end }) => {

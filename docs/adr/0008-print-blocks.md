@@ -1,6 +1,6 @@
 # 8. Print blocks are separate components
 
-Status: Accepted (2026-11-04)
+Status: Accepted (2026-11-04). Amended by [ADR 9](0009-one-language-plan-files-are-neutral.md).
 
 ## Context
 
@@ -9,7 +9,7 @@ ADR 1 said that the workspace and the preview use the same components with a `pr
 - Each block has `data-part` and `data-item` markers. The paginator reads the height of each marked part and item.
 - Rows have fixed heights, so the paginator can split between rows.
 - The blocks have no controls and no motion.
-- The labels use the document language of the plan, not the UI language.
+- The labels use the UI language (before ADR 9: the document language of the plan).
 
 A workspace component with print classes does not meet these needs. The workspace layout is responsive and its heights change with the width.
 

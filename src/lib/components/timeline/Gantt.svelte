@@ -14,7 +14,8 @@
 	import { Toggle } from '#lib/components/ui/toggle/index.js';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
 	import { todayISO } from '#lib/domain/date.js';
-	import { formatDate, formatMonth, formatRangeDisplay, intlLocale } from '#lib/domain/format.js';
+	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import {
 		dependencyLines,
 		ganttRows,
@@ -58,7 +59,7 @@
 	const MARKER_ID = 'gantt-arrow';
 
 	const win = $derived(ws.plan.range);
-	const locale = $derived(intlLocale(ws.plan.locale));
+	const locale = uiIntl();
 	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, stageColorVar(s.color)])));
 	const rows = $derived(
 		ganttRows(
@@ -322,7 +323,6 @@
 							{row}
 							color={colors.get(row.stageId) ?? 'currentColor'}
 							highlighted={editing.highlightId === row.id}
-							{locale}
 							onJump={jump}
 							{onHighlight}
 						/>

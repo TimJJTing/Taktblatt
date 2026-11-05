@@ -13,13 +13,12 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { Calendar } from '#lib/components/ui/calendar/index.js';
 	import { todayISO, type ISODate } from '#lib/domain/date.js';
-	import { formatDate, intlLocale, readTypedDate } from '#lib/domain/format.js';
+	import { formatDate, readTypedDate } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
 		date: ISODate | null;
-		/** The document language. It controls the date format. */
-		locale: string;
 		label: string;
 		/** Set to false for a date that must have a value (for example a milestone date). */
 		allowEmpty?: boolean;
@@ -29,15 +28,7 @@
 		trigger: Snippet<[{ props: Record<string, unknown> }]>;
 	}
 
-	let {
-		date,
-		locale,
-		label,
-		allowEmpty = true,
-		showToday = false,
-		onCommit,
-		trigger
-	}: Props = $props();
+	let { date, label, allowEmpty = true, showToday = false, onCommit, trigger }: Props = $props();
 
 	let open = $state(false);
 	let draft = $state<ISODate | null>(null);
@@ -45,7 +36,7 @@
 	let error = $state('');
 	let placeholder = $state<DateValue | undefined>(undefined);
 
-	const tag = $derived(intlLocale(locale));
+	const tag = uiIntl();
 	const show = (d: ISODate | null) => (d ? formatDate(d, tag) : '');
 	const example = $derived(formatDate(todayISO(), tag));
 	// The accessible name of the trigger: "Label: value", or the bare label when the date is empty.

@@ -16,7 +16,8 @@
 	import { focusSiblingRow } from '#lib/browser/grid.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
-	import { formatRangeDisplay, formatTarget, intlLocale } from '#lib/domain/format.js';
+	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import type { Task } from '#lib/domain/schema.js';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -45,7 +46,7 @@
 	const eff = $derived(effectiveValues(task, children));
 	const ready = $derived(readyCount(ws.index, task.id));
 	const expanded = $derived(viewer.isExpanded(ws.plan.id, task.id));
-	const locale = $derived(intlLocale(ws.plan.locale));
+	const locale = uiIntl();
 	const titleText = $derived(task.title || m.task_untitled());
 	const muted = $derived(eff.done === 'done');
 
@@ -151,7 +152,6 @@
 		<DateRangeField
 			start={task.start}
 			end={task.end}
-			locale={ws.plan.locale}
 			label={m.column_target()}
 			onCommit={(range) => updateTask(ws, task.id, range)}
 		>

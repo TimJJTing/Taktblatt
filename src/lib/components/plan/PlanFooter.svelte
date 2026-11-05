@@ -6,14 +6,15 @@
 	import DateField from '#lib/components/edit/DateField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { formatDate, intlLocale } from '#lib/domain/format.js';
+	import { formatDate } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updateFooter } from '#lib/state/commands.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 
 	const ws = getWorkspace();
 	const footer = $derived(ws.plan.footer);
-	const dateText = $derived(footer.date ? formatDate(footer.date, intlLocale(ws.plan.locale)) : '');
+	const dateText = $derived(footer.date ? formatDate(footer.date, uiIntl()) : '');
 </script>
 
 <footer class="mx-auto max-w-6xl px-4 pl-8 text-xs text-muted-foreground">
@@ -39,7 +40,6 @@
 			<span aria-hidden="true">·</span>
 			<DateField
 				date={footer.date}
-				locale={ws.plan.locale}
 				label={m.footer_date()}
 				showToday
 				onCommit={(date) => updateFooter(ws, { date })}

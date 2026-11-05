@@ -41,7 +41,6 @@ interface Plan {
 	subheading: string; // empty text is valid
 	range: { start: ISODate; end: ISODate }; // the Gantt window
 	objective: string; // workspace: max 250 characters
-	locale: Locale; // the document language
 	paper: 'a4' | 'letter';
 	footer: { note: string; version: string; date: ISODate | null; right: string };
 	stages: Stage[]; // manual order (array order)
@@ -353,7 +352,9 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
 - The first UI language comes from the browser language list. The app uses the first supported language in the list. A region variant matches its base language (`de-AT` gives `de`). `zh-Hant` and `zh-TW`, `zh-HK` and `zh-MO` give `zh-TW`. Simplified or unspecified Chinese and all other languages give English. The app saves the detected language on the first visit. A later change of the browser language has no effect.
-- The **document language** is a plan setting (`locale`). It controls the printed labels (for example "Objective:", "Timeline", the column titles) and the date formats. A new plan gets the current UI language.
+- There is one language: the UI language. It controls the texts, the date formats and the printed labels (for example "Objective:", "Timeline", the column titles). A plan has no language setting.
+- Plan files are language-neutral. Dates are stored as ISO `YYYY-MM-DD`. The app formats them with the UI language when it shows or prints them. The same file shows and prints in German for a German UI and in Japanese for a Japanese UI.
+- An old file or stored plan can still have a `locale` key. The app ignores the key and does not write it again.
 - Supported languages: English (`en`), German (`de`), Traditional Chinese (`zh-TW`), Japanese (`ja`).
 - English is the source. A missing key falls back to English.
 - The `de`, `zh-TW` and `ja` texts are machine drafts. A native speaker must review them.
@@ -373,7 +374,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
   - Remarks come after all stages.
   - Each page has the footer with "n / N".
   - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
-- The labels on the sheets use the document language.
+- The labels and dates on the sheets use the UI language.
 - A dependency line shows on a sheet only when both of its rows are on that sheet.
 - Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, the Print button and Cmd/Ctrl+P render the sheets first and then open the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.

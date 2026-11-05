@@ -1,6 +1,6 @@
 # 5. UI language and document language
 
-Status: Accepted (2026-11-04)
+Status: Superseded by [ADR 9](0009-one-language-plan-files-are-neutral.md) (2026-11-05). The UI language rules still hold. The document language was removed.
 
 ## Context
 

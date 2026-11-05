@@ -1,3 +1,5 @@
+import { getLocale } from '#lib/paraglide/runtime.js';
+import { intlLocale } from './format';
 import { LOCALES, type Locale } from './schema';
 
 /** Chinese regions that write Traditional Chinese. */
@@ -24,4 +26,15 @@ export function matchLocale(languages: readonly string[]): Locale | undefined {
 		if (match) return match;
 	}
 	return undefined;
+}
+
+/** The UI language. It is the only language of the app: it governs the texts, the dates and the print. */
+export function uiLocale(): Locale {
+	const locale = getLocale();
+	return (LOCALES as readonly string[]).includes(locale) ? (locale as Locale) : 'en';
+}
+
+/** The UI language as a BCP 47 tag for `Intl` (dates, numbers, sorting). */
+export function uiIntl(): string {
+	return intlLocale(uiLocale());
 }

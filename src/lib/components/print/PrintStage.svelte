@@ -1,14 +1,14 @@
 <!--
 	One stage of the work plan on paper: the header and a table of tasks and subtasks.
 	The table header repeats on each sheet where the table continues.
-	Rows are static. A parent row shows its derived values. Labels use the document language.
+	Rows are static. A parent row shows its derived values. Labels use the UI language.
 -->
 <script lang="ts">
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { stagePaperColor } from '#lib/components/plan/colors.js';
-	import { formatMonthSpan, formatTarget, intlLocale } from '#lib/domain/format.js';
+	import { formatMonthSpan, formatTarget } from '#lib/domain/format.js';
+	import { uiIntl } from '#lib/domain/locale.js';
 	import type { StageSegment } from '#lib/domain/print-model.js';
-	import type { Locale } from '#lib/domain/schema.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
@@ -17,16 +17,13 @@
 		from: number;
 		to: number;
 		first: boolean;
-		locale: Locale;
 	}
 
-	let { segment, from, to, first, locale }: Props = $props();
+	let { segment, from, to, first }: Props = $props();
 
-	const intl = $derived(intlLocale(locale));
+	const intl = uiIntl();
 	const color = $derived(stagePaperColor(segment.stage.color));
-	const name = $derived(
-		segment.stage.title || m.stage_title_placeholder({ n: segment.number }, { locale })
-	);
+	const name = $derived(segment.stage.title || m.stage_title_placeholder({ n: segment.number }));
 	const months = $derived(
 		segment.span ? formatMonthSpan(segment.span.start, segment.span.end, intl) : ''
 	);
@@ -38,18 +35,15 @@
 	<div data-part="lead">
 		{#if segment.workPlanTitle}
 			<h2 class="pb-2 text-[10px] font-semibold tracking-wider text-paper-ink uppercase">
-				{m.section_work_plan({}, { locale })}
+				{m.section_work_plan()}
 			</h2>
 		{/if}
 		<h3 class="flex items-baseline gap-1.5 pb-1.5 text-[12px] font-semibold text-paper-ink">
 			<span class="size-2.5 shrink-0 self-center rounded-[2px]" style:background={color}></span>
-			<span>{m.stage_label({ n: segment.number }, { locale })} · {name}</span>
+			<span>{m.stage_label({ n: segment.number })} · {name}</span>
 			{#if months}<span class="font-normal text-paper-ink-3">({months})</span>{/if}
 			<span class="ml-auto text-[10px] font-normal whitespace-nowrap text-paper-ink-3">
-				{m.stage_progress(
-					{ done: segment.progress.done, total: segment.progress.total },
-					{ locale }
-				)}
+				{m.stage_progress({ done: segment.progress.done, total: segment.progress.total })}
 			</span>
 		</h3>
 	</div>
@@ -68,20 +62,20 @@
 	</colgroup>
 	<thead data-part="repeat" data-testid="sheet-table-head">
 		<tr>
-			<th class={th} style:border-top="2px solid {color}">{m.column_done({}, { locale })}</th>
-			<th class={th} style:border-top="2px solid {color}">{m.column_task({}, { locale })}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_done()}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_task()}</th>
 			<th class={th} style:border-top="2px solid {color}">
-				{m.column_deliverable({}, { locale })}
+				{m.column_deliverable()}
 			</th>
-			<th class={th} style:border-top="2px solid {color}">{m.column_target({}, { locale })}</th>
-			<th class={th} style:border-top="2px solid {color}">{m.column_owner({}, { locale })}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_target()}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_owner()}</th>
 		</tr>
 	</thead>
 	<tbody>
 		{#if segment.rows.length === 0}
 			<tr data-item="0">
 				<td colspan="5" class="border-b border-paper-rule-2 px-1.5 py-1.5 text-paper-ink-3">
-					{m.stage_empty({}, { locale })}
+					{m.stage_empty()}
 				</td>
 			</tr>
 		{/if}
@@ -113,17 +107,17 @@
 							<span class="h-px w-1.5 bg-current"></span>
 						{/if}
 					</span>
-					{#if done === 'done'}<span class="sr-only">{m.gantt_done({}, { locale })}</span>{/if}
+					{#if done === 'done'}<span class="sr-only">{m.gantt_done()}</span>{/if}
 				</td>
 				<td class={cell}>
 					<div class={cn('flex items-baseline gap-1', row.level === 1 && 'pl-3.5')}>
-						<ReadyDot count={row.ready} {locale} still />
+						<ReadyDot count={row.ready} still />
 						<span
 							class={cn(
 								'min-w-0 break-words',
 								row.level === 0 && 'font-medium',
 								done === 'done' && 'line-through decoration-paper-ink-3/50'
-							)}>{row.task.title || m.task_untitled({}, { locale })}</span
+							)}>{row.task.title || m.task_untitled()}</span
 						>
 					</div>
 				</td>
