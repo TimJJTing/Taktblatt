@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp, openExample, row, stage, titles } from './helpers';
+import { expectStickyBelowHeader, openApp, openExample, row, stage, titles } from './helpers';
 
 test.describe('work plan', () => {
 	test('a new task gets a title, and Escape removes an empty new task', async ({ page }) => {
@@ -130,16 +130,66 @@ test.describe('work plan', () => {
 		await swatch.scrollIntoViewIfNeeded();
 		// Put the swatch near the bottom edge, so the popover opens below the fold.
 		await page.evaluate(() => window.scrollBy(0, 80));
-		const before = await page.evaluate(() => window.scrollY);
-		expect(before).toBeGreaterThan(0);
-		await swatch.click();
-		await expect(page.getByRole('radiogroup')).toBeVisible();
-		await page.waitForTimeout(300);
-		expect(await page.evaluate(() => window.scrollY)).toBe(before);
-		await page.getByRole('radio', { name: 'violet' }).click();
-		await expect(page.getByRole('radiogroup')).toBeHidden();
-		await page.waitForTimeout(300);
-		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+		const monitor = await page.evaluateHandle(() => {
+			const baseline = window.scrollY;
+			const positions = [baseline];
+			const record = () => positions.push(window.scrollY);
+			let frame: number;
+			const sample = () => {
+				record();
+				frame = requestAnimationFrame(sample);
+			};
+			window.addEventListener('scroll', record);
+			frame = requestAnimationFrame(sample);
+			return {
+				baseline,
+				positions,
+				stop() {
+					window.removeEventListener('scroll', record);
+					cancelAnimationFrame(frame);
+				}
+			};
+		});
+		const assertNoScroll = async () => {
+			await page.evaluate(
+				() =>
+					new Promise<void>((resolve) => {
+						requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+					})
+			);
+			const state = await monitor.evaluate(({ baseline, positions }) => ({
+				baseline,
+				positions,
+				current: window.scrollY
+			}));
+			expect(state.positions.filter((position) => position !== state.baseline)).toEqual([]);
+			expect(state.current).toBe(state.baseline);
+		};
+		try {
+			expect(await monitor.evaluate(({ baseline }) => baseline)).toBeGreaterThan(0);
+			await swatch.click();
+			const palette = page.getByRole('radiogroup');
+			const content = page.locator('[data-slot="popover-content"]');
+			await expect(palette).toBeVisible();
+			await expect(palette.getByRole('radio', { checked: true })).toBeFocused();
+			await palette.evaluate(async (element) => {
+				const content = element.closest('[data-slot="popover-content"]')!;
+				const animations = content
+					.getAnimations({ subtree: true })
+					.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+				await Promise.all(animations.map((animation) => animation.finished));
+			});
+			await assertNoScroll();
+			await palette.getByRole('radio', { name: 'violet', exact: true }).click();
+			await expect(swatch).toHaveAttribute('aria-label', 'Stage color: violet');
+			await expect(swatch).toBeFocused();
+			await expect(palette).toHaveCount(0);
+			await expect(content).toHaveCount(0);
+			await assertNoScroll();
+		} finally {
+			await monitor.evaluate((state) => state.stop());
+			await monitor.dispose();
+		}
 	});
 
 	test('a stage keeps its colored header band at the top while the page scrolls', async ({
@@ -148,16 +198,7 @@ test.describe('work plan', () => {
 		await page.setViewportSize({ width: 1000, height: 400 });
 		await openExample(page);
 		const band = stage(page, 0).locator('thead th').first();
-		// Scroll until the natural place of the band is 25 px above the bottom of the app header.
-		const headerBottom = (await page.locator('[data-app-header]').boundingBox())!.height;
-		const y = await band.evaluate(
-			(el, offset) => el.getBoundingClientRect().top + window.scrollY - offset,
-			headerBottom - 25
-		);
-		await page.evaluate((top) => window.scrollTo(0, top), y);
-		const header = (await page.locator('[data-app-header]').boundingBox())!;
-		const box = (await band.boundingBox())!;
-		expect(Math.abs(box.y - (header.y + header.height))).toBeLessThanOrEqual(1);
+		await expectStickyBelowHeader(band);
 	});
 
 	test('on a narrow screen the header cells stay in the table', async ({ page }) => {
@@ -181,14 +222,7 @@ test.describe('work plan', () => {
 		await page.setViewportSize({ width: 600, height: 400 });
 		await openExample(page);
 		const band = stage(page, 0).getByTestId('stage-band');
-		const headerBottom = (await page.locator('[data-app-header]').boundingBox())!.height;
-		const y = await band.evaluate(
-			(el, offset) => el.getBoundingClientRect().top + window.scrollY - offset,
-			headerBottom - 25
-		);
-		await page.evaluate((top) => window.scrollTo(0, top), y);
-		const box = (await band.boundingBox())!;
-		expect(Math.abs(box.y - headerBottom)).toBeLessThanOrEqual(1);
+		await expectStickyBelowHeader(band);
 	});
 
 	test('a stage moves with the keyboard drag handle', async ({ page }) => {
@@ -211,26 +245,35 @@ test.describe('work plan', () => {
 	}) => {
 		await openExample(page);
 		const first = stage(page, 0);
-		const table = first.getByRole('table');
-		// The rows animate in, so wait until the gap is stable.
-		await expect
-			.poll(async () => {
-				const tableBox = (await table.boundingBox())!;
-				const addTaskBox = (await first.getByTestId('add-task').boundingBox())!;
-				return addTaskBox.y - (tableBox.y + tableBox.height);
-			})
-			.toBeLessThanOrEqual(12);
+		// Read one layout snapshot. Retry all checks while the rows animate.
+		await expect(async () => {
+			const layout = await first.evaluate((element) => {
+				const table = element.querySelector('table')!.getBoundingClientRect();
+				const addTask = element.querySelector('[data-testid="add-task"]')!.getBoundingClientRect();
+				const addSubtask = Array.from(element.querySelectorAll('[data-testid="add-subtask"]'))
+					.at(-1)!
+					.getBoundingClientRect();
+				const addStage = document
+					.querySelector('[data-testid="add-stage"]')!
+					.getBoundingClientRect();
+				return {
+					gap: addTask.top - table.bottom,
+					clearance: addTask.top - addSubtask.bottom,
+					addTaskWidth: addTask.width,
+					addSubtaskWidth: addSubtask.width,
+					addStageWidth: addStage.width
+				};
+			});
+			expect(layout.gap).toBeLessThanOrEqual(12);
+			// The last add-subtask line must not cover the add-task button.
+			expect(layout.clearance).toBeGreaterThanOrEqual(0);
+			expect(layout.addStageWidth).toBeGreaterThan(layout.addTaskWidth);
+			expect(layout.addTaskWidth).toBeGreaterThan(layout.addSubtaskWidth);
+		}).toPass({ timeout: 5000 });
 		const addTask = (await first.getByTestId('add-task').boundingBox())!;
-
-		const addSubtask = (await first.getByTestId('add-subtask').last().boundingBox())!;
-		// The strip of the last add-subtask line must not cover the add-task button.
-		expect(addTask.y).toBeGreaterThanOrEqual(addSubtask.y + addSubtask.height);
 		await first.getByTestId('add-task').click({
 			trial: true,
 			position: { x: addTask.width / 2, y: 2 }
 		});
-		const addStage = (await page.getByTestId('add-stage').boundingBox())!;
-		expect(addStage.width).toBeGreaterThan(addTask.width);
-		expect(addTask.width).toBeGreaterThan(addSubtask.width);
 	});
 });

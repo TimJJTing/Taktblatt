@@ -17,8 +17,9 @@ test('the milestone date is picked with the calendar', async ({ page }) => {
 	await expect(trigger).toHaveText(formatted(start));
 	await trigger.click();
 	await expect(page.getByTestId('date-value')).toHaveValue(formatted(start));
-	await day(page, 15).click();
-	const picked = `${start.slice(0, 7)}-15`;
+	const other = start.endsWith('-15') ? 16 : 15;
+	await day(page, other).click();
+	const picked = `${start.slice(0, 7)}-${other}`;
 	await expect(page.getByTestId('date-value')).toHaveValue(formatted(picked));
 	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
 	await expect(page.getByTestId('date-value')).toHaveCount(0);
