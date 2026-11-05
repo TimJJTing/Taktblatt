@@ -12,6 +12,7 @@ export const GANTT_HEIGHT = { default: 0.35, max: 0.5, minPx: 120 } as const;
 const ViewerSchema = v.object({
 	expanded: v.optional(v.record(v.string(), v.array(v.string())), {}),
 	ganttPinned: v.optional(v.boolean(), false),
+	timelineLegendsCollapsed: v.optional(v.boolean(), false),
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
 		GANTT_HEIGHT.default
@@ -24,7 +25,8 @@ export class ViewerState {
 	/** The expanded task ids, for each plan. The Gantt and the table share them. */
 	expanded = $state<Record<string, string[]>>({});
 	ganttPinned = $state(false);
-	/** The pinned Gantt height, as a fraction of the viewport height. */
+	timelineLegendsCollapsed = $state(false);
+	/** The pinned Timeline section height, as a fraction of the viewport height. */
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
 
 	constructor(private readonly storage: Storage) {
@@ -39,6 +41,7 @@ export class ViewerState {
 		}
 		this.expanded = data.expanded;
 		this.ganttPinned = data.ganttPinned;
+		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed;
 		this.ganttHeight = data.ganttHeight;
 	}
 
@@ -46,6 +49,7 @@ export class ViewerState {
 		const data: ViewerData = {
 			expanded: $state.snapshot(this.expanded),
 			ganttPinned: this.ganttPinned,
+			timelineLegendsCollapsed: this.timelineLegendsCollapsed,
 			ganttHeight: this.ganttHeight
 		};
 		this.storage.setItem(KEYS.viewer, JSON.stringify(data));
@@ -72,6 +76,11 @@ export class ViewerState {
 
 	setGanttPinned(value: boolean): void {
 		this.ganttPinned = value;
+		this.save();
+	}
+
+	setTimelineLegendsCollapsed(value: boolean): void {
+		this.timelineLegendsCollapsed = value;
 		this.save();
 	}
 

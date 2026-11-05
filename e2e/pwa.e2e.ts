@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp, openExample } from './helpers';
+import { expectStickyBelowHeader, openApp, openExample } from './helpers';
 
 test.describe('PWA', () => {
 	test('the manifest is linked and describes the app', async ({ page, request }) => {
@@ -29,6 +29,7 @@ test.describe('PWA', () => {
 
 	test('the app loads offline after the first visit', async ({ page, context }) => {
 		await openExample(page);
+		await page.getByTestId('gantt-pin').click();
 		await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
 		// The worker takes control of the page after it activates.
 		await expect
@@ -37,6 +38,9 @@ test.describe('PWA', () => {
 		await context.setOffline(true);
 		await page.reload();
 		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
+		await expectStickyBelowHeader(page.getByTestId('timeline-panel'));
+		await expect(page.getByTestId('timeline-panel').getByTestId('band-legend')).toBeAttached();
 		await context.setOffline(false);
 	});
 });

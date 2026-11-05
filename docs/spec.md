@@ -230,9 +230,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - the UI language;
 - the screen theme (`light`, `dark` or `system`);
 - the expanded tasks, for each plan (shared by the Gantt and the table);
-- the pinned state and the height of the Gantt.
+- the pinned state and the height of the Timeline section;
+- whether the Timeline legends are collapsed.
 
-The app keeps the expanded tasks and the Gantt settings as `expanded`, `ganttPinned` and `ganttHeight` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`. An unreadable value gives the default settings.
+The app keeps the expanded tasks and the Timeline settings as `expanded`, `ganttPinned`, `ganttHeight` and `timelineLegendsCollapsed` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`. An unreadable value gives the default settings. Existing viewer data without `timelineLegendsCollapsed` starts with the legends expanded.
 
 ### 4.5 Undo
 
@@ -298,7 +299,7 @@ The app keeps the expanded tasks and the Gantt settings as `expanded`, `ganttPin
 - Done tasks have a muted bar and label.
 - Bars are read-only. You edit dates in the table or in the task dialog.
 - **Labels:** click a label to scroll to its table row. The row flashes one time. You cannot edit a label in the Gantt.
-- **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Gantt, the app scrolls it to show the bar.
+- **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Timeline section, the app scrolls the chart to show the bar.
 - **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
 - **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When you expand a parent, the lines connect to the subtask that owns the dependency. When you collapse a parent, the lines connect to the parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done row use 40% opacity, the same as done bars. This also applies in Preview and print. For a parent row, the app uses its derived done state.
 - **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
@@ -307,11 +308,20 @@ The app keeps the expanded tasks and the Gantt settings as `expanded`, `ganttPin
 - **Tint and symbol selects:** each option and the selected value show a preview before the name. The tint preview is a swatch with a border. It has the same fill as a band on the screen. The symbol preview is the filled symbol, as on the Gantt. The preview is decorative. Screen readers read only the name.
 - **Milestone symbols:** diamond, flag, star, circle, triangle, square, hexagon, pentagon, map pin, bookmark and heart, in this order.
 - **Stage legend:** the stage colors and titles.
-- **Pin:** a toggle pins the Gantt below the app header.
-  - The default height is 35 % of the viewport. The maximum is 50 %. The minimum is 120 px.
-  - The Gantt content scrolls vertically.
-  - A handle on the bottom edge changes the height. The handle is a `separator`. The arrow keys also change the height.
-  - When you click a Gantt label, the app scrolls the row to a position below the pinned Gantt.
+- **Legend group:** one Legends button beside the Timeline heading shows or hides Stages, Milestones and Bands together. It works with the keyboard and announces its expanded state.
+  - The app keeps the collapsed state in this browser after a reload. This setting is independent of the pin state. It does not change plan data or undo history.
+  - The three rows have the same 32 px minimum height and 12 px vertical gap. Long entries can wrap and increase the row height.
+  - The Milestones and Bands add buttons use a 24 px target and a decorative 12 px plus icon. Their accessible names and actions stay the same.
+  - Collapse and expansion animate the content and its spacing. Reduced motion uses immediate updates. Collapsed entries cannot receive focus. The chart gets the space that the legends used in the pinned section.
+  - Preview and printed sheets always show the legends. The Legends button does not appear on sheets. The workspace setting does not change sheet content or pagination.
+- **Pin:** a toggle beside the Timeline heading pins the whole Timeline section below the app header. The heading, chart and expanded legends stay together.
+  - The default height of the whole section is 35 % of the viewport. The maximum is 50 %. The minimum is 120 px, or 50 % when the viewport is shorter than 240 px.
+  - The chart content scrolls vertically. If the chart and legends do not fit in the section, the section body also scrolls. The heading and pin toggle stay visible.
+  - A handle on the bottom edge changes the height of the whole section. Its divider and resize target span the full app width, up to the scrollbar. The heading, chart and legends keep their content width. The divider appears only when pinned. It does not appear in Preview or print.
+  - The handle is a `separator`. The arrow keys, Page Up, Page Down, Home and End also change the height.
+  - The app keeps the pin state and section height after a reload.
+  - Section links, sticky table headers and Gantt label jumps use the height of the whole pinned section as their offset.
+  - The pin state does not change the sheets, pagination, Preview or print.
 
 ### 5.5 Stage overview
 

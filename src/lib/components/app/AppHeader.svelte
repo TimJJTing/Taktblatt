@@ -22,7 +22,7 @@
 
 	let element = $state<HTMLElement | null>(null);
 
-	// Share the header height. Anchor jumps and the pinned Gantt use it.
+	// Share the header height. Anchor jumps and the pinned Timeline section use it.
 	$effect(() => {
 		if (!element) return;
 		const header = element;

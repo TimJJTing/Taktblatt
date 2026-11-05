@@ -63,7 +63,7 @@
 	const flipDuration = $derived(motionDuration(280));
 
 	// The band (top) and the bottom line are inset shadows, because a border does not stick with its cell.
-	// From 640 px up, the table does not scroll, so the cells stick below the app header and the pinned Gantt.
+	// From 640 px up, the table does not scroll, so the cells stick below the app header and the pinned Timeline section.
 	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate band sticks instead.
 	// In forced-colors mode shadows are removed, so borders take over.
 	const headCell =
@@ -165,7 +165,7 @@
 	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
 		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
-		so the header cells can stick below the app header and the pinned Gantt. -->
+		so the header cells can stick below the app header and the pinned Timeline section. -->
 	<div class="relative @max-[640px]:overflow-x-auto">
 		<table class="w-full min-w-[640px] table-fixed border-collapse text-sm" aria-label={stageName}>
 			<colgroup>

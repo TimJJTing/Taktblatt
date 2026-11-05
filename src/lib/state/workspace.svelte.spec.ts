@@ -191,6 +191,35 @@ describe('Workspace', () => {
 });
 
 describe('ViewerState', () => {
+	it('starts with expanded legends when older viewer data has no legend setting', () => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({ expanded: { p1: ['t1'] }, ganttPinned: true, ganttHeight: 0.42 })
+		);
+		const viewer = new ViewerState(storage);
+		expect(viewer.timelineLegendsCollapsed).toBe(false);
+		expect(viewer.ganttPinned).toBe(true);
+		expect(viewer.ganttHeight).toBe(0.42);
+		expect(viewer.isExpanded('p1', 't1')).toBe(true);
+	});
+
+	it('keeps the legend preference when other viewer settings are saved', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		viewer.setTimelineLegendsCollapsed(true);
+		viewer.setGanttPinned(true);
+		viewer.setGanttHeight(0.4);
+		viewer.toggleExpanded('p1', 't1');
+		const again = new ViewerState(storage);
+		expect(again.timelineLegendsCollapsed).toBe(true);
+		expect(again.ganttPinned).toBe(true);
+		expect(again.ganttHeight).toBe(0.4);
+		expect(again.isExpanded('p1', 't1')).toBe(true);
+		again.setTimelineLegendsCollapsed(false);
+		expect(new ViewerState(storage).timelineLegendsCollapsed).toBe(false);
+	});
+
 	it('keeps the expand state for each plan and the Gantt settings', () => {
 		const storage = new MemoryStorage();
 		const viewer = new ViewerState(storage);
