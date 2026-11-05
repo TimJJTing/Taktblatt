@@ -44,6 +44,7 @@
 			<div class="group/gap py-1">
 				<AddLine
 					label={m.stage_add()}
+					size="lg"
 					onAdd={() => addStage(ws, i)}
 					class="opacity-0 group-focus-within/gap:opacity-100 group-hover/gap:opacity-100"
 					testId="add-stage-before"
@@ -56,6 +57,7 @@
 <div class="group/gap py-3">
 	<AddLine
 		label={m.stage_add()}
+		size="lg"
 		onAdd={() => addStage(ws, ws.plan.stages.length)}
 		class="opacity-40 group-focus-within/gap:opacity-100 group-hover/gap:opacity-100 [@media(hover:none)]:opacity-100"
 		testId="add-stage"

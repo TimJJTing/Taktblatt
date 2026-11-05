@@ -218,6 +218,7 @@
 								label={m.subtask_add({ task: task.title || m.task_untitled() })}
 								indent={56}
 								pinned
+								size="sm"
 								onAdd={() => newTask(task.id)}
 								class="absolute inset-x-0 -top-2.5 z-10 opacity-0 group-focus-within/task:opacity-100 group-hover/task:opacity-100"
 								testId="add-subtask"
@@ -235,8 +236,9 @@
 			</tbody>
 		</table>
 	</div>
-	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis. -->
-	<div class="pt-3 pb-1">
+	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis.
+		Directly under the table, so the line belongs to this stage and not to the gap to the next stage. -->
+	<div class="pb-1">
 		<AddLine
 			label={m.task_add({ stage: stageName })}
 			indent={32}

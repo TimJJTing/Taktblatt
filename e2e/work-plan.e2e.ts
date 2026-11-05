@@ -176,4 +176,28 @@ test.describe('work plan', () => {
 		await expect(stageTitles.nth(1)).toHaveText(first);
 		await expect(handle.first()).toHaveAttribute('tabindex', '0');
 	});
+
+	test('the add-task line sits against the table, and the add buttons shrink by level', async ({
+		page
+	}) => {
+		await openExample(page);
+		const first = stage(page, 0);
+		const table = first.getByRole('table');
+		// The rows animate in, so wait until the gap is stable.
+		await expect
+			.poll(async () => {
+				const tableBox = (await table.boundingBox())!;
+				const addTaskBox = (await first.getByTestId('add-task').boundingBox())!;
+				return addTaskBox.y - (tableBox.y + tableBox.height);
+			})
+			.toBeLessThanOrEqual(6);
+		const addTask = (await first.getByTestId('add-task').boundingBox())!;
+
+		const parent = row(page, 'Soil preparation');
+		await parent.getByTestId('task-toggle').click();
+		const addSubtask = (await first.getByTestId('add-subtask').first().boundingBox())!;
+		const addStage = (await page.getByTestId('add-stage').boundingBox())!;
+		expect(addStage.width).toBeGreaterThan(addTask.width);
+		expect(addTask.width).toBeGreaterThan(addSubtask.width);
+	});
 });

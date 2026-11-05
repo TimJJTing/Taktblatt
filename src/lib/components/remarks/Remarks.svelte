@@ -59,6 +59,7 @@
 <div bind:this={addLine} class="group/gap py-3">
 	<AddLine
 		label={m.remark_section_add()}
+		size="lg"
 		onAdd={() => (editing.newRemarkSectionId = addRemarkSection(ws))}
 		class="opacity-40 group-focus-within/gap:opacity-100 group-hover/gap:opacity-100 [@media(hover:none)]:opacity-100"
 		testId="add-remark-section"
