@@ -9,7 +9,19 @@ import { indexTasks } from './derive';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette';
 
 export const SCHEMA_VERSION = 1;
-export const MILESTONE_SYMBOLS = ['diamond', 'flag', 'star', 'circle'] as const;
+export const MILESTONE_SYMBOLS = [
+	'diamond',
+	'flag',
+	'star',
+	'circle',
+	'triangle',
+	'square',
+	'hexagon',
+	'pentagon',
+	'pin',
+	'bookmark',
+	'heart'
+] as const;
 export const PAPER_SIZES = ['a4', 'letter'] as const;
 
 export const LIMITS = {

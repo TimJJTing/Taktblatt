@@ -79,7 +79,18 @@ interface Milestone {
 	title: string;
 	description: string;
 	date: ISODate;
-	symbol: 'diamond' | 'flag' | 'star' | 'circle';
+	symbol:
+		| 'diamond'
+		| 'flag'
+		| 'star'
+		| 'circle'
+		| 'triangle'
+		| 'square'
+		| 'hexagon'
+		| 'pentagon'
+		| 'pin'
+		| 'bookmark'
+		| 'heart';
 }
 
 interface Band {
@@ -285,6 +296,8 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 - **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestone and band dialogs:** an outside click saves an edit. Esc and **Cancel** discard the changes. An outside click on a new entry does not add it.
+- **Tint and symbol selects:** each option and the selected value show a preview before the name. The tint preview is a swatch with a border. It has the same fill as a band on the screen. The symbol preview is the filled symbol, as on the Gantt. The preview is decorative. Screen readers read only the name.
+- **Milestone symbols:** diamond, flag, star, circle, triangle, square, hexagon, pentagon, map pin, bookmark and heart, in this order.
 - **Stage legend:** the stage colors and titles.
 - **Pin:** a toggle pins the Gantt below the app header.
   - The default height is 35 % of the viewport. The maximum is 50 %. The minimum is 120 px.

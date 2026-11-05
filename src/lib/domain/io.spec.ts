@@ -13,6 +13,64 @@ import {
 	withNewIds
 } from './io';
 import { makePlan, makeTask } from './test-helpers';
+import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from '#lib/domain/schema.js';
+import { parsePlan } from '#lib/state/storage.js';
+
+describe('milestone symbol contract', () => {
+	const symbols = [
+		'diamond',
+		'flag',
+		'star',
+		'circle',
+		'triangle',
+		'square',
+		'hexagon',
+		'pentagon',
+		'pin',
+		'bookmark',
+		'heart'
+	];
+	const planWithSymbol = (symbol: string) => ({
+		...makePlan([]),
+		milestones: [{ id: 'm1', title: 'Review', description: '', date: '2027-01-10', symbol }]
+	});
+
+	it('lists exactly eleven symbols in the specified order', () => {
+		expect(MILESTONE_SYMBOLS).toEqual(symbols);
+	});
+
+	it('keeps schema version 1', () => {
+		expect(SCHEMA_VERSION).toBe(1);
+	});
+
+	it.each(symbols)('reads %s from a version 1 plan file', (symbol) => {
+		const plan = planWithSymbol(symbol);
+		const file = { schemaVersion: 1, kind: 'plan', plan };
+		expect(parseFile(JSON.stringify(file))).toEqual({ ok: true, plans: [plan] });
+	});
+
+	it.each(symbols)('reads %s from a version 1 backup file', (symbol) => {
+		const plan = planWithSymbol(symbol);
+		const file = { schemaVersion: 1, kind: 'backup', plans: [plan] };
+		expect(parseFile(JSON.stringify(file))).toEqual({ ok: true, plans: [plan] });
+	});
+
+	it.each(symbols)('reads %s from version 1 stored plan data', (symbol) => {
+		const plan = planWithSymbol(symbol);
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
+	});
+
+	it('rejects an unknown rocket symbol at the milestone symbol field', () => {
+		const plan = planWithSymbol('rocket');
+		const result = parseFile(JSON.stringify({ schemaVersion: 1, kind: 'plan', plan }));
+		expect(result.ok).toBe(false);
+		if (!result.ok)
+			expect(result.errors).toEqual([expect.stringContaining('plan.milestones.0.symbol')]);
+	});
+});
 
 describe('parseFile', () => {
 	it('reads a plan file that the app wrote', () => {
