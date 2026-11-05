@@ -70,7 +70,7 @@
 		align="start"
 		onOpenAutoFocus={(event) => {
 			event.preventDefault();
-			group?.querySelector<HTMLButtonElement>('[tabindex="0"]')?.focus();
+			group?.querySelector<HTMLButtonElement>('[tabindex="0"]')?.focus({ preventScroll: true });
 		}}
 	>
 		<div

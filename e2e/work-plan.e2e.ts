@@ -122,6 +122,26 @@ test.describe('work plan', () => {
 		await expect(page.getByTestId('stage')).toHaveCount(3);
 	});
 
+	test('the stage color picker does not scroll the page', async ({ page }) => {
+		await page.setViewportSize({ width: 1000, height: 500 });
+		await openExample(page);
+		for (let i = 0; i < 3; i++) await page.getByTestId('add-stage').click();
+		const swatch = stage(page, 5).getByTestId('stage-color');
+		await swatch.scrollIntoViewIfNeeded();
+		// Put the swatch near the bottom edge, so the popover opens below the fold.
+		await page.evaluate(() => window.scrollBy(0, 80));
+		const before = await page.evaluate(() => window.scrollY);
+		expect(before).toBeGreaterThan(0);
+		await swatch.click();
+		await expect(page.getByRole('radiogroup')).toBeVisible();
+		await page.waitForTimeout(300);
+		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+		await page.getByRole('radio', { name: 'violet' }).click();
+		await expect(page.getByRole('radiogroup')).toBeHidden();
+		await page.waitForTimeout(300);
+		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+	});
+
 	test('a stage moves with the keyboard drag handle', async ({ page }) => {
 		await openExample(page);
 		const stageTitles = page.getByTestId('stage-title');
