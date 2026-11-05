@@ -140,7 +140,7 @@
 					)}
 					style:width="{GANTT_LABEL_WIDTH}px"
 				>
-					<ReadyDot count={readyCount(ws.index, row.id)} still />
+					<ReadyDot count={readyCount(ws.index, row.id)} still reserve />
 					<span
 						class={cn(
 							'min-w-0 truncate',

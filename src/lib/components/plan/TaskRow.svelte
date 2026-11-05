@@ -114,7 +114,7 @@
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} />
+		<ReadyDot count={ready} reserve />
 		<div class="min-w-0 flex-1">
 			<InlineText
 				value={task.title}

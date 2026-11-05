@@ -1,6 +1,7 @@
 <!--
-	The ready light: a small green dot. It renders nothing when it is off.
-	It fades in with one soft pulse. Refer to docs/spec.md, section 3.4.
+	The ready light: a small green dot. It fades in with one soft pulse.
+	When it is off, it renders nothing. Set `reserve` in rows: then it keeps an empty slot,
+	so that titles stay aligned. Refer to docs/spec.md, section 3.4.
 -->
 <script lang="ts">
 	import { scale } from 'svelte/transition';
@@ -12,29 +13,39 @@
 		count: number;
 		/** Static output for print: no transition, no animation. */
 		still?: boolean;
+		/** Keep the slot when the light is off, so that the next element does not move. */
+		reserve?: boolean;
 	}
 
-	let { count, still = false }: Props = $props();
+	let { count, still = false, reserve = false }: Props = $props();
 	const label = $derived(m.ready_label({ count }));
 </script>
 
-{#if count > 0}
-	{#if still}
-		<span
-			class="ready-dot inline-block size-2 shrink-0 rounded-full bg-[#2E9D5B]"
-			role="img"
-			aria-label={label}
-		></span>
-	{:else}
-		<span
-			class="ready-dot inline-block size-2 shrink-0 rounded-full bg-ready motion-safe:animate-[ready-pulse_900ms_ease-out_1]"
-			role="img"
-			aria-label={label}
-			title={label}
-			transition:scale={{ duration: motionDuration(220), start: 0.3 }}
-			data-testid="ready-dot"
-		></span>
+{#snippet light()}
+	{#if count > 0}
+		{#if still}
+			<span
+				class="ready-dot inline-block size-2 shrink-0 rounded-full bg-[#2E9D5B]"
+				role="img"
+				aria-label={label}
+			></span>
+		{:else}
+			<span
+				class="ready-dot inline-block size-2 shrink-0 rounded-full bg-ready motion-safe:animate-[ready-pulse_900ms_ease-out_1]"
+				role="img"
+				aria-label={label}
+				title={label}
+				transition:scale={{ duration: motionDuration(220), start: 0.3 }}
+				data-testid="ready-dot"
+			></span>
+		{/if}
 	{/if}
+{/snippet}
+
+{#if reserve}
+	<span class="flex size-2 shrink-0">{@render light()}</span>
+{:else}
+	{@render light()}
 {/if}
 
 <style>

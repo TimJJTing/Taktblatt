@@ -44,6 +44,25 @@ test.describe('work plan', () => {
 		await expect(harvest.getByTestId('ready-dot')).toBeVisible();
 	});
 
+	test('the ready light does not move the title', async ({ page }) => {
+		await openExample(page);
+		const harvest = row(page, 'First harvest');
+		const label = page.getByTestId('gantt-label').filter({ hasText: 'First harvest' });
+		const left = async () => {
+			const [title, gantt] = await Promise.all([
+				harvest.getByTestId('task-title').boundingBox(),
+				label.boundingBox()
+			]);
+			return [Math.round(title!.x), Math.round(gantt!.x)];
+		};
+		await expect(harvest.getByTestId('ready-dot')).toHaveCount(0);
+		const before = await left();
+		await row(page, 'Sowing').getByTestId('task-done').click();
+		await expect(harvest.getByTestId('ready-dot')).toHaveCount(1);
+		// Read both positions in one snapshot. Retry them together.
+		await expect.poll(left).toEqual(before);
+	});
+
 	test('a subtask can be added, and the parent shows derived values', async ({ page }) => {
 		await openExample(page);
 		const first = stage(page, 0);

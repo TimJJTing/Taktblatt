@@ -171,8 +171,9 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
   - All effective dependencies are done. For a parent dependency, the app uses its derived `done`.
   - The task is not done.
 - The planned `start` date has no effect on the ready light.
-- When the ready light is off, the app renders nothing. It does not keep empty space.
 - The ready light shows before the title in the table, before the Gantt label, in the task dialog and on the sheets.
+- In the table, the Gantt labels and the sheets, the ready light has a fixed slot before the title. When the light is off, the slot stays empty. Thus the first letters of the titles at the same level stay aligned, and a title does not move when the light comes on.
+- In the task dialog, the app renders nothing when the ready light is off.
 - It has a tooltip and an `aria-label`, for example "Ready: all 3 dependencies done".
 - When it comes on, it fades in with one soft pulse.
 
