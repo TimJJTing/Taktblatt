@@ -1,74 +1,103 @@
 /**
  * A change of the UI language reloads the page. The reload drops the undo history and the
- * text that is not committed. This state asks the person first when something would be lost.
+ * drafts of open dialogs. This state asks the person first when something would be lost.
  * Refer to ADR 9.
  */
 import { getContext, setContext } from 'svelte';
 import { isTextEditing } from '#lib/browser/keyboard.js';
-import type { Locale } from '#lib/domain/locale.js';
-import { getLocale, overwriteGetLocale, setLocale } from '#lib/paraglide/runtime.js';
+import { getLocale, overwriteGetLocale, setLocale, type Locale } from '#lib/paraglide/runtime.js';
 import type { Workspace } from './workspace.svelte.js';
 
 export interface WorkAtRisk {
 	canUndo: boolean;
 	canRedo: boolean;
-	/** A text field has the focus. Its text is not committed yet. */
-	editingText: boolean;
-	/** A dialog is open. It can hold a draft. */
+	/** A dialog with a draft is open. The print preview is not such a dialog. */
 	dialogOpen: boolean;
 }
 
 /** Returns true when a reload would drop something. */
 export function losesWork(risk: WorkAtRisk): boolean {
-	return risk.canUndo || risk.canRedo || risk.editingText || risk.dialogOpen;
+	return risk.canUndo || risk.canRedo || risk.dialogOpen;
 }
 
-export type PendingLanguage = { kind: 'switch'; locale: Locale } | { kind: 'other-tab' };
+/** The parts that tests replace. */
+export interface LanguageReloadEnv {
+	reload: () => void;
+	setLocale: (locale: Locale) => void;
+}
+
+const browserEnv: LanguageReloadEnv = {
+	reload: () => location.reload(),
+	setLocale: (locale) => void setLocale(locale)
+};
 
 export class LanguageReload {
-	/** The question that waits for an answer. The dialog shows it. */
-	pending = $state<PendingLanguage | null>(null);
-	/** The language that this page shows. Paraglide reads the saved language on each call. */
+	/** True while the question shows. */
+	open = $state(false);
+	/** The wording of the question. It stays when the question closes, for the exit animation. */
+	kind = $state<'switch' | 'other-tab'>('switch');
+	private target: Locale | null = null;
+	/** The language that this page shows until the next reload. */
 	private readonly shown = getLocale();
 
-	constructor(private readonly ws: Workspace) {}
+	constructor(
+		private readonly ws: Workspace,
+		private readonly preview: { open: boolean },
+		private readonly env: LanguageReloadEnv = browserEnv
+	) {
+		// Paraglide reads the saved language on each call. Pin it, so a change in another tab
+		// cannot mix two languages in this page (later dialogs, the print sheets).
+		overwriteGetLocale(() => this.shown);
+	}
 
 	private atRisk(): boolean {
 		return losesWork({
 			canUndo: this.ws.history.canUndo,
 			canRedo: this.ws.history.canRedo,
-			editingText: isTextEditing(document.activeElement),
-			dialogOpen: document.querySelector('[role="dialog"]') !== null
+			dialogOpen: !this.preview.open && document.querySelector('[role="dialog"]') !== null
 		});
 	}
 
 	/** The person chose a language in the menu. */
 	choose(locale: Locale): void {
-		if (locale === getLocale()) return;
-		if (this.atRisk()) this.pending = { kind: 'switch', locale };
-		else setLocale(locale);
-	}
-
-	/** Another tab saved a new language. */
-	changedInOtherTab(): void {
-		if (!this.atRisk()) {
-			location.reload();
+		// The same language: save it again, in case another tab saved a different one. No reload.
+		if (locale === this.shown) {
+			this.env.setLocale(locale);
 			return;
 		}
-		// Keep this page in its language until the reload. Later dialogs and sheets use it too.
-		overwriteGetLocale(() => this.shown);
-		this.pending = { kind: 'other-tab' };
+		if (this.atRisk()) {
+			this.kind = 'switch';
+			this.target = locale;
+			this.open = true;
+		} else this.env.setLocale(locale);
+	}
+
+	/** Another tab saved a language (`newValue` is null when it removed the key). */
+	changedInOtherTab(newValue: string | null): void {
+		if (newValue === null || newValue === this.shown) {
+			// The change went back. A question about it is obsolete.
+			if (this.kind === 'other-tab') this.open = false;
+			return;
+		}
+		// A text field that has the focus commits on blur. Then the history shows the change.
+		const active = document.activeElement;
+		if (active instanceof HTMLElement && isTextEditing(active)) active.blur();
+		if (!this.atRisk()) {
+			this.env.reload();
+			return;
+		}
+		this.kind = 'other-tab';
+		this.open = true;
 	}
 
 	confirm(): void {
-		const pending = this.pending;
-		this.pending = null;
-		if (pending?.kind === 'switch') setLocale(pending.locale);
-		else if (pending) location.reload();
+		this.open = false;
+		if (this.kind === 'switch' && this.target) this.env.setLocale(this.target);
+		else if (this.kind === 'other-tab') this.env.reload();
 	}
 
 	cancel(): void {
-		this.pending = null;
+		this.open = false;
 	}
 }
 

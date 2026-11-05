@@ -225,7 +225,7 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 - The app keeps one undo history in memory for the active plan. The history keeps 50 steps.
 - One commit is one step: a blur, Enter, a checkbox, a picker, a dialog action, a move.
 - **Cmd/Ctrl+Z** undoes. **Shift+Cmd/Ctrl+Z** and **Ctrl+Y** redo.
-- The app clears the history when you switch to a different plan, when another browser tab changes the active plan, after an import, and when you reload the page.
+- The app clears the history when you switch to a different plan, when another browser tab changes the active plan, after an import, when you change the UI language (the page reloads, see section 6), and when you reload the page.
 
 ### 4.6 Import and export
 
@@ -355,8 +355,8 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - There is one language: the UI language. It controls the texts, the date formats and the printed labels (for example "Objective:", "Timeline", the column titles). A plan has no language setting.
 - Plan files are language-neutral. Dates are stored as ISO `YYYY-MM-DD`. The app formats them with the UI language when it shows or prints them. The same file shows and prints in German for a German UI and in Japanese for a Japanese UI.
 - An old file or stored plan can still have a `locale` key. The app ignores the key and does not write it again.
-- A change of the UI language reloads the page, also in other open tabs. The reload clears the undo history (section 4.5) and drops text that is not committed.
-- When a reload would drop something (undo or redo history, a focused text field or an open dialog), the app asks first in a modal. **Cancel** keeps the language. In another tab, the modal says that the language changed there. **Not now** keeps that tab in its current language until it reloads. When nothing would be dropped, the language changes at once.
+- A change of the UI language reloads the page, also in other open tabs. The reload clears the undo history (section 4.5) and drops the draft of an open dialog.
+- When a reload would drop something (undo or redo history, or an open dialog with a draft), the app asks first in a dialog. **Cancel** keeps the language. In another tab, the dialog says that the language changed there. **Not now** (or **Esc**) keeps that tab in its current language until it reloads. A text field with the focus commits first. The print preview is not a draft. If the other tab changes back to the language of this tab, the question closes without a reload. When nothing would be dropped, the language changes at once.
 - Supported languages: English (`en`), German (`de`), Traditional Chinese (`zh-TW`), Japanese (`ja`).
 - English is the source. A missing key falls back to English.
 - The `de`, `zh-TW` and `ja` texts are machine drafts. A native speaker must review them.

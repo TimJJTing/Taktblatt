@@ -23,10 +23,10 @@
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
 
 	const ws = setWorkspace(new Workspace(localStorage));
-	const languageReload = setLanguageReload(new LanguageReload(ws));
 	setViewer(new ViewerState(localStorage));
 	setEditing(new EditingState());
 	const preview = setPreview(new PreviewState());
+	const languageReload = setLanguageReload(new LanguageReload(ws, preview));
 
 	const title = $derived(ws.plan.heading.trim() || m.untitled_plan());
 
@@ -60,7 +60,7 @@
 		if (event.storageArea !== localStorage) return;
 		// Another tab changed the UI language. This tab must reload, so it does not mix two languages.
 		if (event.key === localStorageKey) {
-			languageReload.changedInOtherTab();
+			languageReload.changedInOtherTab(event.newValue);
 			return;
 		}
 		ws.handleStorageEvent(event);

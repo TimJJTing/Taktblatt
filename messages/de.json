@@ -219,11 +219,11 @@
 	"import_date_warnings": "Abhängigkeiten, die die Datumsregel verletzen: {count}. Öffnen Sie eine Aufgabe, um die Warnung zu sehen.",
 	"import_error_storage": "Der Browser-Speicher ist voll. Die App hat keine Daten geändert. Löschen Sie Pläne, die Sie nicht brauchen, und versuchen Sie es erneut.",
 	"import_error_read": "Die App kann diese Datei nicht lesen. Die App hat keine Daten geändert.",
-	"language_switch_title": "Sprache wechseln und neu laden?",
-	"language_switch_body": "Die App lädt neu, um die Sprache zu wechseln. Der Rückgängig-Verlauf und alle nicht gespeicherten Änderungen gehen verloren.",
-	"language_switch_confirm": "Wechseln und neu laden",
-	"language_other_tab_title": "Sprache in einem anderen Tab geändert",
-	"language_other_tab_body": "Ein anderer Tab hat die Sprache geändert. Neu laden, um sie zu übernehmen? Der Rückgängig-Verlauf und alle nicht gespeicherten Änderungen in diesem Tab gehen verloren.",
-	"language_other_tab_confirm": "Neu laden",
-	"language_other_tab_cancel": "Jetzt nicht"
+	"ui_language_reload_title": "Sprache wechseln und neu laden?",
+	"ui_language_reload_body": "Die App lädt neu, um die Sprache zu wechseln. Der Verlauf zum Rückgängigmachen und alle nicht gespeicherten Änderungen gehen verloren.",
+	"ui_language_reload_confirm": "Wechseln und neu laden",
+	"ui_language_other_tab_title": "Sprache in einem anderen Tab geändert",
+	"ui_language_other_tab_body": "Ein anderer Tab hat die Sprache geändert. Neu laden, um sie zu übernehmen? Der Verlauf zum Rückgängigmachen und alle nicht gespeicherten Änderungen in diesem Tab gehen verloren. Bei „Jetzt nicht“ behält dieser Tab seine Sprache, bis er neu lädt.",
+	"ui_language_other_tab_reload": "Neu laden",
+	"ui_language_other_tab_later": "Jetzt nicht"
 }

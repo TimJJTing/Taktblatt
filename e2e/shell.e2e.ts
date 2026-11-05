@@ -164,6 +164,52 @@ test.describe('a language change in another tab', () => {
 		await expect(b.getByTestId('sheet').first()).toContainText('Timeline');
 	});
 
+	test('Esc on the question is "Not now"', async ({ context }) => {
+		const a = await context.newPage();
+		const b = await context.newPage();
+		await a.goto('/');
+		await b.goto('/');
+		await editHeading(b, 'Garden');
+		await pickGerman(a);
+		await expect(dialog(b)).toBeVisible();
+		await b.keyboard.press('Escape');
+		await expect(dialog(b)).toHaveCount(0);
+		await expect(b.locator('html')).toHaveAttribute('lang', 'en');
+	});
+
+	test('the question closes when the other tab goes back to this language', async ({ context }) => {
+		const a = await context.newPage();
+		const b = await context.newPage();
+		await a.goto('/');
+		await b.goto('/');
+		await editHeading(b, 'Garden');
+		await pickGerman(a);
+		await expect(dialog(b)).toBeVisible();
+		await a.getByRole('button', { name: 'Sprache' }).click();
+		await a.getByRole('menuitemradio', { name: 'English' }).click();
+		await expect(a.locator('html')).toHaveAttribute('lang', 'en');
+		await expect(dialog(b)).toHaveCount(0);
+		// Tab B did not reload: its history is still there.
+		await b.locator('body').press('Control+z');
+		await expect(b.getByTestId('plan-heading')).toHaveText('Untitled plan');
+	});
+
+	test('"Not now" keeps the draft of an open dialog', async ({ context }) => {
+		const a = await context.newPage();
+		const b = await context.newPage();
+		await a.goto('/');
+		await b.goto('/');
+		await b.getByRole('button', { name: 'Add milestone', exact: true }).click();
+		await b.getByRole('dialog').getByLabel('Title', { exact: true }).fill('Draft gate');
+		await pickGerman(a);
+		await expect(dialog(b)).toBeVisible();
+		await b.getByTestId('language-reload-cancel').click();
+		await expect(dialog(b)).toHaveCount(0);
+		await expect(b.getByRole('dialog').getByLabel('Title', { exact: true })).toHaveValue(
+			'Draft gate'
+		);
+	});
+
 	test('"Reload" applies the new language', async ({ context }) => {
 		const a = await context.newPage();
 		const b = await context.newPage();

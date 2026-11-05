@@ -219,11 +219,11 @@
 	"import_date_warnings": "Dependencies that break the date rule: {count}. Open a task to see the warning.",
 	"import_error_storage": "The browser storage is full. The app did not change any data. Delete plans that you do not need and try again.",
 	"import_error_read": "The app cannot read this file. The app did not change any data.",
-	"language_switch_title": "Switch language and reload?",
-	"language_switch_body": "The app reloads to change the language. It drops your undo history and any unsaved changes.",
-	"language_switch_confirm": "Switch and reload",
-	"language_other_tab_title": "Language changed in another tab",
-	"language_other_tab_body": "Another tab changed the language. Reload to apply it? The app drops your undo history and any unsaved changes in this tab.",
-	"language_other_tab_confirm": "Reload",
-	"language_other_tab_cancel": "Not now"
+	"ui_language_reload_title": "Switch language and reload?",
+	"ui_language_reload_body": "The app reloads to change the language. It drops your undo history and any unsaved changes.",
+	"ui_language_reload_confirm": "Switch and reload",
+	"ui_language_other_tab_title": "Language changed in another tab",
+	"ui_language_other_tab_body": "Another tab changed the language. Reload to apply it? The app drops your undo history and any unsaved changes in this tab. If you choose Not now, this tab keeps its language until it reloads.",
+	"ui_language_other_tab_reload": "Reload",
+	"ui_language_other_tab_later": "Not now"
 }
