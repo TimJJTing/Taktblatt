@@ -103,7 +103,13 @@
 				aria-label={row.expanded
 					? m.task_collapse({ task: titleText })
 					: m.task_expand({ task: titleText })}
-				onclick={() => viewer.toggleExpanded(ws.plan.id, row.id)}
+				onclick={(event) => {
+					viewer.toggleExpanded(ws.plan.id, row.id);
+					if (event.detail > 0) {
+						event.currentTarget.blur();
+						onHighlight(row.id, false);
+					}
+				}}
 				data-testid="gantt-toggle"
 			>
 				<span

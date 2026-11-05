@@ -254,6 +254,7 @@ The app keeps these settings as `expanded`, `ganttPinned` and `ganttHeight` unde
 - Click a field to edit it. A blur saves. Enter commits a single-line field. Esc cancels.
 - In the table: Tab and Shift+Tab move between cells. Enter commits and moves to the same cell in the next row.
 - A control that shows on hover also shows on `:focus-within`. You can reach it on a touch screen.
+- **Expand and collapse:** a pointer click on a parent chevron in the table or Gantt saves the active field by blur. It changes the shared expand state, clears the linked row highlight, and removes focus from the chevron and table. Enter and Space change the expand state and keep focus on the chevron.
 - Print and preview do not show add, remove and edit controls.
 - **"+" line:** a thin horizontal line with a round "+" button. It shows when you hover over its scope or when its scope has focus. A click adds an empty entry and puts the focus on it.
 

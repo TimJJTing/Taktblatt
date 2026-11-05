@@ -96,7 +96,13 @@
 				aria-label={expanded
 					? m.task_collapse({ task: titleText })
 					: m.task_expand({ task: titleText })}
-				onclick={() => viewer.toggleExpanded(ws.plan.id, task.id)}
+				onclick={(event) => {
+					viewer.toggleExpanded(ws.plan.id, task.id);
+					if (event.detail > 0) {
+						event.currentTarget.blur();
+						editing.highlightId = null;
+					}
+				}}
 				data-testid="task-toggle"
 			>
 				<span
