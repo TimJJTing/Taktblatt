@@ -1,11 +1,11 @@
 <!--
 	The print host. It owns the preview and prints the sheets.
 	Print (Cmd/Ctrl+P or the Print button) always prints the paginated sheets, never the workspace.
-	When the preview is not open, the host renders the sheets on `beforeprint` and removes them on `afterprint`.
+	The Print button and Cmd/Ctrl+P render the sheets first (`PreviewState.print`). `beforeprint` is the
+	fallback for other ways to print. The host removes the sheets on `afterprint`.
 	It sets the page size of the print: `@page { size: <paper>; margin: 0 }`.
 -->
 <script lang="ts">
-	import { flushSync } from 'svelte';
 	import { getPreview } from '#lib/state/preview.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { PAPER } from './print-layout.js';
@@ -20,28 +20,13 @@
 		`<style>@page { size: ${PAPER[ws.plan.paper].css}; margin: 0 }</style>`
 	);
 
+	// Fallback for a print that starts outside the app (browser menu): render in the event.
 	function beforePrint() {
-		// An inline field in edit mode holds the new text in a draft. Blur commits it.
-		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-		flushSync();
-		if (preview.open) return;
-		preview.printing = true;
-		// The browser lays out the page right after this event. Render and measure now.
-		// The first flush renders the hidden blocks. The next flushes measure and render the sheets.
-		flushSync();
-		flushSync();
+		if (!preview.printing) preview.renderSheets();
 	}
 
 	function afterPrint() {
 		preview.printing = false;
-	}
-
-	// Cmd/Ctrl+P takes the same way as the Print button: the sheets render before the print starts.
-	function onKeydown(event: KeyboardEvent) {
-		if (event.key.toLowerCase() !== 'p' || event.shiftKey || event.altKey) return;
-		if (!(event.ctrlKey || event.metaKey)) return;
-		event.preventDefault();
-		preview.print();
 	}
 
 	// Some browsers do not send `afterprint`. The end of the print media is the second signal.
@@ -55,7 +40,7 @@
 	});
 </script>
 
-<svelte:window onbeforeprint={beforePrint} onafterprint={afterPrint} onkeydown={onKeydown} />
+<svelte:window onbeforeprint={beforePrint} onafterprint={afterPrint} />
 
 <svelte:head>
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -67,6 +52,9 @@
 	{#if preview.open}
 		<PreviewDialog />
 	{:else if preview.printing}
-		<Sheets screen={false} />
+		<!-- A render error must not show the error page. A print without sheets is the worst case. -->
+		<svelte:boundary onerror={() => (preview.printing = false)}>
+			<Sheets screen={false} />
+		</svelte:boundary>
 	{/if}
 </div>

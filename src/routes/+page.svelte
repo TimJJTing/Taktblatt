@@ -42,6 +42,12 @@
 			toast.success(m.saved_toast(), { description: m.saved_toast_detail(), id: 'saved' });
 			return;
 		}
+		if (key === 'p' && !event.shiftKey) {
+			// The sheets render first. This follows the same path as the Print button.
+			event.preventDefault();
+			preview.print();
+			return;
+		}
 		if (isTextEditing(event.target)) return;
 		const redo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey);
 		if (redo) {

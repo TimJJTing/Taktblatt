@@ -4,6 +4,7 @@ import { openApp, openExample, row, storedPlan, writeStoredPlan } from './helper
 declare global {
 	interface Window {
 		__printed: number;
+		__printedSheets: number[];
 	}
 }
 
@@ -447,11 +448,53 @@ test('a print dialog that is cancelled leaves the plan on screen without an erro
 	page.on('pageerror', (error) => errors.push(error.message));
 	page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
 	await openExample(page);
-	// No stub: the browser sends the real print events. Headless Chromium returns at once, like a cancel.
+	// No stub: the real print runs. Headless Chromium returns at once, like a cancel. The test sends `afterprint`.
 	await page.getByTestId('print').click();
 	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 	await expect(page.getByTestId('plan-heading')).toBeVisible();
 	await expect(page.getByRole('heading', { name: '500' })).toHaveCount(0);
 	await expect(sheets(page)).toHaveCount(0);
 	expect(errors).toEqual([]);
+});
+
+/** Stubs window.print. It records how many sheets are in the page at the time of the call. */
+async function recordSheetsAtPrint(page: Page) {
+	await page.evaluate(() => {
+		window.__printedSheets = [];
+		window.print = () => {
+			window.__printedSheets.push(document.querySelectorAll('[data-testid="sheet"]').length);
+		};
+	});
+}
+
+test('the sheets are in the page when the Print button opens the print dialog', async ({
+	page
+}) => {
+	await openExample(page);
+	await recordSheetsAtPrint(page);
+	await page.getByTestId('print').click();
+	expect((await page.evaluate(() => window.__printedSheets))[0]).toBeGreaterThan(0);
+});
+
+test('the sheets are in the page when Cmd/Ctrl+P opens the print dialog', async ({ page }) => {
+	await openExample(page);
+	await recordSheetsAtPrint(page);
+	await page.keyboard.press('ControlOrMeta+p');
+	expect((await page.evaluate(() => window.__printedSheets))[0]).toBeGreaterThan(0);
+});
+
+test('a field in edit mode is committed before the sheets render for print', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.objective = '';
+	});
+	await recordSheetsAtPrint(page);
+	await page.getByTestId('plan-objective').click();
+	await page.getByTestId('plan-objective-input').fill('Grow food together.');
+	// The field keeps the focus. Print commits the draft first.
+	await page.keyboard.press('ControlOrMeta+p');
+	const sheetsAtPrint = (await page.evaluate(() => window.__printedSheets))[0];
+	expect(sheetsAtPrint).toBeGreaterThan(0);
+	expect((await storedPlan(page)).objective).toBe('Grow food together.');
+	await expect(sheets(page).first()).toContainText('Grow food together.');
 });

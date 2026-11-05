@@ -18,17 +18,25 @@ export class PreviewState {
 	}
 
 	/**
-	 * Opens the print dialog. The sheets render first, before the browser starts the print.
+	 * Renders and measures the sheets for a print without the preview.
 	 * Chrome does not run the first render of a template inside `beforeprint`: it throws
-	 * ("callback is no longer runnable") and the app shows the error page.
+	 * ("callback is no longer runnable"). So the app calls this before the print starts.
 	 */
+	renderSheets(): void {
+		// An inline field in edit mode holds the new text in a draft. Blur commits it.
+		// This must come first: the commit can render new blocks.
+		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		flushSync();
+		if (this.open) return;
+		this.printing = true;
+		// The first flush renders the hidden blocks. The next flush measures and renders the sheets.
+		flushSync();
+		flushSync();
+	}
+
+	/** Opens the print dialog. The sheets render first. */
 	print(): void {
-		if (!this.open) {
-			this.printing = true;
-			// The first flush renders the hidden blocks. The next flush measures and renders the sheets.
-			flushSync();
-			flushSync();
-		}
+		this.renderSheets();
 		window.print();
 	}
 
