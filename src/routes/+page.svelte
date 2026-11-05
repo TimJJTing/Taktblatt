@@ -3,6 +3,7 @@
 	import { toast } from 'svelte-sonner';
 	import AppHeader from '#lib/components/app/AppHeader.svelte';
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
+	import LanguageReloadDialog from '#lib/components/app/LanguageReloadDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { isModKey, isTextEditing } from '#lib/browser/keyboard.js';
 	import { localStorageKey } from '#lib/paraglide/runtime.js';
@@ -17,10 +18,12 @@
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
 	import { PreviewState, setPreview } from '#lib/state/preview.svelte.js';
+	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.js';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
 
 	const ws = setWorkspace(new Workspace(localStorage));
+	const languageReload = setLanguageReload(new LanguageReload(ws));
 	setViewer(new ViewerState(localStorage));
 	setEditing(new EditingState());
 	const preview = setPreview(new PreviewState());
@@ -55,9 +58,9 @@
 
 	function onStorage(event: StorageEvent) {
 		if (event.storageArea !== localStorage) return;
-		// Another tab changed the UI language. Reload, so this tab does not mix two languages.
+		// Another tab changed the UI language. This tab must reload, so it does not mix two languages.
 		if (event.key === localStorageKey) {
-			location.reload();
+			languageReload.changedInOtherTab();
 			return;
 		}
 		ws.handleStorageEvent(event);
@@ -73,6 +76,7 @@
 <!-- The workspace never prints. Print uses the sheets (PrintHost). The preview makes the workspace inert. -->
 <div data-workspace class="contents" inert={preview.open}>
 	<AppHeader />
+	<LanguageReloadDialog />
 	<DamagedNotice />
 
 	<main class="mx-auto max-w-6xl px-4 py-8 pl-8">

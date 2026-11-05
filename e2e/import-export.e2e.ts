@@ -70,6 +70,8 @@ test.describe('import', () => {
 		const file = await exportedExample(page);
 		await page.getByRole('button', { name: 'Language' }).click();
 		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+		// The plan has history, so the app asks before it reloads.
+		await page.getByTestId('language-reload-confirm').click();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 		// The file comes from a user with another language (Japanese).
 		file.plan.id = 'japanese-plan';

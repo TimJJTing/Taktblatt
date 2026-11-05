@@ -224,6 +224,8 @@ test('the dates follow the UI language when it changes', async ({ page }) => {
 	const milestone = (await storedPlan(page)).milestones[0];
 	await page.getByRole('button', { name: 'Language' }).click();
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	// The plan has history, so the app asks before it reloads.
+	await page.getByTestId('language-reload-confirm').click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	const german = new Intl.DateTimeFormat('de', {
 		year: 'numeric',

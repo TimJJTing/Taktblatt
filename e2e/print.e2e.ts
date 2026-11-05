@@ -342,6 +342,8 @@ test('the sheets of an English plan show German labels and dates in the German U
 	const plan = await storedPlan(page);
 	await page.getByRole('button', { name: 'Language' }).click();
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	// The plan has history, so the app asks before it reloads.
+	await page.getByTestId('language-reload-confirm').click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	await previewButton(page).click();
 	await expect(sheets(page).first()).toBeVisible();

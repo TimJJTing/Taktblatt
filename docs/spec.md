@@ -355,7 +355,8 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - There is one language: the UI language. It controls the texts, the date formats and the printed labels (for example "Objective:", "Timeline", the column titles). A plan has no language setting.
 - Plan files are language-neutral. Dates are stored as ISO `YYYY-MM-DD`. The app formats them with the UI language when it shows or prints them. The same file shows and prints in German for a German UI and in Japanese for a Japanese UI.
 - An old file or stored plan can still have a `locale` key. The app ignores the key and does not write it again.
-- A change of the UI language reloads the page, also in other open tabs. The reload clears the undo history (section 4.5).
+- A change of the UI language reloads the page, also in other open tabs. The reload clears the undo history (section 4.5) and drops text that is not committed.
+- When a reload would drop something (undo or redo history, a focused text field or an open dialog), the app asks first in a modal. **Cancel** keeps the language. In another tab, the modal says that the language changed there. **Not now** keeps that tab in its current language until it reloads. When nothing would be dropped, the language changes at once.
 - Supported languages: English (`en`), German (`de`), Traditional Chinese (`zh-TW`), Japanese (`ja`).
 - English is the source. A missing key falls back to English.
 - The `de`, `zh-TW` and `ja` texts are machine drafts. A native speaker must review them.

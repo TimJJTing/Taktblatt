@@ -87,6 +87,96 @@ test('a chosen language is saved under taktblatt:locale', async ({ page }) => {
 	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 });
 
+const dialog = (page: Page) => page.getByTestId('language-reload-dialog');
+
+/** Makes one undoable edit: renames the plan. */
+async function editHeading(page: Page, text: string) {
+	await page.getByTestId('plan-heading').click();
+	await page.getByTestId('plan-heading-input').fill(text);
+	await page.keyboard.press('Enter');
+	await expect(page.getByTestId('plan-heading')).toHaveText(text);
+}
+
+async function pickGerman(page: Page) {
+	await page.getByRole('button', { name: 'Language' }).click();
+	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+}
+
+test.describe('a language change that would drop work', () => {
+	test('cancel keeps the language, the history and the stored language', async ({ page }) => {
+		await page.goto('/');
+		await editHeading(page, 'Garden');
+		await pickGerman(page);
+		await expect(dialog(page)).toBeVisible();
+		await expect(dialog(page)).toContainText('undo history');
+		await page.getByTestId('language-reload-cancel').click();
+		await expect(dialog(page)).toHaveCount(0);
+		await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+		expect(await stored(page)).toBe('en');
+		// The menu still shows English as the chosen language.
+		await page.getByRole('button', { name: 'Language' }).click();
+		await expect(page.getByRole('menuitemradio', { name: 'English' })).toBeChecked();
+		await page.keyboard.press('Escape');
+		// The edit is still undoable.
+		await page.locator('body').press('Control+z');
+		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
+	});
+
+	test('confirm switches the language', async ({ page }) => {
+		await page.goto('/');
+		await editHeading(page, 'Garden');
+		await pickGerman(page);
+		await page.getByTestId('language-reload-confirm').click();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		expect(await stored(page)).toBe('de');
+		await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
+	});
+
+	test('a fresh app switches at once, without a dialog', async ({ page }) => {
+		await page.goto('/');
+		await pickGerman(page);
+		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+		await expect(dialog(page)).toHaveCount(0);
+	});
+});
+
+test.describe('a language change in another tab', () => {
+	test('a tab with history asks first; "Not now" keeps its language', async ({ context }) => {
+		const a = await context.newPage();
+		const b = await context.newPage();
+		await a.goto('/');
+		await b.goto('/');
+		await editHeading(b, 'Garden');
+		await pickGerman(a);
+		await expect(a.locator('html')).toHaveAttribute('lang', 'de');
+		await expect(dialog(b)).toBeVisible();
+		await expect(dialog(b)).toContainText('Another tab changed the language');
+		await b.getByTestId('language-reload-cancel').click();
+		await expect(dialog(b)).toHaveCount(0);
+		await expect(b.locator('html')).toHaveAttribute('lang', 'en');
+		// A dialog that opens later still uses English.
+		await b.getByTestId('plan-switcher').click();
+		await b.getByRole('menuitem', { name: 'Delete plan…' }).click();
+		await expect(b.getByRole('alertdialog')).toContainText('Delete this plan?');
+		await b.keyboard.press('Escape');
+		await expect(b.getByTestId('preview-open')).toContainText('Preview');
+		await b.getByTestId('preview-open').click();
+		await expect(b.getByTestId('sheet').first()).toContainText('Timeline');
+	});
+
+	test('"Reload" applies the new language', async ({ context }) => {
+		const a = await context.newPage();
+		const b = await context.newPage();
+		await a.goto('/');
+		await b.goto('/');
+		await editHeading(b, 'Garden');
+		await pickGerman(a);
+		await b.getByTestId('language-reload-confirm').click();
+		await expect(b.locator('html')).toHaveAttribute('lang', 'de');
+		await expect(b.getByTestId('plan-heading')).toHaveText('Garden');
+	});
+});
+
 test('another open tab reloads in the new UI language', async ({ context }) => {
 	const first = await context.newPage();
 	const second = await context.newPage();

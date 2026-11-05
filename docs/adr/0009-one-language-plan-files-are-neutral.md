@@ -20,4 +20,5 @@ ADR 5 gave each plan a document language (`locale`). It set the printed labels a
 - The same file shows and prints in the UI language of the person who opens it.
 - A plan written in one language prints with the labels of another UI language. Free text (titles, notes) stays as the author wrote it.
 - Components must not take a language from the plan. They call `uiIntl()` and the message functions without a `locale` option.
-- A change of the UI language reloads the page (Paraglide default), also in other open tabs, so the helpers need no reactive state. The reload clears the undo history.
+- A change of the UI language reloads the page (Paraglide default), also in other open tabs, so the helpers need no reactive state. The reload clears the undo history and drops text that is not committed, so the app asks first (see below).
+- The app asks before the reload when something would be dropped: undo or redo history, a focused text field or an open dialog. In the tab where the person chose the language, Cancel changes nothing. In another tab, "Not now" pins that tab to its current language (`overwriteGetLocale`) until it reloads. When nothing would be dropped, there is no question. The code is in `src/lib/state/language-reload.svelte.ts`.

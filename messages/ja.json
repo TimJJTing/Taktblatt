@@ -218,5 +218,12 @@
 	"import_done_many": "{count} 件の計画をインポートしました",
 	"import_date_warnings": "日付のルールに違反している依存関係：{count} 件。タスクを開くと警告が表示されます。",
 	"import_error_storage": "ブラウザの保存領域がいっぱいです。データは変更されていません。不要な計画を削除してから、もう一度お試しください。",
-	"import_error_read": "このファイルを読み込めません。データは変更されていません。"
+	"import_error_read": "このファイルを読み込めません。データは変更されていません。",
+	"language_switch_title": "言語を切り替えて再読み込みしますか？",
+	"language_switch_body": "言語を切り替えるため、アプリを再読み込みします。元に戻す履歴と未保存の変更は失われます。",
+	"language_switch_confirm": "切り替えて再読み込み",
+	"language_other_tab_title": "言語が別のタブで変更されました",
+	"language_other_tab_body": "別のタブで言語が変更されました。再読み込みして反映しますか？このタブの元に戻す履歴と未保存の変更は失われます。",
+	"language_other_tab_confirm": "再読み込み",
+	"language_other_tab_cancel": "今はしない"
 }
