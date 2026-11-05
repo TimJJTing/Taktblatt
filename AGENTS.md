@@ -11,7 +11,7 @@ Taktblatt is a static, browser-only planner built with Svelte 5, SvelteKit, Type
 - `src/service-worker/`: offline support; `static/`: icons and PWA manifest.
 - `messages/`: translations; `project.inlang/`: Paraglide configuration.
 - `e2e/`: browser tests. Unit tests live beside source files.
-- `docs/`: specification, data model, architecture decisions, and screenshots.
+- `docs/`: specification, data model, architecture decisions, and screenshots. `docs/plans/` contains feature plans with scope and acceptance criteria.
 
 ## Build, Test, and Development Commands
 

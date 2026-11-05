@@ -224,3 +224,20 @@ test('the Settings menu fits a phone header and works after an offline reload', 
 	await expect(page.getByTestId('sheet').first()).toContainText('Zeitachse');
 	await context.setOffline(false);
 });
+
+test('the saved theme applies before the app starts', async ({ page }) => {
+	await page.addInitScript(() => localStorage.setItem('taktblatt:theme', 'dark'));
+	await page.emulateMedia({ colorScheme: 'light' });
+	// Without its scripts, the app does not start. Only the page shell runs.
+	await page.route('**/_app/immutable/**', (route) => route.abort());
+	await page.goto('/');
+	await expectTheme(page, 'dark');
+	await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+	expect(await preference(page)).toBe('dark');
+});
+
+test('the Settings button shows its name in a tooltip', async ({ page }) => {
+	await openApp(page);
+	await settings(page).hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Settings');
+});

@@ -2,7 +2,7 @@
 
 ## Scope and decisions
 
-Use one **Settings** menu in the app header. Remove the separate language button. Use a gear icon for Settings and the existing menu components. Under a **Theme** label, show **Light**, **Dark** and **System** as radio choices. Add a separator, then a **Language** label and the radio choices **English**, **Deutsch**, **繁體中文** and **日本語**. Each group has its own checked value and accessible label. Show the selected theme preference, including **System** when the resolved screen theme is light or dark. Show the language this tab uses. Use an accessible Settings button name and hide decorative icons from assistive technology.
+Use one **Settings** menu in the app header. Remove the separate language button. Use a gear icon for Settings, the existing menu components and the header tooltip. Show a decorative icon before each group label. Under a **Theme** label, show **Light**, **Dark** and **System** as radio choices. Add a separator, then a **Language** label and the radio choices **English**, **Deutsch**, **繁體中文** and **日本語**. Each group has its own checked value and accessible label. Show the selected theme preference, including **System** when the resolved screen theme is light or dark. Show the language this tab uses. Use an accessible Settings button name and hide decorative icons from assistive technology.
 
 Reuse the active `ModeWatcher` and its `setMode` action and `userPrefersMode` state. Set its storage key to `taktblatt:theme`, declared as `KEYS.theme` in `src/lib/state/storage.ts`. Save the plain values `light`, `dark` and `system`. Missing or invalid values use `system`. Do not add a second theme store.
 
@@ -12,11 +12,11 @@ Move the language choices into Settings without changing the existing language a
 
 Keep Preview sheets and printed sheets light. Preview dialog controls use the screen theme. Keep the existing light and dark tokens. Add translated labels to all four message files and regenerate Paraglide output. Plan files, backup files and stored plan data do not include the preference. No project schema change is needed.
 
-Replace the two media-filtered theme-color tags in `src/app.html` with the existing ModeWatcher's `themeColors` mapping. Use the current light and dark theme-color values. Browser and PWA chrome must follow the resolved theme, including an explicit override of the system theme.
+Replace the two media-filtered theme-color tags in `src/app.html` with one tag. A startup script in `src/app.html` sets the saved theme and this tag before the first paint, because the app starts on the client only. `src/hooks.server.ts` writes the script from `src/lib/theme.ts` into the prerendered shell. After the start, the layout keeps the tag current from the ModeWatcher mode. Do not give ModeWatcher `themeColors`, because it adds a second tag. Use the current light and dark theme-color values. Browser and PWA chrome must follow the resolved theme, including an explicit override of the system theme.
 
 ## Acceptance criteria
 
-1. **Menu and accessibility.** The header has one gear Settings button and no separate language button. Settings has an accessible name. Its labeled Theme group has exactly the three translated radio choices. A separator comes before its labeled Language group, with exactly the four language choices in the specified order. Each group has one checked item. Keyboard users can open the menu, select choices in either group and close it. Decorative icons have `aria-hidden="true"`.
+1. **Menu and accessibility.** The header has one gear Settings button and no separate language button. Settings has an accessible name and a tooltip. Its labeled Theme group has exactly the three translated radio choices. A separator comes before its labeled Language group, with exactly the four language choices in the specified order. Each group has one checked item. Keyboard users can open the menu, select choices in either group and close it. Decorative icons have `aria-hidden="true"`.
 2. **Explicit choices.** On a light system, **Dark** applies the dark theme. On a dark system, **Light** applies the light theme. Later system changes do not override these choices.
 3. **System choice.** With no saved preference, the app follows the system. **System** follows later system changes in the open app. The menu keeps this preference checked for both resolved themes. An invalid stored preference gives this default.
 4. **Persistence.** Each choice saves the corresponding value under `taktblatt:theme`. Reload restores it. A theme selection does not reload the app, change the stored plan or clear Undo and Redo. The preference is not in exported plan files or backup files. Import keeps the preference.
@@ -31,26 +31,6 @@ Replace the two media-filtered theme-color tags in `src/app.html` with the exist
 
 1. Have an independent plan verifier check these requirements and the implementation approach. Resolve material gaps before production changes.
 2. Assign behavior tests to a testcase implementer. Reuse `e2e/helpers.ts` for shared setup and interactions. Test the preferences through the app, browser color-scheme emulation and localStorage. Add tests for system changes, explicit overrides, reload, checked values, keyboard input, plan and history preservation, and light paper output. Add tests for the two labeled groups, removal of the separate language button, localized Settings after reload, independent group selection, language confirmation and cancellation, focus return, and changes from another tab. Extend existing offline coverage for both preferences and localized Preview labels. Confirm that the new tests fail for the expected missing behavior before production changes.
-3. Assign production changes to a separate code implementer. Add the localized Settings menu and its Theme and Language groups. Remove the separate header language control. Route language selection through the existing language reload state. Close Settings before a possible confirmation and return focus to its trigger on cancel. Keep the existing ModeWatcher, namespaced key and `themeColors` mapping. Preserve the screen tokens and the separate paper tokens. Keep language storage, schema, draft protection and cross-tab behavior.
+3. Assign production changes to a separate code implementer. Add the localized Settings menu and its Theme and Language groups. Remove the separate header language control. Route language selection through the existing language reload state. Close Settings before a possible confirmation and return focus to its trigger on cancel. Keep the existing ModeWatcher and namespaced key. Apply the saved theme and the one theme-color tag before the first paint with the startup script, and keep the tag current from the layout. Preserve the screen tokens and the separate paper tokens. Keep language storage, schema, draft protection and cross-tab behavior.
 4. Make the behavior tests pass. Have an independent reviewer check the change. Have an independent verifier run `pnpm lint`, `pnpm check` and `pnpm test`. Compare results with the acceptance criteria.
 5. Use the Playwright agent CLI for interactive checks. Check the rendered desktop and phone layouts, the Preview dialog, printed sheets and installed PWA, including offline use. Record validation results, unavailable modes and screenshots for the UI change.
-
-## Validation results
-
-The combined Settings menu passed the following checks:
-
-- Before the language move, the new menu test failed because the separate Language button was still present.
-- `pnpm lint` and `pnpm check` passed. The check reported no errors or warnings.
-- All 303 unit tests and all 148 Chromium browser tests passed with a fresh production build.
-- The browser tests checked both labeled groups, independent checked values, keyboard selection, language persistence, confirmation, cancellation, focus return, history and draft protection, and changes from another tab. Offline tests checked language selection, reload and localized Settings and Preview. Theme, print and PDF checks also passed.
-- Interactive Playwright CLI checks covered the combined menu at 360 px in light and dark modes, Japanese labels after a language reload, and light Preview sheets with dark dialog controls. Screenshots are in `.playwright-cli/`.
-- A native installed PWA was not available in the headless browser session. Native window layout and operating-system chrome remain unchecked. Offline service-worker checks passed.
-
-The following results record the earlier theme selector validation:
-
-- Before implementation, all seven new browser tests failed because the Settings button did not exist.
-- `pnpm lint` and `pnpm check` passed. The check reported no errors or warnings.
-- All 303 unit tests passed. The full browser suite passed 145 tests. One existing Gantt focus and highlight test failed. That test passed in an isolated rerun. After the final menu width change, all seven theme tests and the Gantt test passed together.
-- The theme tests checked system changes, explicit overrides, saved choices, reloads, invalid values, keyboard input, unchanged plan data and undo history, and updates in another tab. They also checked theme-color metadata, the 360 px header, offline reload and interaction, light Preview and print sheets, and PDF page count.
-- Interactive Playwright CLI checks covered the phone Settings menu and the desktop Preview dialog in dark mode. The menu labels fit on one line. Preview sheets stayed light. Screenshots are in the ignored `.playwright-cli/` directory.
-- A native installed PWA was not available in the headless browser session. Native window layout and operating-system chrome remain unchecked. The offline service-worker checks passed.

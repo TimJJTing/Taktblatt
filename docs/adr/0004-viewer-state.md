@@ -10,6 +10,8 @@ Some settings are personal: the expanded tasks, the pinned Gantt, its height, th
 
 - These settings are **viewer state**. The app keeps the UI language under `taktblatt:locale` and the screen theme under `taktblatt:theme`. It keeps the other viewer settings (`expanded`, `ganttPinned` and `ganttHeight`) under `taktblatt:ui`.
 - The existing ModeWatcher applies and saves the screen theme. The Settings menu uses its state and actions.
+- The app starts on the client only. ModeWatcher cannot apply the saved theme before the first paint. A startup script in `src/app.html` does this. `src/hooks.server.ts` writes the script into the prerendered page shell from `src/lib/theme.ts`. Thus the storage key and the theme colors have one source.
+- `src/app.html` has the only theme-color tag. The layout keeps it current. ModeWatcher does not get `themeColors`, because it would add a second tag after the start.
 - The export does not include viewer state.
 - The Gantt and the table share one expand state for each plan.
 - Print uses the current expand state.

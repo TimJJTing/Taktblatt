@@ -210,7 +210,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 | `taktblatt:plan:<id>`                | One plan, with `schemaVersion`.              |
 | `taktblatt:ui`                       | The **viewer state** (section 4.4).          |
 | `taktblatt:locale`                   | The UI language (part of the viewer state).  |
-| `taktblatt:theme`                    | The screen theme preference.                 |
+| `taktblatt:theme`                    | The screen theme (part of the viewer state). |
 | `taktblatt:damaged:<timestamp>:<id>` | The raw text of damaged data.                |
 
 ### 4.3 Save
@@ -266,6 +266,8 @@ The app keeps the expanded tasks and the Gantt settings as `expanded`, `ganttPin
 - A theme change applies at once. It does not reload the page, change plan data or clear the undo history. The app saves the choice in this browser. It restores the choice after a reload, also offline. An import does not change it.
 - Preview sheets and printed sheets are always light. The Preview dialog controls use the screen theme.
 - The browser and PWA theme-color metadata follows the resolved screen theme, including an explicit light or dark choice.
+- A startup script in the page shell applies the saved theme and the theme-color metadata before the first paint. The app does not show the wrong theme while it starts. If the browser blocks storage, the script uses **System**.
+- The Settings button shows its name in a tooltip, as the other header buttons do.
 
 ### 5.2 Edit fields
 

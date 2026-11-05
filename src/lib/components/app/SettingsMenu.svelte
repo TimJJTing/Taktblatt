@@ -2,9 +2,11 @@
 	import LanguagesIcon from '@lucide/svelte/icons/languages';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import SunMoonIcon from '@lucide/svelte/icons/sun-moon';
+	import { mergeProps } from 'bits-ui';
 	import { setMode, userPrefersMode } from 'mode-watcher';
-	import { buttonVariants } from '#lib/components/ui/button/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, locales, type Locale } from '#lib/paraglide/runtime.js';
 	import { getLanguageReload } from '#lib/state/language-reload.svelte.js';
@@ -32,14 +34,26 @@
 </script>
 
 <DropdownMenu.Root bind:open={menuOpen}>
-	<DropdownMenu.Trigger
-		class={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
-		aria-label={m.settings()}
-		title={m.settings()}
-		data-testid="settings-menu"
-	>
-		<SettingsIcon aria-hidden="true" />
-	</DropdownMenu.Trigger>
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props: tooltipProps })}
+				<DropdownMenu.Trigger>
+					{#snippet child({ props: menuProps })}
+						<Button
+							{...mergeProps(tooltipProps, menuProps)}
+							variant="ghost"
+							size="icon-sm"
+							aria-label={m.settings()}
+							data-testid="settings-menu"
+						>
+							<SettingsIcon aria-hidden="true" />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content>{m.settings()}</Tooltip.Content>
+	</Tooltip.Root>
 	<DropdownMenu.Content align="end" class="min-w-44">
 		<DropdownMenu.Label class="flex items-center gap-1.5">
 			<SunMoonIcon class="size-3.5" aria-hidden="true" />
