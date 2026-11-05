@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /** Opens the app and waits until the SPA has mounted. */
 export async function openApp(page: Page): Promise<void> {
@@ -46,6 +46,23 @@ export async function writeStoredPlan(
 }
 
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
+
+/** Scrolls a sticky band below the app header and checks their current positions together. */
+export async function expectStickyBelowHeader(band: Locator): Promise<void> {
+	await band.evaluate((element) => {
+		const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+		// Put the natural place of the band 25 px above the bottom of the app header.
+		window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - header.bottom + 25);
+	});
+	await expect
+		.poll(() =>
+			band.evaluate((element) => {
+				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+				return Math.abs(element.getBoundingClientRect().top - header.bottom);
+			})
+		)
+		.toBeLessThanOrEqual(1);
+}
 
 /** Finds a row by the exact text of its title cell. */
 export const row = (page: Page, title: string) =>

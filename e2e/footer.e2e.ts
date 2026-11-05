@@ -3,6 +3,7 @@ import { formatted, openApp, storedPlan } from './helpers';
 
 test.describe('footer', () => {
 	test('fields edit, the date picker has a Today button, and values persist', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2030-01-02T00:30:00Z'));
 		await openApp(page);
 		for (const [id, text] of [
 			['footer-note', 'Draft for review'],
@@ -15,11 +16,13 @@ test.describe('footer', () => {
 			await expect(page.getByTestId(id)).toHaveText(text);
 		}
 
+		const iso = await page.evaluate(() => {
+			const today = new Date();
+			return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		});
 		await page.getByTestId('footer-date').click();
 		await page.getByTestId('date-today').click();
 		await page.getByRole('button', { name: 'Done', exact: true }).click();
-		const today = new Date();
-		const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 		await expect.poll(async () => (await storedPlan(page)).footer.date).toBe(iso);
 		await expect(page.getByTestId('footer-date')).toHaveText(formatted(iso));
 

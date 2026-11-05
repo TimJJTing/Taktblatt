@@ -115,29 +115,55 @@ test('the sheet count is stable and the sheets have no controls', async ({ page 
 
 test('the paper size changes the sheet size, is one undo step, and persists', async ({ page }) => {
 	await openExample(page);
-	await openPreview(page);
+	await page.reload();
+	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+	const undo = page.getByRole('button', { name: 'Undo', exact: true });
+	const redo = page.getByRole('button', { name: 'Redo', exact: true });
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeDisabled();
 	const size = async () => {
 		const box = await sheets(page).first().boundingBox();
 		return { width: Math.round(box!.width), height: Math.round(box!.height) };
 	};
-	const a4 = await size();
-	expect(a4.width).toBe(794);
-	expect(a4.height).toBe(1123);
-	await expect(page.getByTestId('paper-a4')).toHaveAttribute('aria-checked', 'true');
+	const assertPaper = async (paper: 'a4' | 'letter') => {
+		await expect(page.getByTestId('paper-a4')).toHaveAttribute(
+			'aria-checked',
+			String(paper === 'a4')
+		);
+		await expect(page.getByTestId('paper-letter')).toHaveAttribute(
+			'aria-checked',
+			String(paper === 'letter')
+		);
+		await expect
+			.poll(size)
+			.toEqual(paper === 'a4' ? { width: 794, height: 1123 } : { width: 816, height: 1056 });
+		await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', paper);
+		await expect.poll(async () => (await storedPlan(page)).paper).toBe(paper);
+	};
+	await openPreview(page);
+	await assertPaper('a4');
 
 	await page.getByTestId('paper-letter').click();
-	await expect(page.getByTestId('paper-letter')).toHaveAttribute('aria-checked', 'true');
-	await expect.poll(size).toEqual({ width: 816, height: 1056 });
-	await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', 'letter');
-	await expect.poll(async () => (await storedPlan(page)).paper).toBe('letter');
+	await assertPaper('letter');
 	// The page number still matches the sheet count at the new size.
 	const count = await sheets(page).count();
 	await expect(sheets(page).last().getByTestId('page-number')).toHaveText(`${count} / ${count}`);
 
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+	await assertPaper('a4');
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('preview')).toHaveCount(0);
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeEnabled();
+	await redo.click();
+	await expect(undo).toBeEnabled();
+	await expect(redo).toBeDisabled();
+	await openPreview(page);
+	await assertPaper('letter');
+
 	await page.reload();
-	await previewButton(page).click();
-	await expect(page.getByTestId('paper-letter')).toHaveAttribute('aria-checked', 'true');
-	await expect.poll(size).toEqual({ width: 816, height: 1056 });
+	await openPreview(page);
+	await assertPaper('letter');
 });
 
 test('expanding a parent adds rows to the preview', async ({ page }) => {

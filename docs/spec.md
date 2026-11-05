@@ -405,6 +405,9 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - TypeScript strict mode. ESLint. Prettier.
 - Vitest unit tests in two projects. The `server` project runs the `*.spec.ts` files in Node. It covers the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import, pagination. The `client` project runs the `*.svelte.spec.ts` files in Chromium. It covers the store, commands and undo history.
 - Playwright end-to-end tests in `e2e/` for the main flows, the offline app (PWA) and the pagination of the sheets.
+- Calendar date-change tests select a date that differs from the initial date.
+- Local-date expectations use the browser date. Tests read animated geometry in one snapshot and retry all related checks together.
+- History tests check Undo and Redo from an empty history. Popover tests wait for focus and animation completion. Scroll tests monitor the full interaction, including temporary changes.
 - GitHub Actions run `pnpm lint`, `pnpm check`, the unit tests and the end-to-end tests on each pull request and on each push to `main`. If a run fails, the workflow keeps the Playwright results for 7 days.
 - Dependabot updates `npm` and `github-actions` every week. Dependabot groups minor and patch updates. Major updates have separate pull requests.
 - License: MIT.
