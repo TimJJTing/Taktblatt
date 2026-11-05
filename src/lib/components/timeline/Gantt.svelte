@@ -8,7 +8,7 @@
 	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { appHeader } from '#lib/components/app/app-layout.svelte.js';
+	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.js';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
 	import { todayISO } from '#lib/domain/date.js';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
@@ -42,11 +42,10 @@
 	interface Props {
 		onBand: (band: Band) => void;
 		onMilestone: (milestone: Milestone) => void;
-		pinnedOffset: number;
-		sectionScroller: HTMLDivElement | null;
+		onReveal: (row: { top: number; bottom: number }) => void;
 	}
 
-	let { onBand, onMilestone, pinnedOffset, sectionScroller }: Props = $props();
+	let { onBand, onMilestone, onReveal }: Props = $props();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -144,18 +143,7 @@
 		if (moved !== 0) scroller.scrollTo({ top: next, behavior });
 
 		// At a small section height, the body can clip the chart. Reveal the row in both views.
-		if (sectionScroller) {
-			const body = sectionScroller.getBoundingClientRect();
-			const rowTop = rect.top - moved;
-			const rowBottom = rect.bottom - moved;
-			const bodyDelta =
-				rowTop < body.top
-					? rowTop - body.top
-					: rowBottom > body.bottom
-						? rowBottom - body.bottom
-						: 0;
-			if (bodyDelta !== 0) sectionScroller.scrollBy({ top: bodyDelta, behavior });
-		}
+		onReveal({ top: rect.top - moved, bottom: rect.bottom - moved });
 	}
 
 	/** Scrolls to the table row of the task and flashes it one time. */
@@ -166,7 +154,7 @@
 		if (viewer.ganttPinned) {
 			// The same offset as the scroll-mt-anchor class: header, pinned section and 1rem.
 			const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-			const offset = headerHeight + pinnedOffset + rem;
+			const offset = headerHeight + pinnedTimeline.height + rem;
 			window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - offset, behavior });
 		} else {
 			row.scrollIntoView({ block: 'center', behavior });

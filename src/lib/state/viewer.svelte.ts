@@ -5,14 +5,14 @@
  */
 import { getContext, setContext } from 'svelte';
 import * as v from 'valibot';
-import { KEYS } from './storage';
+import { KEYS } from '#lib/state/storage.js';
 
 export const GANTT_HEIGHT = { default: 0.35, max: 0.5, minPx: 120 } as const;
 
 const ViewerSchema = v.object({
 	expanded: v.optional(v.record(v.string(), v.array(v.string())), {}),
 	ganttPinned: v.optional(v.boolean(), false),
-	timelineLegendsCollapsed: v.optional(v.boolean(), false),
+	timelineLegendsCollapsed: v.optional(v.boolean()),
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
 		GANTT_HEIGHT.default
@@ -30,18 +30,18 @@ export class ViewerState {
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
 
 	constructor(private readonly storage: Storage) {
-		const raw = storage.getItem(KEYS.viewer);
 		let data: ViewerData = v.parse(ViewerSchema, {});
-		if (raw !== null) {
-			try {
+		try {
+			const raw = storage.getItem(KEYS.viewer);
+			if (raw !== null) {
 				data = v.parse(ViewerSchema, JSON.parse(raw));
-			} catch {
-				// Viewer state is not important. Use the defaults.
 			}
+		} catch {
+			// Viewer state is not important. Use the defaults.
 		}
 		this.expanded = data.expanded;
 		this.ganttPinned = data.ganttPinned;
-		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed;
+		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed ?? data.ganttPinned;
 		this.ganttHeight = data.ganttHeight;
 	}
 

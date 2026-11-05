@@ -173,6 +173,8 @@
 	"gantt_outside_after": "After the plan range",
 	"gantt_pin": "Pin timeline",
 	"gantt_resize": "Timeline height",
+	"gantt_shorter": "Make timeline shorter",
+	"gantt_taller": "Make timeline taller",
 	"gantt_bar": "{task}: {dates}",
 	"gantt_done": "done",
 	"gantt_clipped_start": "starts before the plan range",

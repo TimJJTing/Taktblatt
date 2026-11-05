@@ -1,5 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectStickyBelowHeader, openExample, storedPlan } from './helpers';
+import {
+	defaultPanelHeight,
+	expectPanelHeight,
+	expectStickyBelowHeader,
+	expectExampleSheetLegends,
+	openApp,
+	openExample,
+	previewSheetSnapshot,
+	startTimelineFrameMonitor,
+	storedPlan
+} from './helpers';
 
 const toggle = (page: Page) => page.getByTestId('timeline-legends-toggle');
 const legends = (page: Page) => page.getByTestId('timeline-legends');
@@ -70,7 +80,7 @@ test('collapsing the pinned legends gives their space to the chart without an em
 	await openExample(page);
 	await page.getByTestId('gantt-pin').click();
 	const panel = page.getByTestId('timeline-panel');
-	await expect.poll(async () => (await panel.boundingBox())!.height).toBeCloseTo(315, 0);
+	await expectPanelHeight(page, defaultPanelHeight(page));
 	const before = await panel.evaluate((element) => ({
 		height: element.getBoundingClientRect().height,
 		chart: element.querySelector('[data-testid="gantt"]')!.getBoundingClientRect().height
@@ -125,8 +135,18 @@ for (const width of [1280, 390]) {
 			expect(bounds.width).toBe(24);
 			expect(bounds.height).toBe(24);
 			await button.click();
-			await expect(page.getByRole('dialog')).toBeVisible();
+			const dialog = page.getByRole('dialog');
+			await expect(dialog).toBeVisible();
+			await expect
+				.poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+				.toBe(true);
+			await dialog.evaluate(async (element) => {
+				await Promise.all(
+					element.getAnimations({ subtree: true }).map((animation) => animation.finished)
+				);
+			});
 			await page.keyboard.press('Escape');
+			await expect(dialog).toHaveCount(0);
 		}
 	});
 }
@@ -142,7 +162,7 @@ for (const width of [390, 1280, 1920]) {
 		const chartWidth = (await page.getByTestId('gantt').boundingBox())!.width;
 		await page.getByTestId('gantt-pin').click();
 		const panel = page.getByTestId('timeline-panel');
-		await expect.poll(async () => (await panel.boundingBox())!.height).toBeCloseTo(315, 0);
+		await expectPanelHeight(page, defaultPanelHeight(page));
 		await expectFullWidthDivider(page);
 		await expectStickyBelowHeader(panel);
 		await expectFullWidthDivider(page);
@@ -165,9 +185,7 @@ for (const width of [390, 1280, 1920]) {
 			await page.mouse.down();
 			await page.mouse.move(x, bounds.y + 24);
 			await page.mouse.up();
-			await expect
-				.poll(async () => (await panel.boundingBox())!.height)
-				.toBeCloseTo(bounds.height + 24, 0);
+			await expectPanelHeight(page, bounds.height + 24);
 		}
 		await toggle(page).click();
 		await expectFullWidthDivider(page);
@@ -188,20 +206,8 @@ test('legend collapse animates chart space and immediately removes hidden entrie
 	await page.emulateMedia({ reducedMotion: 'no-preference' });
 	await openExample(page);
 	await page.getByTestId('gantt-pin').click();
-	await expect
-		.poll(async () => (await page.getByTestId('timeline-panel').boundingBox())!.height)
-		.toBeCloseTo(315, 0);
-	const monitor = await page.evaluateHandle(() => ({ frames: [] as number[], done: false }));
-	await monitor.evaluate((state) => {
-		const chart = document.querySelector('[data-testid="gantt"]')!;
-		const started = performance.now();
-		const sample = () => {
-			state.frames.push(chart.getBoundingClientRect().height);
-			if (performance.now() - started < 600) requestAnimationFrame(sample);
-			else state.done = true;
-		};
-		sample();
-	});
+	await expectPanelHeight(page, defaultPanelHeight(page));
+	const monitor = await startTimelineFrameMonitor(page);
 	await toggle(page).click();
 	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'false');
 	expect(
@@ -214,11 +220,7 @@ test('legend collapse animates chart space and immediately removes hidden entrie
 				})
 			)
 	).toBe(true);
-	const frames = await monitor.evaluate(async (state) => {
-		while (!state.done) await new Promise(requestAnimationFrame);
-		return state.frames;
-	});
-	await monitor.dispose();
+	const frames = (await monitor.finish()).map((frame) => frame.chart);
 	const first = frames[0];
 	const last = frames.at(-1)!;
 	expect(last - first).toBeGreaterThan(100);
@@ -232,22 +234,43 @@ test('collapsed workspace legends and the divider do not change Preview or print
 	await page.getByTestId('preview-open').click();
 	const sheets = page.getByTestId('sheet');
 	await expect(sheets.first()).toBeVisible();
-	const count = await sheets.count();
-	const content = await sheets.allTextContents();
+	const before = await previewSheetSnapshot(page);
+	await expectExampleSheetLegends(page);
+	await page.emulateMedia({ media: 'print' });
+	await expect.poll(() => previewSheetSnapshot(page)).toEqual(before);
+	await expectExampleSheetLegends(page);
+	await page.emulateMedia({ media: 'screen' });
 	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await toggle(page).click();
 	await page.getByTestId('gantt-pin').click();
 	await page.getByTestId('preview-open').click();
-	await expect(sheets).toHaveCount(count);
-	await expect.poll(() => sheets.allTextContents()).toEqual(content);
-	await expect(sheets.first().getByText('Stages', { exact: true })).toBeVisible();
-	await expect(sheets.first().getByText('Milestones', { exact: true }).last()).toBeVisible();
-	await expect(sheets.first().getByText('Bands', { exact: true })).toBeVisible();
+	await expect.poll(() => previewSheetSnapshot(page)).toEqual(before);
+	await expectExampleSheetLegends(page);
 	await expect(sheets.getByTestId('timeline-legends-toggle')).toHaveCount(0);
 	await expect(sheets.getByRole('separator', { name: 'Timeline height' })).toHaveCount(0);
 	await page.emulateMedia({ media: 'print' });
 	await expect(sheets.first()).toBeVisible();
 	await expect(page.getByTestId('timeline-panel')).toBeHidden();
-	await expect(sheets).toHaveCount(count);
-	await expect.poll(() => sheets.allTextContents()).toEqual(content);
+	await expect.poll(() => previewSheetSnapshot(page)).toEqual(before);
+	await expectExampleSheetLegends(page);
+});
+
+test('older pinned viewer settings start with collapsed legends', async ({ page }) => {
+	await page.addInitScript(() => {
+		if (localStorage.getItem('legacy-viewer-seeded')) return;
+		localStorage.setItem('taktblatt:ui', JSON.stringify({ ganttPinned: true, ganttHeight: 0.42 }));
+		localStorage.setItem('legacy-viewer-seeded', 'true');
+	});
+	await openApp(page);
+	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
+	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'false');
+	await expect(legends(page)).toBeHidden();
+	await expectPanelHeight(page, page.viewportSize()!.height * 0.42);
+	await toggle(page).click();
+	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
+	await page.reload();
+	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
+	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
+	await expect(legends(page)).toBeVisible();
 });

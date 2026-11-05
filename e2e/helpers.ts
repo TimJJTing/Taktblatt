@@ -1,4 +1,177 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+// Read constants without loading Svelte state or its browser-build aliases in Playwright.
+const viewerSource = readFileSync(
+	new URL('../src/lib/state/viewer.svelte.ts', import.meta.url),
+	'utf8'
+);
+const heightSource = viewerSource.match(/export const GANTT_HEIGHT\s*=\s*\{([^}]+)\}/)?.[1];
+function heightConstant(name: string): number {
+	const value = heightSource?.match(new RegExp(String.raw`\b${name}:\s*([\d.]+)`))?.[1];
+	if (!value) throw new Error(`Missing GANTT_HEIGHT.${name}`);
+	return Number(value);
+}
+export const GANTT_HEIGHT = {
+	default: heightConstant('default'),
+	max: heightConstant('max'),
+	minPx: heightConstant('minPx')
+};
+const layoutSource = readFileSync(
+	new URL('../src/lib/components/timeline/gantt-layout.ts', import.meta.url),
+	'utf8'
+);
+const rowMotion = layoutSource.match(/export const ROW_MOTION_MS\s*=\s*(\d+)/)?.[1];
+if (!rowMotion) throw new Error('Missing ROW_MOTION_MS');
+const ROW_MOTION_MS = Number(rowMotion);
+
+/** The default height of the whole pinned section, in pixels. */
+export const defaultPanelHeight = (page: Page) =>
+	page.viewportSize()!.height * GANTT_HEIGHT.default;
+
+/** Waits until the Timeline panel height is the same in two polls, then returns it. */
+export async function settledPanelHeight(page: Page): Promise<number> {
+	const panel = page.getByTestId('timeline-panel');
+	let height = 0;
+	await expect
+		.poll(async () => {
+			const previous = height;
+			height = await panel.evaluate(
+				(element) =>
+					new Promise<number>((resolve) =>
+						requestAnimationFrame(() => resolve(element.getBoundingClientRect().height))
+					)
+			);
+			return height > 0 && height === previous;
+		})
+		.toBe(true);
+	return height;
+}
+
+/** Retries the panel height check until the transition finishes. */
+export async function expectPanelHeight(page: Page, height: number): Promise<void> {
+	await expect
+		.poll(() =>
+			page
+				.getByTestId('timeline-panel')
+				.evaluate((element) => element.getBoundingClientRect().height)
+		)
+		.toBeCloseTo(height, 0);
+}
+
+/** Reads the sheet count and content in the same browser snapshot. */
+export async function previewSheetSnapshot(page: Page) {
+	const sheets = page.getByTestId('sheet');
+	await expect(sheets.first()).toBeVisible();
+	return sheets.evaluateAll((elements) => ({
+		count: elements.length,
+		content: elements.map((element) => element.textContent)
+	}));
+}
+
+/** Checks legend headings and entries in sheets, including print media. */
+export async function expectExampleSheetLegends(page: Page): Promise<void> {
+	const sheets = page.getByTestId('sheet');
+	for (const [name, entry] of [
+		['Stages', 'Prepare'],
+		['Milestones', 'Beds ready'],
+		['Bands', 'Frost risk']
+	]) {
+		await expect(sheets.getByText(name, { exact: true }).last()).toBeVisible();
+		const list = sheets.getByRole('list', { name, exact: true });
+		await expect(list).toBeVisible();
+		await expect(list).toContainText(entry);
+	}
+}
+
+/** Derives a settling window from the effective CSS and chart motion durations. */
+export async function timelineMotionWindow(page: Page): Promise<number> {
+	return page.getByTestId('timeline-panel').evaluate((panel, chartDuration) => {
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return 100;
+		const durations = [panel, ...panel.querySelectorAll('*')].flatMap((element) => {
+			const style = getComputedStyle(element);
+			return [style.transitionDuration, style.animationDuration].flatMap((value) =>
+				value.split(',').map((part) => parseFloat(part) * (part.trim().endsWith('ms') ? 1 : 1000))
+			);
+		});
+		return Math.max(chartDuration, ...durations.filter(Number.isFinite)) + 100;
+	}, ROW_MOTION_MS);
+}
+
+/** Samples all related geometry in each animation frame until the interaction settles. */
+export async function startTimelineFrameMonitor(page: Page) {
+	const windowMs = await timelineMotionWindow(page);
+	const monitor = await page.evaluateHandle(() => {
+		const read = () => {
+			const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
+			const chart = panel.querySelector('[data-testid="gantt"]')!;
+			const legend = panel.querySelector('[data-testid="stage-legend"]')!;
+			const body = panel.querySelector<HTMLElement>('[data-testid="timeline-body"]')!;
+			const scroller = panel.querySelector<HTMLElement>('[data-testid="gantt-scroller"]')!;
+			const bounds = panel.getBoundingClientRect();
+			const slot = panel.parentElement!.getBoundingClientRect();
+			const toggle = panel
+				.querySelector('[data-testid="timeline-legends-toggle"]')!
+				.getBoundingClientRect();
+			return {
+				time: performance.now(),
+				panel: bounds.height,
+				top: bounds.top,
+				chart: chart.getBoundingClientRect().height,
+				legend: legend.getBoundingClientRect().top - bounds.top,
+				slot: slot.height,
+				slotTop: slot.top,
+				fixed: getComputedStyle(panel).position === 'fixed',
+				scrollY: window.scrollY,
+				bodyScroll: body.scrollTop,
+				chartScroll: scroller.scrollTop,
+				legendsX: toggle.x,
+				legendsY: toggle.y - bounds.top,
+				buttons: [
+					...panel.querySelectorAll<HTMLButtonElement>(
+						'button[aria-label="Make timeline shorter"], button[aria-label="Make timeline taller"]'
+					)
+				].map((button) => ({
+					opacity: Number(getComputedStyle(button).opacity),
+					height: button.getBoundingClientRect().height,
+					animations: (() => {
+						let count = 0;
+						for (
+							let node: HTMLElement | null = button;
+							node && node !== panel;
+							node = node.parentElement
+						) {
+							count += node
+								.getAnimations()
+								.filter((animation) => animation.playState === 'running').length;
+						}
+						return count;
+					})()
+				}))
+			};
+		};
+		const state = { frames: [read()], stopped: false, done: false, until: Infinity };
+		const sample = () => {
+			state.frames.push(read());
+			if (!state.stopped || performance.now() < state.until) requestAnimationFrame(sample);
+			else state.done = true;
+		};
+		requestAnimationFrame(sample);
+		return state;
+	});
+	return {
+		async finish() {
+			const frames = await monitor.evaluate(async (state, duration) => {
+				state.stopped = true;
+				state.until = performance.now() + duration;
+				while (!state.done) await new Promise(requestAnimationFrame);
+				return state.frames;
+			}, windowMs);
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
 
 /** Opens the app and waits until the SPA has mounted. */
 export async function openApp(page: Page): Promise<void> {

@@ -17,6 +17,8 @@ export const MILESTONE_ROW_HEIGHT = 28;
 export const ROW_HEIGHT = 28;
 /** The duration of the row and line motion, before motionDuration. */
 export const ROW_MOTION_MS = 240;
+/** The duration of section height, control and legend motion, before motionDuration. */
+export const TIMELINE_MOTION_MS = 180;
 
 /**
  * The vertical center of a task row. `top` is the height above the first row (the milestone row)

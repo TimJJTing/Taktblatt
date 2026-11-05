@@ -20,7 +20,7 @@ Each plan has a heading, a subheading and an objective. The plan range sets the 
 - Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
-- Use the pin button to keep the timeline at the top of the page while you scroll. Drag its bottom edge to change its height.
+- Use the pin button to keep the whole Timeline section at the top of the page while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
 
 ### Stage overview
 

@@ -173,6 +173,8 @@
 	"gantt_outside_after": "計画の期間より後",
 	"gantt_pin": "タイムラインを固定",
 	"gantt_resize": "タイムラインの高さ",
+	"gantt_shorter": "タイムラインの高さを縮小",
+	"gantt_taller": "タイムラインの高さを拡大",
 	"gantt_bar": "{task}：{dates}",
 	"gantt_done": "完了",
 	"gantt_clipped_start": "計画の期間より前に開始",

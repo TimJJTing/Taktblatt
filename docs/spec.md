@@ -233,7 +233,9 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - the pinned state and the height of the Timeline section;
 - whether the Timeline legends are collapsed.
 
-The app keeps the expanded tasks and the Timeline settings as `expanded`, `ganttPinned`, `ganttHeight` and `timelineLegendsCollapsed` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`. An unreadable value gives the default settings. Existing viewer data without `timelineLegendsCollapsed` starts with the legends expanded.
+The app keeps the expanded tasks and the Timeline settings as `expanded`, `ganttPinned`, `ganttHeight` and `timelineLegendsCollapsed` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`.
+
+An explicit stored boolean for `timelineLegendsCollapsed` takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the legends start expanded and the Timeline section starts unpinned. Unreadable or invalid viewer data gives these defaults.
 
 ### 4.5 Undo
 
@@ -309,18 +311,22 @@ The app keeps the expanded tasks and the Timeline settings as `expanded`, `gantt
 - **Milestone symbols:** diamond, flag, star, circle, triangle, square, hexagon, pentagon, map pin, bookmark and heart, in this order.
 - **Stage legend:** the stage colors and titles.
 - **Legend group:** one Legends button beside the Timeline heading shows or hides Stages, Milestones and Bands together. It works with the keyboard and announces its expanded state.
-  - The app keeps the collapsed state in this browser after a reload. This setting is independent of the pin state. It does not change plan data or undo history.
+  - The app keeps the collapsed state in this browser after a reload. An explicit stored value takes priority. Older viewer data without this setting starts with the legends collapsed only when the Timeline section is pinned. Refer to section 4.4. After this initial default, pin and unpin do not change the legend setting. It does not change plan data or undo history.
   - The three rows have the same 32 px minimum height and 12 px vertical gap. Long entries can wrap and increase the row height.
   - The Milestones and Bands add buttons use a 24 px target and a decorative 12 px plus icon. Their accessible names and actions stay the same.
   - Collapse and expansion animate the content and its spacing. Reduced motion uses immediate updates. Collapsed entries cannot receive focus. The chart gets the space that the legends used in the pinned section.
   - Preview and printed sheets always show the legends. The Legends button does not appear on sheets. The workspace setting does not change sheet content or pagination.
 - **Pin:** a toggle beside the Timeline heading pins the whole Timeline section below the app header. The heading, chart and expanded legends stay together.
   - The default height of the whole section is 35 % of the viewport. The maximum is 50 %. The minimum is 120 px, or 50 % when the viewport is shorter than 240 px.
+  - Pin and unpin animate the section height in Chromium, Safari and Firefox. The chart, legends and page layout follow the height without a jump at the start or end. All motion durations use `motionDuration(ms)`. Reduced motion makes the change immediate. Drag resize stays immediate.
   - The chart content scrolls vertically. If the chart and legends do not fit in the section, the section body also scrolls. The heading and pin toggle stay visible.
   - A handle on the bottom edge changes the height of the whole section. Its divider and resize target span the full app width, up to the scrollbar. The heading, chart and legends keep their content width. The divider appears only when pinned. It does not appear in Preview or print.
-  - The handle is a `separator`. The arrow keys, Page Up, Page Down, Home and End also change the height.
+  - The handle is a `separator`. The arrow keys, Page Up, Page Down, Home and End also change the height. Page Up makes the section shorter by 10 % of the viewport height. Page Down makes it taller by the same step. The height stays within the limits.
+  - While pinned, two icon buttons beside the pin provide the same 10 % step. Their accessible names are "Make timeline shorter" and "Make timeline taller". The Shorter button is disabled at the minimum height. The Taller button is disabled at the maximum height. Each press stops at the applicable limit. Both buttons support keyboard activation and have a target of at least 24 × 24 px. Their icons are decorative. The names use the UI language.
+  - The buttons appear and disappear with a transition through `motionDuration(ms)`. The Legends button stays in position. Button resize uses the same height transition as keyboard resize. Reduced motion makes these changes immediate. The buttons are hidden while unpinned and do not appear in Preview or print.
   - The app keeps the pin state and section height after a reload.
   - Section links, sticky table headers and Gantt label jumps use the height of the whole pinned section as their offset.
+  - When keyboard focus moves to an element below the pinned section, the app keeps that element fully below the app header and the pinned section. This focus offset does not apply to elements inside the pinned section.
   - The pin state does not change the sheets, pagination, Preview or print.
 
 ### 5.5 Stage overview

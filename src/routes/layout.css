@@ -10,6 +10,9 @@
  */
 :root {
 	color-scheme: light;
+	--scroll-anchor-offset: calc(var(--app-header-h, 7rem) + var(--gantt-pinned-h, 0px) + 1rem);
+	--root-scroll-padding: var(--scroll-anchor-offset);
+	scroll-padding-top: var(--root-scroll-padding);
 	--radius: 0.5rem;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.205 0.01 265);
@@ -28,7 +31,7 @@
 	--destructive: oklch(0.577 0.245 27.325);
 	--border: oklch(0.912 0.005 265);
 	--input: oklch(0.912 0.005 265);
-	--ring: oklch(0.708 0.01 265);
+	--ring: oklch(0.64 0.01 265);
 	--ready: oklch(0.68 0.17 150);
 }
 
@@ -132,13 +135,14 @@
 
 /*
  * Anchor offsets. A jump to a section stops below the sticky app header (--app-header-h).
- * Below the Gantt, it also stops below the pinned Timeline section (--gantt-pinned-h). Timeline sets this value only while it is pinned.
+ * Below the Gantt, it also stops below the pinned Timeline section (--gantt-pinned-h).
+ * Subtract the root padding from anchor margins so the browser applies the offset once.
  */
 @utility scroll-mt-header {
-	scroll-margin-top: calc(var(--app-header-h, 7rem) + 1rem);
+	scroll-margin-top: calc(var(--app-header-h, 7rem) + 1rem - var(--root-scroll-padding));
 }
 @utility scroll-mt-anchor {
-	scroll-margin-top: calc(var(--app-header-h, 7rem) + var(--gantt-pinned-h, 0px) + 1rem);
+	scroll-margin-top: calc(var(--scroll-anchor-offset) - var(--root-scroll-padding));
 }
 
 /*

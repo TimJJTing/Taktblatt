@@ -6,12 +6,13 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { slide } from 'svelte/transition';
+	import { fade, slide } from 'svelte/transition';
 	import { innerHeight } from 'svelte/reactivity/window';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import { appHeader } from '#lib/components/app/app-layout.svelte.js';
+	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.js';
 	import { Toggle } from '#lib/components/ui/toggle/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.js';
@@ -22,7 +23,7 @@
 	import { motionDuration } from '#lib/motion.js';
 	import { getViewer } from '#lib/state/viewer.svelte.js';
 	import { cn } from '#lib/utils.js';
-	import { heightLimits, pinnedHeight } from './gantt-layout.js';
+	import { heightLimits, pinnedHeight, TIMELINE_MOTION_MS } from './gantt-layout.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import BandDialog from './BandDialog.svelte';
@@ -41,6 +42,7 @@
 		'flex min-w-0 items-center gap-2 rounded px-2 py-1 text-left [overflow-wrap:anywhere] hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring';
 
 	let slot = $state<HTMLDivElement | null>(null);
+	let panel = $state<HTMLDivElement | null>(null);
 	let body = $state<HTMLDivElement | null>(null);
 	let boxHeight = $state(0);
 	let stuck = $state(false);
@@ -51,18 +53,144 @@
 	const limits = $derived(heightLimits(viewport));
 	const height = $derived(pinnedHeight(viewer.ganttHeight, viewport));
 	const percent = (px: number) => Math.round((px / viewport) * 100);
+	// The stored fraction times the viewport can differ from a limit by a rounding error.
+	const atMin = $derived(height <= limits.min + 0.5);
+	const atMax = $derived(height >= limits.max - 0.5);
+
+	let drag = $state<{ y: number; height: number } | null>(null);
+	let previousHeight = 0;
+	let heightInitialized = false;
+	$effect.pre(() => {
+		void [viewer.ganttPinned, height, drag];
+		if (panel) previousHeight = panel.getBoundingClientRect().height;
+	});
+
+	// Pin and unpin change the slot height. Scroll anchoring can then follow content below the slot
+	// and scroll the page, so the section leaves its fixed place. Disable anchoring until the slot settles.
+	// Do this only for a pin change: at other times, anchoring keeps the page stable.
+	// Chromium reads the page setting from the body, not from the root element.
+	let anchorPinned: boolean | undefined;
+	$effect.pre(() => {
+		const pinned = viewer.ganttPinned;
+		const changed = anchorPinned !== undefined && anchorPinned !== pinned;
+		anchorPinned = pinned;
+		if (!changed) return;
+		const body = document.body;
+		const anchor = body.style.overflowAnchor;
+		body.style.overflowAnchor = 'none';
+		const restoreAnchor = () => {
+			body.style.overflowAnchor = anchor;
+		};
+		const element = panel;
+		let frame = 0;
+		// ResizeObserver updates the slot after the panel's final animation frame.
+		const settle = () => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(() => {
+				frame = requestAnimationFrame(restoreAnchor);
+			});
+		};
+		const isHeight = (event: TransitionEvent) =>
+			event.target === element && event.propertyName === 'height';
+		// A replacement transition, for example after Page Down, cancels the current one.
+		// The browser sends its run event before the next frame. Thus it stops a pending restore.
+		const onRun = (event: TransitionEvent) => {
+			if (!isHeight(event)) return;
+			window.clearTimeout(timer);
+			cancelAnimationFrame(frame);
+		};
+		const onEnd = (event: TransitionEvent) => {
+			if (isHeight(event)) settle();
+		};
+		element?.addEventListener('transitionrun', onRun);
+		element?.addEventListener('transitionend', onEnd);
+		element?.addEventListener('transitioncancel', onEnd);
+		// Fallback when no height transition runs, for example with reduced motion.
+		const timer = window.setTimeout(settle, motionDuration(TIMELINE_MOTION_MS) + 200);
+		return () => {
+			element?.removeEventListener('transitionrun', onRun);
+			element?.removeEventListener('transitionend', onEnd);
+			element?.removeEventListener('transitioncancel', onEnd);
+			window.clearTimeout(timer);
+			cancelAnimationFrame(frame);
+			restoreAnchor();
+		};
+	});
+
+	// Measure with auto, then transition between pixels. Restore auto after unpinning.
+	$effect(() => {
+		if (!panel) return;
+		const element = panel;
+		const pinned = viewer.ganttPinned;
+		const duration = motionDuration(drag ? 0 : TIMELINE_MOTION_MS);
+		let target = height;
+		untrack(() => {
+			element.style.transitionDuration = '0ms';
+			// The measurement expands the scrollers, and the browser resets their offsets.
+			// Keep the offsets, so the content scrolls back with the animation and does not jump.
+			const scrollers = [
+				...element.querySelectorAll<HTMLElement>('[data-testid="gantt-scroller"]'),
+				...(body ? [body] : [])
+			].map((scroller) => ({ scroller, top: scroller.scrollTop }));
+			if (!pinned) {
+				// The outgoing separator is not part of the unpinned natural height.
+				const separator = element.querySelector<HTMLElement>('[data-testid="gantt-resize"]');
+				const display = separator?.style.display ?? '';
+				if (separator) separator.style.display = 'none';
+				element.style.height = 'auto';
+				target = element.getBoundingClientRect().height;
+				if (separator) separator.style.display = display;
+			}
+			if (!heightInitialized || duration === 0 || Math.abs(previousHeight - target) < 0.5) {
+				element.style.height = pinned ? `${target}px` : 'auto';
+			} else {
+				element.style.height = `${previousHeight}px`;
+				for (const { scroller, top } of scrollers) scroller.scrollTop = top;
+				// Commit the start height before applying the target.
+				element.getBoundingClientRect();
+				element.style.transitionDuration = `${duration}ms`;
+				element.style.height = `${target}px`;
+			}
+			heightInitialized = true;
+		});
+		function releaseHeight(event: TransitionEvent) {
+			if (!pinned && event.target === element && event.propertyName === 'height') {
+				element.style.height = 'auto';
+			}
+		}
+		element.addEventListener('transitionend', releaseHeight);
+		return () => element.removeEventListener('transitionend', releaseHeight);
+	});
 
 	// Share the full section height with section links, table headers and chart label jumps.
-	const pinnedOffset = $derived(viewer.ganttPinned ? boxHeight || height : 0);
 	$effect(() => {
 		const root = document.documentElement;
-		if (pinnedOffset === 0) {
+		const offset = viewer.ganttPinned ? boxHeight || height : 0;
+		pinnedTimeline.height = offset;
+		if (offset === 0) {
 			root.style.removeProperty('--gantt-pinned-h');
 			return;
 		}
-		root.style.setProperty('--gantt-pinned-h', `${pinnedOffset}px`);
-		return () => root.style.removeProperty('--gantt-pinned-h');
+		root.style.setProperty('--gantt-pinned-h', `${offset}px`);
+		return () => {
+			pinnedTimeline.height = 0;
+			root.style.removeProperty('--gantt-pinned-h');
+		};
 	});
+
+	function revealRow(row: { top: number; bottom: number }) {
+		if (!body) return;
+		const view = body.getBoundingClientRect();
+		const delta =
+			row.top < view.top
+				? row.top - view.top
+				: row.bottom > view.bottom
+					? row.bottom - view.bottom
+					: 0;
+		if (delta !== 0) {
+			body.scrollBy({ top: delta, behavior: motionDuration(1) === 0 ? 'instant' : 'smooth' });
+		}
+	}
 
 	// Keep the section fixed after its slot passes the header. The slot preserves page layout.
 	function updateStuck() {
@@ -108,7 +236,6 @@
 		setHeight(next[event.key]);
 	}
 
-	let drag = $state<{ y: number; height: number } | null>(null);
 	function onSeparatorDown(event: PointerEvent) {
 		if (event.button !== 0) return;
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -131,14 +258,13 @@
 
 <div bind:this={slot} style:height={stuck ? `${boxHeight}px` : undefined}>
 	<div
+		bind:this={panel}
 		bind:offsetHeight={boxHeight}
 		class={cn(
-			'flex min-w-0 flex-col bg-background text-sm transition-[height] ease-out [interpolate-size:allow-keywords]',
+			'flex min-w-0 flex-col bg-background text-sm transition-[height] ease-out',
 			stuck &&
 				'fixed top-(--timeline-top) left-(--timeline-left) z-30 w-(--timeline-width) shadow-md'
 		)}
-		style:height={viewer.ganttPinned ? `${height}px` : 'auto'}
-		style:transition-duration={`${motionDuration(drag ? 0 : 180)}ms`}
 		style:--timeline-top="{headerHeight}px"
 		style:--timeline-left="{slotBox.left}px"
 		style:--timeline-width="{slotBox.width}px"
@@ -160,11 +286,40 @@
 			>
 				<PinIcon aria-hidden="true" class={cn(viewer.ganttPinned && 'fill-current')} />
 			</Toggle>
+			{#if viewer.ganttPinned}
+				<div
+					class="flex shrink-0 gap-1"
+					transition:fade={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
+				>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m.gantt_shorter()}
+						title={m.gantt_shorter()}
+						disabled={atMin}
+						onclick={() => setHeight(height - viewport * 0.1)}
+						style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
+					>
+						<ChevronUpIcon aria-hidden="true" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m.gantt_taller()}
+						title={m.gantt_taller()}
+						disabled={atMax}
+						onclick={() => setHeight(height + viewport * 0.1)}
+						style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
+					>
+						<ChevronDownIcon aria-hidden="true" />
+					</Button>
+				</div>
+			{/if}
 			<Button
 				variant="ghost"
 				size="sm"
 				class="ml-auto"
-				style={`transition-duration: ${motionDuration(180)}ms`}
+				style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
 				aria-expanded={!viewer.timelineLegendsCollapsed}
 				aria-controls="timeline-legends"
 				onclick={() => viewer.setTimelineLegendsCollapsed(!viewer.timelineLegendsCollapsed)}
@@ -173,7 +328,7 @@
 				<ChevronDownIcon
 					aria-hidden="true"
 					class={cn('transition-transform', viewer.timelineLegendsCollapsed && '-rotate-90')}
-					style={`transition-duration: ${motionDuration(180)}ms`}
+					style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
 				/>
 				{m.timeline_legends()}
 			</Button>
@@ -186,14 +341,13 @@
 			<Gantt
 				onBand={(item) => (band = item)}
 				onMilestone={(item) => (milestone = item)}
-				{pinnedOffset}
-				sectionScroller={body}
+				onReveal={revealRow}
 			/>
 			<div
 				id="timeline-legends"
 				class="grid shrink-0 transition-[grid-template-rows] ease-out"
 				style:grid-template-rows={viewer.timelineLegendsCollapsed ? '0fr' : '1fr'}
-				style:transition-duration={`${motionDuration(180)}ms`}
+				style:transition-duration={`${motionDuration(TIMELINE_MOTION_MS)}ms`}
 				inert={viewer.timelineLegendsCollapsed}
 				aria-hidden={viewer.timelineLegendsCollapsed}
 				data-testid="timeline-legends"
@@ -265,7 +419,7 @@
 			<!-- A focusable separator is a widget (WAI-ARIA window splitter). -->
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 			<div
-				transition:slide={{ duration: motionDuration(180) }}
+				transition:slide={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
 				role="separator"
 				aria-orientation="horizontal"
 				aria-label={m.gantt_resize()}
