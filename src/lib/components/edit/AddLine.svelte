@@ -2,7 +2,7 @@
 	The "+" line: a thin rule with a round "+" button. The button is always at the horizontal center
 	of the container, so lines with different indents keep their buttons on one axis.
 	In a container that scrolls sideways, set `pinned`. The button then stays at the center of the visible
-	width. The scroll container must be a `@container` (the button uses `cqw` units).
+	width. An ancestor that has the width of the scroll container must be a `@container` (the button uses `cqw` units).
 	`size` sets the size of the button: "sm" for the lowest level (subtask), "md" (default) for the middle
 	level (task, remark), "lg" for the top level (stage, remark section). All sizes are centered on the rule.
 	The parent controls the visibility with `class` (hover or focus-within of a scope).

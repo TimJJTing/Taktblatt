@@ -29,7 +29,7 @@
 		const root = document.documentElement;
 		const measure = () => {
 			appHeader.height = header.offsetHeight;
-			root.style.setProperty('--app-header-h', `${header.offsetHeight}px`);
+			root.style.setProperty('--app-header-h', `${header.getBoundingClientRect().height}px`);
 		};
 		const observer = new ResizeObserver(measure);
 		observer.observe(header);

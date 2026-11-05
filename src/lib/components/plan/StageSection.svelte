@@ -64,8 +64,11 @@
 	const flipDuration = $derived(motionDuration(280));
 
 	// The band (top) and the bottom line are inset shadows, because a border does not stick with its cell.
+	// From 640 px up, the table does not scroll, so the cells stick below the app header and the pinned Gantt.
+	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate band sticks instead.
+	// In forced-colors mode shadows are removed, so borders take over.
 	const headCell =
-		'sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-20 bg-background py-1.5 font-medium shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)]';
+		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -153,9 +156,17 @@
 		</DropdownMenu.Root>
 	</header>
 
-	<!-- The table is at least 640 px wide. A narrower wrapper scrolls the table horizontally.
+	<!-- Below 640 px only: the band sticks here, because the header cells cannot stick in the scrolling wrapper. -->
+	<div
+		aria-hidden="true"
+		data-testid="stage-band"
+		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-20 h-0.5 @min-[640px]:hidden"
+		style="background: {stageColorVar(stage.color)}"
+	></div>
+	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
+		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
-		so the header band can stick below the app header and the pinned Gantt. -->
+		so the header cells can stick below the app header and the pinned Gantt. -->
 	<div class="relative @max-[640px]:overflow-x-auto">
 		<table class="w-full min-w-[640px] table-fixed border-collapse text-sm" aria-label={stageName}>
 			<colgroup>

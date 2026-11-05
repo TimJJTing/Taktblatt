@@ -147,19 +147,48 @@ test.describe('work plan', () => {
 	}) => {
 		await page.setViewportSize({ width: 1000, height: 400 });
 		await openExample(page);
-		const section = stage(page, 0);
-		const band = section.locator('thead th').first();
-		await section.scrollIntoViewIfNeeded();
+		const band = stage(page, 0).locator('thead th').first();
 		// Scroll until the natural place of the band is 25 px above the bottom of the app header.
-		const headerBottom = (await page.locator('header').first().boundingBox())!.height;
+		const headerBottom = (await page.locator('[data-app-header]').boundingBox())!.height;
 		const y = await band.evaluate(
 			(el, offset) => el.getBoundingClientRect().top + window.scrollY - offset,
 			headerBottom - 25
 		);
 		await page.evaluate((top) => window.scrollTo(0, top), y);
-		const header = (await page.locator('header').first().boundingBox())!;
+		const header = (await page.locator('[data-app-header]').boundingBox())!;
 		const box = (await band.boundingBox())!;
 		expect(Math.abs(box.y - (header.y + header.height))).toBeLessThanOrEqual(1);
+	});
+
+	test('on a narrow screen the header cells stay in the table', async ({ page }) => {
+		await page.setViewportSize({ width: 600, height: 400 });
+		await openExample(page);
+		const section = stage(page, 0);
+		// Measure both in one call, so a layout change cannot fall between two measurements.
+		await expect
+			.poll(() =>
+				section.locator('table').evaluate((table) => {
+					const cell = table.querySelector('thead th')!;
+					return Math.abs(cell.getBoundingClientRect().top - table.getBoundingClientRect().top);
+				})
+			)
+			.toBeLessThanOrEqual(1);
+	});
+
+	test('on a narrow screen the colored band stays at the top while the page scrolls', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 600, height: 400 });
+		await openExample(page);
+		const band = stage(page, 0).getByTestId('stage-band');
+		const headerBottom = (await page.locator('[data-app-header]').boundingBox())!.height;
+		const y = await band.evaluate(
+			(el, offset) => el.getBoundingClientRect().top + window.scrollY - offset,
+			headerBottom - 25
+		);
+		await page.evaluate((top) => window.scrollTo(0, top), y);
+		const box = (await band.boundingBox())!;
+		expect(Math.abs(box.y - headerBottom)).toBeLessThanOrEqual(1);
 	});
 
 	test('a stage moves with the keyboard drag handle', async ({ page }) => {
