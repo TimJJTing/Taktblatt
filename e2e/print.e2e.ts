@@ -1,6 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
-import { formatted, openApp, openExample, row, storedPlan, writeStoredPlan } from './helpers';
+import {
+	dependencyArrowMatches,
+	dependencyContrast,
+	formatted,
+	openApp,
+	openExample,
+	row,
+	storedPlan,
+	writeStoredPlan
+} from './helpers';
 
 declare global {
 	interface Window {
@@ -17,6 +26,38 @@ async function openPreview(page: Page) {
 	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
 	await expect(sheets(page).first()).toBeVisible();
 }
+
+test('Preview and print use fainter dependency lines from done sources', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		const source = plan.tasks.find((task) => task.title === 'Site survey')!;
+		const target = plan.tasks.find((task) => task.title === 'Sowing')!;
+		plan.tasks = [source, target];
+		source.done = false;
+		source.dependsOn = [];
+		target.done = false;
+		target.dependsOn = [source.id];
+	});
+	await openPreview(page);
+	const line = sheets(page).first().getByTestId('sheet-gantt-dependency');
+	await expect(line).toHaveCount(1);
+	const normal = await dependencyContrast(line, true);
+	const sheetCount = await sheets(page).count();
+	await page.keyboard.press('Escape');
+	await row(page, 'Sowing').getByTestId('task-done').click();
+	await openPreview(page);
+	await expect.poll(() => dependencyContrast(line, true)).toBe(normal);
+	await page.keyboard.press('Escape');
+	await row(page, 'Site survey').getByTestId('task-done').click();
+	await openPreview(page);
+	await expect.poll(() => dependencyContrast(line, true)).toBeLessThan(normal);
+	await expect.poll(() => dependencyArrowMatches(line)).toBe(true);
+	await expect(sheets(page)).toHaveCount(sheetCount);
+	const previewContrast = await dependencyContrast(line, true);
+	await page.emulateMedia({ media: 'print' });
+	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
+	await expect(sheets(page)).toHaveCount(sheetCount);
+});
 
 const addDays = (date: string, days: number) =>
 	new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);

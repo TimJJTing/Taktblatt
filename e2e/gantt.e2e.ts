@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample, row, storedPlan } from './helpers';
+import {
+	dependencyArrowMatches,
+	dependencyContrast,
+	openExample,
+	row,
+	storedPlan
+} from './helpers';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 
@@ -22,6 +28,27 @@ test('the Gantt shows bars, lines and the today line of the example plan', async
 	await expect(ganttRow(page, 'Site survey').getByTestId('gantt-label')).toHaveClass(
 		/line-through/
 	);
+});
+
+test('outgoing dependency lines become fainter when their source is done', async ({ page }) => {
+	await openExample(page);
+	await page.reload();
+	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeDisabled();
+	const plan = await storedPlan(page);
+	const sowing = plan.tasks.find((task) => task.title === 'Sowing')!;
+	const line = gantt(page).locator(`[data-testid="gantt-dependency"][data-from="${sowing.id}"]`);
+	const normal = await dependencyContrast(line);
+	await row(page, 'First harvest').getByTestId('task-done').click();
+	await expect.poll(() => dependencyContrast(line)).toBe(normal);
+	await row(page, 'Sowing').getByTestId('task-done').click();
+	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
+	await expect.poll(() => dependencyArrowMatches(line)).toBe(true);
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect.poll(() => dependencyContrast(line)).toBe(normal);
+	await page.getByRole('button', { name: 'Redo', exact: true }).click();
+	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
 });
 
 test('expand and collapse are shared between the Gantt and the table', async ({ page }) => {

@@ -392,7 +392,8 @@
 							</marker>
 						</defs>
 						{#each lines as line (line.key)}
-							<GanttLine {line} width={timelineWidth} marker={MARKER_ID} />
+							{@const done = rows[line.row0].done === 'done'}
+							<GanttLine {line} {done} width={timelineWidth} marker={MARKER_ID} />
 						{/each}
 					</svg>
 				</div>
