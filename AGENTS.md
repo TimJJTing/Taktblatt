@@ -15,22 +15,15 @@ Taktblatt is a static, browser-only planner built with Svelte 5, SvelteKit, Type
 
 ## Build, Test, and Development Commands
 
-Use Node.js 24+ and pnpm 11.10.0.
-
-- `pnpm install`: install dependencies.
-- `pnpm e2e:install`: install Chromium for tests.
-- `pnpm dev`: start Vite.
-- `pnpm build`: generate `build/`; `pnpm preview` serves it locally.
-- `pnpm check`: generate translations; check Svelte, TypeScript, and service-worker types.
-- `pnpm lint`: check Prettier formatting and ESLint rules.
-- `pnpm format`: format files.
-- `pnpm test`: run unit and end-to-end suites.
+Use the Node.js and pnpm versions in `package.json`. See [README development instructions](README.md#development) for installation, development, builds, and formatting commands. Required validation commands are listed below.
 
 ## Coding Style & Naming Conventions
 
 Use strict TypeScript and Svelte runes. Prettier enforces tabs, single quotes, no trailing commas, and a 100-character width; plugins format Svelte and sort Tailwind classes. Use PascalCase app components, kebab-case utilities, and camelCase functions.
 
-Use the `#lib/...` alias for imports from `src/lib/`. Relative imports are allowed only for siblings (`./x.ts`) and parents (`../x.ts`). Import each module with the extension of its file: `.ts` for TypeScript modules, `.svelte.ts` for reactive modules, `.svelte` for components and `.js` for JavaScript files. For example: `import { motionDuration } from '#lib/motion.ts'`. The ESLint rule `local/import-specifiers` (`scripts/eslint/import-specifiers.js`) checks these import rules and fixes most findings with `pnpm exec eslint --fix`. Refer to `docs/adr/0012-import-file-extensions.md`.
+Before you complete a task, run `pnpm exec prettier --write <changed files>` for the supported files that you changed. Review the diff and run `pnpm lint`. Do not format unrelated files.
+
+Use `#lib/...` for imports from `src/lib/`. Relative imports are only for siblings and parents. Use the file extension on disk. See [ADR 12](docs/adr/0012-import-file-extensions.md) for examples, vendored-file exceptions, and ESLint fixes.
 
 Keep domain logic pure. Route plan-content edits through `src/lib/state/commands.ts`; use Workspace operations for plan lifecycle and undo/redo. Avoid unrelated changes to vendored `components/ui/` files.
 
@@ -48,11 +41,11 @@ Show hints with `src/lib/components/app/Hint.svelte`, which wraps the Tooltip. D
 
 Provide text alternatives for SVGs and graphics that convey information. Hide purely decorative graphics from assistive technology. Ensure interactive bars, labels, and milestones have accessible names and support keyboard focus and activation.
 
-For every UI change, check the app's Preview dialog, printed sheets, and installed PWA. Preview here means the app's paginated print preview; `pnpm preview` only serves the production build. Check pagination and rendering in preview and print. Check layout and interaction in preview and the PWA, including offline use. Record any mode you could not validate and the reason; do not report it as passed.
+For every UI change, check the workspace, app Preview dialog, printed sheets, and installed PWA, including offline use. Follow the [Taktblatt UI validation skill](.agents/skills/taktblatt-ui-validation/SKILL.md). Report any mode you could not validate and the reason; do not report it as passed.
 
 ## Agent Workflow & Change Planning
 
-Use multiple independent agents for nontrivial tasks. A trivial task is a small, unambiguous edit with no behavior, schema, architecture, or interaction change, such as a documentation correction. Select only the roles the task needs. Assign each selected role to a distinct agent; do not combine roles in one agent. Agents can run in sequence when concurrency is limited.
+Use multiple independent agents for nontrivial tasks. A trivial task is a small, unambiguous edit with no behavior, schema, architecture, or interaction change, such as a documentation correction. Select only the roles the task needs. Assign each selected role to a distinct agent; do not combine roles in one agent. Agents can run in sequence when concurrency is limited. If delegation is unavailable, perform the required roles in separate sequential passes. Report that independent review and verification were unavailable.
 
 | Role                     | Responsibility                                                         |
 | ------------------------ | ---------------------------------------------------------------------- |
@@ -75,31 +68,24 @@ Before changing the project file schema, ask the user whether to bump `schemaVer
 
 ## Testing Guidelines
 
-Use the Playwright agent CLI for interactive browser checks. Run `pnpm browser:setup` on initial setup or after upgrading Playwright, then read `.agents/skills/playwright-cli/SKILL.md`. Substitute `pnpm browser` for `playwright-cli` in skill examples. Start `pnpm dev` in a separate terminal, run `pnpm browser open http://localhost:5173`, inspect `pnpm browser snapshot`, and interact using element references from the latest snapshot. Finish with `pnpm browser close`. Artifacts go in ignored `.playwright-cli/`.
+Use the Playwright agent CLI for interactive browser checks. Follow [README browser automation instructions](README.md#browser-automation-for-coding-agents) for setup and commands, then read `.agents/skills/playwright-cli/SKILL.md`. Substitute `pnpm browser` for `playwright-cli` in skill examples. Close the browser session when finished.
 
-Run colocated Vitest `*.spec.ts` and reactive `*.svelte.spec.ts` tests with `pnpm test:unit --run`. Run automated Playwright regression tests in `e2e/*.e2e.ts` with `pnpm test:e2e`, which builds and serves the app. Interactive CLI checks supplement these tests. Add regression coverage for changed behavior; no numeric coverage threshold is configured. For code changes, run `pnpm lint`, `pnpm check`, and `pnpm test` before a PR.
+Run colocated Vitest `*.spec.ts` and reactive `*.svelte.spec.ts` tests with `pnpm test:unit --run`. Run automated Playwright regression tests in `e2e/*.e2e.ts` with `pnpm test:e2e`. Before final E2E validation, stop any server on port 4173. Local Playwright runs reuse an existing server and skip the build; with the port free, the suite builds and serves the current code. This also applies to `pnpm test`. Interactive CLI checks supplement these tests. Add regression coverage for changed behavior. For code changes, run `pnpm lint`, `pnpm check`, and `pnpm test` before a PR.
 
 Do not write trivial tests. Each test must check behavior that can fail because of a defect in project code. Do not write these tests:
 
 - A test that compares a wrapper with the platform or library API that it calls.
 - A test that checks what the type system already guarantees.
-- A test that reads source text instead of behavior.
+- A test that reads source text instead of behavior, except for static policy checks such as `no-native-title.spec.ts`. Use these checks only for source constraints; they do not replace behavior tests.
 - A copy of a test for each locale or input when one case proves the behavior.
 
 Reuse `e2e/helpers.ts` for shared browser setup and interactions. Extend the helpers when needed instead of duplicating them in tests.
 
-Write stable E2E tests:
-
-- In calendar date-change tests, select a date that differs from the initial date.
-- Get local-date expectations from the browser date.
-- Read animated geometry in one snapshot. Retry all related checks together.
-- In history tests, start from an empty history and check Undo and Redo.
-- In popover tests, wait for focus and animation completion.
-- In scroll tests, monitor the full interaction, including temporary changes.
+For date, history, popover, animation, and scroll checks, follow the interaction rules in the [Taktblatt UI validation skill](.agents/skills/taktblatt-ui-validation/SKILL.md).
 
 ## Commit & Pull Request Guidelines
 
-Create or switch to a separate branch before you commit changes. Give the branch a name that tells its purpose, for example `fix/stable-chevron-test`. Do not commit directly to `main`. Submit changes to `main` through a pull request. A pull request can merge only when the `CI passed` check succeeds. This check needs lint, type check, unit tests and end-to-end tests to pass. Refer to `docs/adr/0011-required-ci-checks.md`.
+Create or switch to a separate branch before you commit changes. Give the branch a name that tells its purpose, for example `fix/stable-chevron-test`. Do not commit directly to `main`. Submit changes to `main` through a pull request. A pull request can merge only when the `CI passed` check succeeds. See [ADR 11](docs/adr/0011-required-ci-checks.md) for the required checks and branch protection rules.
 
 Use `feat:`, `fix:`, `refactor:`, `docs:`, or `chore:` with imperative descriptions, following Git history. PRs must explain the change and list validation results. Link related issues when available and include screenshots for visual changes.
 
