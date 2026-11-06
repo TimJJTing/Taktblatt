@@ -26,7 +26,7 @@
 	{#if count > 0}
 		{#if still}
 			<span
-				class="ready-dot inline-block size-2 shrink-0 rounded-full bg-[#2E9D5B]"
+				class="ready-dot inline-block size-2 shrink-0 rounded-full bg-paper-ready"
 				role="img"
 				aria-label={label}
 			></span>

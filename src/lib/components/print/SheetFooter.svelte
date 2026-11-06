@@ -3,6 +3,7 @@
 	Empty parts do not show. The page number "n / N" comes from the paginator.
 -->
 <script lang="ts">
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatDate } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Plan } from '#lib/domain/schema.ts';
@@ -18,7 +19,7 @@
 	const left = $derived(
 		[footer.note, footer.version, footer.date ? formatDate(footer.date, uiIntl()) : '']
 			.filter((part) => part !== '')
-			.join(' · ')
+			.join(m.footer_separator())
 	);
 </script>
 
@@ -29,6 +30,6 @@
 	<span class="min-w-0 break-words" data-testid="sheet-footer-left">{left}</span>
 	<span class="flex shrink-0 items-baseline gap-2">
 		{#if footer.right}<span data-testid="sheet-footer-right">{footer.right}</span>{/if}
-		<span class="tabular-nums" data-testid="page-number">{number} / {total}</span>
+		<span class="tabular-nums" data-testid="page-number">{m.sheet_page({ number, total })}</span>
 	</span>
 </div>

@@ -84,7 +84,7 @@
 		>
 			{#each STAGE_COLOR_KEYS as key (key)}
 				{@const name = used.includes(key)
-					? `${colorName(key)} · ${m.stage_color_in_use()}`
+					? m.label_qualifier({ name: colorName(key), qualifier: m.stage_color_in_use() })
 					: colorName(key)}
 				<Hint text={name}>
 					{#snippet child({ props })}

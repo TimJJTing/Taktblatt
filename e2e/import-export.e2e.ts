@@ -1,6 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, openSettings, planIds, row, storedPlan } from './helpers.ts';
+import {
+	importJson,
+	openApp,
+	openExample,
+	openSettings,
+	planIds,
+	row,
+	storedPlan
+} from './helpers.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -13,14 +21,6 @@ async function readDownload(page: Page, menuItem: string) {
 	const download = await pending;
 	const text = await readFile((await download.path())!, 'utf8');
 	return { name: download.suggestedFilename(), file: JSON.parse(text) as Json };
-}
-
-async function importJson(page: Page, content: unknown | string, name = 'plan.json') {
-	await page.getByTestId('import-input').setInputFiles({
-		name,
-		mimeType: 'application/json',
-		buffer: Buffer.from(typeof content === 'string' ? content : JSON.stringify(content))
-	});
 }
 
 async function exportedExample(page: Page) {

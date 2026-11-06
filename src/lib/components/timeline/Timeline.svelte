@@ -381,7 +381,11 @@
 							<span class="font-medium" aria-hidden="true">{m.legend_milestones()}</span>
 							<ul class={legend} aria-label={m.legend_milestones()} data-testid="milestone-legend">
 								{#each milestones as item (item.milestone.id)}
-									{@const text = `${item.label} ${item.milestone.title} (${formatDate(item.milestone.date, locale)})`}
+									{@const text = m.milestone_label({
+										symbol: item.label,
+										title: item.milestone.title,
+										date: formatDate(item.milestone.date, locale)
+									})}
 									<li>
 										<button
 											type="button"
@@ -405,7 +409,10 @@
 							<span class="font-medium" aria-hidden="true">{m.legend_bands()}</span>
 							<ul class={legend} aria-label={m.legend_bands()} data-testid="band-legend">
 								{#each ws.plan.bands as item (item.id)}
-									{@const text = `${item.title} (${formatRangeDisplay(item.start, item.end, locale)})`}
+									{@const text = m.label_parenthetical({
+										name: item.title,
+										qualifier: formatRangeDisplay(item.start, item.end, locale)
+									})}
 									<li>
 										<button type="button" class={entryButton} onclick={() => (band = item)}
 											>{@render swatch(bandTintVar(item.color))}{text}</button

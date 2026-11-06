@@ -7,9 +7,9 @@
 	import { untrack } from 'svelte';
 	import { isComposing } from '#lib/browser/keyboard.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
-	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import * as Select from '#lib/components/ui/select/index.ts';
 	import type { Band } from '#lib/domain/schema.ts';
 	import { BAND_TINT_KEYS } from '#lib/domain/palette.ts';
@@ -145,24 +145,12 @@
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
-<AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content>
-		<AlertDialog.Header
-			><AlertDialog.Title>{m.band_delete_title()}</AlertDialog.Title><AlertDialog.Description
-				>{m.timeline_delete_body({
-					title: entry?.title || m.band_untitled()
-				})}</AlertDialog.Description
-			></AlertDialog.Header
-		>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class={buttonVariants({ variant: 'destructive' })}
-				onclick={() => {
-					if (entry) removeBand(ws, entry.id);
-					close(false);
-				}}>{m.action_delete()}</AlertDialog.Action
-			>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirm
+	bind:open={confirmDelete}
+	title={m.band_delete_title()}
+	body={m.timeline_delete_body({ title: entry?.title || m.band_untitled() })}
+	onConfirm={() => {
+		if (entry) removeBand(ws, entry.id);
+		close(false);
+	}}
+/>

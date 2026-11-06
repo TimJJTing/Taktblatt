@@ -6,7 +6,7 @@
 <script lang="ts">
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { stagePaperColor } from '#lib/components/plan/colors.ts';
-	import { formatMonthSpan, formatTarget } from '#lib/domain/format.ts';
+	import { formatMonthSpan, formatTarget, joinList } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { StageSegment } from '#lib/domain/print-model.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -40,8 +40,12 @@
 		{/if}
 		<h3 class="flex items-baseline gap-1.5 pb-1.5 text-[12px] font-semibold text-paper-ink">
 			<span class="size-2.5 shrink-0 self-center rounded-[2px]" style:background={color}></span>
-			<span>{m.stage_label({ n: segment.number })} · {name}</span>
-			{#if months}<span class="font-normal text-paper-ink-3">({months})</span>{/if}
+			<span
+				>{m.label_qualifier({ name: m.stage_label({ n: segment.number }), qualifier: name })}</span
+			>
+			{#if months}<span class="font-normal text-paper-ink-3"
+					>{m.parenthetical({ text: months })}</span
+				>{/if}
 			<span class="ml-auto text-[10px] font-normal whitespace-nowrap text-paper-ink-3">
 				{m.stage_progress({ done: segment.progress.done, total: segment.progress.total })}
 			</span>
@@ -125,7 +129,7 @@
 				<td class={cn(cell, 'whitespace-nowrap tabular-nums')}
 					>{formatTarget(row.eff, row.isParent, intl) || '–'}</td
 				>
-				<td class={cn(cell, 'break-words')}>{row.eff.owners.join(', ')}</td>
+				<td class={cn(cell, 'break-words')}>{joinList(row.eff.owners, intl)}</td>
 			</tr>
 		{/each}
 	</tbody>

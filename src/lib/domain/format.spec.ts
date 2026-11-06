@@ -7,9 +7,23 @@ import {
 	formatRangeDisplay,
 	formatTarget,
 	intlLocale,
+	joinList,
 	parseUserDate,
 	readTypedDate
 } from './format.ts';
+
+describe('joinList', () => {
+	it.each(['en-US', 'de', 'zh-TW', 'ja'])('handles empty and single lists in %s', (locale) => {
+		expect(joinList([], locale)).toBe('');
+		expect(joinList(['Kai'], locale)).toBe('Kai');
+	});
+
+	it.each(['en-US', 'de', 'zh-TW', 'ja'])('uses localized list punctuation in %s', (locale) => {
+		const owners = ['Kai', 'Noor', 'Mei'];
+		expect(joinList(owners, locale)).toBe(new Intl.ListFormat(locale).format(owners));
+		expect(owners).toEqual(['Kai', 'Noor', 'Mei']);
+	});
+});
 
 describe('intlLocale', () => {
 	it('maps en to en-US and leaves other locales unchanged', () => {

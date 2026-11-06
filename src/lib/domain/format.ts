@@ -147,3 +147,8 @@ export function readTypedDate(
 	const date = parseUserDate(value, locale, referenceYear);
 	return date === null ? { kind: 'invalid' } : { kind: 'date', date };
 }
+
+/** Joins a displayed list with the punctuation of its language. */
+export function joinList(items: readonly string[], locale: string): string {
+	return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(items);
+}

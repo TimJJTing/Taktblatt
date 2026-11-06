@@ -72,7 +72,7 @@
 			</Button>
 			<ImportButton />
 			<ExportMenu />
-			<Hint text={`${m.action_undo()} (${mod}Z)`}>
+			<Hint text={m.label_parenthetical({ name: m.action_undo(), qualifier: `${mod}Z` })}>
 				{#snippet child({ props })}
 					<Button
 						{...props}
@@ -86,7 +86,9 @@
 					</Button>
 				{/snippet}
 			</Hint>
-			<Hint text={`${m.action_redo()} (${isMac ? '⇧⌘Z' : 'Ctrl+Y'})`}>
+			<Hint
+				text={m.label_parenthetical({ name: m.action_redo(), qualifier: isMac ? '⇧⌘Z' : 'Ctrl+Y' })}
+			>
 				{#snippet child({ props })}
 					<Button
 						{...props}

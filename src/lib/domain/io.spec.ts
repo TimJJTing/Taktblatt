@@ -135,8 +135,14 @@ describe('parseFile', () => {
 		plan.range = { start: '2027-02-01', end: '2027-01-01' };
 		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
 			ok: false,
-			errors: ['plan: The range must start before it ends.']
+			errors: ['plan: The range must start on or before it ends.']
 		});
+	});
+
+	it('accepts a plan range that starts and ends on the same day', () => {
+		const plan = makePlan([]);
+		plan.range = { start: '2027-02-01', end: '2027-02-01' };
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
 	});
 
 	it('rejects a task whose stage does not exist in the plan', () => {

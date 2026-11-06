@@ -42,7 +42,13 @@
 			{/each}
 		{:else if segment.which === 'milestones'}
 			{#each orderedMilestones(ws.plan.milestones) as item (item.milestone.id)}
-				<li>{item.label} {item.milestone.title} ({formatDate(item.milestone.date, intl)})</li>
+				<li>
+					{m.milestone_label({
+						symbol: item.label,
+						title: item.milestone.title,
+						date: formatDate(item.milestone.date, intl)
+					})}
+				</li>
 			{/each}
 		{:else}
 			{#each ws.plan.bands as band (band.id)}
@@ -51,7 +57,10 @@
 						class="size-2 shrink-0 rounded-[1px] border border-paper-rule"
 						style:background={bandFill(bandPaperTint(band.color))}
 						aria-hidden="true"
-					></span>{band.title} ({formatRangeDisplay(band.start, band.end, intl)})
+					></span>{m.label_parenthetical({
+						name: band.title,
+						qualifier: formatRangeDisplay(band.start, band.end, intl)
+					})}
 				</li>
 			{/each}
 		{/if}

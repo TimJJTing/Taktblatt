@@ -4,6 +4,7 @@
  */
 import * as v from 'valibot';
 import { isISODate } from './date.ts';
+import { validationCode } from './import-diagnostics.ts';
 import { effectiveDependencies } from './dependencies.ts';
 import { indexTasks } from './derive.ts';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.ts';
@@ -31,7 +32,7 @@ export const LIMITS = {
 } as const;
 
 const Id = v.pipe(v.string(), v.minLength(1));
-const ISODateSchema = v.pipe(v.string(), v.check(isISODate, 'Use a date in YYYY-MM-DD format.'));
+const ISODateSchema = v.pipe(v.string(), v.check(isISODate, validationCode('validation_date')));
 const NullableDate = v.nullable(ISODateSchema);
 const Timestamp = v.pipe(v.string(), v.isoTimestamp());
 
@@ -101,11 +102,11 @@ export const PlanSchema = v.pipe(
 		createdAt: Timestamp,
 		updatedAt: Timestamp
 	}),
-	v.check((plan) => plan.range.start <= plan.range.end, 'The range must start before it ends.'),
+	v.check((plan) => plan.range.start <= plan.range.end, validationCode('validation_range')),
 	v.check((plan) => {
 		const stageIds = new Set(plan.stages.map((s) => s.id));
 		return plan.tasks.every((t) => stageIds.has(t.stageId));
-	}, 'Each task must belong to a stage of the plan.'),
+	}, validationCode('validation_task_stage')),
 	v.check((plan) => {
 		const byId = new Map(plan.tasks.map((t) => [t.id, t]));
 		return plan.tasks.every((t) => {
@@ -113,44 +114,44 @@ export const PlanSchema = v.pipe(
 			const parent = byId.get(t.parentId);
 			return parent !== undefined && parent.parentId === null && parent.stageId === t.stageId;
 		});
-	}, 'A subtask must have a task of the same stage as its parent. The maximum depth is 2.'),
+	}, validationCode('validation_task_parent')),
 	v.check(
 		(plan) => new Set(plan.stages.map((s) => s.id)).size === plan.stages.length,
-		'Stage ids must be unique.'
+		validationCode('validation_stage_ids')
 	),
 	v.check(
 		(plan) => new Set(plan.tasks.map((t) => t.id)).size === plan.tasks.length,
-		'Task ids must be unique.'
+		validationCode('validation_task_ids')
 	),
 	v.check(
 		(plan) => new Set(plan.milestones.map((m) => m.id)).size === plan.milestones.length,
-		'Milestone ids must be unique.'
+		validationCode('validation_milestone_ids')
 	),
 	v.check(
 		(plan) => new Set(plan.bands.map((b) => b.id)).size === plan.bands.length,
-		'Band ids must be unique.'
+		validationCode('validation_band_ids')
 	),
 	v.check(
 		(plan) => new Set(plan.remarks.map((r) => r.id)).size === plan.remarks.length,
-		'Remark section ids must be unique.'
+		validationCode('validation_remark_ids')
 	),
 	v.check((plan) => {
 		const ids = new Set(plan.tasks.map((t) => t.id));
 		return plan.tasks.every((t) => t.dependsOn.every((d) => d !== t.id && ids.has(d)));
-	}, 'Each dependency must point at a different task of the plan.'),
+	}, validationCode('validation_dependency')),
 	v.check((plan) => {
 		const byId = new Map(plan.tasks.map((t) => [t.id, t]));
 		return plan.tasks.every((t) =>
 			t.dependsOn.every((d) => t.parentId !== d && byId.get(d)?.parentId !== t.id)
 		);
-	}, 'A task must not depend on its own parent or subtask.'),
+	}, validationCode('validation_dependency_parent')),
 	v.check((plan) => {
 		const index = indexTasks(plan.tasks);
 		return !hasCycle(
 			plan.tasks.map((t) => t.id),
 			(id) => effectiveDependencies(index, id)
 		);
-	}, 'Task dependencies must not form a cycle in the effective graph.')
+	}, validationCode('validation_dependency_cycle'))
 );
 
 /**
@@ -196,10 +197,10 @@ export const BackupFileSchema = v.object({
 	kind: v.literal('backup'),
 	plans: v.pipe(
 		v.array(PlanSchema),
-		v.minLength(1, 'A backup file must contain at least one plan.'),
+		v.minLength(1, validationCode('validation_backup_empty')),
 		v.check(
 			(plans) => new Set(plans.map((p) => p.id)).size === plans.length,
-			'Plan ids must be unique in a backup file.'
+			validationCode('validation_plan_ids')
 		)
 	)
 });

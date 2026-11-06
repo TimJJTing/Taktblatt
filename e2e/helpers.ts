@@ -186,6 +186,26 @@ export async function openExample(page: Page): Promise<void> {
 	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
 }
 
+/** Reloads the app with the specified UI language. */
+export async function reloadInLocale(
+	page: Page,
+	locale: 'en' | 'de' | 'zh-TW' | 'ja'
+): Promise<void> {
+	await page.evaluate((language) => localStorage.setItem('taktblatt:locale', language), locale);
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('lang', locale);
+	await expect(page.getByTestId('plan-heading')).toBeVisible();
+}
+
+/** Imports text or a JSON value through the app's file field. */
+export async function importJson(page: Page, content: unknown, name = 'plan.json'): Promise<void> {
+	await page.getByTestId('import-input').setInputFiles({
+		name,
+		mimeType: 'application/json',
+		buffer: Buffer.from(typeof content === 'string' ? content : JSON.stringify(content))
+	});
+}
+
 /** Opens Settings and waits for its opening animation. */
 export async function openSettings(page: Page): Promise<Locator> {
 	const trigger = page.getByTestId('settings-menu');

@@ -187,7 +187,7 @@
 							mark.side === 'before' ? m.gantt_outside_before() : m.gantt_outside_after()}
 						<span
 							role="img"
-							aria-label="{title}: {name}"
+							aria-label={m.field_value({ label: title, value: name })}
 							class={cn(
 								'absolute top-1/2 -translate-y-1/2 text-[11px] leading-none text-paper-ink-3',
 								mark.side === 'before' ? 'left-0.5' : 'right-0.5'

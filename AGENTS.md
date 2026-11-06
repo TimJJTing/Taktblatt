@@ -99,3 +99,5 @@ Use `feat:`, `fix:`, `refactor:`, `docs:`, or `chore:` with imperative descripti
 ## Localization & Data Boundaries
 
 Use `messages/en.json` as the translation source. Regenerate with `pnpm i18n`; do not edit generated `src/lib/paraglide/` files. The inlang plugins load from `node_modules`, so `pnpm i18n` needs no network after `pnpm install`. Do not change them back to CDN URLs; refer to `docs/adr/0010-local-inlang-plugins.md`. Plan files stay language-neutral with ISO dates; UI language controls displayed and printed labels. Preserve browser-local storage and offline operation.
+
+Put punctuation and word order in translation messages, not in templates. Use `joinList()` for user-facing lists.

@@ -146,7 +146,9 @@
 <td class="py-1 whitespace-nowrap" data-grid-col="target">
 	{#if isParent}
 		<Hint
-			text="{m.target_derived()}{eff.start || eff.end ? ` · ${rangeText}` : ''}"
+			text={eff.start || eff.end
+				? m.label_qualifier({ name: m.target_derived(), qualifier: rangeText })
+				: m.target_derived()}
 			focusable={false}
 		>
 			{#snippet child({ props })}
@@ -188,7 +190,12 @@
 </td>
 <td class="py-1" data-grid-col="owner" data-testid="task-owners">
 	{#if isParent}
-		<Hint text={[m.owner_derived(), ownerListHint(eff.owners)].join(' ').trim()} focusable={false}>
+		<Hint
+			text={ownerListHint(eff.owners)
+				? m.owner_derived_hint({ owners: ownerListHint(eff.owners) })
+				: m.owner_derived()}
+			focusable={false}
+		>
 			{#snippet child({ props })}
 				<span {...props} class="flex px-1.5 py-0.5">
 					<OwnerChips owners={eff.owners} />

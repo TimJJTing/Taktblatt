@@ -7,6 +7,7 @@
 <script lang="ts">
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { toast } from 'svelte-sonner';
+	import { formatImportDiagnostic } from '#lib/import-diagnostics.ts';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
@@ -60,7 +61,7 @@
 			return;
 		}
 		guarded(() => {
-			const result = parseFile(text);
+			const result = parseFile(text, formatImportDiagnostic);
 			if (!result.ok) {
 				errors = result.errors;
 				return;

@@ -255,6 +255,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - If the browser cannot save the data, import undoes its own writes and shows an error.
 - If a plan with the same `id` exists, one dialog lists all such plans. Each plan has the choices **Replace** and **Keep both**. The default is **Keep both**. **Replace** overwrites the existing plan with the same `id`. **Cancel** imports nothing. **Keep both** gives the copy a new id and adds the copy suffix to its heading. The suffix follows the UI language (English: " (copy)").
 - If the file is not valid, a dialog lists the errors (the first eight, and the number of other errors).
+- All import errors use the UI language. This includes invalid JSON, schema versions, field types, dates and plan rules. Field paths and schema numbers stay unchanged. A range error says that the start must be on or before the end. A range with the same start and end remains valid.
 
 ## 5. Screen: the workspace
 
@@ -405,6 +406,12 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - Preview and printed sheets show no hints.
 - Components show hints with `Hint.svelte` in `src/lib/components/app/`. It wraps the tooltip primitive.
 
+### 5.11 Delete confirmations
+
+- Plan, stage, task, remark section, band and milestone deletion use one shared confirmation component. Each caller supplies the title, body and delete action.
+- The dialog has **Cancel** and a destructive **Delete** button. Cancel and Esc close the confirmation without deletion. Focus stays in the dialog while it is open. Closing it keeps the existing focus return behavior of its caller.
+- Each body states the same deletion effects as before. Stage and remark section bodies include the name in the translated message. The English text starts with "The app deletes “{name}”." Counts, dependency cleanup and undo behavior stay unchanged.
+
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
@@ -419,6 +426,8 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - English is the source. A missing key falls back to English.
 - The `de`, `zh-TW` and `ja` texts are machine drafts. A native speaker must review them.
 - Dates use `Intl`. Weeks start on Monday.
+- Messages control punctuation, spaces and word order when a label combines text with a name, value or qualifier. This applies to visible labels, hints, accessible names and printed labels. Traditional Chinese uses `·` (U+00B7) between a name and a qualifier. Japanese uses `・` (U+30FB).
+- User-facing lists use `joinList()`, which formats the list with `Intl.ListFormat` for the UI language. This includes owner lists on screen and on sheets. Stored owner arrays stay unchanged.
 
 ## 7. Preview and print
 
@@ -456,6 +465,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 - Font: IBM Plex Sans, self-hosted.
 - Ink `#1A1D23`. Secondary text `#3A3F4A` and `#5A6070`. Rules `#C9CDD4` and `#E1E4E8`. Neutral fill `#EEF0F3`.
+- The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
 - Stage palette: 8 colors. Band palette: 4 light tints. All pass WCAG AA against their background. Each has a dark-mode variant for the screen.
 
 ## 10. Quality
