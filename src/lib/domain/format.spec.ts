@@ -8,7 +8,7 @@ import {
 	formatTarget,
 	parseUserDate,
 	readTypedDate
-} from './format';
+} from './format.js';
 
 describe('format', () => {
 	it('formats short days in the given language', () => {

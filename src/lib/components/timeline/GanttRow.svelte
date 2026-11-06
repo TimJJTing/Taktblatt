@@ -7,10 +7,12 @@
 <script lang="ts">
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { subtaskFill } from '#lib/components/plan/colors.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
@@ -69,6 +71,9 @@
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 
+	const showRowId = $props.id();
+	const showRow = $derived(m.gantt_show_row({ task: titleText }));
+
 	const hover = {
 		onpointerenter: () => onHighlight(row.id, true),
 		onpointerleave: () => onHighlight(row.id, false),
@@ -122,90 +127,105 @@
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
 		<ReadyDot count={ready} reserve />
-		<button
-			type="button"
-			class={cn(
-				'min-w-0 flex-1 truncate rounded-sm px-0.5 text-left text-xs hover:underline focus-visible:outline-2 focus-visible:outline-ring',
-				!subtask && 'font-medium',
-				done && 'text-muted-foreground line-through decoration-muted-foreground/50'
-			)}
-			title={m.gantt_show_row({ task: titleText })}
-			onclick={() => onJump(row.id)}
-			data-testid="gantt-label">{titleText}</button
-		>
+		<Hint text={showRow}>
+			{#snippet child({ props })}
+				<button
+					{...mergeProps(props, { onclick: () => onJump(row.id) })}
+					type="button"
+					class={cn(
+						'min-w-0 flex-1 truncate rounded-sm px-0.5 text-left text-xs hover:underline focus-visible:outline-2 focus-visible:outline-ring',
+						!subtask && 'font-medium',
+						done && 'text-muted-foreground line-through decoration-muted-foreground/50'
+					)}
+					aria-describedby={showRowId}
+					data-testid="gantt-label">{titleText}</button
+				>
+			{/snippet}
+		</Hint>
+		<span id={showRowId} class="sr-only">{showRow}</span>
 	</div>
 	<div
 		class={cn('relative flex-1 transition-colors', highlighted && 'bg-accent/60')}
 		style:transition-duration={colorDuration}
 	>
 		{#if mark.kind === 'bar'}
-			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-			<div
-				role="img"
-				tabindex="0"
-				aria-label={markName}
-				title={markName}
-				class={cn(
-					'pointer-events-auto absolute top-1/2 min-w-0.5 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-					!mark.clipStart && 'rounded-l-sm',
-					!mark.clipEnd && 'rounded-r-sm',
-					highlighted && 'ring-2 ring-ring/70'
-				)}
-				style:left="{x.current.x0 * 100}%"
-				style:width="{(x.current.x1 - x.current.x0) * 100}%"
-				style:height={subtask ? '8px' : '14px'}
-				data-testid="gantt-bar"
-				data-clip-start={mark.clipStart || undefined}
-				data-clip-end={mark.clipEnd || undefined}
-				{...hover}
-			>
-				<!-- The clip path is on the fill only. The focus outline and the ring stay visible. -->
-				<div
-					class={cn(
-						'absolute inset-0',
-						!mark.clipStart && 'rounded-l-sm',
-						!mark.clipEnd && 'rounded-r-sm',
-						done && 'opacity-40'
-					)}
-					style:background={fill}
-					style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
-				></div>
-			</div>
+			<Hint text={markName}>
+				{#snippet child({ props })}
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+					<div
+						{...mergeProps(props, hover)}
+						role="img"
+						tabindex="0"
+						aria-label={markName}
+						class={cn(
+							'pointer-events-auto absolute top-1/2 min-w-0.5 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+							!mark.clipStart && 'rounded-l-sm',
+							!mark.clipEnd && 'rounded-r-sm',
+							highlighted && 'ring-2 ring-ring/70'
+						)}
+						style:left="{x.current.x0 * 100}%"
+						style:width="{(x.current.x1 - x.current.x0) * 100}%"
+						style:height={subtask ? '8px' : '14px'}
+						data-testid="gantt-bar"
+						data-clip-start={mark.clipStart || undefined}
+						data-clip-end={mark.clipEnd || undefined}
+					>
+						<!-- The clip path is on the fill only. The focus outline and the ring stay visible. -->
+						<div
+							class={cn(
+								'absolute inset-0',
+								!mark.clipStart && 'rounded-l-sm',
+								!mark.clipEnd && 'rounded-r-sm',
+								done && 'opacity-40'
+							)}
+							style:background={fill}
+							style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
+						></div>
+					</div>
+				{/snippet}
+			</Hint>
 		{:else if mark.kind === 'point'}
-			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-			<div
-				role="img"
-				tabindex="0"
-				aria-label={markName}
-				title={markName}
-				class={cn(
-					'pointer-events-auto absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-					done && 'opacity-40',
-					highlighted && 'ring-2 ring-ring/70'
-				)}
-				style:left="{x.current.x0 * 100}%"
-				style:background={fill}
-				data-testid="gantt-point"
-				{...hover}
-			></div>
+			<Hint text={markName}>
+				{#snippet child({ props })}
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+					<div
+						{...mergeProps(props, hover)}
+						role="img"
+						tabindex="0"
+						aria-label={markName}
+						class={cn(
+							'pointer-events-auto absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+							done && 'opacity-40',
+							highlighted && 'ring-2 ring-ring/70'
+						)}
+						style:left="{x.current.x0 * 100}%"
+						style:background={fill}
+						data-testid="gantt-point"
+					></div>
+				{/snippet}
+			</Hint>
 		{:else if mark.kind === 'outside'}
 			{@const name = mark.side === 'before' ? m.gantt_outside_before() : m.gantt_outside_after()}
-			<span
-				role="img"
-				aria-label="{titleText}: {name}"
-				title={name}
-				class={cn(
-					'pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center text-muted-foreground',
-					mark.side === 'before' ? 'left-0' : 'right-0'
-				)}
-				data-testid="gantt-outside"
-			>
-				{#if mark.side === 'before'}
-					<ChevronLeftIcon class="size-3.5" aria-hidden="true" />
-				{:else}
-					<ChevronRightIcon class="size-3.5" aria-hidden="true" />
-				{/if}
-			</span>
+			<Hint text={name} focusable={false}>
+				{#snippet child({ props })}
+					<span
+						{...props}
+						role="img"
+						aria-label="{titleText}: {name}"
+						class={cn(
+							'pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center text-muted-foreground',
+							mark.side === 'before' ? 'left-0' : 'right-0'
+						)}
+						data-testid="gantt-outside"
+					>
+						{#if mark.side === 'before'}
+							<ChevronLeftIcon class="size-3.5" aria-hidden="true" />
+						{:else}
+							<ChevronRightIcon class="size-3.5" aria-hidden="true" />
+						{/if}
+					</span>
+				{/snippet}
+			</Hint>
 		{:else}
 			<span
 				class="absolute top-1/2 left-2 -translate-y-1/2 text-xs text-muted-foreground italic"

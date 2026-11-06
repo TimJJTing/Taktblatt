@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getLocale, overwriteGetLocale, type Locale } from '#lib/paraglide/runtime.js';
-import { LanguageReload, losesWork } from './language-reload.svelte';
-import type { Workspace } from './workspace.svelte';
+import { LanguageReload, losesWork } from './language-reload.svelte.js';
+import type { Workspace } from './workspace.svelte.js';
 
 const none = { canUndo: false, canRedo: false, dialogOpen: false };
 

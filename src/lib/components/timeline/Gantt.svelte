@@ -5,10 +5,12 @@
 	Timeline owns the pin and section height. The pinned chart has its own vertical scroll.
 -->
 <script lang="ts">
+	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.js';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
 	import { todayISO } from '#lib/domain/date.js';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
@@ -29,6 +31,7 @@
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
+	import GanttTween from './GanttTween.svelte';
 	import {
 		HEADER_HEIGHT,
 		LABEL_WIDTH,
@@ -185,13 +188,17 @@
 				></div>
 				<div class="relative flex-1 text-xs text-muted-foreground">
 					{#each ticks as t (t.month)}
-						<div
-							class="absolute inset-y-0 flex items-center overflow-hidden border-l px-1 whitespace-nowrap first:border-l-0"
-							style:left="{t.x0 * 100}%"
-							style:width="{(t.x1 - t.x0) * 100}%"
-						>
-							<span class="truncate">{formatMonth(t.month, locale)}</span>
-						</div>
+						<GanttTween x0={t.x0} x1={t.x1}>
+							{#snippet child(x)}
+								<div
+									class="absolute inset-y-0 flex items-center overflow-hidden border-l px-1 whitespace-nowrap first:border-l-0"
+									style:left="{x.x0 * 100}%"
+									style:width="{(x.x1 - x.x0) * 100}%"
+								>
+									<span class="truncate">{formatMonth(t.month, locale)}</span>
+								</div>
+							{/snippet}
+						</GanttTween>
 					{/each}
 				</div>
 			</div>
@@ -205,21 +212,28 @@
 				<div class="relative flex-1">
 					{#each milestones as item (item.milestone.id)}
 						{@const Symbol = MILESTONE_SYMBOLS[item.milestone.symbol]}
-						<button
-							type="button"
-							class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-							style:left="calc({item.x * 100}% - 7px)"
-							aria-label={m.gantt_milestone({
-								label: item.label,
-								title: item.milestone.title,
-								date: formatDate(item.milestone.date, locale)
-							})}
-							title="{item.label} {item.milestone.title}"
-							onclick={() => onMilestone(item.milestone)}
-							data-testid="gantt-milestone"
-						>
-							<Symbol class="size-3.5 fill-current" />{item.label}
-						</button>
+						<GanttTween x0={item.x}>
+							{#snippet child(x)}
+								<Hint text="{item.label} {item.milestone.title}">
+									{#snippet child({ props })}
+										<button
+											{...mergeProps(props, { onclick: () => onMilestone(item.milestone) })}
+											type="button"
+											class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+											style:left="calc({x.x0 * 100}% - 7px)"
+											aria-label={m.gantt_milestone({
+												label: item.label,
+												title: item.milestone.title,
+												date: formatDate(item.milestone.date, locale)
+											})}
+											data-testid="gantt-milestone"
+										>
+											<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
+										</button>
+									{/snippet}
+								</Hint>
+							{/snippet}
+						</GanttTween>
 					{/each}
 				</div>
 			</div>
@@ -242,44 +256,59 @@
 				bind:clientWidth={timelineWidth}
 			>
 				{#each ticks.slice(1) as t (t.month)}
-					<div
-						class="absolute inset-y-0 border-l border-border/60"
-						style:left="{t.x0 * 100}%"
-					></div>
+					<GanttTween x0={t.x0}>
+						{#snippet child(x)}
+							<div
+								class="absolute inset-y-0 border-l border-border/60"
+								style:left="{x.x0 * 100}%"
+							></div>
+						{/snippet}
+					</GanttTween>
 				{/each}
 				{#each bands as item (item.band.id)}
 					{@const name = m.gantt_band({
 						title: item.band.title,
 						range: formatRangeDisplay(item.band.start, item.band.end, locale)
 					})}
-					<button
-						type="button"
-						class="absolute inset-y-0 overflow-hidden text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-						style:left="{item.x0 * 100}%"
-						style:width="{(item.x1 - item.x0) * 100}%"
-						style:background={bandFill(bandTintVar(item.band.color))}
-						aria-label={name}
-						title={name}
-						onclick={() => onBand(item.band)}
-						data-testid="gantt-band"
-					>
-						<span
-							class="absolute bottom-0.5 left-1 max-w-full truncate pr-1 text-[10px] text-muted-foreground"
-							aria-hidden="true">{item.band.title}</span
-						>
-					</button>
+					<GanttTween x0={item.x0} x1={item.x1}>
+						{#snippet child(x)}
+							<Hint text={name}>
+								{#snippet child({ props })}
+									<button
+										{...mergeProps(props, { onclick: () => onBand(item.band) })}
+										type="button"
+										class="absolute inset-y-0 overflow-hidden text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+										style:left="{x.x0 * 100}%"
+										style:width="{(x.x1 - x.x0) * 100}%"
+										style:background={bandFill(bandTintVar(item.band.color))}
+										aria-label={name}
+										data-testid="gantt-band"
+									>
+										<span
+											class="absolute bottom-0.5 left-1 max-w-full truncate pr-1 text-[10px] text-muted-foreground"
+											aria-hidden="true">{item.band.title}</span
+										>
+									</button>
+								{/snippet}
+							</Hint>
+						{/snippet}
+					</GanttTween>
 				{/each}
 				{#if today !== null}
-					<div
-						class="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/60"
-						style:left="{today * 100}%"
-						data-testid="gantt-today"
-					>
-						<span
-							class="absolute top-0.5 left-1 rounded-sm bg-background/80 px-0.5 text-[10px] leading-tight font-medium"
-							>{m.gantt_today()}</span
-						>
-					</div>
+					<GanttTween x0={today}>
+						{#snippet child(x)}
+							<div
+								class="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/60"
+								style:left="{x.x0 * 100}%"
+								data-testid="gantt-today"
+							>
+								<span
+									class="absolute top-0.5 left-1 rounded-sm bg-background/80 px-0.5 text-[10px] leading-tight font-medium"
+									>{m.gantt_today()}</span
+								>
+							</div>
+						{/snippet}
+					</GanttTween>
 				{/if}
 				<svg
 					class="pointer-events-none absolute inset-0 size-full overflow-visible text-muted-foreground"

@@ -2,7 +2,7 @@
  * Date formatting and parsing for the UI language.
  * All functions use UTC, because stored dates have no time zone.
  */
-import { isISODate, type ISODate } from './date';
+import { isISODate, type ISODate } from './date.js';
 
 const toDate = (date: ISODate) => new Date(`${date}T00:00:00Z`);
 

@@ -6,14 +6,16 @@
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { isComposing } from '#lib/browser/keyboard.js';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { ownerKey } from '#lib/domain/owners.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import OwnerChips from './OwnerChips.svelte';
+	import OwnerChips, { ownerListHint } from './OwnerChips.svelte';
 
 	interface Props {
 		owners: readonly string[];
@@ -85,19 +87,25 @@
 </script>
 
 <Popover.Root {open} {onOpenChange}>
-	<Popover.Trigger
-		class="flex min-h-6 w-full items-center rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
-		aria-label={owners.length ? m.field_value({ label, value: owners.join(', ') }) : label}
-		data-testid="owner-field"
-	>
-		{#if owners.length}
-			<OwnerChips {owners} />
-		{:else}
-			<span class="truncate text-sm whitespace-nowrap text-muted-foreground/70"
-				>{m.owner_empty()}</span
+	<Hint text={ownerListHint(owners)}>
+		{#snippet child({ props })}
+			<Popover.Trigger
+				{...props}
+				class="flex min-h-6 w-full items-center rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+				style="transition-duration: {motionDuration(150)}ms"
+				aria-label={owners.length ? m.field_value({ label, value: owners.join(', ') }) : label}
+				data-testid="owner-field"
 			>
-		{/if}
-	</Popover.Trigger>
+				{#if owners.length}
+					<OwnerChips {owners} />
+				{:else}
+					<span class="truncate text-sm whitespace-nowrap text-muted-foreground/70"
+						>{m.owner_empty()}</span
+					>
+				{/if}
+			</Popover.Trigger>
+		{/snippet}
+	</Hint>
 	<Popover.Content class="w-64 p-2" align="start" {onEscapeKeydown}>
 		{#if owners.length}
 			<ul class="mb-2 flex flex-wrap gap-1">

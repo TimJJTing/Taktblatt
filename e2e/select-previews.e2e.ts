@@ -5,7 +5,14 @@ import en from '../messages/en.json' with { type: 'json' };
 import de from '../messages/de.json' with { type: 'json' };
 import ja from '../messages/ja.json' with { type: 'json' };
 import zhTW from '../messages/zh-TW.json' with { type: 'json' };
-import { chooseOption, expectPreviewBeforeName, openApp, openSelect, storedPlan } from './helpers';
+import {
+	chooseOption,
+	expectPreviewBeforeName,
+	openApp,
+	openPreview,
+	openSelect,
+	storedPlan
+} from './helpers.js';
 
 const symbols = [
 	{ key: 'diamond', name: 'Diamond', icon: 'diamond' },
@@ -87,11 +94,8 @@ test('a saved Hexagon milestone keeps its symbol in the dialog, Gantt and Previe
 	await expectSymbolPreview(page.getByTestId('milestone-symbol'), 'hexagon', 'Hexagon');
 	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
 	await expect(dialog).toHaveCount(0);
-	await page.getByTestId('preview-open').click();
-	const preview = page.getByRole('dialog', { name: 'Print preview' });
-	await expect(preview).toBeVisible();
+	const preview = await openPreview(page);
 	const sheet = preview.getByTestId('sheet').first();
-	await expect(sheet).toBeVisible();
 	const printedMilestone = sheet.getByRole('img', { name: /Hexagon review/ });
 	await expect(printedMilestone.locator('svg.lucide-hexagon')).toBeVisible();
 	await page.emulateMedia({ media: 'print' });

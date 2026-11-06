@@ -5,6 +5,7 @@
 	Dates use the UI language.
 -->
 <script lang="ts">
+	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
 	import { innerHeight } from 'svelte/reactivity/window';
@@ -13,6 +14,7 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.js';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { Toggle } from '#lib/components/ui/toggle/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.js';
@@ -276,43 +278,53 @@
 			<h2 id="timeline-title" class="text-sm font-semibold tracking-wide uppercase">
 				{m.section_timeline()}
 			</h2>
-			<Toggle
-				class="size-9 p-0"
-				aria-label={m.gantt_pin()}
-				title={m.gantt_pin()}
-				pressed={viewer.ganttPinned}
-				onPressedChange={(value) => viewer.setGanttPinned(value)}
-				data-testid="gantt-pin"
-			>
-				<PinIcon aria-hidden="true" class={cn(viewer.ganttPinned && 'fill-current')} />
-			</Toggle>
+			<Hint text={m.gantt_pin()}>
+				{#snippet child({ props })}
+					<Toggle
+						{...props}
+						class="size-9 p-0"
+						aria-label={m.gantt_pin()}
+						pressed={viewer.ganttPinned}
+						onPressedChange={(value) => viewer.setGanttPinned(value)}
+						data-testid="gantt-pin"
+					>
+						<PinIcon aria-hidden="true" class={cn(viewer.ganttPinned && 'fill-current')} />
+					</Toggle>
+				{/snippet}
+			</Hint>
 			{#if viewer.ganttPinned}
 				<div
 					class="flex shrink-0 gap-1"
 					transition:fade={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
 				>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						aria-label={m.gantt_shorter()}
-						title={m.gantt_shorter()}
-						disabled={atMin}
-						onclick={() => setHeight(height - viewport * 0.1)}
-						style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
-					>
-						<ChevronUpIcon aria-hidden="true" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						aria-label={m.gantt_taller()}
-						title={m.gantt_taller()}
-						disabled={atMax}
-						onclick={() => setHeight(height + viewport * 0.1)}
-						style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
-					>
-						<ChevronDownIcon aria-hidden="true" />
-					</Button>
+					<Hint text={m.gantt_shorter()}>
+						{#snippet child({ props })}
+							<Button
+								{...mergeProps(props, { onclick: () => setHeight(height - viewport * 0.1) })}
+								variant="ghost"
+								size="icon-sm"
+								aria-label={m.gantt_shorter()}
+								disabled={atMin}
+								style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
+							>
+								<ChevronUpIcon aria-hidden="true" />
+							</Button>
+						{/snippet}
+					</Hint>
+					<Hint text={m.gantt_taller()}>
+						{#snippet child({ props })}
+							<Button
+								{...mergeProps(props, { onclick: () => setHeight(height + viewport * 0.1) })}
+								variant="ghost"
+								size="icon-sm"
+								aria-label={m.gantt_taller()}
+								disabled={atMax}
+								style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
+							>
+								<ChevronDownIcon aria-hidden="true" />
+							</Button>
+						{/snippet}
+					</Hint>
 				</div>
 			{/if}
 			<Button

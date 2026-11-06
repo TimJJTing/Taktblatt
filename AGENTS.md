@@ -30,7 +30,7 @@ Use Node.js 24+ and pnpm 11.10.0.
 
 Use strict TypeScript and Svelte runes. Prettier enforces tabs, single quotes, no trailing commas, and a 100-character width; plugins format Svelte and sort Tailwind classes. Use PascalCase app components, kebab-case utilities, and camelCase functions.
 
-Use the `#lib/...` alias for imports from `src/lib/`. Use a `.js` suffix for TypeScript modules, including `.svelte.js` for reactive modules. For example: `import { motionDuration } from '#lib/motion.js'`. Keep `.svelte` extensions for component imports.
+Use the `#lib/...` alias for imports from `src/lib/`. Relative imports are allowed only for siblings (`./x.js`) and parents (`../x.js`). Use a `.js` suffix for TypeScript modules, including `.svelte.js` for reactive modules. For example: `import { motionDuration } from '#lib/motion.js'`. Keep `.svelte` extensions for component imports. The ESLint rule `local/import-specifiers` (`scripts/eslint/import-specifiers.js`) checks these import rules and fixes most findings with `pnpm exec eslint --fix`.
 
 Keep domain logic pure. Route plan-content edits through `src/lib/state/commands.ts`; use Workspace operations for plan lifecycle and undo/redo. Avoid unrelated changes to vendored `components/ui/` files.
 
@@ -43,6 +43,8 @@ Keep documentation current with every change. Update affected guides, specificat
 ## UI, Motion & Accessibility
 
 Animate or transition every change in an element's position so users can follow the change. Route all motion durations through `motionDuration(ms)` from `src/lib/motion.ts`. This includes CSS transitions and animations, Svelte transitions, `animate:flip`, and `Tween`. When the user prefers reduced motion, the helper returns `0`; position changes must then be immediate.
+
+Show hints with `src/lib/components/app/Hint.svelte`, which wraps the Tooltip. Do not use the native `title` attribute; `src/lib/components/no-native-title.spec.ts` checks this. Keep the text alternative in `aria-label`. Refer to `docs/spec.md`, section 5.10.
 
 Provide text alternatives for SVGs and graphics that convey information. Hide purely decorative graphics from assistive technology. Ensure interactive bars, labels, and milestones have accessible names and support keyboard focus and activation.
 

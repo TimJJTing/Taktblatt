@@ -5,14 +5,15 @@
 <script lang="ts">
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import { mergeProps } from 'bits-ui';
 	import { tick } from 'svelte';
-	import OwnerChips from '#lib/components/edit/OwnerChips.svelte';
+	import Hint from '#lib/components/app/Hint.svelte';
+	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { focusSiblingRow } from '#lib/browser/grid.js';
 	import { readyCount } from '#lib/domain/dependencies.js';
 	import { effectiveValues } from '#lib/domain/derive.js';
@@ -62,21 +63,18 @@
 
 <td class="py-1 pl-1 align-middle">
 	{#if isParent}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
-						<Checkbox
-							checked={eff.done === 'done'}
-							indeterminate={eff.done === 'partial'}
-							disabled
-							aria-label={m.task_done_label({ task: titleText })}
-						/>
-					</span>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content>{m.task_done_derived()}</Tooltip.Content>
-		</Tooltip.Root>
+		<Hint text={m.task_done_derived()}>
+			{#snippet child({ props })}
+				<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
+					<Checkbox
+						checked={eff.done === 'done'}
+						indeterminate={eff.done === 'partial'}
+						disabled
+						aria-label={m.task_done_label({ task: titleText })}
+					/>
+				</span>
+			{/snippet}
+		</Hint>
 	{:else}
 		<Checkbox
 			checked={task.done}
@@ -147,13 +145,16 @@
 </td>
 <td class="py-1 whitespace-nowrap" data-grid-col="target">
 	{#if isParent}
-		<span
-			class="block px-1.5 py-0.5 tabular-nums"
-			title="{m.target_derived()}{eff.start || eff.end ? ` · ${rangeText}` : ''}"
-			data-testid="task-target"
+		<Hint
+			text="{m.target_derived()}{eff.start || eff.end ? ` · ${rangeText}` : ''}"
+			focusable={false}
 		>
-			{formatTarget(eff, true, locale)}
-		</span>
+			{#snippet child({ props })}
+				<span {...props} class="block px-1.5 py-0.5 tabular-nums" data-testid="task-target">
+					{formatTarget(eff, true, locale)}
+				</span>
+			{/snippet}
+		</Hint>
 	{:else}
 		<DateRangeField
 			start={task.start}
@@ -161,31 +162,39 @@
 			label={m.column_target()}
 			onCommit={(range) => updateTask(ws, task.id, range)}
 		>
-			{#snippet trigger({ props })}
-				<button
-					{...props}
-					type="button"
-					title={eff.start || eff.end ? rangeText : undefined}
-					class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
-					data-testid="task-target"
-				>
-					{#if task.end}
-						{formatTarget(task, false, locale)}
-					{:else if task.start}
-						<span class="text-muted-foreground">{formatTarget(task, false, locale)}</span>
-					{:else}
-						<span class="text-muted-foreground/70">{m.target_empty()}</span>
-					{/if}
-				</button>
+			{#snippet trigger({ props: fieldProps })}
+				<Hint text={eff.start || eff.end ? rangeText : undefined}>
+					{#snippet child({ props: hintProps })}
+						<button
+							{...mergeProps(hintProps, fieldProps)}
+							type="button"
+							class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+							style:transition-duration={`${motionDuration(150)}ms`}
+							data-testid="task-target"
+						>
+							{#if task.end}
+								{formatTarget(task, false, locale)}
+							{:else if task.start}
+								<span class="text-muted-foreground">{formatTarget(task, false, locale)}</span>
+							{:else}
+								<span class="text-muted-foreground/70">{m.target_empty()}</span>
+							{/if}
+						</button>
+					{/snippet}
+				</Hint>
 			{/snippet}
 		</DateRangeField>
 	{/if}
 </td>
 <td class="py-1" data-grid-col="owner" data-testid="task-owners">
 	{#if isParent}
-		<span class="flex px-1.5 py-0.5" title={m.owner_derived()}>
-			<OwnerChips owners={eff.owners} />
-		</span>
+		<Hint text={[m.owner_derived(), ownerListHint(eff.owners)].join(' ').trim()} focusable={false}>
+			{#snippet child({ props })}
+				<span {...props} class="flex px-1.5 py-0.5">
+					<OwnerChips owners={eff.owners} />
+				</span>
+			{/snippet}
+		</Hint>
 	{:else}
 		<OwnerField
 			owners={task.owners}
@@ -200,6 +209,7 @@
 	<button
 		type="button"
 		class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+		style:transition-duration={`${motionDuration(150)}ms`}
 		aria-label={m.task_details({ task: titleText })}
 		aria-haspopup="dialog"
 		onclick={(e) => editing.openDetails(task.id, e.currentTarget)}

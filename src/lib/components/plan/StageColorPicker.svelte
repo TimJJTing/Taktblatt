@@ -1,9 +1,12 @@
 <!-- The stage color swatch. It opens the curated palette. A color that another stage uses has a warning. -->
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import { mergeProps } from 'bits-ui';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { isComposing } from '#lib/browser/keyboard.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { STAGE_COLOR_KEYS, type StageColor } from '#lib/domain/palette.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { colorName, stageColorVar } from './colors.js';
@@ -61,7 +64,7 @@
 			'size-3.5 shrink-0 rounded-[4px] transition-transform outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
 			duplicate && 'ring-2 ring-amber-500/70 ring-offset-1'
 		)}
-		style="background: {stageColorVar(value)}"
+		style="background: {stageColorVar(value)}; transition-duration: {motionDuration(150)}ms"
 		aria-label={m.stage_color({ color: colorName(value) })}
 		data-testid="stage-color"
 	/>
@@ -80,31 +83,38 @@
 			aria-label={m.stage_color({ color: '' })}
 		>
 			{#each STAGE_COLOR_KEYS as key (key)}
-				<button
-					type="button"
-					role="radio"
-					tabindex={key === (focusedColor ?? value) ? 0 : -1}
-					onkeydown={(event) => onKeydown(event, key)}
-					aria-checked={key === value}
-					aria-label={colorName(key)}
-					title={used.includes(key)
-						? `${colorName(key)} · ${m.stage_color_in_use()}`
-						: colorName(key)}
-					class="relative flex size-7 items-center justify-center rounded-md transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-					style="background: {stageColorVar(key)}"
-					onclick={() => {
-						onChange(key);
-						open = false;
-					}}
-				>
-					{#if key === value}<CheckIcon class="size-4 text-white" aria-hidden="true" />{/if}
-					{#if used.includes(key) && key !== value}
-						<span
-							class="absolute -top-0.5 -right-0.5 size-2 rounded-full border border-background bg-amber-500"
-							aria-hidden="true"
-						></span>
-					{/if}
-				</button>
+				{@const name = used.includes(key)
+					? `${colorName(key)} · ${m.stage_color_in_use()}`
+					: colorName(key)}
+				<Hint text={name}>
+					{#snippet child({ props })}
+						<button
+							{...mergeProps(props, {
+								onclick: () => {
+									onChange(key);
+									open = false;
+								},
+								onkeydown: (event: KeyboardEvent) => onKeydown(event, key)
+							})}
+							type="button"
+							role="radio"
+							tabindex={key === (focusedColor ?? value) ? 0 : -1}
+							aria-checked={key === value}
+							aria-label={name}
+							class="relative flex size-7 items-center justify-center rounded-md transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+							style:transition-duration={`${motionDuration(150)}ms`}
+							style="background: {stageColorVar(key)}"
+						>
+							{#if key === value}<CheckIcon class="size-4 text-white" aria-hidden="true" />{/if}
+							{#if used.includes(key) && key !== value}
+								<span
+									class="absolute -top-0.5 -right-0.5 size-2 rounded-full border border-background bg-amber-500"
+									aria-hidden="true"
+								></span>
+							{/if}
+						</button>
+					{/snippet}
+				</Hint>
 			{/each}
 		</div>
 		{#if duplicate}

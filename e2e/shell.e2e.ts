@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openSettings } from './helpers';
+import { openApp, openSettings } from './helpers.js';
 
 test('the app shell shows the app name', async ({ page }) => {
 	await page.goto('/');

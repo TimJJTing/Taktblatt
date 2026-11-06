@@ -3,9 +3,9 @@
  * It does not use the data of the design artifact.
  * All dates are relative to `today`, so the example is always current.
  */
-import { dayNumber, isoFromDayNumber, todayISO, type ISODate } from './date';
-import { createId } from './ids';
-import type { Plan, Task } from './schema';
+import { dayNumber, isoFromDayNumber, todayISO, type ISODate } from './date.js';
+import { createId } from './ids.js';
+import type { Plan, Task } from './schema.js';
 
 function addDays(date: ISODate, days: number): ISODate {
 	return isoFromDayNumber(dayNumber(date) + days);

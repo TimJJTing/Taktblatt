@@ -1,8 +1,8 @@
 /** Functions that make new, empty entities with correct default values. */
-import { todayISO, type ISODate } from './date';
-import { createId } from './ids';
-import { nextStageColor } from './palette';
-import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema';
+import { todayISO, type ISODate } from './date.js';
+import { createId } from './ids.js';
+import { nextStageColor } from './palette.js';
+import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.js';
 
 /** Returns the first day of the month of `date`, plus `months` months. */
 function monthStart(date: ISODate, months: number): ISODate {

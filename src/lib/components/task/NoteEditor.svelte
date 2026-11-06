@@ -14,6 +14,7 @@
 		toEditorText
 	} from '#lib/domain/mentions.js';
 	import type { Task } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
@@ -214,6 +215,7 @@
 		bind:this={display}
 		type="button"
 		class="min-h-20 w-full rounded-md border border-transparent px-2.5 py-2 text-left text-sm whitespace-pre-wrap transition-colors hover:border-border hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+		style:transition-duration={`${motionDuration(150)}ms`}
 		onclick={start}
 		data-testid="note-display"
 	>

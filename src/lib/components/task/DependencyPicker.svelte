@@ -7,6 +7,7 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { isComposing } from '#lib/browser/keyboard.js';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { breaksDateRule, canDependOn, inheritedDependencies } from '#lib/domain/dependencies.js';
 	import { matchesWords } from '#lib/domain/mentions.js';
@@ -83,15 +84,18 @@
 					{#if warn}
 						<TriangleAlertIcon
 							class="size-3 text-amber-600"
+							role="img"
 							aria-label={m.dependency_warning({ task: title(id) })}
 						/>
 					{/if}
-					<span
-						class="max-w-48 truncate"
-						title={warn ? m.dependency_warning({ task: title(id) }) : undefined}
+					<Hint
+						text={warn ? m.dependency_warning({ task: title(id) }) : undefined}
+						focusable={false}
 					>
-						{title(id)}
-					</span>
+						{#snippet child({ props })}
+							<span {...props} class="max-w-48 truncate">{title(id)}</span>
+						{/snippet}
+					</Hint>
 					<button
 						type="button"
 						class="rounded-full p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -103,13 +107,17 @@
 				</li>
 			{/each}
 			{#each inherited as dep (dep.depId + dep.fromId)}
-				<li
-					class="flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
-					title={m.dependency_inherited({ task: title(dep.fromId) })}
-				>
-					<span class="max-w-48 truncate">{title(dep.depId)}</span>
-					<span class="sr-only">({m.dependency_inherited({ task: title(dep.fromId) })})</span>
-				</li>
+				<Hint text={m.dependency_inherited({ task: title(dep.fromId) })} focusable={false}>
+					{#snippet child({ props })}
+						<li
+							{...props}
+							class="flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
+						>
+							<span class="max-w-48 truncate">{title(dep.depId)}</span>
+							<span class="sr-only">({m.dependency_inherited({ task: title(dep.fromId) })})</span>
+						</li>
+					{/snippet}
+				</Hint>
 			{/each}
 		</ul>
 	{/if}

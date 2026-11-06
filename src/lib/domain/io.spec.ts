@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createExamplePlan } from './example';
-import { createEmptyPlan } from './factory';
+import { createExamplePlan } from './example.js';
+import { createEmptyPlan } from './factory.js';
 import {
 	backupFileName,
 	exportFileName,
@@ -11,8 +11,8 @@ import {
 	toBackupFile,
 	toPlanFile,
 	withNewIds
-} from './io';
-import { makePlan, makeTask } from './test-helpers';
+} from './io.js';
+import { makePlan, makeTask } from './test-helpers.js';
 import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from '#lib/domain/schema.js';
 import { parsePlan } from '#lib/state/storage.js';
 

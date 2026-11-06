@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { migrate, MigrationError } from './migrate';
-import { SCHEMA_VERSION } from './schema';
+import { migrate, MigrationError } from './migrate.js';
+import { SCHEMA_VERSION } from './schema.js';
 
 describe('migrate', () => {
 	it('rejects data without a schema version', () => {

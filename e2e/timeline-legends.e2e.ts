@@ -6,10 +6,12 @@ import {
 	expectExampleSheetLegends,
 	openApp,
 	openExample,
+	openPreview,
 	previewSheetSnapshot,
 	startTimelineFrameMonitor,
-	storedPlan
-} from './helpers';
+	storedPlan,
+	waitForAnimations
+} from './helpers.js';
 
 const toggle = (page: Page) => page.getByTestId('timeline-legends-toggle');
 const legends = (page: Page) => page.getByTestId('timeline-legends');
@@ -140,11 +142,7 @@ for (const width of [1280, 390]) {
 			await expect
 				.poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
 				.toBe(true);
-			await dialog.evaluate(async (element) => {
-				await Promise.all(
-					element.getAnimations({ subtree: true }).map((animation) => animation.finished)
-				);
-			});
+			await waitForAnimations(dialog);
 			await page.keyboard.press('Escape');
 			await expect(dialog).toHaveCount(0);
 		}
@@ -231,9 +229,8 @@ test('collapsed workspace legends and the divider do not change Preview or print
 	page
 }) => {
 	await openExample(page);
-	await page.getByTestId('preview-open').click();
+	await openPreview(page);
 	const sheets = page.getByTestId('sheet');
-	await expect(sheets.first()).toBeVisible();
 	const before = await previewSheetSnapshot(page);
 	await expectExampleSheetLegends(page);
 	await page.emulateMedia({ media: 'print' });
@@ -244,7 +241,7 @@ test('collapsed workspace legends and the divider do not change Preview or print
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await toggle(page).click();
 	await page.getByTestId('gantt-pin').click();
-	await page.getByTestId('preview-open').click();
+	await openPreview(page);
 	await expect.poll(() => previewSheetSnapshot(page)).toEqual(before);
 	await expectExampleSheetLegends(page);
 	await expect(sheets.getByTestId('timeline-legends-toggle')).toHaveCount(0);

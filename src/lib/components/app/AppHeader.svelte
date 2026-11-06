@@ -4,12 +4,12 @@
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getPreview } from '#lib/state/preview.svelte.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.js';
 	import { appHeader } from './app-layout.svelte.js';
 	import ExportMenu from './ExportMenu.svelte';
+	import Hint from './Hint.svelte';
 	import ImportButton from './ImportButton.svelte';
 	import PlanSwitcher from './PlanSwitcher.svelte';
 	import SettingsMenu from './SettingsMenu.svelte';
@@ -72,40 +72,34 @@
 			</Button>
 			<ImportButton />
 			<ExportMenu />
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="ghost"
-							size="icon-sm"
-							aria-label={m.action_undo()}
-							disabled={!ws.history.canUndo}
-							onclick={() => ws.undo()}
-						>
-							<Undo2Icon aria-hidden="true" />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>{m.action_undo()} ({mod}Z)</Tooltip.Content>
-			</Tooltip.Root>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="ghost"
-							size="icon-sm"
-							aria-label={m.action_redo()}
-							disabled={!ws.history.canRedo}
-							onclick={() => ws.redo()}
-						>
-							<Redo2Icon aria-hidden="true" />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>{m.action_redo()} ({isMac ? '⇧⌘Z' : 'Ctrl+Y'})</Tooltip.Content>
-			</Tooltip.Root>
+			<Hint text={`${m.action_undo()} (${mod}Z)`}>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m.action_undo()}
+						disabled={!ws.history.canUndo}
+						onclick={() => ws.undo()}
+					>
+						<Undo2Icon aria-hidden="true" />
+					</Button>
+				{/snippet}
+			</Hint>
+			<Hint text={`${m.action_redo()} (${isMac ? '⇧⌘Z' : 'Ctrl+Y'})`}>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m.action_redo()}
+						disabled={!ws.history.canRedo}
+						onclick={() => ws.redo()}
+					>
+						<Redo2Icon aria-hidden="true" />
+					</Button>
+				{/snippet}
+			</Hint>
 			<SettingsMenu />
 		</div>
 	</div>

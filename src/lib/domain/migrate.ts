@@ -2,7 +2,7 @@
  * Migrations for stored and imported data.
  * Add one function for each new schema version. Each function changes version N to N + 1.
  */
-import { SCHEMA_VERSION } from './schema';
+import { SCHEMA_VERSION } from './schema.js';
 
 type Migration = (data: Record<string, unknown>) => Record<string, unknown>;
 

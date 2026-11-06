@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
 	import { scale } from 'svelte/transition';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 
@@ -30,14 +31,24 @@
 				aria-label={label}
 			></span>
 		{:else}
+			<!-- The transition is on this wrapper. A local transition inside the Hint does not play. -->
 			<span
-				class="ready-dot inline-block size-2 shrink-0 rounded-full bg-ready motion-safe:animate-[ready-pulse_900ms_ease-out_1]"
-				role="img"
-				aria-label={label}
-				title={label}
+				class="inline-flex shrink-0"
 				transition:scale={{ duration: motionDuration(220), start: 0.3 }}
-				data-testid="ready-dot"
-			></span>
+			>
+				<Hint text={label} focusable={false}>
+					{#snippet child({ props })}
+						<span
+							{...props}
+							class="ready-dot inline-block size-2 shrink-0 rounded-full bg-ready motion-safe:animate-[ready-pulse_900ms_ease-out_1]"
+							style:animation-duration={`${motionDuration(900)}ms`}
+							role="img"
+							aria-label={label}
+							data-testid="ready-dot"
+						></span>
+					{/snippet}
+				</Hint>
+			</span>
 		{/if}
 	{/if}
 {/snippet}

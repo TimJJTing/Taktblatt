@@ -2,9 +2,9 @@
  * Derived values. Each derived value has one calculation here. All views use it.
  * Refer to docs/spec.md, section 2.
  */
-import type { ISODate } from './date';
-import { normalizeOwners } from './owners';
-import type { Milestone, Task } from './schema';
+import type { ISODate } from './date.js';
+import { normalizeOwners } from './owners.js';
+import type { Milestone, Task } from './schema.js';
 
 export type DoneState = 'done' | 'partial' | 'open';
 

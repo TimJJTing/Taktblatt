@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp, openExample, row, storedPlan } from './helpers';
-
-const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
+import { openApp, openExample, row, storedPlan } from './helpers.js';
 
 test.describe('workspace', () => {
 	test('the example load supports undo and redo, and a reload keeps the plan', async ({ page }) => {
@@ -21,11 +19,22 @@ test.describe('workspace', () => {
 	});
 
 	test('the undo shortcut reverts the last commit', async ({ page }) => {
-		await openExample(page);
-		await page.keyboard.press(`${mod}+z`);
-		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
-		await page.keyboard.press(`${mod}+Shift+z`);
+		await openApp(page);
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		const redo = page.getByRole('button', { name: 'Redo', exact: true });
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeDisabled();
+		await page.getByRole('button', { name: 'Load example' }).click();
 		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		await expect(undo).toBeEnabled();
+		await page.keyboard.press('ControlOrMeta+z');
+		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeEnabled();
+		await page.keyboard.press('ControlOrMeta+Shift+z');
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		await expect(undo).toBeEnabled();
+		await expect(redo).toBeDisabled();
 	});
 
 	test('the save shortcut shows a Saved toast', async ({ page }) => {
@@ -59,6 +68,13 @@ test.describe('workspace', () => {
 
 	test('rename changes the heading in one undo step', async ({ page }) => {
 		await openExample(page);
+		// Reload to start with an empty undo history.
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		const redo = page.getByRole('button', { name: 'Redo', exact: true });
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeDisabled();
 		const original = (await storedPlan(page)).heading;
 		await page.getByTestId('plan-switcher').click();
 		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
@@ -67,8 +83,18 @@ test.describe('workspace', () => {
 		await expect(page.getByTestId('plan-rename-dialog')).toBeHidden();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Spring plan');
 		await expect(page.getByTestId('plan-switcher')).toContainText('Spring plan');
-		await page.getByRole('button', { name: 'Undo', exact: true }).click();
+		await expect(redo).toBeDisabled();
+		// One Undo restores the previous name and empties the history.
+		await undo.click();
 		await expect(page.getByTestId('plan-heading')).toHaveText(original);
+		await expect(page.getByTestId('plan-switcher')).toContainText(original);
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeEnabled();
+		await redo.click();
+		await expect(page.getByTestId('plan-heading')).toHaveText('Spring plan');
+		await expect(page.getByTestId('plan-switcher')).toContainText('Spring plan');
+		await expect(undo).toBeEnabled();
+		await expect(redo).toBeDisabled();
 	});
 
 	test('an empty name keeps the previous name', async ({ page }) => {
