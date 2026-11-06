@@ -6,7 +6,7 @@ import {
 	openSettings,
 	storedPlan,
 	waitForAnimations
-} from './helpers';
+} from './helpers.js';
 
 const settings = (page: Page) => page.getByTestId('settings-menu');
 const themeGroup = (page: Page) => page.getByRole('group', { name: 'Theme', exact: true });

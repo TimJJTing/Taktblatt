@@ -10,7 +10,6 @@
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { dateWarnings } from '#lib/domain/dependencies.js';
 	import { indexTasks } from '#lib/domain/derive.js';
 	import { limitErrors, parseFile } from '#lib/domain/io.js';
@@ -18,6 +17,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { StorageWriteError } from '#lib/state/storage.js';
 	import { getWorkspace, type ImportConflict } from '#lib/state/workspace.svelte.js';
+	import Hint from './Hint.svelte';
 
 	type Choice = 'replace' | 'keep-both';
 
@@ -109,23 +109,20 @@
 	data-testid="import-input"
 	onchange={onFile}
 />
-<Tooltip.Root>
-	<Tooltip.Trigger>
-		{#snippet child({ props })}
-			<Button
-				{...props}
-				variant="ghost"
-				size="icon-sm"
-				aria-label={m.action_import()}
-				data-testid="import-open"
-				onclick={() => input?.click()}
-			>
-				<DownloadIcon aria-hidden="true" />
-			</Button>
-		{/snippet}
-	</Tooltip.Trigger>
-	<Tooltip.Content>{m.action_import()}</Tooltip.Content>
-</Tooltip.Root>
+<Hint text={m.action_import()}>
+	{#snippet child({ props })}
+		<Button
+			{...props}
+			variant="ghost"
+			size="icon-sm"
+			aria-label={m.action_import()}
+			data-testid="import-open"
+			onclick={() => input?.click()}
+		>
+			<DownloadIcon aria-hidden="true" />
+		</Button>
+	{/snippet}
+</Hint>
 
 <Dialog.Root open={errors !== null} onOpenChange={(open) => !open && (errors = null)}>
 	<Dialog.Content data-testid="import-errors">

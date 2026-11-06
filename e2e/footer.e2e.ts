@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { formatted, openApp, openPreview, storedPlan } from './helpers';
+import { formatted, openApp, openPreview, storedPlan } from './helpers.js';
 
 test.describe('footer', () => {
 	test('fields edit, the date picker has a Today button, and values persist', async ({ page }) => {

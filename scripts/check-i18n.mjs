@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 
 const source = JSON.parse(await readFile(new URL('../messages/en.json', import.meta.url), 'utf8'));
 const keys = Object.keys(source).filter((key) => !key.startsWith('$'));
-const compiled = await import('../src/lib/paraglide/messages/_index.js');
+const compiled = await import('#lib/paraglide/messages/_index.js');
 const missing = keys.filter((key) => typeof compiled[key] !== 'function');
 
 if (missing.length > 0) {

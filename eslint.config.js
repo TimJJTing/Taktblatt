@@ -5,6 +5,7 @@ import svelte from 'eslint-plugin-svelte';
 import { defineConfig, includeIgnoreFile } from 'eslint/config';
 import globals from 'globals';
 import ts from 'typescript-eslint';
+import local from './scripts/eslint/import-specifiers.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
@@ -24,6 +25,13 @@ export default defineConfig(
 		}
 	},
 	{
+		// Module specifiers: explicit extensions, and #lib outside siblings and parent folders.
+		// Refer to AGENTS.md, "Coding Style & Naming Conventions".
+		files: ['**/*.{js,mjs,ts,svelte}'],
+		plugins: { local },
+		rules: { 'local/import-specifiers': 'error' }
+	},
+	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
 		languageOptions: {
 			parserOptions: {
@@ -36,6 +44,6 @@ export default defineConfig(
 	{
 		// shadcn-svelte components are vendored. Do not change them for app lint rules.
 		files: ['src/lib/components/ui/**'],
-		rules: { 'svelte/no-navigation-without-resolve': 'off' }
+		rules: { 'svelte/no-navigation-without-resolve': 'off', 'local/import-specifiers': 'off' }
 	}
 );

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp, openExample, row, storedPlan } from './helpers';
+import { openApp, openExample, row, storedPlan } from './helpers.js';
 
 test.describe('workspace', () => {
 	test('the example load supports undo and redo, and a reload keeps the plan', async ({ page }) => {

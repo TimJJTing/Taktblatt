@@ -10,6 +10,8 @@
 -->
 <script lang="ts">
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import { mergeProps } from 'bits-ui';
+	import Hint from '#lib/components/app/Hint.svelte';
 	import { motionDuration } from '#lib/motion.js';
 	import { cn } from '#lib/utils.js';
 
@@ -59,18 +61,22 @@
 		aria-hidden="true"
 	></div>
 	<div class={cn('h-full', pinned && 'sticky left-0 w-[100cqw]')}>
-		<button
-			type="button"
-			aria-label={label}
-			title={label}
-			class={cn(
-				"pointer-events-auto absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition after:absolute after:-inset-0.5 after:content-[''] hover:scale-110 hover:border-foreground/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-				sizes[size].button
-			)}
-			onclick={onAdd}
-			data-testid={testId}
-		>
-			<PlusIcon class={sizes[size].icon} aria-hidden="true" />
-		</button>
+		<Hint text={label}>
+			{#snippet child({ props })}
+				<button
+					{...mergeProps(props, { onclick: onAdd })}
+					type="button"
+					aria-label={label}
+					class={cn(
+						"pointer-events-auto absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition after:absolute after:-inset-0.5 after:content-[''] hover:scale-110 hover:border-foreground/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+						sizes[size].button
+					)}
+					style:transition-duration={`${motionDuration(150)}ms`}
+					data-testid={testId}
+				>
+					<PlusIcon class={sizes[size].icon} aria-hidden="true" />
+				</button>
+			{/snippet}
+		</Hint>
 	</div>
 </div>

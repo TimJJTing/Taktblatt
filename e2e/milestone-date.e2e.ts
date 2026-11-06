@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { formatted, openExample, storedPlan } from './helpers';
+import { formatted, openExample, storedPlan } from './helpers.js';
 
 /** A day button of the month that the open calendar shows. */
 const day = (page: Page, n: number) =>

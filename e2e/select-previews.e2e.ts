@@ -12,7 +12,7 @@ import {
 	openPreview,
 	openSelect,
 	storedPlan
-} from './helpers';
+} from './helpers.js';
 
 const symbols = [
 	{ key: 'diamond', name: 'Diamond', icon: 'diamond' },

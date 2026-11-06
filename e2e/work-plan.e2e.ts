@@ -11,7 +11,7 @@ import {
 	stage,
 	titles,
 	waitForAnimations
-} from './helpers';
+} from './helpers.js';
 
 test.describe('work plan', () => {
 	test('a new task gets a title, and Escape removes an empty new task', async ({ page }) => {
@@ -217,7 +217,7 @@ test.describe('work plan', () => {
 			await expect(palette.getByRole('radio', { checked: true })).toBeFocused();
 			await waitForAnimations(content);
 			await assertNoScroll();
-			await palette.getByRole('radio', { name: 'violet', exact: true }).click();
+			await palette.getByRole('radio', { name: /^violet\b/ }).click();
 			await expect(swatch).toHaveAttribute('aria-label', 'Stage color: violet');
 			await expect(swatch).toBeFocused();
 			await expect(palette).toHaveCount(0);

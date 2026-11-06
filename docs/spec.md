@@ -185,7 +185,7 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 - The ready light shows before the title in the table, before the Gantt label, in the task dialog and on the sheets.
 - In the table, the Gantt labels and the sheets, the ready light has a fixed slot before the title. When the light is off, the slot stays empty. Thus the first letters of the titles at the same level stay aligned, and a title does not move when the light comes on.
 - In the task dialog, the app renders nothing when the ready light is off.
-- It has a tooltip and an `aria-label`, for example "Ready: all 3 dependencies done".
+- It has an `aria-label`, for example "Ready. Dependencies done: 3". On the screen, it also shows this text as a hint on hover. Refer to section 5.10. The sheets show no hint.
 - When it comes on, it fades in with one soft pulse.
 
 ## 4. Storage and state
@@ -341,7 +341,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done". Click the title to edit it.
 - **Sticky stage headers:** while a stage scrolls, its header stays below the app header and the pinned Timeline section. The header stays within its stage. It scrolls out when the stage ends.
   - The app header and pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
-  - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height, including wrapped text.
+  - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height.
   - Below a stage width of 640 px, the separate color band stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
   - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.
   - A jump from a pinned Timeline label shows the task below its stage header and any sticky table column headers.
@@ -395,6 +395,16 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - The date picker has a **Today** button. It puts the current date in the field. **Done** saves it. The app does not set the date automatically.
 - The page number shows only on the sheets (section 7). The workspace footer keeps an empty slot for it.
 
+### 5.10 Hints
+
+- Controls and status marks show their hints in a tooltip. Examples: the header buttons, the "+" buttons, the pin and height buttons of the timeline, the Gantt labels, bars, points, milestones and bands, the stage color swatches, the ready light and the derived values of a parent.
+- The app does not use the native `title` attribute. A unit test checks this.
+- A tooltip opens on hover. On an element that can get keyboard focus, it also opens on keyboard focus. The controls, the Gantt bars and points, and the derived done checkbox of a parent in the work plan get keyboard focus. Other status marks do not get a tab stop: the ready light, the derived range and owners, the Gantt outside markers, the dependency warnings and inherited dependencies, and the derived done checkbox in the task dialog.
+- The text alternative stays in the `aria-label`. When the hint gives more information than the name, the app gives this information to assistive technology too. For example, a Gantt label has the hint "Title: Show in the work plan" as its accessible description. A stage color swatch that another stage uses has "Another stage uses this color." in its accessible name.
+- An owner field with more owners than chips shows the full owner list as its hint. The derived owners of a parent show "Owners come from the subtasks." and, when chips are hidden, the full owner list.
+- Preview and printed sheets show no hints.
+- Components show hints with `Hint.svelte` in `src/lib/components/app/`. It wraps the tooltip primitive.
+
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
@@ -436,8 +446,9 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 - Elements that come in or go out use Svelte transitions.
 - The app uses `animate:flip` when the task order changes.
-- Numbers and geometry use `Tween` or `Spring`: progress counts, bar positions, the range rescale.
-- Durations are 150 – 300 ms, ease-out.
+- Numbers and geometry use `Tween` or `Spring`: progress counts, bar positions, the range rescale. When the range changes, the Gantt bars, points, milestones, bands, month ticks and today line move with the same tween as the rows.
+- Durations are 150 – 300 ms, ease-out. There are two exceptions: the row flash after a jump from the Gantt is 1200 ms, and the pulse of the ready light is 900 ms.
+- All durations go through `motionDuration(ms)`. This includes CSS transitions and animations. A CSS transition that uses the default duration of 150 ms also sets its duration through `motionDuration(150)`.
 - When the viewer selects `prefers-reduced-motion`, the app disables motion.
 - Preview and print have no motion.
 

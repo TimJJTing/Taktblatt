@@ -3,9 +3,10 @@
 	Each field saves on blur. Esc closes the modal. The focus goes back to the "…" button.
 -->
 <script lang="ts">
+	import Hint from '#lib/components/app/Hint.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import OwnerChips from '#lib/components/edit/OwnerChips.svelte';
+	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
@@ -123,13 +124,18 @@
 
 			<div class="-mt-2 flex items-center gap-2">
 				{#if isParent}
-					<Checkbox
-						checked={eff.done === 'done'}
-						indeterminate={eff.done === 'partial'}
-						disabled
-						aria-label={m.task_done_label({ task: titleText })}
-						title={m.task_done_derived()}
-					/>
+					<Hint text={m.task_done_derived()} focusable={false}>
+						{#snippet child({ props })}
+							<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
+								<Checkbox
+									checked={eff.done === 'done'}
+									indeterminate={eff.done === 'partial'}
+									disabled
+									aria-label={m.task_done_label({ task: titleText })}
+								/>
+							</span>
+						{/snippet}
+					</Hint>
 				{:else}
 					<Checkbox
 						checked={task.done}
@@ -162,9 +168,13 @@
 				<dt class="text-muted-foreground">{m.field_range()}</dt>
 				<dd>
 					{#if isParent}
-						<span class="px-1.5 text-foreground/80" title={m.target_derived()}>
-							{formatRangeDisplay(eff.start, eff.end, locale)}
-						</span>
+						<Hint text={m.target_derived()} focusable={false}>
+							{#snippet child({ props })}
+								<span {...props} class="px-1.5 text-foreground/80">
+									{formatRangeDisplay(eff.start, eff.end, locale)}
+								</span>
+							{/snippet}
+						</Hint>
 					{:else}
 						<DateRangeField
 							start={task.start}
@@ -193,9 +203,16 @@
 				<dt class="text-muted-foreground">{m.column_owner()}</dt>
 				<dd>
 					{#if isParent}
-						<span class="flex px-1.5" title={m.owner_derived()}
-							><OwnerChips owners={eff.owners} max={6} /></span
+						<Hint
+							text={[m.owner_derived(), ownerListHint(eff.owners, 6)].join(' ').trim()}
+							focusable={false}
 						>
+							{#snippet child({ props })}
+								<span {...props} class="flex px-1.5"
+									><OwnerChips owners={eff.owners} max={6} /></span
+								>
+							{/snippet}
+						</Hint>
 					{:else}
 						<OwnerField
 							owners={task.owners}

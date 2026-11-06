@@ -6,10 +6,10 @@
 	import { setMode, userPrefersMode } from 'mode-watcher';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, locales, type Locale } from '#lib/paraglide/runtime.js';
 	import { getLanguageReload } from '#lib/state/language-reload.svelte.js';
+	import Hint from './Hint.svelte';
 
 	const labels: Record<Locale, () => string> = {
 		en: m.ui_language_en,
@@ -34,26 +34,23 @@
 </script>
 
 <DropdownMenu.Root bind:open={menuOpen}>
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props: tooltipProps })}
-				<DropdownMenu.Trigger>
-					{#snippet child({ props: menuProps })}
-						<Button
-							{...mergeProps(tooltipProps, menuProps)}
-							variant="ghost"
-							size="icon-sm"
-							aria-label={m.settings()}
-							data-testid="settings-menu"
-						>
-							<SettingsIcon aria-hidden="true" />
-						</Button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content>{m.settings()}</Tooltip.Content>
-	</Tooltip.Root>
+	<Hint text={m.settings()}>
+		{#snippet child({ props: tooltipProps })}
+			<DropdownMenu.Trigger>
+				{#snippet child({ props: menuProps })}
+					<Button
+						{...mergeProps(tooltipProps, menuProps)}
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m.settings()}
+						data-testid="settings-menu"
+					>
+						<SettingsIcon aria-hidden="true" />
+					</Button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+		{/snippet}
+	</Hint>
 	<DropdownMenu.Content align="end" class="min-w-44">
 		<DropdownMenu.Label class="flex items-center gap-1.5">
 			<SunMoonIcon class="size-3.5" aria-hidden="true" />

@@ -14,6 +14,7 @@
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import type { RemarkSection } from '#lib/domain/schema.js';
+	import { motionDuration } from '#lib/motion.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
 		discardNewRemarkSection,
@@ -150,6 +151,7 @@
 			role="button"
 			tabindex="0"
 			class="-ml-5 flex size-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/remark:opacity-100 group-hover/remark:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing [@media(hover:none)]:opacity-100"
+			style:transition-duration={`${motionDuration(150)}ms`}
 			aria-label={m.remark_drag()}
 		>
 			<GripVerticalIcon class="size-4" aria-hidden="true" />
