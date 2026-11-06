@@ -190,10 +190,9 @@
 </td>
 <td class="py-1" data-grid-col="owner" data-testid="task-owners">
 	{#if isParent}
+		{@const ownersHint = ownerListHint(eff.owners)}
 		<Hint
-			text={ownerListHint(eff.owners)
-				? m.owner_derived_hint({ owners: ownerListHint(eff.owners) })
-				: m.owner_derived()}
+			text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
 			focusable={false}
 		>
 			{#snippet child({ props })}

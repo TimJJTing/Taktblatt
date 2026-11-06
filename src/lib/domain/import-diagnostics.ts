@@ -27,6 +27,7 @@ export type ImportDiagnosticCode =
 	| 'boolean'
 	| 'array'
 	| 'object'
+	| 'missing'
 	| 'choice'
 	| 'timestamp'
 	| 'empty'
@@ -36,13 +37,9 @@ export interface ImportDiagnostic {
 	code: ImportDiagnosticCode;
 	path?: string;
 	version?: number;
+	values?: string[];
 	/** English diagnostic for domain callers that do not supply a formatter. */
 	message: string;
-}
-
-/** Supplies a stable code to a custom validator. */
-export function validationCode(code: ValidationCode): ValidationCode {
-	return code;
 }
 
 export function isValidationCode(code: string): code is ValidationCode {

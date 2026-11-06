@@ -255,7 +255,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - If the browser cannot save the data, import undoes its own writes and shows an error.
 - If a plan with the same `id` exists, one dialog lists all such plans. Each plan has the choices **Replace** and **Keep both**. The default is **Keep both**. **Replace** overwrites the existing plan with the same `id`. **Cancel** imports nothing. **Keep both** gives the copy a new id and adds the copy suffix to its heading. The suffix follows the UI language (English: " (copy)").
 - If the file is not valid, a dialog lists the errors (the first eight, and the number of other errors).
-- All import errors use the UI language. This includes invalid JSON, non-object JSON values (such as a JSON array or primitive), schema versions, field types, dates and plan rules. Field paths and schema numbers stay unchanged. A range error says that the start must be on or before the end. A range with the same start and end remains valid.
+- All import errors use the UI language. This includes invalid JSON, non-object JSON values (such as a JSON array or primitive), schema versions, field types, dates and plan rules. Field paths and schema numbers stay unchanged. A missing field says that the field is required. A value outside a fixed set lists the allowed values. A range error says that the start must be on or before the end. A range with the same start and end remains valid.
 
 ## 5. Screen: the workspace
 

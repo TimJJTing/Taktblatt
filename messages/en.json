@@ -272,6 +272,8 @@
 	"validation_boolean": "Use true or false.",
 	"validation_array": "Use a list.",
 	"validation_object": "Use an object.",
+	"validation_missing": "This field is required.",
+	"validation_choice_values": "Use one of these values: {values}.",
 	"validation_choice": "Use one of the allowed values.",
 	"validation_timestamp": "Use an ISO date and time.",
 	"validation_empty": "The value must not be empty.",

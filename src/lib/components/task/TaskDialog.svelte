@@ -206,10 +206,9 @@
 				<dt class="text-muted-foreground">{m.column_owner()}</dt>
 				<dd>
 					{#if isParent}
+						{@const ownersHint = ownerListHint(eff.owners, 6)}
 						<Hint
-							text={ownerListHint(eff.owners, 6)
-								? m.owner_derived_hint({ owners: ownerListHint(eff.owners, 6) })
-								: m.owner_derived()}
+							text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
 							focusable={false}
 						>
 							{#snippet child({ props })}

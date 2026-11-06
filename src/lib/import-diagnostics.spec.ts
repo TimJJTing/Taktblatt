@@ -17,11 +17,37 @@ describe('localized import diagnostics', () => {
 		'boolean',
 		'array',
 		'object',
+		'missing',
 		'choice',
 		'timestamp',
 		'empty',
 		'value'
 	];
+
+	it('matches every domain validation message in English', () => {
+		overwriteGetLocale(() => 'en');
+		for (const code of customCodes) {
+			expect
+				.soft(formatImportDiagnostic({ code, message: '' }), code)
+				.toBe(VALIDATION_MESSAGES[code]);
+		}
+	});
+
+	it('lists allowed choice values with an English disjunction', () => {
+		overwriteGetLocale(() => 'en');
+		const diagnostic = { code: 'choice' as const, values: ['"a4"', '"letter"'], message: '' };
+		expect(formatImportDiagnostic(diagnostic)).toBe('Use one of these values: "a4" or "letter".');
+	});
+
+	it('localizes allowed choice values in de', () => {
+		overwriteGetLocale(() => 'de');
+		const diagnostic = { code: 'choice' as const, values: ['"a4"', '"letter"'], message: '' };
+		const text = formatImportDiagnostic(diagnostic);
+		expect.soft(text).toContain('"a4"');
+		expect.soft(text).toContain('"letter"');
+		expect.soft(text).not.toBe('Use one of these values: "a4" or "letter".');
+		expect.soft(text).not.toBe(formatImportDiagnostic({ code: 'choice', message: '' }));
+	});
 
 	it.each(['en', 'de', 'zh-TW', 'ja'] as const)(
 		'localizes every import failure category in %s without exposing library prose',

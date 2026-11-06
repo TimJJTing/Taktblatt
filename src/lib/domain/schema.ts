@@ -4,7 +4,7 @@
  */
 import * as v from 'valibot';
 import { isISODate } from './date.ts';
-import { validationCode } from './import-diagnostics.ts';
+import type { ValidationCode } from './import-diagnostics.ts';
 import { effectiveDependencies } from './dependencies.ts';
 import { indexTasks } from './derive.ts';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.ts';
@@ -32,7 +32,10 @@ export const LIMITS = {
 } as const;
 
 const Id = v.pipe(v.string(), v.minLength(1));
-const ISODateSchema = v.pipe(v.string(), v.check(isISODate, validationCode('validation_date')));
+const ISODateSchema = v.pipe(
+	v.string(),
+	v.check(isISODate, 'validation_date' satisfies ValidationCode)
+);
 const NullableDate = v.nullable(ISODateSchema);
 const Timestamp = v.pipe(v.string(), v.isoTimestamp());
 
@@ -102,11 +105,14 @@ export const PlanSchema = v.pipe(
 		createdAt: Timestamp,
 		updatedAt: Timestamp
 	}),
-	v.check((plan) => plan.range.start <= plan.range.end, validationCode('validation_range')),
+	v.check(
+		(plan) => plan.range.start <= plan.range.end,
+		'validation_range' satisfies ValidationCode
+	),
 	v.check((plan) => {
 		const stageIds = new Set(plan.stages.map((s) => s.id));
 		return plan.tasks.every((t) => stageIds.has(t.stageId));
-	}, validationCode('validation_task_stage')),
+	}, 'validation_task_stage' satisfies ValidationCode),
 	v.check((plan) => {
 		const byId = new Map(plan.tasks.map((t) => [t.id, t]));
 		return plan.tasks.every((t) => {
@@ -114,44 +120,44 @@ export const PlanSchema = v.pipe(
 			const parent = byId.get(t.parentId);
 			return parent !== undefined && parent.parentId === null && parent.stageId === t.stageId;
 		});
-	}, validationCode('validation_task_parent')),
+	}, 'validation_task_parent' satisfies ValidationCode),
 	v.check(
 		(plan) => new Set(plan.stages.map((s) => s.id)).size === plan.stages.length,
-		validationCode('validation_stage_ids')
+		'validation_stage_ids' satisfies ValidationCode
 	),
 	v.check(
 		(plan) => new Set(plan.tasks.map((t) => t.id)).size === plan.tasks.length,
-		validationCode('validation_task_ids')
+		'validation_task_ids' satisfies ValidationCode
 	),
 	v.check(
 		(plan) => new Set(plan.milestones.map((m) => m.id)).size === plan.milestones.length,
-		validationCode('validation_milestone_ids')
+		'validation_milestone_ids' satisfies ValidationCode
 	),
 	v.check(
 		(plan) => new Set(plan.bands.map((b) => b.id)).size === plan.bands.length,
-		validationCode('validation_band_ids')
+		'validation_band_ids' satisfies ValidationCode
 	),
 	v.check(
 		(plan) => new Set(plan.remarks.map((r) => r.id)).size === plan.remarks.length,
-		validationCode('validation_remark_ids')
+		'validation_remark_ids' satisfies ValidationCode
 	),
 	v.check((plan) => {
 		const ids = new Set(plan.tasks.map((t) => t.id));
 		return plan.tasks.every((t) => t.dependsOn.every((d) => d !== t.id && ids.has(d)));
-	}, validationCode('validation_dependency')),
+	}, 'validation_dependency' satisfies ValidationCode),
 	v.check((plan) => {
 		const byId = new Map(plan.tasks.map((t) => [t.id, t]));
 		return plan.tasks.every((t) =>
 			t.dependsOn.every((d) => t.parentId !== d && byId.get(d)?.parentId !== t.id)
 		);
-	}, validationCode('validation_dependency_parent')),
+	}, 'validation_dependency_parent' satisfies ValidationCode),
 	v.check((plan) => {
 		const index = indexTasks(plan.tasks);
 		return !hasCycle(
 			plan.tasks.map((t) => t.id),
 			(id) => effectiveDependencies(index, id)
 		);
-	}, validationCode('validation_dependency_cycle'))
+	}, 'validation_dependency_cycle' satisfies ValidationCode)
 );
 
 /**
@@ -197,10 +203,10 @@ export const BackupFileSchema = v.object({
 	kind: v.literal('backup'),
 	plans: v.pipe(
 		v.array(PlanSchema),
-		v.minLength(1, validationCode('validation_backup_empty')),
+		v.minLength(1, 'validation_backup_empty' satisfies ValidationCode),
 		v.check(
 			(plans) => new Set(plans.map((p) => p.id)).size === plans.length,
-			validationCode('validation_plan_ids')
+			'validation_plan_ids' satisfies ValidationCode
 		)
 	)
 });

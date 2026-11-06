@@ -79,6 +79,13 @@ Use the Playwright agent CLI for interactive browser checks. Run `pnpm browser:s
 
 Run colocated Vitest `*.spec.ts` and reactive `*.svelte.spec.ts` tests with `pnpm test:unit --run`. Run automated Playwright regression tests in `e2e/*.e2e.ts` with `pnpm test:e2e`, which builds and serves the app. Interactive CLI checks supplement these tests. Add regression coverage for changed behavior; no numeric coverage threshold is configured. For code changes, run `pnpm lint`, `pnpm check`, and `pnpm test` before a PR.
 
+Do not write trivial tests. Each test must check behavior that can fail because of a defect in project code. Do not write these tests:
+
+- A test that compares a wrapper with the platform or library API that it calls.
+- A test that checks what the type system already guarantees.
+- A test that reads source text instead of behavior.
+- A copy of a test for each locale or input when one case proves the behavior.
+
 Reuse `e2e/helpers.ts` for shared browser setup and interactions. Extend the helpers when needed instead of duplicating them in tests.
 
 Write stable E2E tests:

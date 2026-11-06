@@ -272,6 +272,8 @@
 	"validation_boolean": "Verwenden Sie true oder false.",
 	"validation_array": "Verwenden Sie eine Liste.",
 	"validation_object": "Verwenden Sie ein Objekt.",
+	"validation_missing": "Dieses Feld ist erforderlich.",
+	"validation_choice_values": "Verwenden Sie einen dieser Werte: {values}.",
 	"validation_choice": "Verwenden Sie einen der zulässigen Werte.",
 	"validation_timestamp": "Verwenden Sie Datum und Uhrzeit im ISO-Format.",
 	"validation_empty": "Der Wert darf nicht leer sein.",

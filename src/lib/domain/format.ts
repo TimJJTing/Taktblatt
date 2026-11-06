@@ -148,7 +148,14 @@ export function readTypedDate(
 	return date === null ? { kind: 'invalid' } : { kind: 'date', date };
 }
 
-/** Joins a displayed list with the punctuation of its language. */
-export function joinList(items: readonly string[], locale: string): string {
-	return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(items);
+/**
+ * Joins a displayed list with the punctuation of its language.
+ * Use disjunction for alternatives. The default is conjunction.
+ */
+export function joinList(
+	items: readonly string[],
+	locale: string,
+	type: 'conjunction' | 'disjunction' = 'conjunction'
+): string {
+	return new Intl.ListFormat(locale, { style: 'long', type }).format(items);
 }

@@ -15,6 +15,7 @@ import {
 import { makePlan, makeTask } from './test-helpers.ts';
 import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from './schema.ts';
 import { parsePlan } from '#lib/state/storage.ts';
+import type { ImportDiagnostic } from './import-diagnostics.ts';
 
 describe('milestone symbol contract', () => {
 	const symbols = [
@@ -73,6 +74,99 @@ describe('milestone symbol contract', () => {
 });
 
 describe('parseFile', () => {
+	it('reports a missing heading as a required field', () => {
+		const file = toPlanFile(makePlan([]));
+		const plan = { ...file.plan };
+		Reflect.deleteProperty(plan, 'heading');
+		expect(parseFile(JSON.stringify({ ...file, plan }))).toEqual({
+			ok: false,
+			errors: ['plan.heading: This field is required.']
+		});
+	});
+
+	it('gives a missing heading the missing diagnostic code', () => {
+		const file = toPlanFile(makePlan([]));
+		const plan = { ...file.plan };
+		Reflect.deleteProperty(plan, 'heading');
+		expect(parseFile(JSON.stringify({ ...file, plan }), (diagnostic) => diagnostic.code)).toEqual({
+			ok: false,
+			errors: ['missing']
+		});
+	});
+
+	it('reports a missing kind as a required field with the missing diagnostic code', () => {
+		const text = JSON.stringify({ schemaVersion: SCHEMA_VERSION });
+		const diagnostics: ImportDiagnostic[] = [];
+		const result = parseFile(text, (diagnostic) => {
+			diagnostics.push(diagnostic);
+			return diagnostic.code;
+		});
+		expect(parseFile(text)).toEqual({
+			ok: false,
+			errors: ['kind: This field is required.']
+		});
+		expect(result).toEqual({ ok: false, errors: ['missing'] });
+		expect(diagnostics).toEqual([
+			expect.objectContaining({ code: 'missing', path: 'kind', values: undefined })
+		]);
+	});
+
+	it('keeps the object diagnostic code for a range with the wrong type', () => {
+		const file = toPlanFile(makePlan([]));
+		const plan = { ...file.plan, range: 'x' };
+		expect(parseFile(JSON.stringify({ ...file, plan }), (diagnostic) => diagnostic.code)).toEqual({
+			ok: false,
+			errors: ['object']
+		});
+	});
+
+	it('includes JSON allowed values in the paper choice diagnostic', () => {
+		const file = toPlanFile(makePlan([]));
+		const diagnostics: ImportDiagnostic[] = [];
+		const result = parseFile(
+			JSON.stringify({ ...file, plan: { ...file.plan, paper: 'invalid' } }),
+			(diagnostic) => {
+				diagnostics.push(diagnostic);
+				return diagnostic.code;
+			}
+		);
+		expect(result).toEqual({ ok: false, errors: ['choice'] });
+		expect(diagnostics).toEqual([
+			expect.objectContaining({
+				code: 'choice',
+				path: 'plan.paper',
+				values: ['"a4"', '"letter"']
+			})
+		]);
+	});
+
+	it('includes JSON allowed values in the top-level kind choice diagnostic', () => {
+		const file = { ...toPlanFile(makePlan([])), kind: 'invalid' };
+		const diagnostics: ImportDiagnostic[] = [];
+		const result = parseFile(JSON.stringify(file), (diagnostic) => {
+			diagnostics.push(diagnostic);
+			return diagnostic.code;
+		});
+		expect(result).toEqual({ ok: false, errors: ['choice'] });
+		expect(diagnostics).toEqual([
+			expect.objectContaining({
+				code: 'choice',
+				path: 'kind',
+				values: ['"plan"', '"backup"']
+			})
+		]);
+	});
+
+	it('lists allowed paper values in the English fallback', () => {
+		const file = toPlanFile(makePlan([]));
+		expect(
+			parseFile(JSON.stringify({ ...file, plan: { ...file.plan, paper: 'invalid' } }))
+		).toEqual({
+			ok: false,
+			errors: ['plan.paper: Use one of these values: "a4", "letter".']
+		});
+	});
+
 	it('reads a plan file that the app wrote', () => {
 		const plan = createExamplePlan('2027-04-01');
 		const result = parseFile(JSON.stringify(toPlanFile(plan)));

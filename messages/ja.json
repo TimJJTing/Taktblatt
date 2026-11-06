@@ -272,6 +272,8 @@
 	"validation_boolean": "true または false を指定してください。",
 	"validation_array": "リストを指定してください。",
 	"validation_object": "オブジェクトを指定してください。",
+	"validation_missing": "このフィールドを指定してください。",
+	"validation_choice_values": "{values}を指定してください。",
 	"validation_choice": "許可された値を指定してください。",
 	"validation_timestamp": "ISO 形式の日時を指定してください。",
 	"validation_empty": "値は空にできません。",

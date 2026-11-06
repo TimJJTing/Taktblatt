@@ -1,5 +1,7 @@
 /** Translates import diagnostics at the UI boundary. */
 import type { ImportDiagnostic, ImportDiagnosticCode } from '#lib/domain/import-diagnostics.ts';
+import { joinList } from '#lib/domain/format.ts';
+import { uiIntl } from '#lib/ui-language.ts';
 import { m } from '#lib/paraglide/messages.js';
 
 export function formatImportDiagnostic(diagnostic: ImportDiagnostic): string {
@@ -13,7 +15,13 @@ export function formatImportDiagnostic(diagnostic: ImportDiagnostic): string {
 		boolean: () => m.validation_boolean(),
 		array: () => m.validation_array(),
 		object: () => m.validation_object(),
-		choice: () => m.validation_choice(),
+		missing: () => m.validation_missing(),
+		choice: () =>
+			diagnostic.values?.length
+				? m.validation_choice_values({
+						values: joinList(diagnostic.values, uiIntl(), 'disjunction')
+					})
+				: m.validation_choice(),
 		timestamp: () => m.validation_timestamp(),
 		empty: () => m.validation_empty(),
 		value: () => m.validation_value(),

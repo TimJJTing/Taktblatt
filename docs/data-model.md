@@ -130,7 +130,7 @@ A subtask uses its own dependencies in the effective graph. A parent uses its ow
 
 The date rule uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
 
-The app shows the path of each wrong field, for example `plan.range.start`. It does not change data.
+The app shows the path of each wrong field, for example `plan.range.start`. A missing field says that the field is required. A value outside a fixed set lists the allowed values. The error text uses the UI language. The app does not change data.
 
 ## Versions
 

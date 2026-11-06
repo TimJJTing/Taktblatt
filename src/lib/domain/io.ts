@@ -54,10 +54,23 @@ export function parseFile(
 			ok: false,
 			errors: result.issues.map((issue) => {
 				const custom = isValidationCode(issue.message) ? issue.message : undefined;
+				const code = custom ?? issueCode(issue);
+				const values =
+					code === 'choice' && issue.expected
+						? issue.expected.replace(/^\((.*)\)$/, '$1').split(' | ')
+						: undefined;
+				const message = custom
+					? VALIDATION_MESSAGES[custom]
+					: code === 'missing'
+						? 'This field is required.'
+						: values?.length
+							? `Use one of these values: ${values.join(', ')}.`
+							: issue.message;
 				return formatDiagnostic({
-					code: custom ?? issueCode(issue.type),
+					code,
+					values,
 					path: v.getDotPath(issue) ?? undefined,
-					message: custom ? VALIDATION_MESSAGES[custom] : issue.message
+					message
 				});
 			})
 		};
@@ -70,13 +83,16 @@ export function parseFile(
 }
 
 /** Unknown library issues use a translatable fallback. */
-function issueCode(type: string): ImportDiagnosticCode {
-	switch (type) {
+function issueCode(issue: v.BaseIssue<unknown>): ImportDiagnosticCode {
+	if ((issue.type === 'object' || issue.type === 'variant') && issue.received === 'undefined')
+		return 'missing';
+	switch (issue.type) {
 		case 'string':
 		case 'boolean':
 		case 'array':
+			return issue.type;
 		case 'object':
-			return type;
+			return 'object';
 		case 'picklist':
 		case 'literal':
 		case 'variant':

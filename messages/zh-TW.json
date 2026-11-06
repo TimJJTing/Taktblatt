@@ -272,6 +272,8 @@
 	"validation_boolean": "請使用 true 或 false。",
 	"validation_array": "請使用清單。",
 	"validation_object": "請使用物件。",
+	"validation_missing": "請填寫此欄位。",
+	"validation_choice_values": "請使用{values}。",
 	"validation_choice": "請使用允許的值。",
 	"validation_timestamp": "請使用 ISO 格式的日期與時間。",
 	"validation_empty": "值不可為空。",

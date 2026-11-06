@@ -59,6 +59,8 @@
 	const months = $derived(span ? formatMonthSpan(span.start, span.end, uiIntl()) : '');
 	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
 	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
+	// The sentinel {stageName} is a placeholder qualifier.
+	// Split here to put StageTitle before or after the label, as the translation requires.
 	const stageLabelParts = $derived(
 		m
 			.label_qualifier({ name: m.stage_label({ n: number }), qualifier: '{stageName}' })
