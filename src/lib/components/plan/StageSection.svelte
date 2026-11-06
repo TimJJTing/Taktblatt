@@ -11,15 +11,15 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import { buttonVariants } from '#lib/components/ui/button/index.js';
-	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { stageDeleteImpact } from '#lib/domain/dependencies.js';
-	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.js';
-	import { formatMonthSpan } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import { type Stage, type Task } from '#lib/domain/schema.js';
-	import { motionDuration } from '#lib/motion.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import { buttonVariants } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { stageDeleteImpact } from '#lib/domain/dependencies.ts';
+	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.ts';
+	import { formatMonthSpan } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import { type Stage, type Task } from '#lib/domain/schema.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
 		addTask,
@@ -27,15 +27,15 @@
 		removeStage,
 		discardNewTask,
 		updateStage
-	} from '#lib/state/commands.js';
-	import { FLASH_MS, getEditing } from '#lib/state/editing.svelte.js';
-	import { getViewer } from '#lib/state/viewer.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
+	} from '#lib/state/commands.ts';
+	import { FLASH_MS, getEditing } from '#lib/state/editing.svelte.ts';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import StageColorPicker from './StageColorPicker.svelte';
 	import StageTitle from './StageTitle.svelte';
 	import TaskRow from './TaskRow.svelte';
-	import { stageColorVar } from './colors.js';
+	import { stageColorVar } from './colors.ts';
 
 	interface Props {
 		stage: Stage;

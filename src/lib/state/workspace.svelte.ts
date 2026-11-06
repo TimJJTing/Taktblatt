@@ -4,13 +4,13 @@
  * Plan lifecycle operations and undo/redo are the explicit exception in ADR 3.
  */
 import { getContext, setContext } from 'svelte';
-import { nowISO } from '#lib/domain/date.js';
-import { indexTasks, type TaskIndex } from '#lib/domain/derive.js';
-import { createEmptyPlan } from '#lib/domain/factory.js';
-import { withNewIds } from '#lib/domain/io.js';
-import type { Plan } from '#lib/domain/schema.js';
-import { History } from './history.svelte.js';
-import { KEYS, PlanStorage, StorageWriteError, type LoadResult } from './storage.js';
+import { nowISO } from '#lib/domain/date.ts';
+import { indexTasks, type TaskIndex } from '#lib/domain/derive.ts';
+import { createEmptyPlan } from '#lib/domain/factory.ts';
+import { withNewIds } from '#lib/domain/io.ts';
+import type { Plan } from '#lib/domain/schema.ts';
+import { History } from './history.svelte.ts';
+import { KEYS, PlanStorage, StorageWriteError, type LoadResult } from './storage.ts';
 
 export interface PlanSummary {
 	id: string;

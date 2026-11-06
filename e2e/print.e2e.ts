@@ -11,7 +11,7 @@ import {
 	row,
 	storedPlan,
 	writeStoredPlan
-} from './helpers.js';
+} from './helpers.ts';
 
 declare global {
 	interface Window {

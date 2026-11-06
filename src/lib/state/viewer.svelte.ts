@@ -5,7 +5,7 @@
  */
 import { getContext, setContext } from 'svelte';
 import * as v from 'valibot';
-import { KEYS } from '#lib/state/storage.js';
+import { KEYS } from '#lib/state/storage.ts';
 
 export const GANTT_HEIGHT = { default: 0.35, max: 0.5, minPx: 120 } as const;
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createEmptyPlan, createTask } from '#lib/domain/factory.js';
-import { SCHEMA_VERSION } from '#lib/domain/schema.js';
-import { loadExample } from './commands.js';
-import { MemoryStorage } from './memory-storage.js';
-import { KEYS, StorageWriteError } from './storage.js';
-import { Workspace } from './workspace.svelte.js';
+import { createEmptyPlan, createTask } from '#lib/domain/factory.ts';
+import { SCHEMA_VERSION } from '#lib/domain/schema.ts';
+import { loadExample } from './commands.ts';
+import { MemoryStorage } from './memory-storage.ts';
+import { KEYS, StorageWriteError } from './storage.ts';
+import { Workspace } from './workspace.svelte.ts';
 
 const open = (storage = new MemoryStorage()) => ({
 	storage,

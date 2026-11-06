@@ -1,17 +1,17 @@
 /** Import and export of plan files. Refer to docs/data-model.md. */
 import * as v from 'valibot';
-import type { ISODate } from './date.js';
-import { createId } from './ids.js';
-import { MENTION_PATTERN, mentionToken } from './mentions.js';
-import { normalizeOwners } from './owners.js';
-import { migrate, MigrationError } from './migrate.js';
+import type { ISODate } from './date.ts';
+import { createId } from './ids.ts';
+import { MENTION_PATTERN, mentionToken } from './mentions.ts';
+import { normalizeOwners } from './owners.ts';
+import { migrate, MigrationError } from './migrate.ts';
 import {
 	AnyFileSchema,
 	SCHEMA_VERSION,
 	type BackupFile,
 	type Plan,
 	type PlanFile
-} from './schema.js';
+} from './schema.ts';
 
 export type ParseResult = { ok: true; plans: Plan[] } | { ok: false; errors: string[] };
 

@@ -4,7 +4,7 @@
  * when the preview is not open.
  */
 import { flushSync, getContext, setContext, tick } from 'svelte';
-import { isTextEditing } from '#lib/browser/keyboard.js';
+import { isTextEditing } from '#lib/browser/keyboard.ts';
 
 export class PreviewState {
 	open = $state(false);

@@ -4,8 +4,8 @@
  * The sheets component measures each block and gives the heights to the paginator.
  * Refer to docs/spec.md, section 7.
  */
-import type { ISODate } from './date.js';
-import { readyCount } from './dependencies.js';
+import type { ISODate } from './date.ts';
+import { readyCount } from './dependencies.ts';
 import {
 	effectiveValues,
 	stageDeliverables,
@@ -13,7 +13,7 @@ import {
 	stageSpan,
 	type EffectiveValues,
 	type TaskIndex
-} from './derive.js';
+} from './derive.ts';
 import {
 	dependencyLines,
 	ganttRows,
@@ -24,8 +24,8 @@ import {
 	type DependencyLine,
 	type GanttRow,
 	type MonthTick
-} from './gantt.js';
-import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.js';
+} from './gantt.ts';
+import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.ts';
 
 /** How a segment sits on the sheets. The paginator reads these values. */
 interface Placement {

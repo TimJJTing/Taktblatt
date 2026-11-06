@@ -5,7 +5,7 @@ import {
 	noteSegments,
 	replaceEditorText,
 	toEditorText
-} from './mentions.js';
+} from './mentions.ts';
 
 const tasks = [
 	{ id: 'a', title: 'Site survey' },

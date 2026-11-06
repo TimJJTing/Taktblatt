@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paginate, type SegmentInput } from './paginate.js';
+import { paginate, type SegmentInput } from './paginate.ts';
 
 const segment = (id: string, patch: Partial<SegmentInput> = {}): SegmentInput => ({
 	id,

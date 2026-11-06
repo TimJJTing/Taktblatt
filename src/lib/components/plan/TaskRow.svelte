@@ -13,20 +13,20 @@
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { focusSiblingRow } from '#lib/browser/grid.js';
-	import { readyCount } from '#lib/domain/dependencies.js';
-	import { effectiveValues } from '#lib/domain/derive.js';
-	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import type { Task } from '#lib/domain/schema.js';
-	import { motionDuration } from '#lib/motion.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import { focusSiblingRow } from '#lib/browser/grid.ts';
+	import { readyCount } from '#lib/domain/dependencies.ts';
+	import { effectiveValues } from '#lib/domain/derive.ts';
+	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import type { Task } from '#lib/domain/schema.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
-	import { getEditing } from '#lib/state/editing.svelte.js';
-	import { getViewer } from '#lib/state/viewer.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
+	import { renameOwnerEverywhere, updateTask } from '#lib/state/commands.ts';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 
 	interface Props {
 		task: Task;

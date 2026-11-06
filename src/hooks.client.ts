@@ -1,4 +1,4 @@
-import { matchLocale } from '#lib/domain/locale.js';
+import { matchLocale } from '#lib/domain/locale.ts';
 import { defineCustomClientStrategy } from '#lib/paraglide/runtime.js';
 
 // The first UI language is the first supported language of the browser. Paraglide's own

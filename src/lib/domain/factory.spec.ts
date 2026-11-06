@@ -6,8 +6,8 @@ import {
 	createRemarkSection,
 	createStage,
 	createTask
-} from './factory.js';
-import { PlanSchema } from './schema.js';
+} from './factory.ts';
+import { PlanSchema } from './schema.ts';
 import * as v from 'valibot';
 
 describe('createEmptyPlan', () => {

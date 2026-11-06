@@ -1,4 +1,4 @@
-import { KEYS } from '#lib/state/storage.js';
+import { KEYS } from '#lib/state/storage.ts';
 
 /** The browser and PWA theme colors for each resolved screen theme. */
 export const THEME_COLORS = { light: '#ffffff', dark: '#0e0f13' } as const;

@@ -14,17 +14,17 @@
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { subtaskFill } from '#lib/components/plan/colors.js';
-	import { readyCount } from '#lib/domain/dependencies.js';
-	import { effectiveOf } from '#lib/domain/derive.js';
-	import type { GanttMark, GanttRow } from '#lib/domain/gantt.js';
-	import { motionDuration } from '#lib/motion.js';
+	import { subtaskFill } from '#lib/components/plan/colors.ts';
+	import { readyCount } from '#lib/domain/dependencies.ts';
+	import { effectiveOf } from '#lib/domain/derive.ts';
+	import type { GanttMark, GanttRow } from '#lib/domain/gantt.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getViewer } from '#lib/state/viewer.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
-	import { clipEdges, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.js';
-	import { markLabel } from './mark-label.js';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
+	import { clipEdges, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.ts';
+	import { markLabel } from './mark-label.ts';
 
 	interface Props {
 		row: GanttRow;

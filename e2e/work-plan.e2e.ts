@@ -11,7 +11,7 @@ import {
 	stage,
 	titles,
 	waitForAnimations
-} from './helpers.js';
+} from './helpers.ts';
 
 test.describe('work plan', () => {
 	test('a new task gets a title, and Escape removes an empty new task', async ({ page }) => {

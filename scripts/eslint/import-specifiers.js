@@ -1,26 +1,21 @@
 // Local ESLint rule for module specifiers. Refer to AGENTS.md, "Coding Style & Naming Conventions".
 //
-// 1. A specifier to a TypeScript module names its `.js` file. A reactive module `x.svelte.ts` is
-//    imported as `x.svelte.js`. A component keeps its `.svelte` extension.
-// 2. In a file under `src/`, a relative specifier to a module in `src/lib/` points to a sibling
-//    (`./x.js`) or to a file in a parent folder (`../x.js`). Other specifiers to `src/lib/` use the
-//    `#lib/...` alias. Files outside `src/` (for example `e2e/`) keep relative paths, because
-//    Playwright resolves `.js` to `.ts` only for relative specifiers.
+// 1. A specifier names the file on disk. A TypeScript module is imported with `.ts`, a reactive
+//    module with `.svelte.ts`, a component with `.svelte` and a JavaScript file with `.js`.
+// 2. A relative specifier to a module in `src/lib/` points to a sibling (`./x.ts`) or to a file in
+//    a parent folder (`../x.ts`). Other specifiers to `src/lib/` use the `#lib/...` alias.
+//
+// Refer to docs/adr/0012-import-file-extensions.md.
 //
 // The rule ignores package specifiers and SvelteKit generated types (`./$types`).
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
-const SRC = path.join(ROOT, 'src');
-const LIB = path.join(SRC, 'lib');
+const LIB = path.join(ROOT, 'src', 'lib');
 
-/** Extensions that name a file as it is. `.ts` is not one of them: use `.js`. */
-const KEPT_EXTENSIONS = new Set([
-	'.js',
-	'.mjs',
-	'.cjs',
-	'.svelte',
+/** Extensions of files that are not TypeScript or JavaScript modules. */
+const ASSET_EXTENSIONS = new Set([
 	'.json',
 	'.css',
 	'.svg',
@@ -60,7 +55,7 @@ const toPosix = (file) => file.split(path.sep).join('/');
  * @returns {string | undefined}
  */
 function targetOf(spec, filename) {
-	if (spec === '#lib') return path.join(LIB, 'index.js');
+	if (spec === '#lib') return path.join(LIB, 'index.ts');
 	if (spec.startsWith('#lib/')) return path.join(LIB, spec.slice('#lib/'.length));
 	if (spec.startsWith('./') || spec.startsWith('../')) {
 		return path.resolve(path.dirname(filename), spec);
@@ -71,14 +66,14 @@ function targetOf(spec, filename) {
 /**
  * Find the specifier ending that names an existing file, for a target without a usable extension.
  * @param {string} target
- * @returns {string | undefined} the suffix to append, for example `.js` or `.svelte.js`
+ * @returns {string | undefined} the suffix to append, for example `.ts` or `.svelte.ts`
  */
 function missingSuffix(target) {
-	if (isFile(`${target}.ts`) || isFile(`${target}.js`)) return '.js';
-	if (isFile(`${target}.svelte.ts`) || isFile(`${target}.svelte.js`)) return '.svelte.js';
-	if (isFile(`${target}.svelte`)) return '.svelte';
-	if (isFile(path.join(target, 'index.ts')) || isFile(path.join(target, 'index.js'))) {
-		return '/index.js';
+	for (const suffix of ['.ts', '.js', '.svelte.ts', '.svelte.js', '.svelte']) {
+		if (isFile(`${target}${suffix}`)) return suffix;
+	}
+	for (const index of ['index.ts', 'index.js']) {
+		if (isFile(path.join(target, index))) return `/${index}`;
 	}
 	return undefined;
 }
@@ -90,26 +85,26 @@ function missingSuffix(target) {
  * @returns {{ messageId: string, fixed?: string } | undefined}
  */
 function checkExtension(spec, target) {
+	if (isFile(target)) return undefined;
 	const ext = path.extname(target);
-	if (ext === '.ts' || ext === '.mts') {
-		return { messageId: 'tsExtension', fixed: `${spec.slice(0, -ext.length)}.js` };
-	}
 	if (ext === '.js') {
-		if (isFile(target) || isFile(`${target.slice(0, -3)}.ts`)) return undefined;
+		// The file is TypeScript: `x.js` names `x.ts`, or `x.svelte.js` names `x.svelte.ts`.
 		const base = target.slice(0, -3);
-		if (isFile(`${base}.svelte.ts`) || isFile(`${base}.svelte.js`)) {
-			return { messageId: 'reactiveExtension', fixed: `${spec.slice(0, -3)}.svelte.js` };
+		if (isFile(`${base}.ts`)) {
+			const messageId = base.endsWith('.svelte') ? 'reactiveExtension' : 'jsExtension';
+			return { messageId, fixed: `${spec.slice(0, -3)}.ts` };
+		}
+		if (isFile(`${base}.svelte.ts`)) {
+			return { messageId: 'reactiveExtension', fixed: `${spec.slice(0, -3)}.svelte.ts` };
 		}
 		return undefined;
 	}
 	if (ext === '.svelte') {
-		if (isFile(target)) return undefined;
-		if (isFile(`${target}.ts`) || isFile(`${target}.js`)) {
-			return { messageId: 'reactiveExtension', fixed: `${spec}.js` };
-		}
+		if (isFile(`${target}.ts`)) return { messageId: 'reactiveExtension', fixed: `${spec}.ts` };
+		if (isFile(`${target}.js`)) return undefined;
 		return undefined;
 	}
-	if (KEPT_EXTENSIONS.has(ext) || isFile(target)) return undefined;
+	if (ext === '.ts' || ASSET_EXTENSIONS.has(ext)) return undefined;
 	const suffix = missingSuffix(target);
 	return { messageId: 'missingExtension', fixed: suffix ? `${spec}${suffix}` : undefined };
 }
@@ -135,17 +130,15 @@ const rule = {
 		schema: [],
 		messages: {
 			missingExtension:
-				'Add the file extension. Use ".js" for a TypeScript module, ".svelte.js" for a reactive module and ".svelte" for a component.',
-			tsExtension: 'Import a TypeScript module with the ".js" extension.',
-			reactiveExtension: 'Import a reactive module "x.svelte.ts" as "x.svelte.js".',
+				'Add the file extension: ".ts" for a TypeScript module, ".svelte.ts" for a reactive module, ".svelte" for a component.',
+			jsExtension: 'Import a TypeScript module with its ".ts" extension.',
+			reactiveExtension: 'Import a reactive module "x.svelte.ts" with its ".svelte.ts" extension.',
 			useAlias:
-				'Use "{{alias}}". In src/, relative imports from src/lib are only for siblings and parent folders.'
+				'Use "{{alias}}". Relative imports from src/lib are only for siblings and parent folders.'
 		}
 	},
 	create(context) {
 		const filename = context.filename;
-
-		const checksAlias = isInside(filename, SRC);
 
 		/** @param {Parameters<import('eslint').Rule.RuleFixer['replaceText']>[0] | null | undefined} source */
 		function check(source) {
@@ -166,7 +159,7 @@ const rule = {
 			const extension = checkExtension(spec, target);
 			const fixedSpec = extension?.fixed ?? spec;
 			const relative = spec.startsWith('./') || spec.startsWith('../');
-			if (checksAlias && relative && isInside(target, LIB) && !isSiblingOrParent(spec)) {
+			if (relative && isInside(target, LIB) && !isSiblingOrParent(spec)) {
 				const resolved = path.resolve(path.dirname(filename), fixedSpec);
 				const alias = `#lib/${toPosix(path.relative(LIB, resolved))}`;
 				context.report({

@@ -1,4 +1,4 @@
-import { intlLocale } from '#lib/domain/format.js';
+import { intlLocale } from '#lib/domain/format.ts';
 import { getLocale } from '#lib/paraglide/runtime.js';
 
 /**

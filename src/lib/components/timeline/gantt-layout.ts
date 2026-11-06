@@ -2,7 +2,7 @@
  * Screen layout of the Gantt: sizes (CSS lengths and pixels) and small drawing helpers.
  * The geometry (fractions of the width) comes from #lib/domain/gantt.
  */
-import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.js';
+import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.ts';
 
 /**
  * The width of the label column. It is a CSS variable, so a phone can use a narrower column.

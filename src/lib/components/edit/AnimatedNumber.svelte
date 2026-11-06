@@ -2,7 +2,7 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { motionDuration } from '#lib/motion.js';
+	import { motionDuration } from '#lib/motion.ts';
 
 	let { value }: { value: number } = $props();
 

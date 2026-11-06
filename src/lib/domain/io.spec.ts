@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createExamplePlan } from './example.js';
-import { createEmptyPlan } from './factory.js';
+import { createExamplePlan } from './example.ts';
+import { createEmptyPlan } from './factory.ts';
 import {
 	backupFileName,
 	exportFileName,
@@ -11,10 +11,10 @@ import {
 	toBackupFile,
 	toPlanFile,
 	withNewIds
-} from './io.js';
-import { makePlan, makeTask } from './test-helpers.js';
-import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from '#lib/domain/schema.js';
-import { parsePlan } from '#lib/state/storage.js';
+} from './io.ts';
+import { makePlan, makeTask } from './test-helpers.ts';
+import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from '#lib/domain/schema.ts';
+import { parsePlan } from '#lib/state/storage.ts';
 
 describe('milestone symbol contract', () => {
 	const symbols = [

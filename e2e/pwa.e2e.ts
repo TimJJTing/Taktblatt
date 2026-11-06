@@ -5,7 +5,7 @@ import {
 	openApp,
 	openExample,
 	stage
-} from './helpers.js';
+} from './helpers.ts';
 
 test.describe('PWA', () => {
 	test('the manifest is linked and describes the app', async ({ page, request }) => {

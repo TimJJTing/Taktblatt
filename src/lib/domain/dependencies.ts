@@ -2,9 +2,9 @@
  * Dependencies, validation, the ready light, deletion and move conflicts.
  * Refer to docs/spec.md, section 3, and ADR 6.
  */
-import { effectiveOf, effectiveValues, indexTasks, type TaskIndex } from './derive.js';
-import type { Plan, Task } from './schema.js';
-import { removeMentions } from './mentions.js';
+import { effectiveOf, effectiveValues, indexTasks, type TaskIndex } from './derive.ts';
+import type { Plan, Task } from './schema.ts';
+import { removeMentions } from './mentions.ts';
 
 // ---------------------------------------------------------------------------
 // Effective graph

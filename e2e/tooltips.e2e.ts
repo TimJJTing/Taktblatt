@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openExample, row, stage, waitForAnimations } from './helpers.js';
+import { openExample, row, stage, waitForAnimations } from './helpers.ts';
 
 const tooltips = (page: Page) => page.locator('[data-slot="tooltip-content"]');
 const gantt = (page: Page) => page.getByTestId('gantt');

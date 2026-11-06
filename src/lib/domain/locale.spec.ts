@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchLocale } from './locale.js';
+import { matchLocale } from './locale.ts';
 
 describe('matchLocale', () => {
 	it('takes a supported language as it is', () => {

@@ -3,13 +3,13 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { mergeProps } from 'bits-ui';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { isComposing } from '#lib/browser/keyboard.js';
-	import * as Popover from '#lib/components/ui/popover/index.js';
-	import { STAGE_COLOR_KEYS, type StageColor } from '#lib/domain/palette.js';
-	import { motionDuration } from '#lib/motion.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
+	import * as Popover from '#lib/components/ui/popover/index.ts';
+	import { STAGE_COLOR_KEYS, type StageColor } from '#lib/domain/palette.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { cn } from '#lib/utils.js';
-	import { colorName, stageColorVar } from './colors.js';
+	import { cn } from '#lib/utils.ts';
+	import { colorName, stageColorVar } from './colors.ts';
 
 	interface Props {
 		value: StageColor;

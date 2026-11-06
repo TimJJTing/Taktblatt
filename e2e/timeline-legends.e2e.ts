@@ -11,7 +11,7 @@ import {
 	startTimelineFrameMonitor,
 	storedPlan,
 	waitForAnimations
-} from './helpers.js';
+} from './helpers.ts';
 
 const toggle = (page: Page) => page.getByTestId('timeline-legends-toggle');
 const legends = (page: Page) => page.getByTestId('timeline-legends');

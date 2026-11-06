@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample, row, stage } from './helpers.js';
+import { openExample, row, stage } from './helpers.ts';
 
 async function openDetails(page: Page, title: string) {
 	await row(page, title).getByTestId('task-details').click();

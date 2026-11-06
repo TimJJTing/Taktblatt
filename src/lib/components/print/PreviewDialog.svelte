@@ -11,14 +11,14 @@
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onMount } from 'svelte';
-	import { isComposing } from '#lib/browser/keyboard.js';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { PAPER_SIZES, type PaperSize } from '#lib/domain/schema.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { PAPER_SIZES, type PaperSize } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updatePlan } from '#lib/state/commands.js';
-	import { getPreview } from '#lib/state/preview.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
+	import { updatePlan } from '#lib/state/commands.ts';
+	import { getPreview } from '#lib/state/preview.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import Sheets from './Sheets.svelte';
 
 	const ws = getWorkspace();

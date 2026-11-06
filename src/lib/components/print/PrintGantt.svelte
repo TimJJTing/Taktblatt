@@ -11,24 +11,24 @@
 		bandPaperTint,
 		stagePaperColor,
 		subtaskFill
-	} from '#lib/components/plan/colors.js';
-	import { clipEdges, elbowPath, rowCenterY } from '#lib/components/timeline/gantt-layout.js';
-	import { markLabel } from '#lib/components/timeline/mark-label.js';
-	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.js';
-	import { readyCount } from '#lib/domain/dependencies.js';
-	import { effectiveOf } from '#lib/domain/derive.js';
-	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import type { GanttSegment } from '#lib/domain/print-model.js';
+	} from '#lib/components/plan/colors.ts';
+	import { clipEdges, elbowPath, rowCenterY } from '#lib/components/timeline/gantt-layout.ts';
+	import { markLabel } from '#lib/components/timeline/mark-label.ts';
+	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.ts';
+	import { readyCount } from '#lib/domain/dependencies.ts';
+	import { effectiveOf } from '#lib/domain/derive.ts';
+	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import type { GanttSegment } from '#lib/domain/print-model.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	import {
 		GANTT_LABEL_WIDTH,
 		GANTT_MILESTONE_HEIGHT,
 		GANTT_MONTH_HEIGHT,
 		GANTT_ROW_HEIGHT
-	} from './print-layout.js';
+	} from './print-layout.ts';
 
 	interface Props {
 		segment: GanttSegment;

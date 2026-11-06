@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, openSettings, planIds, row, storedPlan } from './helpers.js';
+import { openApp, openExample, openSettings, planIds, row, storedPlan } from './helpers.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 

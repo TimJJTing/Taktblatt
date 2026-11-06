@@ -3,17 +3,17 @@
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
-	import { Button } from '#lib/components/ui/button/index.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getPreview } from '#lib/state/preview.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { appHeader } from './app-layout.svelte.js';
+	import { getPreview } from '#lib/state/preview.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { appHeader } from './app-layout.svelte.ts';
 	import ExportMenu from './ExportMenu.svelte';
 	import Hint from './Hint.svelte';
 	import ImportButton from './ImportButton.svelte';
 	import PlanSwitcher from './PlanSwitcher.svelte';
 	import SettingsMenu from './SettingsMenu.svelte';
-	import { SECTIONS } from './sections.js';
+	import { SECTIONS } from './sections.ts';
 
 	const ws = getWorkspace();
 	const preview = getPreview();

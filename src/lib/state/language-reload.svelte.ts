@@ -4,9 +4,9 @@
  * Refer to ADR 9.
  */
 import { getContext, setContext } from 'svelte';
-import { isTextEditing } from '#lib/browser/keyboard.js';
+import { isTextEditing } from '#lib/browser/keyboard.ts';
 import { getLocale, overwriteGetLocale, setLocale, type Locale } from '#lib/paraglide/runtime.js';
-import type { Workspace } from './workspace.svelte.js';
+import type { Workspace } from './workspace.svelte.ts';
 
 export interface WorkAtRisk {
 	canUndo: boolean;

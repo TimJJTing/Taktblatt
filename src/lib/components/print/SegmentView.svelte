@@ -4,7 +4,7 @@
 	Both use this component, so the heights match.
 -->
 <script lang="ts">
-	import type { Segment } from '#lib/domain/print-model.js';
+	import type { Segment } from '#lib/domain/print-model.ts';
 	import PrintCards from './PrintCards.svelte';
 	import PrintGantt from './PrintGantt.svelte';
 	import PrintHeader from './PrintHeader.svelte';

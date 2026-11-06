@@ -5,12 +5,12 @@
 -->
 <script lang="ts">
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { stagePaperColor } from '#lib/components/plan/colors.js';
-	import { formatMonthSpan, formatTarget } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import type { StageSegment } from '#lib/domain/print-model.js';
+	import { stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { formatMonthSpan, formatTarget } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import type { StageSegment } from '#lib/domain/print-model.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { cn } from '#lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 
 	interface Props {
 		segment: StageSegment;

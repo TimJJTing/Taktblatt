@@ -7,14 +7,14 @@
 <script lang="ts">
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import type { Snippet } from 'svelte';
-	import { isComposing } from '#lib/browser/keyboard.js';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
-	import * as Popover from '#lib/components/ui/popover/index.js';
-	import { Calendar } from '#lib/components/ui/calendar/index.js';
-	import { todayISO, type ISODate } from '#lib/domain/date.js';
-	import { formatDate, readTypedDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import * as Popover from '#lib/components/ui/popover/index.ts';
+	import { Calendar } from '#lib/components/ui/calendar/index.ts';
+	import { todayISO, type ISODate } from '#lib/domain/date.ts';
+	import { formatDate, readTypedDate } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {

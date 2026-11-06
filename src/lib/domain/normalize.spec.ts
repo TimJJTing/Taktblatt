@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBand, createEmptyPlan, createMilestone } from '#lib/domain/factory.js';
+import { createBand, createEmptyPlan, createMilestone } from '#lib/domain/factory.ts';
 import {
 	isPermutation,
 	normalizeBand,
@@ -9,8 +9,8 @@ import {
 	normalizeRemark,
 	normalizeStage,
 	normalizeTask
-} from '#lib/domain/normalize.js';
-import { makeTask } from '#lib/domain/test-helpers.js';
+} from '#lib/domain/normalize.ts';
+import { makeTask } from '#lib/domain/test-helpers.ts';
 
 describe('timeline normalization', () => {
 	it('trims milestone text and keeps its identity, date and symbol', () => {

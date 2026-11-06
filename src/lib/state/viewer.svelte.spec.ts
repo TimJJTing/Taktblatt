@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryStorage } from './memory-storage.js';
-import { KEYS } from './storage.js';
-import { GANTT_HEIGHT, ViewerState } from './viewer.svelte.js';
+import { MemoryStorage } from './memory-storage.ts';
+import { KEYS } from './storage.ts';
+import { GANTT_HEIGHT, ViewerState } from './viewer.svelte.ts';
 
 describe('ViewerState', () => {
 	it('starts with collapsed legends when older viewer data is pinned', () => {

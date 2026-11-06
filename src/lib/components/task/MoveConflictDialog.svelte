@@ -3,10 +3,10 @@
 	"Remove and move" applies all of them as one undo step. Refer to ADR 6.
 -->
 <script lang="ts">
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import type { MoveConflicts, MoveFix } from '#lib/domain/dependencies.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import type { MoveConflicts, MoveFix } from '#lib/domain/dependencies.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
 	interface Props {
 		open: boolean;

@@ -12,8 +12,8 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { mergeProps } from 'bits-ui';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { motionDuration } from '#lib/motion.js';
-	import { cn } from '#lib/utils.js';
+	import { motionDuration } from '#lib/motion.ts';
+	import { cn } from '#lib/utils.ts';
 
 	type Size = 'sm' | 'md' | 'lg';
 

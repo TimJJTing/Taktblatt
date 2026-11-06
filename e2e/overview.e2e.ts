@@ -10,7 +10,7 @@ import {
 	storedPlan,
 	titles,
 	writeStoredPlan
-} from './helpers.js';
+} from './helpers.ts';
 
 test('header fields commit, cancel and keep the previous required heading', async ({ page }) => {
 	await openApp(page);

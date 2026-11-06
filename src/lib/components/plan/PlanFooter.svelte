@@ -5,12 +5,12 @@
 <script lang="ts">
 	import DateField from '#lib/components/edit/DateField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { formatDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { formatDate } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updateFooter } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { updateFooter } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = getWorkspace();
 	const footer = $derived(ws.plan.footer);

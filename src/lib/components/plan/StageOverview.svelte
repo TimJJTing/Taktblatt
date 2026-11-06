@@ -5,13 +5,13 @@
 -->
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import { stageDeliverables, stageSpan } from '#lib/domain/derive.js';
-	import { formatMonthSpan } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
+	import { stageDeliverables, stageSpan } from '#lib/domain/derive.ts';
+	import { formatMonthSpan } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updateStage } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { stageColorVar } from './colors.js';
+	import { updateStage } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { stageColorVar } from './colors.ts';
 	import StageTitle from './StageTitle.svelte';
 	const ws = getWorkspace();
 </script>

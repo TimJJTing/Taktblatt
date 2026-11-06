@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_TINT_KEYS, STAGE_COLOR_KEYS, STAGE_COLORS, nextStageColor } from './palette.js';
+import { BAND_TINT_KEYS, STAGE_COLOR_KEYS, STAGE_COLORS, nextStageColor } from './palette.ts';
 
 /** Returns the WCAG relative luminance of a "#RRGGBB" color. */
 function luminance(hex: string): number {

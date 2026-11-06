@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexTasks } from './derive.js';
+import { indexTasks } from './derive.ts';
 import {
 	dateX,
 	dependencyLines,
@@ -14,8 +14,8 @@ import {
 	visibleMilestones,
 	windowDays,
 	type GanttWindow
-} from './gantt.js';
-import { makeTask } from './test-helpers.js';
+} from './gantt.ts';
+import { makeTask } from './test-helpers.ts';
 
 // Ten days: day n starts at (n - 1) / 10.
 const WIN: GanttWindow = { start: '2027-01-01', end: '2027-01-10' };

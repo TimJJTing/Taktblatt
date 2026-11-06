@@ -3,13 +3,13 @@
 	It is static text. Entries have no buttons. Dates use the UI language.
 -->
 <script lang="ts">
-	import { bandPaperTint, bandFill, stagePaperColor } from '#lib/components/plan/colors.js';
-	import { orderedMilestones } from '#lib/domain/derive.js';
-	import { formatDate, formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import type { LegendSegment } from '#lib/domain/print-model.js';
+	import { bandPaperTint, bandFill, stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { orderedMilestones } from '#lib/domain/derive.ts';
+	import { formatDate, formatRangeDisplay } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import type { LegendSegment } from '#lib/domain/print-model.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
 	let { segment }: { segment: LegendSegment } = $props();
 
