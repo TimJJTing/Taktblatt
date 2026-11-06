@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyPlan, createTask } from '#lib/domain/factory.ts';
 import { SCHEMA_VERSION } from '#lib/domain/schema.ts';
-import { loadExample } from './commands.ts';
+import { addBand, addMilestone, addRemarkSection, loadExample, updateStage } from './commands.ts';
 import { MemoryStorage } from './memory-storage.ts';
 import { KEYS, StorageWriteError } from './storage.ts';
 import { Workspace } from './workspace.svelte.ts';
@@ -187,34 +187,162 @@ describe('Workspace', () => {
 		expect(ws.plan.heading).toBe('Restored write');
 		expect(ws.plans[0].heading).toBe('Restored write');
 	});
-});
 
-it.each(['switch', 'plan-event', 'index-event', 'export', 'delete'])(
-	'keeps invalid stored data and reports it during %s',
-	(action) => {
+	it('recovers orphan stored plans and falls back to the first plan when activeId is invalid', () => {
+		const storage = new MemoryStorage();
+		const indexed = { ...createEmptyPlan('2027-04-01'), heading: 'Indexed' };
+		const orphan = { ...createEmptyPlan('2027-04-01'), heading: 'Orphan' };
+		storage.setItem(
+			KEYS.plan(indexed.id),
+			JSON.stringify({ schemaVersion: SCHEMA_VERSION, plan: indexed })
+		);
+		storage.setItem(
+			KEYS.plan(orphan.id),
+			JSON.stringify({ schemaVersion: SCHEMA_VERSION, plan: orphan })
+		);
+		storage.setItem(KEYS.index, JSON.stringify({ planIds: [indexed.id], activeId: 'missing' }));
+		const { ws } = open(storage);
+		expect(ws.plans.map((p) => p.id)).toEqual([indexed.id, orphan.id]);
+		expect(ws.plan.id).toBe(indexed.id);
+		expect(JSON.parse(storage.getItem(KEYS.index)!)).toEqual({
+			planIds: [indexed.id, orphan.id],
+			activeId: indexed.id
+		});
+	});
+
+	it('switches to the first remaining plan and clears history when another tab removes the active plan', () => {
 		const { storage, ws } = open();
-		const id = ws.plan.id;
+		ws.commit((p) => (p.heading = 'First'));
 		ws.createPlan();
-		const activeId = ws.plan.id;
-		storage.setItem(KEYS.plan(id), '{broken');
-		if (action === 'switch') ws.switchTo(id);
-		if (action === 'plan-event') ws.handleStorageEvent({ key: KEYS.plan(id), newValue: '{broken' });
-		if (action === 'index-event')
-			ws.handleStorageEvent({ key: KEYS.index, newValue: storage.getItem(KEYS.index) });
-		if (action === 'export') ws.allPlans();
-		if (action === 'delete') ws.deletePlan(id);
-		expect(ws.damaged).toHaveLength(1);
-		expect(storage.getItem(ws.damaged[0].key)).toBe('{broken');
-		expect(ws.plan.id).toBe(activeId);
-	}
-);
+		ws.commit((p) => (p.heading = 'Second'));
+		expect(ws.history.canUndo).toBe(true);
+		const other = new Workspace(storage);
+		other.deletePlan(ws.plan.id);
+		ws.handleStorageEvent({ key: KEYS.index, newValue: storage.getItem(KEYS.index) });
+		expect(ws.plans.map((p) => p.heading)).toEqual(['First']);
+		expect(ws.plan.heading).toBe('First');
+		expect(ws.history.canUndo).toBe(false);
+	});
 
-it('keeps an invalid index received from another tab', () => {
-	const { storage, ws } = open();
-	storage.setItem(KEYS.index, 'invalid');
-	ws.handleStorageEvent({ key: KEYS.index, newValue: 'invalid' });
-	expect(ws.damaged).toHaveLength(1);
-	expect(storage.getItem(ws.damaged[0].key)).toBe('invalid');
+	it('clamps the active index when deleting the last active plan', () => {
+		const { ws } = open();
+		ws.commit((p) => (p.heading = 'A'));
+		ws.createPlan();
+		const second = ws.plan.id;
+		ws.commit((p) => (p.heading = 'B'));
+		ws.createPlan();
+		const third = ws.plan.id;
+		ws.commit((p) => (p.heading = 'C'));
+
+		ws.deletePlan(third);
+		expect(ws.plan.id).toBe(second);
+	});
+
+	it('preserves active plan and history when deleting and restoring a non-active plan', () => {
+		const { ws } = open();
+		const first = ws.plan.id;
+		ws.commit((p) => (p.heading = 'A'));
+		ws.createPlan();
+		const second = ws.plan.id;
+		ws.commit((p) => (p.heading = 'B'));
+		expect(ws.history.canUndo).toBe(true);
+
+		const deletedFirst = ws.deletePlan(first)!;
+		expect(deletedFirst.wasActive).toBe(false);
+		expect(ws.plan.id).toBe(second);
+		expect(ws.history.canUndo).toBe(true);
+
+		ws.restorePlan(deletedFirst);
+		expect(ws.plans.map((p) => p.id)).toEqual([first, second]);
+		expect(ws.plan.id).toBe(second);
+		expect(ws.history.canUndo).toBe(true);
+	});
+
+	it('preserves undo history when switching to the already active plan', () => {
+		const { ws } = open();
+		ws.commit((p) => (p.heading = 'A'));
+		expect(ws.history.canUndo).toBe(true);
+
+		ws.switchTo(ws.plan.id);
+		expect(ws.history.canUndo).toBe(true);
+	});
+
+	it.each([
+		['stage title', (ws: Workspace) => updateStage(ws, ws.plan.stages[0].id, { title: 'Phase 1' })],
+		[
+			'stage description',
+			(ws: Workspace) => updateStage(ws, ws.plan.stages[0].id, { description: 'Details' })
+		],
+		['milestone', (ws: Workspace) => addMilestone(ws, { title: 'M1' })],
+		['band', (ws: Workspace) => addBand(ws, { title: 'B1' })],
+		['remark', (ws: Workspace) => addRemarkSection(ws, { title: 'R1' })]
+	])('marks the plan as non-pristine after adding or editing a %s', (_label, edit) => {
+		const { ws } = open();
+		expect(ws.isPristine).toBe(true);
+		edit(ws);
+		expect(ws.isPristine).toBe(false);
+		ws.undo();
+		expect(ws.isPristine).toBe(true);
+	});
+
+	it('imports a batch with mixed conflict decisions, activates the last plan and clears history', () => {
+		const { ws } = open();
+		const firstId = ws.plan.id;
+		ws.commit((p) => (p.heading = 'First'));
+		ws.createPlan();
+		const secondId = ws.plan.id;
+		ws.commit((p) => (p.heading = 'Second'));
+		expect(ws.history.canUndo).toBe(true);
+
+		const incomingReplace = { ...createEmptyPlan('2027-04-01'), id: firstId, heading: 'Replaced' };
+		const incomingCopy = { ...createEmptyPlan('2027-04-01'), id: secondId, heading: 'Copied' };
+		const incomingFresh = { ...createEmptyPlan('2027-04-01'), heading: 'Fresh' };
+
+		ws.importPlans(
+			[incomingReplace, incomingCopy, incomingFresh],
+			(plan) => (plan.id === firstId ? 'replace' : 'keep-both'),
+			' (copy)'
+		);
+
+		expect(ws.plans.map((p) => p.heading)).toEqual([
+			'Replaced',
+			'Second',
+			'Copied (copy)',
+			'Fresh'
+		]);
+		expect(ws.plan.id).toBe(incomingFresh.id);
+		expect(ws.plan.heading).toBe('Fresh');
+		expect(ws.history.canUndo).toBe(false);
+	});
+
+	it.each(['switch', 'plan-event', 'index-event', 'export', 'delete'])(
+		'keeps invalid stored data and reports it during %s',
+		(action) => {
+			const { storage, ws } = open();
+			const id = ws.plan.id;
+			ws.createPlan();
+			const activeId = ws.plan.id;
+			storage.setItem(KEYS.plan(id), '{broken');
+			if (action === 'switch') ws.switchTo(id);
+			if (action === 'plan-event')
+				ws.handleStorageEvent({ key: KEYS.plan(id), newValue: '{broken' });
+			if (action === 'index-event')
+				ws.handleStorageEvent({ key: KEYS.index, newValue: storage.getItem(KEYS.index) });
+			if (action === 'export') ws.allPlans();
+			if (action === 'delete') ws.deletePlan(id);
+			expect(ws.damaged).toHaveLength(1);
+			expect(storage.getItem(ws.damaged[0].key)).toBe('{broken');
+			expect(ws.plan.id).toBe(activeId);
+		}
+	);
+
+	it('keeps an invalid index received from another tab', () => {
+		const { storage, ws } = open();
+		storage.setItem(KEYS.index, 'invalid');
+		ws.handleStorageEvent({ key: KEYS.index, newValue: 'invalid' });
+		expect(ws.damaged).toHaveLength(1);
+		expect(storage.getItem(ws.damaged[0].key)).toBe('invalid');
+	});
 });
 
 /** A storage that throws once, on write number `failOn`, like a full localStorage. */

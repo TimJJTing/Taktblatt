@@ -25,6 +25,7 @@ describe('dateX and windowDays', () => {
 		expect(windowDays(WIN)).toBe(10);
 		expect(windowDays({ start: '2027-01-01', end: '2027-01-01' })).toBe(1);
 		expect(windowDays({ start: '2027-12-31', end: '2028-01-01' })).toBe(2);
+		expect(windowDays({ start: '2027-01-10', end: '2027-01-01' })).toBe(1);
 	});
 
 	it('gives the left and right edge of a day', () => {
@@ -62,6 +63,7 @@ describe('monthTicks', () => {
 
 	it('gives one tick for a window inside one month', () => {
 		expect(monthTicks(WIN)).toEqual([{ month: '2027-01-01', x0: 0, x1: 1 }]);
+		expect(monthTicks({ start: '2027-02-01', end: '2027-01-01' })).toEqual([]);
 	});
 });
 
@@ -331,6 +333,7 @@ describe('todayX, spanX and milestoneX', () => {
 		expect(spanX(WIN, { start: '2026-12-01', end: '2027-03-01' })).toEqual({ x0: 0, x1: 1 });
 		expect(spanX(WIN, { start: '2026-12-01', end: '2026-12-31' })).toBeNull();
 		expect(spanX(WIN, { start: '2027-01-11', end: '2027-01-12' })).toBeNull();
+		expect(spanX(WIN, { start: '2027-01-05', end: '2027-01-02' })).toBeNull();
 	});
 
 	it('gives the center of a milestone day, or null when it is outside', () => {

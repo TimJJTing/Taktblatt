@@ -112,4 +112,48 @@ describe('ViewerState', () => {
 		expect(again.ganttPinned).toBe(true);
 		expect(again.ganttHeight).toBe(0.5);
 	});
+
+	it('forgets and restores expanded tasks for a plan and ignores no-op calls', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		viewer.setExpanded('p1', 't1', true);
+		viewer.setExpanded('p1', 't2', true);
+		const savedIds = viewer.expandedIds('p1');
+		expect(savedIds).toEqual(['t1', 't2']);
+
+		viewer.forgetPlan('unknown');
+		expect(viewer.expandedIds('p1')).toEqual(['t1', 't2']);
+
+		viewer.forgetPlan('p1');
+		expect(viewer.expandedIds('p1')).toEqual([]);
+		expect(new ViewerState(storage).expandedIds('p1')).toEqual([]);
+
+		viewer.restorePlan('p1', []);
+		expect('p1' in viewer.expanded).toBe(false);
+
+		viewer.restorePlan('p1', savedIds);
+		expect(viewer.expandedIds('p1')).toEqual(['t1', 't2']);
+		expect(new ViewerState(storage).expandedIds('p1')).toEqual(['t1', 't2']);
+	});
+
+	it('keeps setExpanded idempotent when expanding an already expanded task', () => {
+		const viewer = new ViewerState(new MemoryStorage());
+		viewer.setExpanded('p1', 't1', true);
+		viewer.setExpanded('p1', 't1', true);
+		expect(viewer.expandedIds('p1')).toEqual(['t1']);
+	});
+
+	it('clamps a negative ganttHeight to 0', () => {
+		const viewer = new ViewerState(new MemoryStorage());
+		viewer.setGanttHeight(-0.2);
+		expect(viewer.ganttHeight).toBe(0);
+	});
+
+	it('falls back to default ganttHeight when stored ganttHeight is out of range', () => {
+		const storage = new MemoryStorage();
+		storage.setItem(KEYS.viewer, JSON.stringify({ ganttHeight: 0.9 }));
+		expect(new ViewerState(storage).ganttHeight).toBe(GANTT_HEIGHT.default);
+		storage.setItem(KEYS.viewer, JSON.stringify({ ganttHeight: -0.1 }));
+		expect(new ViewerState(storage).ganttHeight).toBe(GANTT_HEIGHT.default);
+	});
 });

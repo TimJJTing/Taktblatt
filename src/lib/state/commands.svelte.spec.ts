@@ -21,6 +21,7 @@ import {
 	updateStage,
 	moveStage,
 	removeStage,
+	moveTask,
 	removeTasks,
 	renameOwnerEverywhere,
 	loadExample
@@ -93,6 +94,17 @@ describe('commands', () => {
 		expect(ws.history.canRedo).toBe(false);
 	});
 
+	it('falls back to removing an empty remark section when another commit happened after creation', () => {
+		const ws = open();
+		const id = addRemarkSection(ws);
+		updatePlan(ws, { heading: 'Keep' });
+		discardNewRemarkSection(ws, id);
+		expect(ws.plan.remarks).toHaveLength(0);
+		expect(ws.plan.heading).toBe('Keep');
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.remarks.map((r) => r.id)).toEqual([id]);
+	});
+
 	it('keeps a remark section with content, and keeps an emptied existing section on update', () => {
 		const ws = open();
 		const id = addRemarkSection(ws, { title: 'Risks' });
@@ -136,15 +148,41 @@ describe('commands', () => {
 		expect(ws.plan.tasks[0].id).toBe(id);
 	});
 
-	it('keeps tasks with content or children', () => {
+	it('keeps tasks with content or children when discarding', () => {
 		const ws = open();
-		const id = addTask(ws, ws.plan.stages[0].id);
-		addTask(ws, ws.plan.stages[0].id, { parentId: id });
+		const stageId = ws.plan.stages[0].id;
+		const id = addTask(ws, stageId);
+		addTask(ws, stageId, { parentId: id });
 		discardNewTask(ws, id);
 		expect(ws.plan.tasks).toHaveLength(2);
 		updateTask(ws, id, { done: true });
 		discardNewTask(ws, id);
 		expect(ws.plan.tasks).toHaveLength(2);
+
+		for (const patch of [
+			{ deliverable: 'Spec' },
+			{ start: '2027-01-01' },
+			{ end: '2027-01-02' },
+			{ owners: ['Ana'] },
+			{ note: 'Check' },
+			{ dependsOn: [id] }
+		]) {
+			const filled = addTask(ws, stageId, { parentId: null, patch });
+			discardNewTask(ws, filled);
+			expect(ws.plan.tasks.some((t) => t.id === filled)).toBe(true);
+		}
+	});
+
+	it('deletes an empty task via commit when history is empty', () => {
+		const ws = open();
+		const stageId = ws.plan.stages[0].id;
+		const orphanEmpty = addTask(ws, stageId);
+		ws.history.clear();
+		expect(ws.history.peek()).toBeNull();
+		discardNewTask(ws, orphanEmpty);
+		expect(ws.plan.tasks.some((t) => t.id === orphanEmpty)).toBe(false);
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.tasks.some((t) => t.id === orphanEmpty)).toBe(true);
 	});
 });
 
@@ -360,6 +398,50 @@ describe('task commands', () => {
 		const ws = open();
 		ws.history.clear();
 		updateTask(ws, 'missing', { title: 'No' });
+		expect(ws.history.canUndo).toBe(false);
+	});
+
+	it('moves a task and applies fixes in one undoable commit, and ignores a no-op move', () => {
+		const ws = open();
+		const s1 = ws.plan.stages[0].id;
+		const s2 = addStage(ws, 1);
+		const parent = addTask(ws, s2, { parentId: null, patch: { title: 'Parent' } });
+		const task = addTask(ws, s1, {
+			parentId: null,
+			patch: { title: 'Child', start: '2027-05-01', dependsOn: [parent] }
+		});
+		updateTask(ws, parent, { dependsOn: [task] });
+		ws.history.clear();
+
+		// Moving to its current location with no fixes is a no-op.
+		moveTask(ws, task, { target: { stageId: s1, parentId: null }, fixes: [] });
+		expect(ws.history.canUndo).toBe(false);
+
+		moveTask(ws, task, {
+			target: { stageId: s2, parentId: parent },
+			fixes: [
+				{ kind: 'remove-cycle-dependency', dependencyId: parent },
+				{ kind: 'remove-parent-dependency', parentId: parent },
+				{ kind: 'clear-date', field: 'start', dependencyId: parent, dependentId: task }
+			]
+		});
+		const moved = ws.plan.tasks.find((t) => t.id === task)!;
+		const newParent = ws.plan.tasks.find((t) => t.id === parent)!;
+		expect(moved).toMatchObject({
+			stageId: s2,
+			parentId: parent,
+			start: null,
+			dependsOn: []
+		});
+		expect(newParent.dependsOn).toEqual([]);
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.tasks.find((t) => t.id === task)).toMatchObject({
+			stageId: s1,
+			parentId: null,
+			start: '2027-05-01',
+			dependsOn: [parent]
+		});
+		expect(ws.plan.tasks.find((t) => t.id === parent)?.dependsOn).toEqual([task]);
 		expect(ws.history.canUndo).toBe(false);
 	});
 });

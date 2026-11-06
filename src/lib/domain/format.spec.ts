@@ -6,9 +6,19 @@ import {
 	formatRange,
 	formatRangeDisplay,
 	formatTarget,
+	intlLocale,
 	parseUserDate,
 	readTypedDate
 } from './format.ts';
+
+describe('intlLocale', () => {
+	it('maps en to en-US and leaves other locales unchanged', () => {
+		expect(intlLocale('en')).toBe('en-US');
+		expect(intlLocale('en-US')).toBe('en-US');
+		expect(intlLocale('de')).toBe('de');
+		expect(intlLocale('zh-TW')).toBe('zh-TW');
+	});
+});
 
 describe('format', () => {
 	it('formats short days in the given language', () => {
@@ -18,6 +28,7 @@ describe('format', () => {
 
 	it('formats a month span', () => {
 		expect(formatMonthSpan('2027-11-02', '2027-11-30', 'en-US')).toBe('Nov');
+		expect(formatMonthSpan('2026-11-15', '2027-11-02', 'en-US')).toBe('Nov');
 		expect(formatMonthSpan('2027-11-02', '2027-12-30', 'en-US')).toBe('Nov – Dec');
 	});
 
@@ -64,6 +75,13 @@ describe('parseUserDate', () => {
 	it('rejects dates that do not exist', () => {
 		expect(parseUserDate('2/30/2027', 'en-US', 2030)).toBeNull();
 		expect(parseUserDate('hello', 'en-US', 2030)).toBeNull();
+		expect(parseUserDate('5', 'en-US', 2030)).toBeNull();
+		expect(parseUserDate('1/2/3/4', 'en-US', 2030)).toBeNull();
+	});
+
+	it('expands a 2-digit year and treats a leading 4-digit number as the year', () => {
+		expect(parseUserDate('1/5/27', 'en-US', 2030)).toBe('2027-01-05');
+		expect(parseUserDate('2027.01.05', 'de', 2030)).toBe('2027-01-05');
 	});
 });
 

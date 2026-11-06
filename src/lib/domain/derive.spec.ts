@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	effectiveValues,
+	hasValidRange,
 	indexTasks,
 	orderedMilestones,
 	stageDeliverables,
@@ -114,13 +115,29 @@ describe('stage values', () => {
 	});
 });
 
+describe('hasValidRange', () => {
+	it('accepts non-empty ranges where start is on or before end', () => {
+		expect(hasValidRange({ start: '2027-01-05', end: '2027-01-05' })).toBe(true);
+		expect(hasValidRange({ start: '2027-01-01', end: '2027-01-05' })).toBe(true);
+		expect(hasValidRange({ start: '2027-01-06', end: '2027-01-05' })).toBe(false);
+		expect(hasValidRange({ start: '2027-01-01', end: null })).toBe(false);
+		expect(hasValidRange({ start: null, end: '2027-01-05' })).toBe(false);
+		expect(hasValidRange({ start: null, end: null })).toBe(false);
+	});
+});
+
 describe('orderedMilestones', () => {
-	it('labels milestones in date order', () => {
+	it('labels milestones in date order and breaks ties by id', () => {
 		const result = orderedMilestones([
-			{ id: 'b', title: 'Late', description: '', date: '2027-03-01', symbol: 'flag' },
-			{ id: 'a', title: 'Early', description: '', date: '2027-01-01', symbol: 'diamond' }
+			{ id: 'c', title: 'Late', description: '', date: '2027-03-01', symbol: 'flag' },
+			{ id: 'b', title: 'Second', description: '', date: '2027-01-01', symbol: 'star' },
+			{ id: 'a', title: 'First', description: '', date: '2027-01-01', symbol: 'diamond' }
 		]);
-		expect(result.map((r) => `${r.label} ${r.milestone.title}`)).toEqual(['M1 Early', 'M2 Late']);
+		expect(result.map((r) => `${r.label} ${r.milestone.title}`)).toEqual([
+			'M1 First',
+			'M2 Second',
+			'M3 Late'
+		]);
 	});
 });
 
