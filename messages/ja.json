@@ -176,6 +176,7 @@
 	"gantt_shorter": "タイムラインの高さを縮小",
 	"gantt_taller": "タイムラインの高さを拡大",
 	"gantt_bar": "{task}：{dates}",
+	"gantt_bar_clause": "{text}、{clause}",
 	"gantt_done": "完了",
 	"gantt_clipped_start": "計画の期間より前に開始",
 	"gantt_clipped_end": "計画の期間より後に終了",

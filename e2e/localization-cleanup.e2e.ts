@@ -19,6 +19,20 @@ const localizedProse = {
 	ja: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u
 };
 
+const notObjectDetail = {
+	en: 'not an object',
+	de: 'Objekt',
+	'zh-TW': '物件',
+	ja: 'オブジェクト'
+} as const;
+
+const missingVersionDetail = {
+	en: 'schema version',
+	de: 'Schemaversion',
+	'zh-TW': '結構描述版本',
+	ja: 'スキーマバージョン'
+} as const;
+
 for (const locale of ['en', 'de', 'zh-TW', 'ja'] as const) {
 	test(`import diagnostics use ${locale} and rejected files preserve stored data`, async ({
 		page
@@ -34,8 +48,8 @@ for (const locale of ['en', 'de', 'zh-TW', 'ja'] as const) {
 		});
 		const cases = [
 			{ content: '{', detail: 'JSON' },
-			{ content: [], detail: '' },
-			{ content: {}, detail: '' },
+			{ content: [], detail: notObjectDetail[locale] },
+			{ content: {}, detail: missingVersionDetail[locale] },
 			{ content: { schemaVersion: 99 }, detail: '99' },
 			{ content: { schemaVersion: 0 }, detail: '0' },
 			{ content: invalidFields({ heading: 42 }), detail: 'plan.heading' },
@@ -106,6 +120,21 @@ for (const [locale, separator] of [
 		expect(amberName).toContain(separator);
 		if (locale === 'zh-TW') expect(amberName).not.toContain('・');
 		await page.keyboard.press('Escape');
+		await expect(page.locator('footer span[aria-hidden="true"]')).toHaveText([
+			separator,
+			separator
+		]);
+		const stageTitleWrapper = stage(page, 0).locator('h3 > span').first();
+		await expect(stageTitleWrapper).toHaveCSS('display', 'flex');
+		await expect(stageTitleWrapper).toHaveCSS('column-gap', /^(normal|0px)$/);
+		const stageLabelPrefix = stageTitleWrapper.locator('> span').first();
+		await expect(stageLabelPrefix).toHaveCSS('white-space', 'pre');
+		await expect(stageLabelPrefix).toContainText(separator);
+		const prefixToTitleGap = await stageTitleWrapper.evaluate((wrapper) => {
+			const [prefix, title] = wrapper.querySelectorAll(':scope > span');
+			return Math.round(title.getBoundingClientRect().left - prefix.getBoundingClientRect().right);
+		});
+		expect(prefixToTitleGap).toBe(0);
 		await page.getByTestId('preview-open').click();
 		const sheets = page.getByTestId('sheet');
 		await expect(sheets.first()).toBeVisible();

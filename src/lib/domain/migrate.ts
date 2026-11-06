@@ -22,7 +22,7 @@ export class MigrationError extends Error {
 
 /** Changes raw data to the current schema version. It does not validate the result. */
 export function migrate(data: unknown): unknown {
-	if (typeof data !== 'object' || data === null)
+	if (typeof data !== 'object' || data === null || Array.isArray(data))
 		throw new MigrationError('The data is not an object.', 'not_object');
 	let current = data as Record<string, unknown>;
 	let version = current.schemaVersion;

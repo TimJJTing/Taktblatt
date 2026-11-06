@@ -4,13 +4,23 @@ import { SCHEMA_VERSION } from './schema.ts';
 
 describe('migrate', () => {
 	it('rejects data without a schema version', () => {
-		expect(() => migrate({})).toThrow(MigrationError);
+		expect(() => migrate({})).toThrowError(
+			expect.objectContaining({
+				message: 'The data has no schema version.',
+				code: 'missing_version'
+			})
+		);
 	});
 
-	it.each([null, undefined, 'text', 42, true])(
-		'rejects a value that is not an object: %s',
+	it.each([[null], [undefined], ['text'], [42], [true], [[]], [[1, 2]]])(
+		'rejects a value that is not an object: %j',
 		(data) => {
-			expect(() => migrate(data)).toThrow(MigrationError);
+			expect(() => migrate(data)).toThrowError(
+				expect.objectContaining({
+					message: 'The data is not an object.',
+					code: 'not_object'
+				})
+			);
 		}
 	);
 

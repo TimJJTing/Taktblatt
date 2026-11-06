@@ -27,7 +27,7 @@ test('the Gantt shows bars, lines and the today line of the example plan', async
 	await expect(gantt(page).getByTestId('gantt-milestone')).toHaveCount(2);
 	await expect(gantt(page).getByTestId('gantt-band')).toHaveCount(1);
 	const survey = ganttRow(page, 'Site survey').getByTestId('gantt-bar');
-	await expect(survey).toHaveAccessibleName(/^Site survey: .+ and done$/);
+	await expect(survey).toHaveAccessibleName(/^Site survey: .+, done$/);
 	await expect(ganttRow(page, 'Site survey').getByTestId('gantt-label')).toHaveClass(
 		/line-through/
 	);

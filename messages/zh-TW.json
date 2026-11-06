@@ -176,6 +176,7 @@
 	"gantt_shorter": "縮短時間軸高度",
 	"gantt_taller": "加長時間軸高度",
 	"gantt_bar": "{task}：{dates}",
+	"gantt_bar_clause": "{text}，{clause}",
 	"gantt_done": "已完成",
 	"gantt_clipped_start": "開始於計畫日期範圍之前",
 	"gantt_clipped_end": "結束於計畫日期範圍之後",

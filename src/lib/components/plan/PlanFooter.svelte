@@ -28,7 +28,7 @@
 				onCommit={(note) => updateFooter(ws, { note })}
 				testId="footer-note"
 			/>
-			<span aria-hidden="true">·</span>
+			<span aria-hidden="true">{m.footer_separator().trim()}</span>
 			<InlineText
 				value={footer.version}
 				label={m.footer_version()}
@@ -37,7 +37,7 @@
 				onCommit={(version) => updateFooter(ws, { version })}
 				testId="footer-version"
 			/>
-			<span aria-hidden="true">·</span>
+			<span aria-hidden="true">{m.footer_separator().trim()}</span>
 			<DateField
 				date={footer.date}
 				label={m.footer_date()}

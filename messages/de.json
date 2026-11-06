@@ -176,6 +176,7 @@
 	"gantt_shorter": "Zeitachse verkleinern",
 	"gantt_taller": "Zeitachse vergrößern",
 	"gantt_bar": "{task}: {dates}",
+	"gantt_bar_clause": "{text}, {clause}",
 	"gantt_done": "erledigt",
 	"gantt_clipped_start": "beginnt vor dem Planzeitraum",
 	"gantt_clipped_end": "endet nach dem Planzeitraum",

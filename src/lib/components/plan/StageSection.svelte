@@ -121,10 +121,11 @@
 			id="stage-{stage.id}-title"
 			class="flex min-w-0 items-baseline gap-1 text-base font-semibold"
 		>
-			<span class="shrink-0">{stageLabelParts[0]}</span>
-			<span class="min-w-0">
-				<StageTitle {stage} {number} />
-				{#if stageLabelParts[1]}<span>{stageLabelParts[1]}</span>{/if}
+			<span class="flex min-w-0 items-baseline">
+				<span class="shrink-0 whitespace-pre">{stageLabelParts[0]}</span>
+				<span class="min-w-0"><StageTitle {stage} {number} /></span>
+				{#if stageLabelParts[1]}<span class="shrink-0 whitespace-pre">{stageLabelParts[1]}</span
+					>{/if}
 			</span>
 			{#if months}
 				<span

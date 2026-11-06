@@ -1,5 +1,5 @@
 /** The accessible name of a bar or a point of the Gantt. The screen Gantt and the printed Gantt share it. */
-import { formatDate, formatRangeDisplay, joinList } from '#lib/domain/format.ts';
+import { formatDate, formatRangeDisplay } from '#lib/domain/format.ts';
 import type { GanttMark } from '#lib/domain/gantt.ts';
 import { uiIntl } from '#lib/ui-language.ts';
 import { m } from '#lib/paraglide/messages.js';
@@ -29,5 +29,5 @@ export function markLabel({ mark, title, dates, done }: MarkLabelInput): string 
 	if (done) parts.push(m.gantt_done());
 	if (mark.kind === 'bar' && mark.clipStart) parts.push(m.gantt_clipped_start());
 	if (mark.kind === 'bar' && mark.clipEnd) parts.push(m.gantt_clipped_end());
-	return joinList(parts, intl);
+	return parts.reduce((text, clause) => m.gantt_bar_clause({ text, clause }));
 }

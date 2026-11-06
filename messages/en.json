@@ -176,6 +176,7 @@
 	"gantt_shorter": "Make timeline shorter",
 	"gantt_taller": "Make timeline taller",
 	"gantt_bar": "{task}: {dates}",
+	"gantt_bar_clause": "{text}, {clause}",
 	"gantt_done": "done",
 	"gantt_clipped_start": "starts before the plan range",
 	"gantt_clipped_end": "ends after the plan range",

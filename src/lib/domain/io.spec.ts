@@ -112,6 +112,14 @@ describe('parseFile', () => {
 		expect(parseFile('{')).toEqual({ ok: false, errors: ['The file is not valid JSON.'] });
 	});
 
+	it.each(['[]', 'null', '"text"', '42', 'true'])('rejects %s as not an object', (text) => {
+		expect(parseFile(text)).toEqual({ ok: false, errors: ['The data is not an object.'] });
+	});
+
+	it('rejects an object without a schema version', () => {
+		expect(parseFile('{}')).toEqual({ ok: false, errors: ['The data has no schema version.'] });
+	});
+
 	it('rejects a file from a newer app version', () => {
 		const result = parseFile(JSON.stringify({ schemaVersion: 99, kind: 'plan' }));
 		expect(result.ok).toBe(false);
