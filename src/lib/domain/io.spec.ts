@@ -13,7 +13,7 @@ import {
 	withNewIds
 } from './io.ts';
 import { makePlan, makeTask } from './test-helpers.ts';
-import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from '#lib/domain/schema.ts';
+import { MILESTONE_SYMBOLS, SCHEMA_VERSION } from './schema.ts';
 import { parsePlan } from '#lib/state/storage.ts';
 
 describe('milestone symbol contract', () => {
@@ -128,6 +128,43 @@ describe('parseFile', () => {
 	it('rejects a dependency on a task that does not exist', () => {
 		const plan = makePlan([makeTask({ id: 'a', dependsOn: ['missing'] })]);
 		expect(parseFile(JSON.stringify(toPlanFile(plan))).ok).toBe(false);
+	});
+
+	it('rejects an inverted plan range', () => {
+		const plan = makePlan([]);
+		plan.range = { start: '2027-02-01', end: '2027-01-01' };
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
+			ok: false,
+			errors: ['plan: The range must start before it ends.']
+		});
+	});
+
+	it('rejects a task whose stage does not exist in the plan', () => {
+		const plan = makePlan([makeTask({ id: 'a', stageId: 'missing' })], ['s1']);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
+			ok: false,
+			errors: ['plan: Each task must belong to a stage of the plan.']
+		});
+	});
+
+	it.each([
+		[[makeTask({ id: 'c', parentId: 'missing' })]],
+		[
+			[
+				makeTask({ id: 'p' }),
+				makeTask({ id: 'c', parentId: 'p' }),
+				makeTask({ id: 'gc', parentId: 'c' })
+			]
+		],
+		[[makeTask({ id: 'p', stageId: 's1' }), makeTask({ id: 'c', stageId: 's2', parentId: 'p' })]]
+	])('rejects invalid subtask hierarchies (case %#)', (tasks) => {
+		const plan = makePlan(tasks, ['s1', 's2']);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({
+			ok: false,
+			errors: [
+				'plan: A subtask must have a task of the same stage as its parent. The maximum depth is 2.'
+			]
+		});
 	});
 
 	it.each([
@@ -257,6 +294,14 @@ describe('parseFile', () => {
 		]);
 		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
 	});
+
+	it.each(['plan', 'backup'])('normalizes imported owners in a %s file', (kind) => {
+		const plan = makePlan([makeTask({ id: 'a', owners: [' Ana ', 'ana', '', 'Bo '] })]);
+		const file = kind === 'plan' ? toPlanFile(plan) : toBackupFile([plan]);
+		const result = parseFile(JSON.stringify(file));
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.plans[0].tasks[0].owners).toEqual(['Ana', 'Bo']);
+	});
 });
 
 describe('file names', () => {
@@ -303,13 +348,12 @@ describe('withNewIds', () => {
 			.note.match(/@\[task:([^\]]+)\]/)![1];
 		expect(ids.has(mention)).toBe(true);
 	});
-});
 
-it.each(['plan', 'backup'])('normalizes imported owners in a %s file', (kind) => {
-	const plan = makePlan([makeTask({ id: 'a', owners: [' Ana ', 'ana', '', 'Bo '] })]);
-	const file = kind === 'plan' ? toPlanFile(plan) : toBackupFile([plan]);
-	const result = parseFile(JSON.stringify(file));
-	expect(result.ok && result.plans[0].tasks[0].owners).toEqual(['Ana', 'Bo']);
+	it('preserves an unreferenced mention token when the id is not in the plan', () => {
+		const plan = makePlan([makeTask({ id: 'a', note: 'Ref @[task:unknown] and @[task:a]' })]);
+		const copy = withNewIds(plan);
+		expect(copy.tasks[0].note).toBe(`Ref @[task:unknown] and @[task:${copy.tasks[0].id}]`);
+	});
 });
 
 describe('backupFileName', () => {

@@ -146,6 +146,20 @@ describe('paginate', () => {
 		expect(sheets.flatMap((s) => s.fragments).reduce((n, f) => n + (f.to - f.from), 0)).toBe(2);
 	});
 
+	it('places one item on a continuation fragment when repeat plus item exceeds sheet height', () => {
+		const sheets = paginate(50, [segment('rows', { repeat: 40, items: [10, 20, 10] })]);
+		expect(shape(sheets)).toEqual(['rows 0-1', 'rows 1-2 cont', 'rows 2-3 cont']);
+	});
+
+	it('suppresses gap when a segment moves to a new sheet because gap makes it overflow', () => {
+		const sheets = paginate(100, [
+			segment('a', { items: [70] }),
+			segment('b', { items: [25], gap: 10 })
+		]);
+		expect(shape(sheets)).toEqual(['a 0-1', 'b 0-1']);
+		expect(sheets[1].fragments[0].gap).toBe(0);
+	});
+
 	it('moves an empty segment whose blocks do not fit to the next sheet', () => {
 		const sheets = paginate(100, [
 			segment('a', { items: [90] }),

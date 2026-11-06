@@ -3,6 +3,7 @@ import {
 	fromEditorText,
 	matchesWords,
 	noteSegments,
+	removeMentions,
 	replaceEditorText,
 	toEditorText
 } from './mentions.ts';
@@ -74,5 +75,34 @@ describe('mentions', () => {
 	it('matches all words without case', () => {
 		expect(matchesWords('Site survey', 'surv SITE')).toBe(true);
 		expect(matchesWords('Site survey', 'site plan')).toBe(false);
+	});
+
+	it('drops a mention when an edit partially overlaps its start or end boundary', () => {
+		const editor = toEditorText(
+			'See @[task:a] and @[task:b] now',
+			(id) => tasks.find((t) => t.id === id)?.title
+		);
+		// @[Site survey] is at [4, 18]; @[Sowing] is at [23, 32].
+		const overlapStart = replaceEditorText(editor, 2, 6, 'X');
+		expect(overlapStart.mentions.map((m) => m.id)).toEqual(['b']);
+		const overlapEnd = replaceEditorText(editor, 30, 34, 'Y');
+		expect(overlapEnd.mentions.map((m) => m.id)).toEqual(['a']);
+	});
+
+	it('preserves an unresolved token and shifts subsequent mention offsets accurately', () => {
+		const editor = toEditorText(
+			'Ref @[task:deleted] then @[task:b]',
+			(id) => tasks.find((t) => t.id === id)?.title
+		);
+		expect(editor.text).toBe('Ref @[task:deleted] then @[Sowing]');
+		expect(editor.mentions).toEqual([{ start: 25, end: 34, id: 'b' }]);
+		expect(fromEditorText(editor.text, editor.mentions, tasks)).toBe(
+			'Ref @[task:deleted] then @[task:b]'
+		);
+	});
+
+	it('removes mentions and collapses double spaces', () => {
+		expect(removeMentions('See @[task:a] now', new Set(['a']))).toBe('See now');
+		expect(removeMentions('See @[task:a] and @[task:b]', new Set(['a']))).toBe('See and @[task:b]');
 	});
 });

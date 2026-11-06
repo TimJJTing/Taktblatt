@@ -71,6 +71,13 @@ describe('canDependOn', () => {
 		]);
 		expect(canDependOn(index, 'b', 'a')).toBe(true);
 	});
+
+	it('rejects a duplicate dependency or an unknown task id', () => {
+		const index = indexTasks([makeTask({ id: 'a' }), makeTask({ id: 'b', dependsOn: ['a'] })]);
+		expect(canDependOn(index, 'b', 'a')).toBe(false);
+		expect(canDependOn(index, 'b', 'unknown')).toBe(false);
+		expect(canDependOn(index, 'unknown', 'a')).toBe(false);
+	});
 });
 
 describe('readyCount', () => {
@@ -234,34 +241,81 @@ describe('moves', () => {
 		applyMove(plan, 'p', { stageId: 's2', parentId: null }, []);
 		expect(plan.tasks.map((t) => t.stageId)).toEqual(['s2', 's2']);
 	});
-});
 
-it('counts actual removed subtasks for repeated, overlapping and unknown roots', () => {
-	const plan = makePlan([
-		makeTask({ id: 'p' }),
-		makeTask({ id: 'c', parentId: 'p' }),
-		makeTask({ id: 'other', dependsOn: ['c'] })
-	]);
-	expect(deleteImpact(plan, ['p', 'p', 'c', 'missing'])).toEqual({
-		ids: ['p', 'c'],
-		subtasks: 1,
-		dependents: 1
+	it('clears the end date when the new parent depends on a task that starts after the moved task ends', () => {
+		const plan = makePlan([
+			makeTask({ id: 'x', start: '2027-01-15', end: '2027-01-20' }),
+			makeTask({ id: 'p', start: '2027-01-16', end: '2027-01-25', dependsOn: ['x'] }),
+			makeTask({ id: 't', start: '2027-01-01', end: '2027-01-10' })
+		]);
+		const conflicts = moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' });
+		expect(conflicts.fixes).toEqual([
+			{ kind: 'clear-date', field: 'end', dependencyId: 'x', dependentId: 'p' }
+		]);
+		applyMove(plan, 't', { stageId: 's1', parentId: 'p' }, conflicts.fixes);
+		const index = indexTasks(plan.tasks);
+		expect(dateWarnings(index)).toEqual([]);
+		expect(index.byId.get('t')!.end).toBeNull();
 	});
-	expect(deleteImpact(plan, ['missing'])).toEqual({ ids: [], subtasks: 0, dependents: 0 });
-	// A subtask alone is not a subtask of the deletion.
-	expect(deleteImpact(plan, ['c'])).toEqual({ ids: ['c'], subtasks: 0, dependents: 1 });
-	expect(deleteImpact(plan, ['p'])).toMatchObject({ ids: ['p', 'c'], subtasks: 1 });
+
+	it('does not re-emit pre-existing broken date edges on the new or old parent', () => {
+		const plan = makePlan([
+			makeTask({ id: 'x', start: '2027-02-01' }),
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 'pc', parentId: 'p', start: '2027-01-01', end: '2027-01-10' }),
+			makeTask({ id: 'q', dependsOn: ['x'] }),
+			makeTask({ id: 'qc', parentId: 'q', start: '2027-01-01', end: '2027-01-10' }),
+			makeTask({ id: 't', parentId: 'q', start: '2027-01-02', end: '2027-01-05' })
+		]);
+		expect(moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' })).toEqual({
+			fixes: [],
+			warnings: []
+		});
+	});
+
+	it('allows a dependency on a sibling when moving under the same parent', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 't', dependsOn: ['s'] })
+		]);
+		expect(moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' })).toEqual({
+			fixes: [],
+			warnings: []
+		});
+	});
 });
 
-it('counts stage tasks, subtasks and external dependents', () => {
-	const plan = makePlan(
-		[
+describe('deleteImpact', () => {
+	it('counts actual removed subtasks for repeated, overlapping and unknown roots', () => {
+		const plan = makePlan([
 			makeTask({ id: 'p' }),
 			makeTask({ id: 'c', parentId: 'p' }),
-			makeTask({ id: 'other', stageId: 's2', dependsOn: ['p', 'c'] })
-		],
-		['s1', 's2']
-	);
-	expect(stageDeleteImpact(plan, 's1')).toEqual({ tasks: 2, dependents: 1 });
-	expect(stageDeleteImpact(plan, 'missing')).toEqual({ tasks: 0, dependents: 0 });
+			makeTask({ id: 'other', dependsOn: ['c'] })
+		]);
+		expect(deleteImpact(plan, ['p', 'p', 'c', 'missing'])).toEqual({
+			ids: ['p', 'c'],
+			subtasks: 1,
+			dependents: 1
+		});
+		expect(deleteImpact(plan, ['missing'])).toEqual({ ids: [], subtasks: 0, dependents: 0 });
+		// A subtask alone is not a subtask of the deletion.
+		expect(deleteImpact(plan, ['c'])).toEqual({ ids: ['c'], subtasks: 0, dependents: 1 });
+		expect(deleteImpact(plan, ['p'])).toMatchObject({ ids: ['p', 'c'], subtasks: 1 });
+	});
+});
+
+describe('stageDeleteImpact', () => {
+	it('counts stage tasks, subtasks and external dependents', () => {
+		const plan = makePlan(
+			[
+				makeTask({ id: 'p' }),
+				makeTask({ id: 'c', parentId: 'p' }),
+				makeTask({ id: 'other', stageId: 's2', dependsOn: ['p', 'c'] })
+			],
+			['s1', 's2']
+		);
+		expect(stageDeleteImpact(plan, 's1')).toEqual({ tasks: 2, dependents: 1 });
+		expect(stageDeleteImpact(plan, 'missing')).toEqual({ tasks: 0, dependents: 0 });
+	});
 });

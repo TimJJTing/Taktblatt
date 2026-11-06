@@ -19,6 +19,7 @@ describe('LanguageReload', () => {
 	const original = getLocale;
 	const cleanup: Element[] = [];
 	afterEach(() => {
+		localStorage.removeItem('taktblatt:locale');
 		overwriteGetLocale(original);
 		cleanup.splice(0).forEach((el) => el.remove());
 	});
@@ -113,10 +114,15 @@ describe('LanguageReload', () => {
 			expect(env.reload).toHaveBeenCalledTimes(1);
 		});
 
-		it('closes the question when the other tab goes back to the shown language', () => {
+		it('closes the question when the other tab restores the language or removes the key', () => {
 			const { reload, env, shown, other } = setup({ canUndo: true, canRedo: false });
 			reload.changedInOtherTab(other);
 			reload.changedInOtherTab(shown);
+			expect(reload.open).toBe(false);
+
+			reload.changedInOtherTab(other);
+			expect(reload.open).toBe(true);
+			reload.changedInOtherTab(null);
 			expect(reload.open).toBe(false);
 			expect(env.reload).not.toHaveBeenCalled();
 		});
