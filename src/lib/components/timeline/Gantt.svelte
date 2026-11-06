@@ -9,12 +9,12 @@
 	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.js';
+	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.js';
-	import { todayISO } from '#lib/domain/date.js';
-	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
+	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
+	import { todayISO } from '#lib/domain/date.ts';
+	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import {
 		dependencyLines,
 		ganttRows,
@@ -22,13 +22,13 @@
 		todayX,
 		visibleBands,
 		visibleMilestones
-	} from '#lib/domain/gantt.js';
-	import type { Band, Milestone } from '#lib/domain/schema.js';
-	import { motionDuration } from '#lib/motion.js';
+	} from '#lib/domain/gantt.ts';
+	import type { Band, Milestone } from '#lib/domain/schema.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getEditing } from '#lib/state/editing.svelte.js';
-	import { getViewer } from '#lib/state/viewer.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
 	import GanttTween from './GanttTween.svelte';
@@ -39,8 +39,8 @@
 		ROW_HEIGHT,
 		ROW_MOTION_MS,
 		TIMELINE_MIN_WIDTH
-	} from './gantt-layout.js';
-	import { MILESTONE_SYMBOLS } from './milestone-symbols.js';
+	} from './gantt-layout.ts';
+	import { MILESTONE_SYMBOLS } from './milestone-symbols.ts';
 
 	interface Props {
 		onBand: (band: Band) => void;

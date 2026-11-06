@@ -5,22 +5,22 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { isComposing } from '#lib/browser/keyboard.js';
-	import { Input } from '#lib/components/ui/input/index.js';
-	import { Textarea } from '#lib/components/ui/textarea/index.js';
-	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import * as Select from '#lib/components/ui/select/index.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { Textarea } from '#lib/components/ui/textarea/index.ts';
+	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
+	import * as Dialog from '#lib/components/ui/dialog/index.ts';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 	import DateField from '#lib/components/edit/DateField.svelte';
-	import { MILESTONE_SYMBOLS, type Milestone, type MilestoneSymbol } from '#lib/domain/schema.js';
-	import { MILESTONE_SYMBOLS as symbolIcons } from './milestone-symbols.js';
-	import { formatDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
+	import { MILESTONE_SYMBOLS, type Milestone, type MilestoneSymbol } from '#lib/domain/schema.ts';
+	import { MILESTONE_SYMBOLS as symbolIcons } from './milestone-symbols.ts';
+	import { formatDate } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { addMilestone, updateMilestone, removeMilestone } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
+	import { addMilestone, updateMilestone, removeMilestone } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 	let { entry, onClose }: { entry?: Milestone; onClose: () => void } = $props();
 	const ws = getWorkspace();
 	const initial = untrack(() => entry);

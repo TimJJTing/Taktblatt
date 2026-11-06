@@ -3,9 +3,9 @@
  * Refer to docs/spec.md, section 4.2.
  */
 import * as v from 'valibot';
-import { createId } from '#lib/domain/ids.js';
-import { migrate } from '#lib/domain/migrate.js';
-import { PlanSchema, SCHEMA_VERSION, type Plan } from '#lib/domain/schema.js';
+import { createId } from '#lib/domain/ids.ts';
+import { migrate } from '#lib/domain/migrate.ts';
+import { PlanSchema, SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
 
 export const KEYS = {
 	index: 'taktblatt:index',

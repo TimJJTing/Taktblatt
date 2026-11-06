@@ -2,7 +2,7 @@
 	The remark sections on paper: rows of two sections. The paginator splits between rows only.
 -->
 <script lang="ts">
-	import type { RemarksSegment } from '#lib/domain/print-model.js';
+	import type { RemarksSegment } from '#lib/domain/print-model.ts';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {

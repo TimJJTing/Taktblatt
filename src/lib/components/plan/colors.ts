@@ -1,5 +1,5 @@
 /** Screen colors of the palettes. They follow the light or dark theme through CSS variables. */
-import { BAND_TINTS, STAGE_COLORS, type BandTint, type StageColor } from '#lib/domain/palette.js';
+import { BAND_TINTS, STAGE_COLORS, type BandTint, type StageColor } from '#lib/domain/palette.ts';
 import { m } from '#lib/paraglide/messages.js';
 
 /** Returns a CSS value that changes with the theme. */

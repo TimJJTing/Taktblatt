@@ -5,19 +5,19 @@
 <script lang="ts">
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import { mergeProps } from 'bits-ui';
-	import { downloadText } from '#lib/browser/download.js';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { todayISO } from '#lib/domain/date.js';
+	import { downloadText } from '#lib/browser/download.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { todayISO } from '#lib/domain/date.ts';
 	import {
 		backupFileName,
 		exportFileName,
 		serializeFile,
 		toBackupFile,
 		toPlanFile
-	} from '#lib/domain/io.js';
+	} from '#lib/domain/io.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import Hint from './Hint.svelte';
 
 	const ws = getWorkspace();

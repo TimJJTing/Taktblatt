@@ -6,13 +6,13 @@
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
-	import { uiIntl } from '#lib/ui-language.js';
-	import { allOwners } from '#lib/domain/owners.js';
-	import type { Stage } from '#lib/domain/schema.js';
-	import { motionDuration } from '#lib/motion.js';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import { allOwners } from '#lib/domain/owners.ts';
+	import type { Stage } from '#lib/domain/schema.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { addStage, reorderStages } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { addStage, reorderStages } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import StageSection from './StageSection.svelte';
 
 	const ws = getWorkspace();

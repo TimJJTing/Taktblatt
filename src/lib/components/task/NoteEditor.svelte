@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { isComposing } from '#lib/browser/keyboard.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
 	import {
 		fromEditorText,
 		matchesWords,
@@ -12,11 +12,11 @@
 		replaceEditorText,
 		type EditorMention,
 		toEditorText
-	} from '#lib/domain/mentions.js';
-	import type { Task } from '#lib/domain/schema.js';
-	import { motionDuration } from '#lib/motion.js';
+	} from '#lib/domain/mentions.ts';
+	import type { Task } from '#lib/domain/schema.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { cn } from '#lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 
 	interface Props {
 		note: string;

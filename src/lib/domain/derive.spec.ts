@@ -7,8 +7,8 @@ import {
 	stageProgress,
 	stageSpan,
 	tasksSpan
-} from './derive.js';
-import { makeTask } from './test-helpers.js';
+} from './derive.ts';
+import { makeTask } from './test-helpers.ts';
 
 describe('effectiveValues', () => {
 	it('uses the own values of a task without subtasks', () => {

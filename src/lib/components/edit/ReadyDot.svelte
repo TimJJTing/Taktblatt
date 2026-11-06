@@ -6,7 +6,7 @@
 <script lang="ts">
 	import { scale } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { motionDuration } from '#lib/motion.js';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {

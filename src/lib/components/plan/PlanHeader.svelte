@@ -6,14 +6,14 @@
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { tasksSpan } from '#lib/domain/derive.js';
-	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import { LIMITS } from '#lib/domain/schema.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { tasksSpan } from '#lib/domain/derive.ts';
+	import { formatRangeDisplay } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import { LIMITS } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updatePlan } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { updatePlan } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	const ws = getWorkspace();
 	const span = $derived(tasksSpan(ws.index));
 	const rangeText = $derived(formatRangeDisplay(ws.plan.range.start, ws.plan.range.end, uiIntl()));

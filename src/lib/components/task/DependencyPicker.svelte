@@ -6,16 +6,16 @@
 <script lang="ts">
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { isComposing } from '#lib/browser/keyboard.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { Input } from '#lib/components/ui/input/index.js';
-	import { breaksDateRule, canDependOn, inheritedDependencies } from '#lib/domain/dependencies.js';
-	import { matchesWords } from '#lib/domain/mentions.js';
-	import type { Task } from '#lib/domain/schema.js';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { breaksDateRule, canDependOn, inheritedDependencies } from '#lib/domain/dependencies.ts';
+	import { matchesWords } from '#lib/domain/mentions.ts';
+	import type { Task } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updateTask } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { cn } from '#lib/utils.js';
+	import { updateTask } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { cn } from '#lib/utils.ts';
 
 	let { task }: { task: Task } = $props();
 

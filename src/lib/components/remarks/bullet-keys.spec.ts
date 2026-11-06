@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reconcileKeys } from './bullet-keys.js';
+import { reconcileKeys } from './bullet-keys.ts';
 
 describe('reconcileKeys', () => {
 	it('keeps the keys when nothing changes', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allOwners, normalizeOwners, ownerKey, renameOwner } from './owners.js';
+import { allOwners, normalizeOwners, ownerKey, renameOwner } from './owners.ts';
 
 describe('owners', () => {
 	it('compares names after trimming and without case', () => {

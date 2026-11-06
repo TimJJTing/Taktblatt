@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, storedPlan } from './helpers.js';
+import { openApp, storedPlan } from './helpers.ts';
 
 const sections = (page: Page) => page.getByTestId('remark-section');
 

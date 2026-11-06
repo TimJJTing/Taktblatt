@@ -8,8 +8,8 @@
 	import { untrack, type Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { motionDuration } from '#lib/motion.js';
-	import { ROW_MOTION_MS } from './gantt-layout.js';
+	import { motionDuration } from '#lib/motion.ts';
+	import { ROW_MOTION_MS } from './gantt-layout.ts';
 
 	interface Props {
 		x0: number;

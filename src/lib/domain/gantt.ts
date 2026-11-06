@@ -5,10 +5,10 @@
  * A day occupies [day start, day end) of the width.
  * Refer to docs/spec.md, section 5.4.
  */
-import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.js';
-import { effectiveValues, orderedMilestones, type DoneState, type TaskIndex } from './derive.js';
-import { effectiveDependencies } from './dependencies.js';
-import type { Band, Milestone } from './schema.js';
+import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
+import { effectiveValues, orderedMilestones, type DoneState, type TaskIndex } from './derive.ts';
+import { effectiveDependencies } from './dependencies.ts';
+import type { Band, Milestone } from './schema.ts';
 
 /** The visible range of the timeline. Both dates are inclusive. */
 export interface GanttWindow {

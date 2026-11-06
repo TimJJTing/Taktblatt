@@ -10,21 +10,21 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import { buttonVariants } from '#lib/components/ui/button/index.js';
-	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import type { RemarkSection } from '#lib/domain/schema.js';
-	import { motionDuration } from '#lib/motion.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import { buttonVariants } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import type { RemarkSection } from '#lib/domain/schema.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
 		discardNewRemarkSection,
 		moveRemarkSection,
 		removeRemarkSection,
 		updateRemarkSection
-	} from '#lib/state/commands.js';
-	import { getEditing } from '#lib/state/editing.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { reconcileKeys } from './bullet-keys.js';
+	} from '#lib/state/commands.ts';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { reconcileKeys } from './bullet-keys.ts';
 
 	interface Props {
 		section: RemarkSection;

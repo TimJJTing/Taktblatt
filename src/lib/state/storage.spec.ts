@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryStorage } from './memory-storage.js';
-import { createEmptyPlan } from '#lib/domain/factory.js';
-import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.js';
-import { KEYS, PlanStorage } from './storage.js';
+import { MemoryStorage } from './memory-storage.ts';
+import { createEmptyPlan } from '#lib/domain/factory.ts';
+import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
+import { KEYS, PlanStorage } from './storage.ts';
 
 it('keeps each damaged value when timestamps are equal', () => {
 	const storage = new MemoryStorage();

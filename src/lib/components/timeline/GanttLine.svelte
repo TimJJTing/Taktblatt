@@ -7,9 +7,9 @@
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
-	import type { DependencyLine } from '#lib/domain/gantt.js';
-	import { motionDuration } from '#lib/motion.js';
-	import { elbowPath, rowCenterY, ROW_MOTION_MS } from './gantt-layout.js';
+	import type { DependencyLine } from '#lib/domain/gantt.ts';
+	import { motionDuration } from '#lib/motion.ts';
+	import { elbowPath, rowCenterY, ROW_MOTION_MS } from './gantt-layout.ts';
 
 	interface Props {
 		line: DependencyLine;

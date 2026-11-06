@@ -9,11 +9,11 @@
 	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import * as Select from '#lib/components/ui/select/index.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import * as Dialog from '#lib/components/ui/dialog/index.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 	import {
 		deleteImpact,
 		isValidMoveTarget,
@@ -21,15 +21,15 @@
 		readyCount,
 		type MoveConflicts,
 		type MoveTarget
-	} from '#lib/domain/dependencies.js';
-	import { effectiveValues } from '#lib/domain/derive.js';
-	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import { allOwners } from '#lib/domain/owners.js';
+	} from '#lib/domain/dependencies.ts';
+	import { effectiveValues } from '#lib/domain/derive.ts';
+	import { formatRangeDisplay } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import { allOwners } from '#lib/domain/owners.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { moveTask, removeTasks, renameOwnerEverywhere, updateTask } from '#lib/state/commands.js';
-	import { getEditing } from '#lib/state/editing.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { moveTask, removeTasks, renameOwnerEverywhere, updateTask } from '#lib/state/commands.ts';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import DependencyPicker from './DependencyPicker.svelte';
 	import MoveConflictDialog from './MoveConflictDialog.svelte';
 	import NoteEditor from './NoteEditor.svelte';

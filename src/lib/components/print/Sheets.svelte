@@ -14,13 +14,13 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { todayISO } from '#lib/domain/date.js';
-	import { buildPrintModel, itemCount, printToday, type Segment } from '#lib/domain/print-model.js';
-	import { paginate, type Sheet, type SegmentInput } from '#lib/domain/paginate.js';
+	import { todayISO } from '#lib/domain/date.ts';
+	import { buildPrintModel, itemCount, printToday, type Segment } from '#lib/domain/print-model.ts';
+	import { paginate, type Sheet, type SegmentInput } from '#lib/domain/paginate.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getViewer } from '#lib/state/viewer.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { PAPER, SHEET_SAFETY } from './print-layout.js';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { PAPER, SHEET_SAFETY } from './print-layout.ts';
 	import SegmentView from './SegmentView.svelte';
 	import SheetFooter from './SheetFooter.svelte';
 

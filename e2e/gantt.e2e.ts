@@ -8,7 +8,7 @@ import {
 	openExample,
 	row,
 	storedPlan
-} from './helpers.js';
+} from './helpers.ts';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 

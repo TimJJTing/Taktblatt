@@ -1,6 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-// Playwright needs a relative path to resolve this .js import to TypeScript.
-import { BAND_TINT_KEYS, BAND_TINTS, type BandTint } from '../src/lib/domain/palette.js';
+import { BAND_TINT_KEYS, BAND_TINTS, type BandTint } from '#lib/domain/palette.ts';
 import en from '../messages/en.json' with { type: 'json' };
 import de from '../messages/de.json' with { type: 'json' };
 import ja from '../messages/ja.json' with { type: 'json' };
@@ -12,7 +11,7 @@ import {
 	openPreview,
 	openSelect,
 	storedPlan
-} from './helpers.js';
+} from './helpers.ts';
 
 const symbols = [
 	{ key: 'diamond', name: 'Diamond', icon: 'diamond' },

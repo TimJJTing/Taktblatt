@@ -16,7 +16,7 @@ import {
 	startTimelineFrameMonitor,
 	taller,
 	writeStoredPlan
-} from './helpers.js';
+} from './helpers.ts';
 
 test('the pin keeps the heading, chart and legends together and clears row jumps', async ({
 	page

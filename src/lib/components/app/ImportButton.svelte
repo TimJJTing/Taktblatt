@@ -7,16 +7,16 @@
 <script lang="ts">
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { toast } from 'svelte-sonner';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import { dateWarnings } from '#lib/domain/dependencies.js';
-	import { indexTasks } from '#lib/domain/derive.js';
-	import { limitErrors, parseFile } from '#lib/domain/io.js';
-	import type { Plan } from '#lib/domain/schema.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Dialog from '#lib/components/ui/dialog/index.ts';
+	import { dateWarnings } from '#lib/domain/dependencies.ts';
+	import { indexTasks } from '#lib/domain/derive.ts';
+	import { limitErrors, parseFile } from '#lib/domain/io.ts';
+	import type { Plan } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { StorageWriteError } from '#lib/state/storage.js';
-	import { getWorkspace, type ImportConflict } from '#lib/state/workspace.svelte.js';
+	import { StorageWriteError } from '#lib/state/storage.ts';
+	import { getWorkspace, type ImportConflict } from '#lib/state/workspace.svelte.ts';
 	import Hint from './Hint.svelte';
 
 	type Choice = 'replace' | 'keep-both';

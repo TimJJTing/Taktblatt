@@ -4,8 +4,8 @@
  * Plan creation, switching, deletion, duplication, import, undo and redo stay on Workspace.
  * These plan lifecycle and history operations are the explicit exception in ADR 3.
  */
-import { applyMove, deleteTasks, type MoveFix, type MoveTarget } from '#lib/domain/dependencies.js';
-import { createExamplePlan } from '#lib/domain/example.js';
+import { applyMove, deleteTasks, type MoveFix, type MoveTarget } from '#lib/domain/dependencies.ts';
+import { createExamplePlan } from '#lib/domain/example.ts';
 import {
 	isPermutation,
 	normalizeTask,
@@ -15,17 +15,17 @@ import {
 	normalizeFooter,
 	normalizeMilestone,
 	normalizeBand
-} from '#lib/domain/normalize.js';
+} from '#lib/domain/normalize.ts';
 import {
 	createBand,
 	createMilestone,
 	createRemarkSection,
 	createStage,
 	createTask
-} from '#lib/domain/factory.js';
-import { renameOwner } from '#lib/domain/owners.js';
-import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from '#lib/domain/schema.js';
-import type { Workspace } from './workspace.svelte.js';
+} from '#lib/domain/factory.ts';
+import { renameOwner } from '#lib/domain/owners.ts';
+import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from '#lib/domain/schema.ts';
+import type { Workspace } from './workspace.svelte.ts';
 
 export type TaskPatch = Partial<
 	Pick<Task, 'title' | 'deliverable' | 'start' | 'end' | 'owners' | 'done' | 'note' | 'dependsOn'>

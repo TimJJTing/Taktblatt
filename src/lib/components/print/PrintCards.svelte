@@ -3,10 +3,10 @@
 	The description has at most three lines. An empty description does not show.
 -->
 <script lang="ts">
-	import { stagePaperColor } from '#lib/components/plan/colors.js';
-	import { formatMonthSpan } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import type { CardsSegment } from '#lib/domain/print-model.js';
+	import { stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { formatMonthSpan } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import type { CardsSegment } from '#lib/domain/print-model.ts';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {

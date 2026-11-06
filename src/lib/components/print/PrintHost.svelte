@@ -6,9 +6,9 @@
 	It sets the page size of the print: `@page { size: <paper>; margin: 0 }`.
 -->
 <script lang="ts">
-	import { getPreview } from '#lib/state/preview.svelte.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
-	import { PAPER } from './print-layout.js';
+	import { getPreview } from '#lib/state/preview.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { PAPER } from './print-layout.ts';
 	import PreviewDialog from './PreviewDialog.svelte';
 	import Sheets from './Sheets.svelte';
 

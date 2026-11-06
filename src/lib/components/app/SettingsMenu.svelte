@@ -4,11 +4,11 @@
 	import SunMoonIcon from '@lucide/svelte/icons/sun-moon';
 	import { mergeProps } from 'bits-ui';
 	import { setMode, userPrefersMode } from 'mode-watcher';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, locales, type Locale } from '#lib/paraglide/runtime.js';
-	import { getLanguageReload } from '#lib/state/language-reload.svelte.js';
+	import { getLanguageReload } from '#lib/state/language-reload.svelte.ts';
 	import Hint from './Hint.svelte';
 
 	const labels: Record<Locale, () => string> = {

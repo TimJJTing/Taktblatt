@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.ts';
 
 	interface Props {
 		/** The hint text. Empty or undefined shows no tooltip. */

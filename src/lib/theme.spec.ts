@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { KEYS } from '#lib/state/storage.js';
-import { initialThemeScript, THEME_COLORS } from './theme.js';
+import { KEYS } from '#lib/state/storage.ts';
+import { initialThemeScript, THEME_COLORS } from './theme.ts';
 
 interface Run {
 	stored?: string | null;

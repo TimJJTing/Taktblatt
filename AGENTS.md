@@ -30,7 +30,7 @@ Use Node.js 24+ and pnpm 11.10.0.
 
 Use strict TypeScript and Svelte runes. Prettier enforces tabs, single quotes, no trailing commas, and a 100-character width; plugins format Svelte and sort Tailwind classes. Use PascalCase app components, kebab-case utilities, and camelCase functions.
 
-Use the `#lib/...` alias for imports from `src/lib/`. Relative imports are allowed only for siblings (`./x.js`) and parents (`../x.js`). Use a `.js` suffix for TypeScript modules, including `.svelte.js` for reactive modules. For example: `import { motionDuration } from '#lib/motion.js'`. Keep `.svelte` extensions for component imports. The ESLint rule `local/import-specifiers` (`scripts/eslint/import-specifiers.js`) checks these import rules and fixes most findings with `pnpm exec eslint --fix`.
+Use the `#lib/...` alias for imports from `src/lib/`. Relative imports are allowed only for siblings (`./x.ts`) and parents (`../x.ts`). Import each module with the extension of its file: `.ts` for TypeScript modules, `.svelte.ts` for reactive modules, `.svelte` for components and `.js` for JavaScript files. For example: `import { motionDuration } from '#lib/motion.ts'`. The ESLint rule `local/import-specifiers` (`scripts/eslint/import-specifiers.js`) checks these import rules and fixes most findings with `pnpm exec eslint --fix`. Refer to `docs/adr/0012-import-file-extensions.md`.
 
 Keep domain logic pure. Route plan-content edits through `src/lib/state/commands.ts`; use Workspace operations for plan lifecycle and undo/redo. Avoid unrelated changes to vendored `components/ui/` files.
 

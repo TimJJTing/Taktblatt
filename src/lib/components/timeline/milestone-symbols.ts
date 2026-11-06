@@ -11,7 +11,7 @@ import BookmarkIcon from '@lucide/svelte/icons/bookmark';
 import HeartIcon from '@lucide/svelte/icons/heart';
 import type { Component } from 'svelte';
 import type { SVGAttributes } from 'svelte/elements';
-import type { MilestoneSymbol } from '#lib/domain/schema.js';
+import type { MilestoneSymbol } from '#lib/domain/schema.ts';
 import FilledMapPin from './FilledMapPin.svelte';
 
 type MilestoneIconProps = Pick<SVGAttributes<SVGSVGElement>, 'class' | 'aria-hidden'>;

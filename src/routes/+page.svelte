@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { loadExample } from '#lib/state/commands.js';
+	import { loadExample } from '#lib/state/commands.ts';
 	import { toast } from 'svelte-sonner';
 	import AppHeader from '#lib/components/app/AppHeader.svelte';
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
 	import LanguageReloadDialog from '#lib/components/app/LanguageReloadDialog.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { isModKey, isTextEditing } from '#lib/browser/keyboard.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { isModKey, isTextEditing } from '#lib/browser/keyboard.ts';
 	import { localStorageKey } from '#lib/paraglide/runtime.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
@@ -16,11 +16,11 @@
 	import Remarks from '#lib/components/remarks/Remarks.svelte';
 	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
-	import { EditingState, setEditing } from '#lib/state/editing.svelte.js';
-	import { PreviewState, setPreview } from '#lib/state/preview.svelte.js';
-	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.js';
-	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.js';
-	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.js';
+	import { EditingState, setEditing } from '#lib/state/editing.svelte.ts';
+	import { PreviewState, setPreview } from '#lib/state/preview.svelte.ts';
+	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.ts';
+	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.ts';
+	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = setWorkspace(new Workspace(localStorage));
 	setViewer(new ViewerState(localStorage));

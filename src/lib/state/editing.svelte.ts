@@ -3,7 +3,7 @@
  * the open task modal and the linked highlight. It is not saved.
  */
 import { getContext, setContext } from 'svelte';
-import { motionDuration } from '#lib/motion.js';
+import { motionDuration } from '#lib/motion.ts';
 
 /** The duration of the row flash, before motionDuration. The row-flash class uses it. */
 export const FLASH_MS = 1200;

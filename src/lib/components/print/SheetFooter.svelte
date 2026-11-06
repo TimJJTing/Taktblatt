@@ -3,9 +3,9 @@
 	Empty parts do not show. The page number "n / N" comes from the paginator.
 -->
 <script lang="ts">
-	import { formatDate } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
-	import type { Plan } from '#lib/domain/schema.js';
+	import { formatDate } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import type { Plan } from '#lib/domain/schema.ts';
 
 	interface Props {
 		footer: Plan['footer'];

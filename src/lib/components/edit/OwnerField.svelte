@@ -5,15 +5,15 @@
 <script lang="ts">
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { isComposing } from '#lib/browser/keyboard.js';
+	import { isComposing } from '#lib/browser/keyboard.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
-	import * as Popover from '#lib/components/ui/popover/index.js';
-	import { ownerKey } from '#lib/domain/owners.js';
-	import { motionDuration } from '#lib/motion.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Dialog from '#lib/components/ui/dialog/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import * as Popover from '#lib/components/ui/popover/index.ts';
+	import { ownerKey } from '#lib/domain/owners.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import OwnerChips, { ownerListHint } from './OwnerChips.svelte';
 

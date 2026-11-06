@@ -3,10 +3,10 @@
 	Empty parts do not show. Labels and dates use the UI language.
 -->
 <script lang="ts">
-	import { formatRangeDisplay } from '#lib/domain/format.js';
-	import { uiIntl } from '#lib/ui-language.js';
+	import { formatRangeDisplay } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = getWorkspace();
 	const plan = $derived(ws.plan);

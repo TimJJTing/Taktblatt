@@ -6,10 +6,10 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { motionDuration } from '#lib/motion.js';
-	import { isComposing } from '#lib/browser/keyboard.js';
+	import { motionDuration } from '#lib/motion.ts';
+	import { isComposing } from '#lib/browser/keyboard.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { cn } from '#lib/utils.js';
+	import { cn } from '#lib/utils.ts';
 
 	interface Props {
 		value: string;

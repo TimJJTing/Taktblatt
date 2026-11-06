@@ -5,9 +5,9 @@ import HexagonIcon from '@lucide/svelte/icons/hexagon';
 import PentagonIcon from '@lucide/svelte/icons/pentagon';
 import BookmarkIcon from '@lucide/svelte/icons/bookmark';
 import HeartIcon from '@lucide/svelte/icons/heart';
-import { MILESTONE_SYMBOLS as symbolKeys } from '#lib/domain/schema.js';
+import { MILESTONE_SYMBOLS as symbolKeys } from '#lib/domain/schema.ts';
 import FilledMapPin from './FilledMapPin.svelte';
-import { MILESTONE_SYMBOLS as icons } from './milestone-symbols.js';
+import { MILESTONE_SYMBOLS as icons } from './milestone-symbols.ts';
 
 describe('milestone symbol icons', () => {
 	it.each(symbolKeys)('has an icon for the schema key %s', (symbol) => {

@@ -4,10 +4,10 @@
 -->
 <script lang="ts">
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import { LIMITS, type Stage } from '#lib/domain/schema.js';
+	import { LIMITS, type Stage } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updateStage } from '#lib/state/commands.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { updateStage } from '#lib/state/commands.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	let {
 		stage,
 		number,

@@ -1,6 +1,6 @@
 /** Removes extra spaces from entity fields before a content change. */
-import { normalizeOwners } from './owners.js';
-import type { Band, Milestone, Plan, Task, Stage, RemarkSection } from './schema.js';
+import { normalizeOwners } from './owners.ts';
+import type { Band, Milestone, Plan, Task, Stage, RemarkSection } from './schema.ts';
 
 export const normalizeTask = (task: Task): Task => ({
 	...task,

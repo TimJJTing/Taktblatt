@@ -1,9 +1,9 @@
 <script lang="ts">
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
-	import { Button } from '#lib/components/ui/button/index.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { downloadText } from '#lib/browser/download.js';
-	import { getWorkspace } from '#lib/state/workspace.svelte.js';
+	import { downloadText } from '#lib/browser/download.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = getWorkspace();
 

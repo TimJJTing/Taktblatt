@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayNumber, isISODate, isoFromDayNumber, todayISO } from './date.js';
+import { dayNumber, isISODate, isoFromDayNumber, todayISO } from './date.ts';
 
 describe('isISODate', () => {
 	it('accepts a real calendar date', () => {

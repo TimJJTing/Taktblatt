@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { mode, ModeWatcher } from 'mode-watcher';
-	import { Toaster } from '#lib/components/ui/sonner/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import { Toaster } from '#lib/components/ui/sonner/index.ts';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.ts';
 	import { getLocale } from '#lib/paraglide/runtime.js';
-	import { KEYS } from '#lib/state/storage.js';
-	import { THEME_COLORS } from '#lib/theme.js';
+	import { KEYS } from '#lib/state/storage.ts';
+	import { THEME_COLORS } from '#lib/theme.ts';
 	import type { LayoutProps } from './$types';
 	import './layout.css';
 

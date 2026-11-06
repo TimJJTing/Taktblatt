@@ -2,7 +2,7 @@
  * Sizes of the printed sheets and of the printed Gantt, in CSS pixels.
  * The sheet size is in CSS units, so the sheet is the same size on all screens.
  */
-import type { PaperSize } from '#lib/domain/schema.js';
+import type { PaperSize } from '#lib/domain/schema.ts';
 
 /** The sheet size as CSS lengths. */
 export const PAPER: Record<PaperSize, { width: string; height: string; css: string }> = {

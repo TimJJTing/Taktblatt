@@ -4,10 +4,10 @@
 	Refer to ADR 9.
 -->
 <script lang="ts">
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
-	import { buttonVariants } from '#lib/components/ui/button/index.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getLanguageReload } from '#lib/state/language-reload.svelte.js';
+	import { getLanguageReload } from '#lib/state/language-reload.svelte.ts';
 
 	const reload = getLanguageReload();
 	const otherTab = $derived(reload.kind === 'other-tab');
