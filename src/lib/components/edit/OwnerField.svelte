@@ -12,6 +12,8 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
 	import * as Popover from '#lib/components/ui/popover/index.ts';
+	import { joinList } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import { ownerKey } from '#lib/domain/owners.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -93,7 +95,9 @@
 				{...props}
 				class="flex min-h-6 w-full items-center rounded-sm px-1.5 py-0.5 text-left transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
 				style="transition-duration: {motionDuration(150)}ms"
-				aria-label={owners.length ? m.field_value({ label, value: owners.join(', ') }) : label}
+				aria-label={owners.length
+					? m.field_value({ label, value: joinList(owners, uiIntl()) })
+					: label}
 				data-testid="owner-field"
 			>
 				{#if owners.length}

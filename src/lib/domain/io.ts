@@ -1,5 +1,12 @@
 /** Import and export of plan files. Refer to docs/data-model.md. */
 import * as v from 'valibot';
+import {
+	englishImportDiagnostic,
+	isValidationCode,
+	VALIDATION_MESSAGES,
+	type ImportDiagnostic,
+	type ImportDiagnosticCode
+} from './import-diagnostics.ts';
 import type { ISODate } from './date.ts';
 import { createId } from './ids.ts';
 import { MENTION_PATTERN, mentionToken } from './mentions.ts';
@@ -16,17 +23,29 @@ import {
 export type ParseResult = { ok: true; plans: Plan[] } | { ok: false; errors: string[] };
 
 /** Parses the text of a plan file or a backup file. */
-export function parseFile(text: string): ParseResult {
+export function parseFile(
+	text: string,
+	formatDiagnostic: (diagnostic: ImportDiagnostic) => string = englishImportDiagnostic
+): ParseResult {
 	let raw: unknown;
 	try {
 		raw = JSON.parse(text);
 	} catch {
-		return { ok: false, errors: ['The file is not valid JSON.'] };
+		return {
+			ok: false,
+			errors: [formatDiagnostic({ code: 'json', message: 'The file is not valid JSON.' })]
+		};
 	}
 	try {
 		raw = migrate(raw);
 	} catch (error) {
-		if (error instanceof MigrationError) return { ok: false, errors: [error.message] };
+		if (error instanceof MigrationError)
+			return {
+				ok: false,
+				errors: [
+					formatDiagnostic({ code: error.code, version: error.version, message: error.message })
+				]
+			};
 		throw error;
 	}
 	const result = v.safeParse(AnyFileSchema, raw);
@@ -34,8 +53,25 @@ export function parseFile(text: string): ParseResult {
 		return {
 			ok: false,
 			errors: result.issues.map((issue) => {
-				const path = v.getDotPath(issue);
-				return path ? `${path}: ${issue.message}` : issue.message;
+				const custom = isValidationCode(issue.message) ? issue.message : undefined;
+				const code = custom ?? issueCode(issue);
+				const values =
+					code === 'choice' && issue.expected
+						? issue.expected.replace(/^\((.*)\)$/, '$1').split(' | ')
+						: undefined;
+				const message = custom
+					? VALIDATION_MESSAGES[custom]
+					: code === 'missing'
+						? 'This field is required.'
+						: values?.length
+							? `Use one of these values: ${values.join(', ')}.`
+							: issue.message;
+				return formatDiagnostic({
+					code,
+					values,
+					path: v.getDotPath(issue) ?? undefined,
+					message
+				});
 			})
 		};
 	}
@@ -44,6 +80,30 @@ export function parseFile(text: string): ParseResult {
 		for (const task of plan.tasks) task.owners = normalizeOwners(task.owners);
 	}
 	return { ok: true, plans };
+}
+
+/** Unknown library issues use a translatable fallback. */
+function issueCode(issue: v.BaseIssue<unknown>): ImportDiagnosticCode {
+	if ((issue.type === 'object' || issue.type === 'variant') && issue.received === 'undefined')
+		return 'missing';
+	switch (issue.type) {
+		case 'string':
+		case 'boolean':
+		case 'array':
+			return issue.type;
+		case 'object':
+			return 'object';
+		case 'picklist':
+		case 'literal':
+		case 'variant':
+			return 'choice';
+		case 'iso_timestamp':
+			return 'timestamp';
+		case 'min_length':
+			return 'empty';
+		default:
+			return 'value';
+	}
 }
 
 export function toPlanFile(plan: Plan): PlanFile {

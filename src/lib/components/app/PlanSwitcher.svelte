@@ -6,7 +6,7 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { toast } from 'svelte-sonner';
 	import { isComposing } from '#lib/browser/keyboard.ts';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
@@ -102,22 +102,12 @@
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
 
-<AlertDialog.Root bind:open={confirmOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{m.plan_delete_title()}</AlertDialog.Title>
-			<AlertDialog.Description>
-				{m.plan_delete_body({ name: nameOf(ws.plan.heading) })}
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
-			<AlertDialog.Action class={buttonVariants({ variant: 'destructive' })} onclick={deleteActive}>
-				{m.action_delete()}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirm
+	bind:open={confirmOpen}
+	title={m.plan_delete_title()}
+	body={m.plan_delete_body({ name: nameOf(ws.plan.heading) })}
+	onConfirm={deleteActive}
+/>
 
 <Dialog.Root bind:open={renameOpen}>
 	<Dialog.Content

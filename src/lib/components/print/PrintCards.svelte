@@ -39,7 +39,10 @@
 			>
 				<p class="text-[9px] font-medium tracking-wide text-paper-ink-3 uppercase">
 					{card.span
-						? `${label} · ${formatMonthSpan(card.span.start, card.span.end, intl)}`
+						? m.label_qualifier({
+								name: label,
+								qualifier: formatMonthSpan(card.span.start, card.span.end, intl)
+							})
 						: label}
 				</p>
 				<h3 class="mt-1 text-[13px] leading-snug font-semibold text-paper-ink">

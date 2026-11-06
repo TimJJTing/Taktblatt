@@ -69,6 +69,7 @@ test.describe('remarks', () => {
 
 		await sections(page).first().getByTestId('remark-menu').click();
 		await page.getByRole('menuitem', { name: 'Delete section…', exact: true }).click();
+		await expect(page.getByRole('alertdialog')).toContainText('The app deletes “Two”.');
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 		await expect(titles).toHaveText(['One']);
 		await expect(redo).toBeDisabled();

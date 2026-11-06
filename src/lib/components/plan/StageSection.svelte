@@ -11,7 +11,7 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.ts';
@@ -59,6 +59,13 @@
 	const months = $derived(span ? formatMonthSpan(span.start, span.end, uiIntl()) : '');
 	const position = $derived(ws.plan.stages.findIndex((s) => s.id === stage.id));
 	const otherColors = $derived(ws.plan.stages.filter((s) => s.id !== stage.id).map((s) => s.color));
+	// The sentinel {stageName} is a placeholder qualifier.
+	// Split here to put StageTitle before or after the label, as the translation requires.
+	const stageLabelParts = $derived(
+		m
+			.label_qualifier({ name: m.stage_label({ n: number }), qualifier: '{stageName}' })
+			.split('{stageName}')
+	);
 	const stageName = $derived(stage.title || m.stage_title_placeholder({ n: number }));
 	const flipDuration = $derived(motionDuration(280));
 	let headerHeight = $state(0);
@@ -116,14 +123,17 @@
 			id="stage-{stage.id}-title"
 			class="flex min-w-0 items-baseline gap-1 text-base font-semibold"
 		>
-			<span class="shrink-0">{m.stage_label({ n: number })} ·</span>
-			<span class="min-w-0">
-				<StageTitle {stage} {number} />
+			<span class="flex min-w-0 items-baseline">
+				<span class="shrink-0 whitespace-pre">{stageLabelParts[0]}</span>
+				<span class="min-w-0"><StageTitle {stage} {number} /></span>
+				{#if stageLabelParts[1]}<span class="shrink-0 whitespace-pre">{stageLabelParts[1]}</span
+					>{/if}
 			</span>
 			{#if months}
 				<span
 					class="shrink-0 font-normal text-muted-foreground"
-					transition:fade={{ duration: motionDuration(150) }}>({months})</span
+					transition:fade={{ duration: motionDuration(150) }}
+					>{m.parenthetical({ text: months })}</span
 				>
 			{/if}
 		</h3>
@@ -271,31 +281,19 @@
 	</div>
 </section>
 
-<AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{m.stage_delete_title()}</AlertDialog.Title>
-			<AlertDialog.Description>
-				{stageName}. {m.stage_delete_body({
-					tasks: impact?.tasks ?? 0,
-					dependents: impact?.dependents ?? 0
-				})}
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class={buttonVariants({ variant: 'destructive' })}
-				onclick={() => {
-					confirmDelete = false;
-					removeStage(ws, stage.id);
-				}}
-			>
-				{m.action_delete()}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirm
+	bind:open={confirmDelete}
+	title={m.stage_delete_title()}
+	body={m.stage_delete_body({
+		name: stageName,
+		tasks: impact?.tasks ?? 0,
+		dependents: impact?.dependents ?? 0
+	})}
+	onConfirm={() => {
+		confirmDelete = false;
+		removeStage(ws, stage.id);
+	}}
+/>
 
 <style>
 	/* The root scroll padding clears the app header and pinned Timeline section. */

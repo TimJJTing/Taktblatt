@@ -9,8 +9,8 @@
 	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
-	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
+	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import * as Select from '#lib/components/ui/select/index.ts';
@@ -56,7 +56,10 @@
 	const stageNumber = (id: string) => ws.plan.stages.findIndex((s) => s.id === id) + 1;
 	const stageName = (id: string) => {
 		const stage = ws.plan.stages.find((s) => s.id === id);
-		return `${m.stage_label({ n: stageNumber(id) })} · ${stage?.title || m.stage_title_placeholder({ n: stageNumber(id) })}`;
+		return m.label_qualifier({
+			name: m.stage_label({ n: stageNumber(id) }),
+			qualifier: stage?.title || m.stage_title_placeholder({ n: stageNumber(id) })
+		});
 	};
 	const parentOptions = $derived(
 		task
@@ -203,8 +206,9 @@
 				<dt class="text-muted-foreground">{m.column_owner()}</dt>
 				<dd>
 					{#if isParent}
+						{@const ownersHint = ownerListHint(eff.owners, 6)}
 						<Hint
-							text={[m.owner_derived(), ownerListHint(eff.owners, 6)].join(' ').trim()}
+							text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
 							focusable={false}
 						>
 							{#snippet child({ props })}
@@ -323,25 +327,15 @@
 	</Dialog.Content>
 </Dialog.Root>
 
-<AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{m.task_delete_title({ task: titleText })}</AlertDialog.Title>
-			<AlertDialog.Description>
-				{m.task_delete_body({
-					subtasks: impact?.subtasks ?? 0,
-					dependents: impact?.dependents ?? 0
-				})}
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
-			<AlertDialog.Action class={buttonVariants({ variant: 'destructive' })} onclick={deleteTask}>
-				{m.action_delete()}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirm
+	bind:open={confirmDelete}
+	title={m.task_delete_title({ task: titleText })}
+	body={m.task_delete_body({
+		subtasks: impact?.subtasks ?? 0,
+		dependents: impact?.dependents ?? 0
+	})}
+	onConfirm={deleteTask}
+/>
 
 {#if pendingMove}
 	<MoveConflictDialog

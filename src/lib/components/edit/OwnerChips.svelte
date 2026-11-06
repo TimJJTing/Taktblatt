@@ -4,12 +4,14 @@
 	often inside a trigger button.
 -->
 <script lang="ts" module>
+	import { joinList } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	/** The default number of chips. */
 	export const OWNER_CHIPS_MAX = 2;
 
 	/** The full owner list when the chips hide names, else an empty string. */
 	export function ownerListHint(owners: readonly string[], max = OWNER_CHIPS_MAX): string {
-		return owners.length > max ? owners.join(', ') : '';
+		return owners.length > max ? joinList(owners, uiIntl()) : '';
 	}
 </script>
 

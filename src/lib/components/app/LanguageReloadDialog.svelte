@@ -5,7 +5,6 @@
 -->
 <script lang="ts">
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
-	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLanguageReload } from '#lib/state/language-reload.svelte.ts';
 
@@ -29,7 +28,7 @@
 				{otherTab ? m.ui_language_other_tab_later() : m.action_cancel()}
 			</AlertDialog.Cancel>
 			<AlertDialog.Action
-				class={buttonVariants({ variant: 'destructive' })}
+				variant="destructive"
 				data-testid="language-reload-confirm"
 				onclick={() => reload.confirm()}
 			>

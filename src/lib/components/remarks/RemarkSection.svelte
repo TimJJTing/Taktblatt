@@ -10,7 +10,7 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
+	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import type { RemarkSection } from '#lib/domain/schema.ts';
@@ -244,25 +244,12 @@
 	</div>
 </section>
 
-<AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{m.remark_delete_title()}</AlertDialog.Title>
-			<AlertDialog.Description>
-				{name}. {m.remark_delete_body({ bullets: section.bullets.length })}
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class={buttonVariants({ variant: 'destructive' })}
-				onclick={() => {
-					confirmDelete = false;
-					removeRemarkSection(ws, section.id);
-				}}
-			>
-				{m.action_delete()}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirm
+	bind:open={confirmDelete}
+	title={m.remark_delete_title()}
+	body={m.remark_delete_body({ name, bullets: section.bullets.length })}
+	onConfirm={() => {
+		confirmDelete = false;
+		removeRemarkSection(ws, section.id);
+	}}
+/>

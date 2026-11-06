@@ -26,7 +26,12 @@
 			style:border-top-color={stageColorVar(stage.color)}
 		>
 			<p class="mb-2 text-xs font-medium uppercase" data-testid="stage-card-label">
-				{span ? `${label} · ${formatMonthSpan(span.start, span.end, uiIntl())}` : label}
+				{span
+					? m.label_qualifier({
+							name: label,
+							qualifier: formatMonthSpan(span.start, span.end, uiIntl())
+						})
+					: label}
 			</p>
 			<h3 class="mb-2 text-lg font-semibold">
 				<StageTitle {stage} number={i + 1} testId="overview-stage-title" />

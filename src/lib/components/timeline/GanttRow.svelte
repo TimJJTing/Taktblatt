@@ -211,7 +211,7 @@
 					<span
 						{...props}
 						role="img"
-						aria-label="{titleText}: {name}"
+						aria-label={m.field_value({ label: titleText, value: name })}
 						class={cn(
 							'pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center text-muted-foreground',
 							mark.side === 'before' ? 'left-0' : 'right-0'

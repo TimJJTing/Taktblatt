@@ -114,7 +114,11 @@
 							class="flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
 						>
 							<span class="max-w-48 truncate">{title(dep.depId)}</span>
-							<span class="sr-only">({m.dependency_inherited({ task: title(dep.fromId) })})</span>
+							<span class="sr-only"
+								>{m.parenthetical({
+									text: m.dependency_inherited({ task: title(dep.fromId) })
+								})}</span
+							>
 						</li>
 					{/snippet}
 				</Hint>
