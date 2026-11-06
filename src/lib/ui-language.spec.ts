@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getLocale, overwriteGetLocale } from '#lib/paraglide/runtime.js';
-import { uiIntl } from './ui-language';
+import { uiIntl } from './ui-language.js';
 
 describe('uiIntl', () => {
 	const original = getLocale;

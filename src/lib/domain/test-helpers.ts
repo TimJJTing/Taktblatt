@@ -1,6 +1,6 @@
 /** Helpers to build small plans in unit tests. */
-import { createEmptyPlan } from './factory';
-import type { Plan, Task } from './schema';
+import { createEmptyPlan } from './factory.js';
+import type { Plan, Task } from './schema.js';
 
 let counter = 0;
 

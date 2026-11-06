@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexTasks } from './derive';
+import { indexTasks } from './derive.js';
 import {
 	applyMove,
 	canDependOn,
@@ -12,9 +12,9 @@ import {
 	moveConflicts,
 	readyCount,
 	stageDeleteImpact
-} from './dependencies';
-import { mentionToken } from './mentions';
-import { makePlan, makeTask } from './test-helpers';
+} from './dependencies.js';
+import { mentionToken } from './mentions.js';
+import { makePlan, makeTask } from './test-helpers.js';
 
 describe('effectiveDependencies', () => {
 	it('gives a parent the union of its own and its subtask dependencies, minus its subtasks', () => {

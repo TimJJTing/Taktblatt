@@ -24,10 +24,10 @@ import {
 	removeTasks,
 	renameOwnerEverywhere,
 	loadExample
-} from './commands';
+} from './commands.js';
 import { mentionToken } from '#lib/domain/mentions.js';
-import { MemoryStorage } from './memory-storage';
-import { Workspace } from './workspace.svelte';
+import { MemoryStorage } from './memory-storage.js';
+import { Workspace } from './workspace.svelte.js';
 
 const open = () => new Workspace(new MemoryStorage());
 

@@ -3,10 +3,10 @@
  * The TypeScript types come from the schema. Refer to docs/data-model.md.
  */
 import * as v from 'valibot';
-import { isISODate } from './date';
-import { effectiveDependencies } from './dependencies';
-import { indexTasks } from './derive';
-import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette';
+import { isISODate } from './date.js';
+import { effectiveDependencies } from './dependencies.js';
+import { indexTasks } from './derive.js';
+import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.js';
 
 export const SCHEMA_VERSION = 1;
 export const MILESTONE_SYMBOLS = [

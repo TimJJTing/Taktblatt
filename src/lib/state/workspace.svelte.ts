@@ -9,8 +9,8 @@ import { indexTasks, type TaskIndex } from '#lib/domain/derive.js';
 import { createEmptyPlan } from '#lib/domain/factory.js';
 import { withNewIds } from '#lib/domain/io.js';
 import type { Plan } from '#lib/domain/schema.js';
-import { History } from './history.svelte';
-import { KEYS, PlanStorage, StorageWriteError, type LoadResult } from './storage';
+import { History } from './history.svelte.js';
+import { KEYS, PlanStorage, StorageWriteError, type LoadResult } from './storage.js';
 
 export interface PlanSummary {
 	id: string;
