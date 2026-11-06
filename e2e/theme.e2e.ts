@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp, openExample, openSettings, storedPlan } from './helpers';
+import {
+	openApp,
+	openExample,
+	openPreview,
+	openSettings,
+	storedPlan,
+	waitForAnimations
+} from './helpers';
 
 const settings = (page: Page) => page.getByTestId('settings-menu');
 const themeGroup = (page: Page) => page.getByRole('group', { name: 'Theme', exact: true });
@@ -80,11 +87,7 @@ test('the Settings theme choices support keyboard selection and preserve plan hi
 	await settings(page).focus();
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('menu')).toBeVisible();
-	await page.getByRole('menu').evaluate(async (element) => {
-		await Promise.all(
-			element.getAnimations({ subtree: true }).map((animation) => animation.finished)
-		);
-	});
+	await waitForAnimations(page.getByRole('menu'));
 	await page.keyboard.press('Home');
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
@@ -137,9 +140,8 @@ test('Preview and printed sheets stay light with the same pagination in dark mod
 }, testInfo) => {
 	await openExample(page);
 	await chooseTheme(page, 'Light');
-	await page.getByTestId('preview-open').click();
+	await openPreview(page);
 	const sheets = page.getByTestId('sheet');
-	await expect(sheets.first()).toBeVisible();
 	const count = await sheets.count();
 	const dimensions = await sheets.first().evaluate((element) => {
 		const box = element.getBoundingClientRect();
@@ -147,8 +149,7 @@ test('Preview and printed sheets stay light with the same pagination in dark mod
 	});
 	await page.keyboard.press('Escape');
 	await chooseTheme(page, 'Dark');
-	await page.getByTestId('preview-open').click();
-	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
+	await openPreview(page);
 	await expect(sheets).toHaveCount(count);
 	await expect(sheets.first()).toHaveCSS('color-scheme', 'light');
 	await expect(sheets.first()).toHaveCSS('background-color', 'rgb(255, 255, 255)');
@@ -201,8 +202,7 @@ test('the Settings menu fits a phone header and works after an offline reload', 
 	await chooseTheme(page, 'Light');
 	await expectTheme(page, 'light');
 	await expect.poll(() => preference(page)).toBe('light');
-	await page.getByTestId('preview-open').click();
-	await expect(page.getByTestId('sheet').first()).toBeVisible();
+	await openPreview(page);
 	await page.keyboard.press('Escape');
 	await openSettings(page);
 	await expect(

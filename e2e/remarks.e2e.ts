@@ -51,6 +51,10 @@ test.describe('remarks', () => {
 
 	test('move a section down, delete it with confirmation, and undo', async ({ page }) => {
 		await openApp(page);
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		const redo = page.getByRole('button', { name: 'Redo', exact: true });
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeDisabled();
 		for (const title of ['One', 'Two']) {
 			await page.getByTestId('add-remark-section').click();
 			await page.keyboard.type(title);
@@ -67,9 +71,14 @@ test.describe('remarks', () => {
 		await page.getByRole('menuitem', { name: 'Delete section…', exact: true }).click();
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 		await expect(titles).toHaveText(['One']);
+		await expect(redo).toBeDisabled();
 
-		await page.getByRole('button', { name: 'Undo' }).click();
+		await undo.click();
 		await expect(titles).toHaveText(['Two', 'One']);
+		await expect(redo).toBeEnabled();
+		await redo.click();
+		await expect(titles).toHaveText(['One']);
+		await expect(redo).toBeDisabled();
 	});
 
 	test('one Backspace removes only the empty bullet', async ({ page }) => {

@@ -43,6 +43,10 @@ test('header fields commit, cancel and keep the previous required heading', asyn
 
 test('Fit to tasks uses task dates and is disabled without dates', async ({ page }) => {
 	await openApp(page);
+	const undo = page.getByRole('button', { name: 'Undo', exact: true });
+	const redo = page.getByRole('button', { name: 'Redo', exact: true });
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Fit to tasks' })).toBeDisabled();
 	await stage(page, 0).hover();
 	await stage(page, 0).getByTestId('add-task').click();
@@ -55,11 +59,19 @@ test('Fit to tasks uses task dates and is disabled without dates', async ({ page
 	await page.getByTestId('date-end').fill('2027-01-05');
 	await page.getByTestId('date-end').press('Enter');
 	await page.getByRole('button', { name: 'Done', exact: true }).click();
+	const { range } = await storedPlan(page);
+	const fitted = { start: '2027-01-02', end: '2027-01-05' };
+	expect(range).not.toEqual(fitted);
 	await page.getByRole('button', { name: 'Fit to tasks' }).click();
-	expect((await storedPlan(page)).range).toEqual({ start: '2027-01-02', end: '2027-01-05' });
+	await expect.poll(async () => (await storedPlan(page)).range).toEqual(fitted);
 	await expect(page.getByTestId('plan-range')).toContainText('2027');
-	await page.getByRole('button', { name: 'Undo', exact: true }).click();
-	expect((await storedPlan(page)).range).not.toEqual({ start: '2027-01-02', end: '2027-01-05' });
+	await expect(redo).toBeDisabled();
+	await undo.click();
+	await expect.poll(async () => (await storedPlan(page)).range).toEqual(range);
+	await expect(redo).toBeEnabled();
+	await redo.click();
+	await expect.poll(async () => (await storedPlan(page)).range).toEqual(fitted);
+	await expect(redo).toBeDisabled();
 });
 
 test('stage titles stay in sync between the overview and work plan', async ({ page }) => {
@@ -78,12 +90,14 @@ test('stage titles stay in sync between the overview and work plan', async ({ pa
 
 test('milestones can be added, edited and deleted through the legend', async ({ page }) => {
 	await openApp(page);
+	const { range } = await storedPlan(page);
 	await page.getByRole('button', { name: 'Add milestone', exact: true }).click();
 	let dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Review');
 	await dialog.getByLabel('Description', { exact: true }).fill('Review the first results.');
 	await dialog.getByTestId('milestone-date').click();
-	await page.getByTestId('date-value').fill('2027-03-01');
+	// The end date is inside the plan range and differs from the default start date.
+	await page.getByTestId('date-value').fill(range.end);
 	await page.getByTestId('date-value').press('Enter');
 	await page.getByRole('button', { name: 'Done', exact: true }).last().click();
 	await chooseOption(page, 'milestone-symbol', 'Star');
@@ -92,7 +106,7 @@ test('milestones can be added, edited and deleted through the legend', async ({ 
 	await expect(legend).toContainText('M1 Review');
 	expect((await storedPlan(page)).milestones[0]).toMatchObject({
 		description: 'Review the first results.',
-		date: '2027-03-01',
+		date: range.end,
 		symbol: 'star'
 	});
 	await legend.getByRole('button', { name: /M1 Review/ }).click();
@@ -157,14 +171,14 @@ test('section navigation scrolls below the sticky app header', async ({ page }) 
 		.click();
 	await expect(page).toHaveURL(/#remarks$/);
 	await expect(page.locator('#remarks')).toBeInViewport();
-	const top = await page
-		.locator('#remarks')
-		.evaluate((element) => element.getBoundingClientRect().top);
-	const bottom = await page
-		.locator('body > header, header.sticky')
-		.first()
-		.evaluate((element) => element.getBoundingClientRect().bottom);
-	expect(top).toBeGreaterThanOrEqual(bottom);
+	await expect
+		.poll(() =>
+			page.locator('#remarks').evaluate((element) => {
+				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+				return element.getBoundingClientRect().top >= header.bottom - 1;
+			})
+		)
+		.toBe(true);
 });
 
 test('an outside click does not add a new milestone', async ({ page }) => {
@@ -239,7 +253,7 @@ test('the dates follow the UI language when it changes', async ({ page }) => {
 	);
 });
 
-test('section navigation stops below the pinned Gantt', async ({ page }) => {
+test('section navigation stops below the pinned Timeline', async ({ page }) => {
 	await openExample(page);
 	await page.getByTestId('gantt-pin').click();
 	await page
@@ -249,11 +263,14 @@ test('section navigation stops below the pinned Gantt', async ({ page }) => {
 	await expect(page).toHaveURL(/#work-plan$/);
 	const heading = page.locator('#work-plan-title');
 	await expect
-		.poll(async () => {
-			const top = (await heading.boundingBox())!.y;
-			const gantt = (await page.getByTestId('gantt').boundingBox())!;
-			return top >= gantt.y + gantt.height - 1;
-		})
+		.poll(() =>
+			heading.evaluate((element) => {
+				const panel = document
+					.querySelector('[data-testid="timeline-panel"]')!
+					.getBoundingClientRect();
+				return element.getBoundingClientRect().top >= panel.bottom - 1;
+			})
+		)
 		.toBe(true);
 	await expect(heading).toBeInViewport();
 });

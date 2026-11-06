@@ -67,10 +67,15 @@ test.describe('task dialog', () => {
 		await openExample(page);
 		// "First harvest" depends on "Sowing" and ends 70 days from today.
 		// Give "Watering rota" dates after that, then make it the first subtask of "Sowing".
-		const today = new Date();
-		const iso = (days: number) =>
-			new Date(today.getTime() + days * 86_400_000).toISOString().slice(0, 10);
-		await setDates(page, 'Watering rota', iso(90), iso(95));
+		// Get the local dates from the browser, as the example plan does.
+		const [start, end] = await page.evaluate(() =>
+			[90, 95].map((days) => {
+				const date = new Date();
+				date.setDate(date.getDate() + days);
+				return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+			})
+		);
+		await setDates(page, 'Watering rota', start, end);
 		await openDetails(page, 'Watering rota');
 		await page.getByTestId('dialog-parent').click();
 		await page.getByRole('option', { name: 'Sowing' }).click();

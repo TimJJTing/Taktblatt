@@ -4,16 +4,22 @@ import {
 	defaultPanelHeight,
 	expectPanelHeight,
 	expectStickyStageStack,
+	focusPreviousControl,
 	openApp,
 	openExample,
 	row,
 	stage,
-	titles
+	titles,
+	waitForAnimations
 } from './helpers';
 
 test.describe('work plan', () => {
 	test('a new task gets a title, and Escape removes an empty new task', async ({ page }) => {
 		await openApp(page);
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		const redo = page.getByRole('button', { name: 'Redo', exact: true });
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeDisabled();
 		const first = stage(page, 0);
 		await first.hover();
 		await first.getByTestId('add-task').click();
@@ -25,10 +31,18 @@ test.describe('work plan', () => {
 		await page.keyboard.press('Escape');
 		await expect(first.getByTestId('task-row')).toHaveCount(1);
 		// The empty row left no undo step. Undo reverts the title, then the new task.
-		await page.getByRole('button', { name: 'Undo' }).click();
+		await expect(redo).toBeDisabled();
+		await undo.click();
 		await expect(first.getByTestId('task-title')).toHaveText(['New task']);
-		await page.getByRole('button', { name: 'Undo' }).click();
+		await undo.click();
 		await expect(first.getByTestId('task-row')).toHaveCount(0);
+		await expect(undo).toBeDisabled();
+		// Redo restores the new task, then its title.
+		await redo.click();
+		await expect(first.getByTestId('task-title')).toHaveText(['New task']);
+		await redo.click();
+		await expect(first.getByTestId('task-title')).toHaveText(['Write brief']);
+		await expect(redo).toBeDisabled();
 	});
 
 	test('Enter commits and moves to the same column in the next row', async ({ page }) => {
@@ -201,13 +215,7 @@ test.describe('work plan', () => {
 			const content = page.locator('[data-slot="popover-content"]');
 			await expect(palette).toBeVisible();
 			await expect(palette.getByRole('radio', { checked: true })).toBeFocused();
-			await palette.evaluate(async (element) => {
-				const content = element.closest('[data-slot="popover-content"]')!;
-				const animations = content
-					.getAnimations({ subtree: true })
-					.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
-				await Promise.all(animations.map((animation) => animation.finished));
-			});
+			await waitForAnimations(content);
 			await assertNoScroll();
 			await palette.getByRole('radio', { name: 'violet', exact: true }).click();
 			await expect(swatch).toHaveAttribute('aria-label', 'Stage color: violet');
@@ -329,22 +337,23 @@ test.describe('work plan', () => {
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await openExample(page);
 		const first = stage(page, 0);
+		const header = first.locator(':scope > header');
+		const headerHeight = () => header.evaluate((element) => element.getBoundingClientRect().height);
 		await expectStickyStageStack(first);
-		const wideHeight = await first
-			.locator(':scope > header')
-			.evaluate((header) => header.getBoundingClientRect().height);
-		// Change the measured height without changing the title's established truncation.
-		await first.locator(':scope > header').evaluate((header, height) => {
-			(header as HTMLElement).style.minHeight = `${height + 24}px`;
+		const wideHeight = await headerHeight();
+		// A taller header moves the sticky stack below it.
+		await header.evaluate((element, height) => {
+			(element as HTMLElement).style.minHeight = `${height + 24}px`;
 		}, wideHeight);
+		await expect.poll(headerHeight).toBeCloseTo(wideHeight + 24, 0);
 		await expectStickyStageStack(first);
+		// Clear the forced height. The sticky stack follows the header back to its natural height.
+		await header.evaluate((element) => ((element as HTMLElement).style.minHeight = ''));
+		await expect.poll(headerHeight).toBeCloseTo(wideHeight, 0);
+		await expectStickyStageStack(first);
+		// At a narrow width, the stack uses the natural header height, not a forced one.
 		await page.setViewportSize({ width: 390, height: 700 });
 		await expectStickyStageStack(first);
-		await expect
-			.poll(() =>
-				first.locator(':scope > header').evaluate((header) => header.getBoundingClientRect().height)
-			)
-			.toBeGreaterThan(wideHeight);
 		await expectStickyStageStack(stage(page, 1));
 		await expect
 			.poll(() =>
@@ -395,9 +404,7 @@ test.describe('work plan', () => {
 				window.scrollTo(0, window.scrollY + bounds.top + bounds.height / 2 - center);
 				await new Promise(requestAnimationFrame);
 			});
-			await first
-				.getByTestId('stage-menu')
-				.evaluate((element) => (element as HTMLElement).focus({ preventScroll: true }));
+			await focusPreviousControl(checkbox);
 			await page.keyboard.press('Tab');
 			await expect(checkbox).toBeFocused();
 			await expect

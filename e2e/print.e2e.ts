@@ -6,6 +6,7 @@ import {
 	formatted,
 	openApp,
 	openExample,
+	openPreview,
 	openSettings,
 	row,
 	storedPlan,
@@ -21,12 +22,6 @@ declare global {
 
 const sheets = (page: Page) => page.getByTestId('sheet');
 const previewButton = (page: Page) => page.getByTestId('preview-open');
-
-async function openPreview(page: Page) {
-	await previewButton(page).click();
-	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
-	await expect(sheets(page).first()).toBeVisible();
-}
 
 test('Preview and print use fainter dependency lines from done sources', async ({ page }) => {
 	await openExample(page);
@@ -283,15 +278,22 @@ test('the Gantt continues on the next sheet with the month header, and the table
 		if (tables > 0) expect(rowCount).toBeGreaterThanOrEqual(tables);
 	}
 	// Every sheet stays inside its own box: no content below the footer.
-	for (let i = 0; i < count; i++) {
-		const sheet = sheets(page).nth(i);
-		const box = (await sheet.boundingBox())!;
-		const footer = (await sheet.getByTestId('sheet-footer').boundingBox())!;
-		expect(footer.y + footer.height).toBeLessThanOrEqual(box.y + box.height);
-		const content = (await sheet.locator('.sheet-content').boundingBox())!;
-		const last = (await sheet.locator('[data-fragment]').last().boundingBox())!;
-		expect(last.y + last.height).toBeLessThanOrEqual(content.y + content.height + 1);
-	}
+	// Read the geometry of all sheets in one snapshot.
+	const bounds = await sheets(page).evaluateAll((elements) =>
+		elements.map((sheet) => {
+			const box = sheet.getBoundingClientRect();
+			const footer = sheet.querySelector('[data-testid="sheet-footer"]')!.getBoundingClientRect();
+			const content = sheet.querySelector('.sheet-content')!.getBoundingClientRect();
+			const last = [...sheet.querySelectorAll('[data-fragment]')].at(-1)!.getBoundingClientRect();
+			return {
+				footerInside: footer.bottom <= box.bottom,
+				contentInside: last.bottom <= content.bottom + 1
+			};
+		})
+	);
+	expect(bounds).toEqual(
+		Array.from({ length: count }, () => ({ footerInside: true, contentInside: true }))
+	);
 });
 
 test('an empty plan has an overview sheet and a work plan sheet', async ({ page }) => {
@@ -585,10 +587,17 @@ test('the today label does not cover the milestone row', async ({ page }) => {
 		plan.footer.date = addDays(plan.range.start, 10);
 	});
 	await openPreview(page);
-	const first = sheets(page).first();
-	const label = (await first.getByTestId('sheet-gantt-today-label').boundingBox())!;
-	const milestones = (await first.locator('[data-part="extra"]').boundingBox())!;
-	expect(label.y).toBeGreaterThanOrEqual(milestones.y + milestones.height - 0.5);
+	// Read the label and the milestone row in one snapshot.
+	const gap = await sheets(page)
+		.first()
+		.evaluate((sheet) => {
+			const label = sheet
+				.querySelector('[data-testid="sheet-gantt-today-label"]')!
+				.getBoundingClientRect();
+			const milestones = sheet.querySelector('[data-part="extra"]')!.getBoundingClientRect();
+			return label.top - milestones.bottom;
+		});
+	expect(gap).toBeGreaterThanOrEqual(-0.5);
 });
 
 test('the printed Gantt names points and marks tasks outside the range', async ({ page }) => {

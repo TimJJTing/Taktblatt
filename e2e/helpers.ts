@@ -193,13 +193,66 @@ export async function openSettings(page: Page): Promise<Locator> {
 	await trigger.click();
 	const menu = page.getByRole('menu');
 	await expect(menu).toBeVisible();
-	await menu.evaluate(async (element) => {
-		await Promise.all(
-			element.getAnimations({ subtree: true }).map((animation) => animation.finished)
-		);
-	});
+	await waitForAnimations(menu);
 	return menu;
 }
+
+/** Waits until all finite animations of an element and its descendants finish. */
+export async function waitForAnimations(locator: Locator): Promise<void> {
+	await locator.evaluate(async (element) => {
+		const animations = element
+			.getAnimations({ subtree: true })
+			.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+		await Promise.all(animations.map((animation) => animation.finished));
+	});
+}
+
+/** Opens the print preview and waits until the first sheet is visible. */
+export async function openPreview(page: Page): Promise<Locator> {
+	await page.getByTestId('preview-open').click();
+	const preview = page.getByRole('dialog', { name: 'Print preview' });
+	await expect(preview).toBeVisible();
+	await expect(preview.getByTestId('sheet').first()).toBeVisible();
+	return preview;
+}
+
+/** Sets the keyboard starting point without revealing the target. */
+export async function focusPreviousControl(target: Locator): Promise<void> {
+	await target.evaluate((element) => {
+		const controls = [
+			...document.querySelectorAll<HTMLElement>(
+				'button, input, select, textarea, a[href], [tabindex]'
+			)
+		].filter(
+			(control) =>
+				control.tabIndex >= 0 &&
+				!control.matches(':disabled') &&
+				!control.closest('[inert]') &&
+				control.getClientRects().length > 0
+		);
+		const previous = controls[controls.indexOf(element as HTMLElement) - 1];
+		if (!previous) throw new Error('The target has no preceding keyboard control');
+		previous.focus({ preventScroll: true });
+	});
+}
+
+/** Reads the Timeline panel height in the next animation frame. */
+export async function nextFrameHeight(page: Page): Promise<number> {
+	return page.getByTestId('timeline-panel').evaluate(
+		(element) =>
+			new Promise<number>((resolve) => {
+				requestAnimationFrame(() => resolve(element.getBoundingClientRect().height));
+			})
+	);
+}
+
+/** The button that makes the pinned Timeline shorter. */
+export const shorter = (page: Page) =>
+	page.getByRole('button', { name: 'Make timeline shorter', exact: true });
+
+/** The button that makes the pinned Timeline taller. */
+export const taller = (page: Page) =>
+	page.getByRole('button', { name: 'Make timeline taller', exact: true });
 
 /** Reads the active plan from localStorage. */
 export async function storedPlan(page: Page) {
@@ -351,11 +404,7 @@ export async function openSelect(page: Page, testId: string): Promise<Locator> {
 	await expect(trigger).toBeFocused();
 	const listbox = page.getByRole('listbox');
 	await expect(listbox).toBeVisible();
-	await listbox.evaluate(async (element) => {
-		await Promise.all(
-			element.getAnimations({ subtree: true }).map((animation) => animation.finished)
-		);
-	});
+	await waitForAnimations(listbox);
 	return listbox;
 }
 

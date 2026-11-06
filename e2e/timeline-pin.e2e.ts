@@ -6,10 +6,15 @@ import {
 	settledPanelHeight,
 	expectStickyBelowHeader,
 	expectExampleSheetLegends,
+	focusPreviousControl,
+	nextFrameHeight,
 	openExample,
+	openPreview,
 	previewSheetSnapshot,
 	row,
+	shorter,
 	startTimelineFrameMonitor,
+	taller,
 	writeStoredPlan
 } from './helpers';
 
@@ -312,9 +317,8 @@ test('pinning and unpinning animate without interpolate-size support', async ({ 
 
 test('pinning does not change Preview pagination or printed sheets', async ({ page }) => {
 	await openExample(page);
-	await page.getByTestId('preview-open').click();
+	await openPreview(page);
 	const sheets = page.getByTestId('sheet');
-	await expect(sheets.first()).toBeVisible();
 	const before = await previewSheetSnapshot(page);
 	await expectExampleSheetLegends(page);
 	await page.emulateMedia({ media: 'print' });
@@ -324,13 +328,9 @@ test('pinning does not change Preview pagination or printed sheets', async ({ pa
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await page.getByTestId('gantt-pin').click();
-	await expect(
-		page.getByRole('button', { name: 'Make timeline shorter', exact: true })
-	).toBeVisible();
-	await expect(
-		page.getByRole('button', { name: 'Make timeline taller', exact: true })
-	).toBeVisible();
-	await page.getByTestId('preview-open').click();
+	await expect(shorter(page)).toBeVisible();
+	await expect(taller(page)).toBeVisible();
+	await openPreview(page);
 	await expect.poll(() => previewSheetSnapshot(page)).toEqual(before);
 	await expectExampleSheetLegends(page);
 	await expect(sheets.getByRole('button', { name: /Make timeline (shorter|taller)/ })).toHaveCount(
@@ -438,26 +438,6 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 	});
 }
 
-/** Sets the keyboard starting point without revealing the target. */
-async function focusPreviousControl(target: Locator) {
-	await target.evaluate((element) => {
-		const controls = [
-			...document.querySelectorAll<HTMLElement>(
-				'button, input, select, textarea, a[href], [tabindex]'
-			)
-		].filter(
-			(control) =>
-				control.tabIndex >= 0 &&
-				!control.matches(':disabled') &&
-				!control.closest('[inert]') &&
-				control.getClientRects().length > 0
-		);
-		const previous = controls[controls.indexOf(element as HTMLElement) - 1];
-		if (!previous) throw new Error('The target has no preceding keyboard control');
-		previous.focus({ preventScroll: true });
-	});
-}
-
 test('pin and resize height changes are immediate with reduced motion', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -496,20 +476,6 @@ test('pin and resize height changes are immediate with reduced motion', async ({
 		.filter((value) => !allowed.some((end) => Math.abs(value - end) <= 1));
 	expect(unexpected).toEqual([]);
 });
-
-async function nextFrameHeight(page: Page) {
-	return page.getByTestId('timeline-panel').evaluate(
-		(element) =>
-			new Promise<number>((resolve) => {
-				requestAnimationFrame(() => resolve(element.getBoundingClientRect().height));
-			})
-	);
-}
-
-const shorter = (page: Page) =>
-	page.getByRole('button', { name: 'Make timeline shorter', exact: true });
-const taller = (page: Page) =>
-	page.getByRole('button', { name: 'Make timeline taller', exact: true });
 
 test('pinned resize buttons change height by ten percent and keep it after reload', async ({
 	page
