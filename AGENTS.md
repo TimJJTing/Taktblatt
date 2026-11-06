@@ -30,7 +30,7 @@ Use Node.js 24+ and pnpm 11.10.0.
 
 Use strict TypeScript and Svelte runes. Prettier enforces tabs, single quotes, no trailing commas, and a 100-character width; plugins format Svelte and sort Tailwind classes. Use PascalCase app components, kebab-case utilities, and camelCase functions.
 
-Use the `#lib/...` alias for imports from `src/lib/`. Use a `.js` suffix for TypeScript modules, including `.svelte.js` for reactive modules. For example: `import { motionDuration } from '#lib/motion.js'`. Keep `.svelte` extensions for component imports.
+Use the `#lib/...` alias for imports from `src/lib/`. Relative imports are allowed only for siblings (`./x.js`) and parents (`../x.js`). Use a `.js` suffix for TypeScript modules, including `.svelte.js` for reactive modules. For example: `import { motionDuration } from '#lib/motion.js'`. Keep `.svelte` extensions for component imports.
 
 Keep domain logic pure. Route plan-content edits through `src/lib/state/commands.ts`; use Workspace operations for plan lifecycle and undo/redo. Avoid unrelated changes to vendored `components/ui/` files.
 
