@@ -122,7 +122,17 @@ Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark**
 
 ### Format the code
 
-1. Run `pnpm format`.
+- Run `pnpm format` to format the full repository.
+- Run `pnpm format:src` to format JavaScript, TypeScript, Svelte and CSS files under `src/`.
+- Run `pnpm format:watch` to format those files when you add or save them. Keep this command running in a separate terminal while you run `pnpm dev`. Press Ctrl+C to stop it.
+
+The watcher excludes paths in `.gitignore`, including generated files in `src/lib/paraglide/`. Prettier also applies `.prettierignore` when it formats a file.
+
+The shared configuration uses the official [Svelte Prettier plugin](https://github.com/sveltejs/prettier-plugin-svelte) and [Tailwind CSS Prettier plugin](https://github.com/tailwindlabs/prettier-plugin-tailwindcss). The Tailwind plugin loads last and uses `src/routes/layout.css` as the Tailwind v4 stylesheet. The watcher uses `onchange`, as shown in the [Prettier watch guide](https://prettier.io/docs/watching-files).
+
+Run `pnpm install` to install the dependencies and activate the Husky Git hooks. Before each commit, the hook runs lint-staged to format supported staged files with Prettier. This includes source, configuration and documentation files. Prettier keeps its ignore rules and skips unknown file types.
+
+The hook keeps unstaged edits out of the commit, including edits in partially staged files. A formatting error stops the commit. Correct the error, stage the correction and commit again. CI still runs `pnpm lint` to check formatting and code rules.
 
 ### Browser automation for coding agents
 

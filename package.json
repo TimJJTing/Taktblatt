@@ -7,11 +7,13 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"prepare": "svelte-kit sync && pnpm i18n || echo ''",
+		"prepare": "(svelte-kit sync && pnpm i18n || echo '') && husky",
 		"check": "svelte-kit sync && pnpm i18n && svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p src/service-worker",
 		"check:watch": "svelte-kit sync && pnpm i18n && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
+		"format:src": "prettier --write \"src/**/*.{js,ts,svelte,css}\"",
+		"format:watch": "onchange \"src/**/*.{js,ts,svelte,css}\" --exclude-path .gitignore --filter add --filter change -- prettier --write \"{{file}}\"",
 		"test:unit": "vitest",
 		"test": "pnpm test:unit --run && playwright test",
 		"test:e2e": "playwright test",
@@ -20,6 +22,9 @@
 		"browser:setup": "playwright cli install --skills=agents",
 		"icons": "node scripts/make-icons.mjs",
 		"i18n": "paraglide-js compile --project ./project.inlang --silent && node scripts/check-i18n.mjs"
+	},
+	"lint-staged": {
+		"*": "prettier --write --ignore-unknown"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -42,7 +47,10 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.19.0",
 		"globals": "^17.6.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.6.0",
 		"mode-watcher": "^1.1.0",
+		"onchange": "^7.1.0",
 		"playwright": "^1.60.0",
 		"prettier": "^3.8.3",
 		"prettier-plugin-svelte": "^4.1.0",
