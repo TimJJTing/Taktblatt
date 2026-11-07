@@ -81,10 +81,33 @@ describe('canDependOn', () => {
 });
 
 describe('readyCount', () => {
-	it('is on when all effective dependencies are done and the task is not done', () => {
+	it('accepts canceled dependencies, including a derived canceled parent', () => {
 		const index = indexTasks([
-			makeTask({ id: 'a', done: true }),
-			makeTask({ id: 'b', done: true }),
+			makeTask({ id: 'canceled', status: 'canceled' }),
+			makeTask({ id: 'parent', status: 'todo' }),
+			makeTask({ id: 'child', parentId: 'parent', status: 'canceled' }),
+			makeTask({ id: 'direct', dependsOn: ['canceled'] }),
+			makeTask({ id: 'derived', dependsOn: ['parent'] })
+		]);
+		expect(readyCount(index, 'direct')).toBe(1);
+		expect(readyCount(index, 'derived')).toBe(1);
+	});
+
+	it('keeps canceled tasks unready even with finished dependencies', () => {
+		const index = indexTasks([
+			makeTask({ id: 'done', status: 'done' }),
+			makeTask({ id: 'canceled', status: 'canceled', dependsOn: ['done'] }),
+			makeTask({ id: 'parent', dependsOn: ['done'] }),
+			makeTask({ id: 'child', parentId: 'parent', status: 'canceled' })
+		]);
+		expect(readyCount(index, 'canceled')).toBe(0);
+		expect(readyCount(index, 'parent')).toBe(0);
+	});
+
+	it('is on when all effective dependencies are done and the task is todo', () => {
+		const index = indexTasks([
+			makeTask({ id: 'a', status: 'done' }),
+			makeTask({ id: 'b', status: 'done' }),
 			makeTask({ id: 't', dependsOn: ['a', 'b'], start: '2099-01-01' })
 		]);
 		expect(readyCount(index, 't')).toBe(2);
@@ -92,30 +115,50 @@ describe('readyCount', () => {
 
 	it('is off without dependencies, with an open dependency, or when the task is done', () => {
 		const index = indexTasks([
-			makeTask({ id: 'a', done: true }),
+			makeTask({ id: 'a', status: 'done' }),
 			makeTask({ id: 'open' }),
 			makeTask({ id: 'none' }),
 			makeTask({ id: 'blocked', dependsOn: ['a', 'open'] }),
-			makeTask({ id: 'finished', dependsOn: ['a'], done: true })
+			makeTask({ id: 'finished', dependsOn: ['a'], status: 'done' })
 		]);
 		expect(readyCount(index, 'none')).toBe(0);
 		expect(readyCount(index, 'blocked')).toBe(0);
 		expect(readyCount(index, 'finished')).toBe(0);
 	});
 
-	it('uses the derived done state of a parent dependency and inherited dependencies', () => {
+	it('turns the light off when a ready task starts or finishes, or its dependency restarts', () => {
+		const dependency = makeTask({ id: 'dependency', status: 'done' });
+		const task = makeTask({ id: 'task', dependsOn: ['dependency'] });
+		const ready = () => readyCount(indexTasks([dependency, task]), task.id);
+		expect(ready()).toBe(1);
+		task.status = 'in_progress';
+		expect(ready()).toBe(0);
+		task.status = 'done';
+		expect(ready()).toBe(0);
+		task.status = 'todo';
+		dependency.status = 'in_progress';
+		expect(ready()).toBe(0);
+	});
+
+	it('uses the derived status of a parent dependency and inherited dependencies', () => {
 		const index = indexTasks([
 			makeTask({ id: 'dep' }),
-			makeTask({ id: 'dc', parentId: 'dep', done: true }),
+			makeTask({ id: 'dc', parentId: 'dep', status: 'done' }),
 			makeTask({ id: 'q' }),
 			makeTask({ id: 'p' }),
 			makeTask({ id: 'pc', parentId: 'p', dependsOn: ['dep', 'q'] })
 		]);
 		expect(readyCount(index, 'p')).toBe(0);
 		const done = indexTasks(
-			[...index.byId.values()].map((t) => (t.id === 'q' ? { ...t, done: true } : t))
+			[...index.byId.values()].map((t) => (t.id === 'q' ? { ...t, status: 'done' as const } : t))
 		);
 		expect(readyCount(done, 'p')).toBe(2);
+		for (const status of ['in_progress', 'done'] as const) {
+			const started = indexTasks(
+				[...done.byId.values()].map((task) => (task.id === 'pc' ? { ...task, status } : task))
+			);
+			expect(readyCount(started, 'p')).toBe(0);
+		}
 	});
 });
 

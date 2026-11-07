@@ -12,6 +12,7 @@
 	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
+	import { isFinished } from '#lib/domain/derive.ts';
 	import { todayISO } from '#lib/domain/date.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
@@ -328,8 +329,12 @@
 						</marker>
 					</defs>
 					{#each lines as line (line.key)}
-						{@const done = rows[line.row0].done === 'done'}
-						<GanttLine {line} {done} width={timelineWidth} marker={MARKER_ID} />
+						<GanttLine
+							{line}
+							muted={isFinished(rows[line.row0].status)}
+							width={timelineWidth}
+							marker={MARKER_ID}
+						/>
 					{/each}
 				</svg>
 			</div>

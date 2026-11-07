@@ -15,7 +15,7 @@
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.ts';
-	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.ts';
+	import { effectiveValues, isFinished, stageProgress, stageSpan } from '#lib/domain/derive.ts';
 	import { formatMonthSpan } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { type Stage, type Task } from '#lib/domain/schema.ts';
@@ -51,9 +51,19 @@
 
 	const tasks = $derived(ws.index.stageTasks.get(stage.id) ?? []);
 	const progress = $derived(stageProgress(ws.index, stage.id));
-	// Let the message place the animated done count in the locale's word order.
+	// Keep both animated counts in the message's word order.
+	const progressLabel = $derived(
+		progress.inProgress > 0 ? m.stage_progress_in_progress(progress) : m.stage_progress(progress)
+	);
 	const progressText = $derived(
-		m.stage_progress({ done: '{done}', total: progress.total }).split('{done}')
+		(progress.inProgress > 0
+			? m.stage_progress_in_progress({
+					done: '{done}',
+					inProgress: '{inProgress}',
+					total: progress.total
+				})
+			: m.stage_progress({ done: '{done}', total: progress.total })
+		).split(/(\{done\}|\{inProgress\})/)
 	);
 	const span = $derived(stageSpan(ws.index, stage.id));
 	const months = $derived(span ? formatMonthSpan(span.start, span.end, uiIntl()) : '');
@@ -101,7 +111,7 @@
 >
 	<header
 		bind:offsetHeight={headerHeight}
-		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-25 flex items-center gap-2 bg-background pb-2"
+		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-25 flex flex-wrap items-center gap-x-2 gap-y-1 bg-background pb-2"
 	>
 		<!-- Not a <button>: svelte-dnd-action ignores keyboard drag on elements with a "disabled" property. -->
 		<div
@@ -142,10 +152,13 @@
 			data-testid="stage-progress"
 		>
 			<span aria-hidden="true">
-				{progressText[0]}<AnimatedNumber value={progress.done} />{progressText[1]}
+				{#each progressText as part, i (i)}
+					{#if part === '{done}'}<AnimatedNumber value={progress.done} />
+					{:else if part === '{inProgress}'}<AnimatedNumber value={progress.inProgress} />
+					{:else}{part}{/if}
+				{/each}
 			</span>
-			<span class="sr-only">{m.stage_progress({ done: progress.done, total: progress.total })}</span
-			>
+			<span class="sr-only">{progressLabel}</span>
 		</span>
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger
@@ -202,7 +215,7 @@
 					class="text-left text-xs text-muted-foreground"
 					style="--stage-band: {stageColorVar(stage.color)}"
 				>
-					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_done()}</span></th>
+					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_status()}</span></th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_task()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_deliverable()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_target()}</th>
@@ -225,7 +238,7 @@
 							class={cn(
 								'border-b transition-colors',
 								rowTask.parentId !== null ? 'border-border/50' : 'border-border',
-								eff.done === 'done' && 'text-muted-foreground',
+								isFinished(eff.status) && 'text-muted-foreground',
 								editing.highlightId === rowTask.id && 'bg-accent/60',
 								editing.flashId === rowTask.id && 'row-flash'
 							)}

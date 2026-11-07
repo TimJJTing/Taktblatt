@@ -10,7 +10,9 @@ import {
 	row,
 	stage,
 	titles,
-	waitForAnimations
+	waitForAnimations,
+	setTaskStatus,
+	writeStoredPlan
 } from './helpers.ts';
 
 test.describe('work plan', () => {
@@ -56,16 +58,161 @@ test.describe('work plan', () => {
 		await expect(first.getByTestId('task-deliverable').nth(1)).toBeFocused();
 	});
 
-	test('the done checkbox updates the stage progress and the ready light', async ({ page }) => {
+	test('the status select updates the stage progress and the ready light', async ({ page }) => {
 		await openExample(page);
 		const grow = stage(page, 1);
 		await expect(grow.getByTestId('stage-progress')).toContainText('0 / 2');
 		// "First harvest" depends on "Sowing". Marking "Sowing" done turns on the ready light of "First harvest".
 		const harvest = row(page, 'First harvest');
 		await expect(harvest.getByTestId('ready-dot')).toHaveCount(0);
-		await row(page, 'Sowing').getByTestId('task-done').click();
+		await setTaskStatus(page, row(page, 'Sowing'), 'done');
 		await expect(grow.getByTestId('stage-progress')).toContainText('1 / 2');
 		await expect(harvest.getByTestId('ready-dot')).toBeVisible();
+	});
+
+	test('status changes are one history step; opening, closing and reselecting are not', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.title === 'Sowing')!.status = 'todo';
+		});
+		const task = row(page, 'Sowing');
+		const trigger = task.getByTestId('task-status');
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		const redo = page.getByRole('button', { name: 'Redo', exact: true });
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeDisabled();
+		await trigger.click();
+		await expect(page.getByRole('listbox')).toBeVisible();
+		await waitForAnimations(page.getByRole('listbox'));
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('listbox')).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+		await setTaskStatus(page, task, 'todo');
+		await expect(undo).toBeDisabled();
+		await setTaskStatus(page, task, 'in_progress');
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+		await expect(task).not.toHaveClass(/text-muted-foreground/);
+		await undo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Todo');
+		await expect(undo).toBeDisabled();
+		await redo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+		await expect(redo).toBeDisabled();
+		await setTaskStatus(page, task, 'done');
+		await expect(task).toHaveClass(/text-muted-foreground/);
+	});
+
+	test('the fourth status cancels and mutes a task in one undo step', async ({ page }) => {
+		await openExample(page);
+		// Loading the example is an undo step. A reload starts with an empty history.
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		const task = row(page, 'Sowing');
+		const trigger = task.getByTestId('task-status');
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		await expect(undo).toBeDisabled();
+		await trigger.click();
+		await expect(page.getByRole('option')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await page.keyboard.press('Escape');
+		await setTaskStatus(page, task, 'canceled');
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Canceled');
+		await expect(task).toHaveClass(/text-muted-foreground/);
+		await expect(task.getByTestId('task-title')).toHaveClass(/line-through/);
+		await undo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Todo');
+		await expect(task).not.toHaveClass(/text-muted-foreground/);
+		await expect(undo).toBeDisabled();
+	});
+
+	test('keyboard selects the next status and returns focus to the trigger', async ({ page }) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.title === 'Sowing')!.status = 'todo';
+		});
+		const trigger = row(page, 'Sowing').getByTestId('task-status');
+		await focusPreviousControl(trigger);
+		await page.keyboard.press('Tab');
+		await expect(trigger).toBeFocused();
+		await page.keyboard.press('Enter');
+		const listbox = page.getByRole('listbox');
+		await expect(listbox).toBeVisible();
+		await waitForAnimations(listbox);
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Enter');
+		await expect(listbox).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+		await page.keyboard.press('Space');
+		await expect(listbox).toBeVisible();
+		await waitForAnimations(listbox);
+		await page.keyboard.press('Escape');
+		await expect(listbox).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+	});
+
+	test('the parent status is disabled and its hint wrapper gets keyboard focus', async ({
+		page
+	}) => {
+		await openExample(page);
+		const parent = row(page, 'Soil preparation');
+		const trigger = parent.getByTestId('task-status');
+		await expect(trigger).toBeDisabled();
+		const wrapper = parent
+			.locator('[data-slot="tooltip-trigger"]')
+			.filter({ has: page.getByTestId('task-status') });
+		await wrapper.focus();
+		await expect(wrapper).toBeFocused();
+	});
+
+	test('the task dialog changes the shared status and the table shows the result', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.title === 'Sowing')!.status = 'todo';
+		});
+		await row(page, 'Sowing').getByTestId('task-details').click();
+		const dialog = page.getByRole('dialog');
+		await expect(dialog).toBeVisible();
+		await waitForAnimations(dialog);
+		await setTaskStatus(page, dialog, 'in_progress');
+		await expect(dialog.getByTestId('task-status')).toContainText('In progress');
+		await dialog.getByTestId('task-status').click();
+		await expect(page.getByRole('option')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await page.keyboard.press('Escape');
+		await setTaskStatus(page, dialog, 'canceled');
+		await expect(dialog.getByTestId('task-status')).toContainText('Canceled');
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+		await expect(row(page, 'Sowing').getByTestId('task-status')).toHaveAccessibleName(
+			'Status of Sowing: Canceled'
+		);
+	});
+
+	test('stage progress includes in-progress tasks and hides that clause at zero', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			const tasks = plan.tasks.filter((task) => task.parentId === null).slice(0, 3);
+			plan.tasks = tasks;
+			for (const [index, task] of tasks.entries()) {
+				task.stageId = plan.stages[0].id;
+				task.dependsOn = [];
+				task.status = ['done', 'in_progress', 'todo'][index];
+				task.title = ['Progress done', 'Progress working', 'Progress todo'][index];
+			}
+		});
+		const first = stage(page, 0);
+		const progress = first.getByTestId('stage-progress');
+		await expect(progress).toContainText('1 / 3 done · 1 in progress');
+		const working = row(page, 'Progress working');
+		await setTaskStatus(page, working, 'todo');
+		await expect(progress).toContainText('1 / 3 done');
+		await expect(progress).not.toContainText('in progress');
 	});
 
 	test('the ready light does not move the title', async ({ page }) => {
@@ -81,7 +228,7 @@ test.describe('work plan', () => {
 		};
 		await expect(harvest.getByTestId('ready-dot')).toHaveCount(0);
 		const before = await left();
-		await row(page, 'Sowing').getByTestId('task-done').click();
+		await setTaskStatus(page, row(page, 'Sowing'), 'done');
 		await expect(harvest.getByTestId('ready-dot')).toHaveCount(1);
 		// Read both positions in one snapshot. Retry them together.
 		await expect.poll(left).toEqual(before);
@@ -389,7 +536,7 @@ test.describe('work plan', () => {
 				await expectPanelHeight(page, GANTT_HEIGHT.minPx);
 			}
 			const first = stage(page, 0);
-			const checkbox = first.getByTestId('task-done').first();
+			const checkbox = first.getByTestId('task-status').first();
 			await checkbox.evaluate(async (element) => {
 				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
 				const pinnedHeight =

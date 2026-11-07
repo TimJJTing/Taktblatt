@@ -1,3 +1,4 @@
+import { effectiveValues, indexTasks } from '#lib/domain/derive.ts';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	addTask,
@@ -155,7 +156,7 @@ describe('commands', () => {
 		addTask(ws, stageId, { parentId: id });
 		discardNewTask(ws, id);
 		expect(ws.plan.tasks).toHaveLength(2);
-		updateTask(ws, id, { done: true });
+		updateTask(ws, id, { status: 'done' });
 		discardNewTask(ws, id);
 		expect(ws.plan.tasks).toHaveLength(2);
 
@@ -378,6 +379,63 @@ describe('stage commands', () => {
 });
 
 describe('task commands', () => {
+	it('sets canceled with one undo step and restores it with redo', () => {
+		const ws = open();
+		const id = addTask(ws, ws.plan.stages[0].id);
+		ws.history.clear();
+		updateTask(ws, id, { status: 'canceled' });
+		expect(ws.plan.tasks[0].status).toBe('canceled');
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.tasks[0].status).toBe('todo');
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.redo()).toBe(true);
+		expect(ws.plan.tasks[0].status).toBe('canceled');
+		expect(ws.history.canRedo).toBe(false);
+	});
+
+	it('keeps an otherwise empty new task with in-progress status', () => {
+		const ws = open();
+		const id = addTask(ws, ws.plan.stages[0].id);
+		updateTask(ws, id, { status: 'in_progress' });
+		discardNewTask(ws, id);
+		expect(ws.plan.tasks.find((task) => task.id === id)?.status).toBe('in_progress');
+	});
+
+	it('restores a status change with one undo and redo step and ignores the current status', () => {
+		const ws = open();
+		const id = addTask(ws, ws.plan.stages[0].id);
+		ws.history.clear();
+		updateTask(ws, id, { status: 'todo' });
+		expect(ws.history.canUndo).toBe(false);
+		updateTask(ws, id, { status: 'in_progress' });
+		expect(ws.plan.tasks[0].status).toBe('in_progress');
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.tasks[0].status).toBe('todo');
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.redo()).toBe(true);
+		expect(ws.plan.tasks[0].status).toBe('in_progress');
+		expect(ws.history.canRedo).toBe(false);
+	});
+
+	it.each(['delete', 'move'] as const)(
+		'shows the stored status after the last child is removed by %s',
+		(action) => {
+			const ws = open();
+			const stageId = ws.plan.stages[0].id;
+			const parent = addTask(ws, stageId, { parentId: null, patch: { status: 'in_progress' } });
+			const child = addTask(ws, stageId, { parentId: parent, patch: { status: 'done' } });
+			const effective = () => {
+				const index = indexTasks(ws.plan.tasks);
+				return effectiveValues(index.byId.get(parent)!, index.children.get(parent)).status;
+			};
+			expect(effective()).toBe('done');
+			if (action === 'delete') removeTasks(ws, [child]);
+			else moveTask(ws, child, { target: { stageId, parentId: null }, fixes: [] });
+			expect(effective()).toBe('in_progress');
+			expect(ws.plan.tasks.find((task) => task.id === parent)?.status).toBe('in_progress');
+		}
+	);
+
 	it('removes several tasks with their subtasks in one undo step', () => {
 		const ws = open();
 		const stage = ws.plan.stages[0].id;

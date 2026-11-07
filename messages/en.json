@@ -46,7 +46,6 @@
 	"stage_delete_body": "The app deletes “{name}”. Tasks deleted with the stage: {tasks}. Other tasks that depend on them: {dependents}.",
 	"stage_add": "Add stage",
 	"stage_drag": "Drag to reorder the stage",
-	"column_done": "Done",
 	"column_task": "Task",
 	"column_deliverable": "Deliverable",
 	"column_target": "Target",
@@ -58,8 +57,6 @@
 	"subtask_add": "Add subtask to {task}",
 	"task_expand": "Expand {task}",
 	"task_collapse": "Collapse {task}",
-	"task_done_label": "Done: {task}",
-	"task_done_derived": "The subtasks set the done state.",
 	"field_value": "{label}: {value}",
 	"task_details": "Details: {task}",
 	"task_untitled": "Untitled task",
@@ -277,5 +274,15 @@
 	"validation_choice": "Use one of the allowed values.",
 	"validation_timestamp": "Use an ISO date and time.",
 	"validation_empty": "The value must not be empty.",
-	"validation_value": "The value is not valid."
+	"validation_value": "The value is not valid.",
+	"task_status_todo": "Todo",
+	"task_status_in_progress": "In progress",
+	"task_status_canceled": "Canceled",
+	"task_status_done": "Done",
+	"task_status_label": "Status of {task}: {status}",
+	"column_status": "Status",
+	"task_status_derived": "The subtasks set the status.",
+	"stage_progress_in_progress": "{done} / {total} done · {inProgress} in progress",
+	"gantt_in_progress": "in progress",
+	"gantt_canceled": "canceled"
 }

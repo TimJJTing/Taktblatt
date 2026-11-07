@@ -1,6 +1,6 @@
 <!--
 	The cells of one work-plan row: a task (level 1) or a subtask (level 2).
-	A parent shows derived values for target, owners and done. These cells are read-only.
+	A parent shows derived values for target, owners and status. These cells are read-only.
 -->
 <script lang="ts">
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -13,10 +13,10 @@
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import { focusSiblingRow } from '#lib/browser/grid.ts';
 	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveValues } from '#lib/domain/derive.ts';
+	import { effectiveValues, isFinished } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Task } from '#lib/domain/schema.ts';
@@ -49,7 +49,7 @@
 	const expanded = $derived(viewer.isExpanded(ws.plan.id, task.id));
 	const locale = uiIntl();
 	const titleText = $derived(task.title || m.task_untitled());
-	const muted = $derived(eff.done === 'done');
+	const muted = $derived(isFinished(eff.status));
 
 	let titleCell = $state<HTMLTableCellElement | null>(null);
 
@@ -62,27 +62,13 @@
 </script>
 
 <td class="py-1 pl-1 align-middle">
-	{#if isParent}
-		<Hint text={m.task_done_derived()}>
-			{#snippet child({ props })}
-				<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
-					<Checkbox
-						checked={eff.done === 'done'}
-						indeterminate={eff.done === 'partial'}
-						disabled
-						aria-label={m.task_done_label({ task: titleText })}
-					/>
-				</span>
-			{/snippet}
-		</Hint>
-	{:else}
-		<Checkbox
-			checked={task.done}
-			onCheckedChange={(done) => updateTask(ws, task.id, { done })}
-			aria-label={m.task_done_label({ task: titleText })}
-			data-testid="task-done"
-		/>
-	{/if}
+	<TaskStatusSelect
+		status={eff.status}
+		task={titleText}
+		disabled={isParent}
+		compact
+		onChange={(status) => updateTask(ws, task.id, { status })}
+	/>
 </td>
 <td bind:this={titleCell} class="py-1" data-grid-col="title">
 	<div class={cn('flex min-w-0 items-center gap-1', isSubtask && 'pl-6')}>
