@@ -277,10 +277,12 @@
 	"validation_value": "Der Wert ist ungültig.",
 	"task_status_todo": "Offen",
 	"task_status_in_progress": "In Bearbeitung",
+	"task_status_canceled": "Abgebrochen",
 	"task_status_done": "Erledigt",
 	"task_status_label": "Status von {task}: {status}",
 	"column_status": "Status",
 	"task_status_derived": "Die Teilaufgaben bestimmen den Status.",
 	"stage_progress_in_progress": "{done} / {total} erledigt · {inProgress} in Bearbeitung",
-	"gantt_in_progress": "in Bearbeitung"
+	"gantt_in_progress": "in Bearbeitung",
+	"gantt_canceled": "abgebrochen"
 }

@@ -15,7 +15,7 @@
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.ts';
-	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.ts';
+	import { effectiveValues, isFinished, stageProgress, stageSpan } from '#lib/domain/derive.ts';
 	import { formatMonthSpan } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { type Stage, type Task } from '#lib/domain/schema.ts';
@@ -238,7 +238,7 @@
 							class={cn(
 								'border-b transition-colors',
 								rowTask.parentId !== null ? 'border-border/50' : 'border-border',
-								eff.status === 'done' && 'text-muted-foreground',
+								isFinished(eff.status) && 'text-muted-foreground',
 								editing.highlightId === rowTask.id && 'bg-accent/60',
 								editing.flashId === rowTask.id && 'row-flash'
 							)}

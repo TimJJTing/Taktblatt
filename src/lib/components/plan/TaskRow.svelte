@@ -16,7 +16,7 @@
 	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import { focusSiblingRow } from '#lib/browser/grid.ts';
 	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveValues } from '#lib/domain/derive.ts';
+	import { effectiveValues, isFinished } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Task } from '#lib/domain/schema.ts';
@@ -49,7 +49,7 @@
 	const expanded = $derived(viewer.isExpanded(ws.plan.id, task.id));
 	const locale = uiIntl();
 	const titleText = $derived(task.title || m.task_untitled());
-	const muted = $derived(eff.status === 'done');
+	const muted = $derived(isFinished(eff.status));
 
 	let titleCell = $state<HTMLTableCellElement | null>(null);
 

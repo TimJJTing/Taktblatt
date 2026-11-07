@@ -21,6 +21,11 @@ export interface EffectiveValues {
 	status: TaskStatus;
 }
 
+/** Returns true for done and canceled. A finished task satisfies dependencies and looks muted. */
+export function isFinished(status: TaskStatus): boolean {
+	return status === 'done' || status === 'canceled';
+}
+
 function minDate(dates: (ISODate | null)[]): ISODate | null {
 	let result: ISODate | null = null;
 	for (const d of dates) if (d !== null && (result === null || d < result)) result = d;
@@ -43,18 +48,22 @@ export function effectiveValues(task: Task, children: readonly Task[] = []): Eff
 			status: task.status
 		};
 	}
-	const doneCount = children.filter((c) => c.status === 'done').length;
-	const todoCount = children.filter((c) => c.status === 'todo').length;
+	// Canceled subtasks do not count. All subtasks canceled gives canceled.
+	const active = children.filter((c) => c.status !== 'canceled');
+	const doneCount = active.filter((c) => c.status === 'done').length;
+	const todoCount = active.filter((c) => c.status === 'todo').length;
 	return {
 		start: minDate(children.map((c) => c.start)),
 		end: maxDate(children.map((c) => c.end)),
 		owners: normalizeOwners(children.flatMap((c) => c.owners)),
 		status:
-			doneCount === children.length
-				? 'done'
-				: todoCount === children.length
-					? 'todo'
-					: 'in_progress'
+			active.length === 0
+				? 'canceled'
+				: doneCount === active.length
+					? 'done'
+					: todoCount === active.length
+						? 'todo'
+						: 'in_progress'
 	};
 }
 
@@ -122,7 +131,7 @@ export function stageSpan(
 	return { start: dates[0], end: dates[dates.length - 1] };
 }
 
-/** Counts level-1 tasks by their effective status. */
+/** Counts level-1 tasks by their effective status. The total leaves out canceled tasks. */
 export function stageProgress(
 	index: TaskIndex,
 	stageId: string
@@ -130,12 +139,15 @@ export function stageProgress(
 	const tasks = index.stageTasks.get(stageId) ?? [];
 	let done = 0;
 	let inProgress = 0;
+	let total = 0;
 	for (const task of tasks) {
 		const status = effectiveValues(task, index.children.get(task.id)).status;
+		if (status === 'canceled') continue;
+		total++;
 		if (status === 'done') done++;
 		if (status === 'in_progress') inProgress++;
 	}
-	return { done, inProgress, total: tasks.length };
+	return { done, inProgress, total };
 }
 
 /** The deliverables of the tasks of a stage, in task order. Empty values are skipped. */

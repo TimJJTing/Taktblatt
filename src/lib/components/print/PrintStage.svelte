@@ -8,6 +8,7 @@
 	import { taskStatusLabel } from '#lib/components/task/task-status.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { isFinished } from '#lib/domain/derive.ts';
 	import { formatMonthSpan, formatTarget, joinList } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { StageSegment } from '#lib/domain/print-model.ts';
@@ -88,15 +89,11 @@
 			</tr>
 		{/if}
 		{#each rows as row, i (row.task.id)}
-			{@const done = row.eff.status}
+			{@const muted = isFinished(row.eff.status)}
 			{@const cell =
 				'border-b px-1.5 py-1 align-top ' +
 				(row.level === 1 ? 'border-paper-rule-3' : 'border-paper-rule-2')}
-			<tr
-				data-item={from + i}
-				data-testid="sheet-task-row"
-				class={cn(done === 'done' && 'text-paper-ink-3')}
-			>
+			<tr data-item={from + i} data-testid="sheet-task-row" class={cn(muted && 'text-paper-ink-3')}>
 				<td class={cn(cell, 'pr-0')}>
 					<TaskStatusIcon status={row.eff.status} class="size-2.5 text-paper-ink" />
 					<span class="sr-only">{taskStatusLabel(row.eff.status)}</span>
@@ -108,7 +105,7 @@
 							class={cn(
 								'min-w-0 break-words',
 								row.level === 0 && 'font-medium',
-								done === 'done' && 'line-through decoration-paper-ink-3/50'
+								muted && 'line-through decoration-paper-ink-3/50'
 							)}>{row.task.title || m.task_untitled()}</span
 						>
 					</div>

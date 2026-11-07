@@ -2,7 +2,7 @@
  * Dependencies, validation, the ready light, deletion and move conflicts.
  * Refer to docs/spec.md, section 3, and ADR 6.
  */
-import { effectiveOf, effectiveValues, indexTasks, type TaskIndex } from './derive.ts';
+import { effectiveOf, effectiveValues, indexTasks, isFinished, type TaskIndex } from './derive.ts';
 import type { Plan, Task } from './schema.ts';
 import { removeMentions } from './mentions.ts';
 
@@ -129,7 +129,10 @@ export function readyCount(index: TaskIndex, id: string): number {
 	if (effectiveValues(task, index.children.get(id)).status !== 'todo') return 0;
 	const deps = effectiveDependencies(index, id);
 	if (deps.size === 0) return 0;
-	for (const dep of deps) if (effectiveOf(index, dep)?.status !== 'done') return 0;
+	for (const dep of deps) {
+		const status = effectiveOf(index, dep)?.status;
+		if (status === undefined || !isFinished(status)) return 0;
+	}
 	return deps.size;
 }
 

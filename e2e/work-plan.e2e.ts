@@ -106,6 +106,9 @@ test.describe('work plan', () => {
 
 	test('the fourth status cancels and mutes a task in one undo step', async ({ page }) => {
 		await openExample(page);
+		// Loading the example is an undo step. A reload starts with an empty history.
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
 		const task = row(page, 'Sowing');
 		const trigger = task.getByTestId('task-status');
 		const undo = page.getByRole('button', { name: 'Undo', exact: true });
