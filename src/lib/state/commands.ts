@@ -28,7 +28,7 @@ import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from '#lib/dom
 import type { Workspace } from './workspace.svelte.ts';
 
 export type TaskPatch = Partial<
-	Pick<Task, 'title' | 'deliverable' | 'start' | 'end' | 'owners' | 'done' | 'note' | 'dependsOn'>
+	Pick<Task, 'title' | 'deliverable' | 'start' | 'end' | 'owners' | 'status' | 'note' | 'dependsOn'>
 >;
 
 const findTask = (plan: Plan, id: string) => plan.tasks.find((t) => t.id === id);
@@ -236,7 +236,7 @@ export function discardNewTask(ws: Workspace, id: string): void {
 		task.owners.length ||
 		task.note.trim() ||
 		task.dependsOn.length ||
-		task.done ||
+		task.status !== 'todo' ||
 		ws.index.children.get(id)?.length
 	)
 		return;

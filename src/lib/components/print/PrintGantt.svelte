@@ -122,7 +122,7 @@
 		{#each rows as row, i (row.id)}
 			{@const task = ws.index.byId.get(row.id)}
 			{@const title = task?.title || m.task_untitled()}
-			{@const done = row.done === 'done'}
+			{@const done = row.status === 'done'}
 			{@const mark = row.mark}
 			{@const eff = effectiveOf(ws.index, row.id)}
 			{@const base = colors.get(row.stageId) ?? stagePaperColor('slate')}
@@ -151,7 +151,7 @@
 				</div>
 				<div class="relative flex-1">
 					{#if mark.kind === 'bar' || mark.kind === 'point'}
-						{@const name = markLabel({ mark, title, dates: eff, done })}
+						{@const name = markLabel({ mark, title, dates: eff, status: row.status })}
 						{#if mark.kind === 'bar'}
 							<div
 								role="img"
@@ -265,7 +265,7 @@
 						</marker>
 					</defs>
 					{#each lines as line (line.key)}
-						{@const done = segment.rows[line.row0].done === 'done'}
+						{@const done = segment.rows[line.row0].status === 'done'}
 						<path
 							class={done ? 'opacity-40' : undefined}
 							d={elbowPath(

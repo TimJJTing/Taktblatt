@@ -155,22 +155,30 @@ test.describe('hints show in a tooltip', () => {
 		await expect(amber).not.toHaveAttribute('title');
 	});
 
-	test('the derived done checkbox in the task dialog', async ({ page }) => {
+	test('the derived status select of a parent in the work plan', async ({ page }) => {
+		await openExample(page);
+		const wrapper = row(page, 'Soil preparation')
+			.locator('[data-slot="tooltip-trigger"]')
+			.filter({ has: page.getByTestId('task-status') });
+		await expectHint(page, wrapper, 'The subtasks set the status.');
+	});
+
+	test('the derived status select in the task dialog', async ({ page }) => {
 		await openExample(page);
 		await row(page, 'Soil preparation').getByTestId('task-details').click();
 		const dialog = page.getByRole('dialog');
 		await expect(dialog).toBeVisible();
 		await waitForAnimations(dialog);
-		const checkbox = dialog.getByRole('checkbox', { name: 'Done: Soil preparation' });
+		const checkbox = dialog.getByTestId('task-status');
 		await expect(checkbox).toBeDisabled();
 		const { width, height } = page.viewportSize()!;
 		await page.mouse.move(width - 2, height - 2);
 		await checkbox.hover();
-		await expectTooltip(page, 'The subtasks set the done state.');
+		await expectTooltip(page, 'The subtasks set the status.');
 		await expect(dialog.locator('[title]')).toHaveCount(0);
 	});
 
-	test('the derived done hint adds no tab stop when the dialog opens by keyboard', async ({
+	test('the derived status hint adds no tab stop when the dialog opens by keyboard', async ({
 		page
 	}) => {
 		await openExample(page);
@@ -181,7 +189,7 @@ test.describe('hints show in a tooltip', () => {
 		await expect(dialog).toBeVisible();
 		await waitForAnimations(dialog);
 		const wrapper = dialog.locator('[data-slot="tooltip-trigger"]').filter({
-			has: page.getByRole('checkbox', { name: 'Done: Soil preparation' })
+			has: page.getByTestId('task-status')
 		});
 		await expect(wrapper).toHaveCount(1);
 		await expect(wrapper).not.toHaveAttribute('tabindex');

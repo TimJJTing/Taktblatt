@@ -74,6 +74,43 @@ describe('milestone symbol contract', () => {
 });
 
 describe('parseFile', () => {
+	it('imports all three statuses without changing their stored values', () => {
+		const plan = makePlan(
+			(['todo', 'in_progress', 'done'] as const).map((status) => makeTask({ id: status, status }))
+		);
+		expect(parseFile(serializeFile(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+	});
+
+	it.each(['legacy', 'unknown'] as const)(
+		'rejects %s task status with the path and allowed values',
+		(kind) => {
+			const task: Record<string, unknown> = { ...makeTask({ id: 'task' }) };
+			if (kind === 'legacy') {
+				delete task.status;
+				task.done = true;
+			} else task.status = 'blocked';
+			const plan = { ...makePlan([]), tasks: [task] };
+			const text = JSON.stringify({ schemaVersion: 1, kind: 'plan', plan });
+			const diagnostics: ImportDiagnostic[] = [];
+			const result = parseFile(text, (diagnostic) => {
+				diagnostics.push(diagnostic);
+				return diagnostic.code;
+			});
+			expect(result).toEqual({ ok: false, errors: ['choice'] });
+			expect(diagnostics).toEqual([
+				expect.objectContaining({
+					code: 'choice',
+					path: 'plan.tasks.0.status',
+					values: ['"todo"', '"in_progress"', '"done"']
+				})
+			]);
+			expect(parseFile(text)).toEqual({
+				ok: false,
+				errors: ['plan.tasks.0.status: Use one of these values: "todo", "in_progress", "done".']
+			});
+		}
+	);
+
 	it('reports a missing heading as a required field', () => {
 		const file = toPlanFile(makePlan([]));
 		const plan = { ...file.plan };

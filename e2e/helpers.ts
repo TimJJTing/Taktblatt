@@ -467,3 +467,20 @@ export const formatted = (date: string) =>
 		day: 'numeric',
 		timeZone: 'UTC'
 	}).format(new Date(`${date}T00:00:00Z`));
+
+/** Opens a task status select and chooses its named option. */
+export async function setTaskStatus(
+	page: Page,
+	container: Locator,
+	status: 'todo' | 'in_progress' | 'done'
+): Promise<void> {
+	const labels = { todo: 'Todo', in_progress: 'In progress', done: 'Done' };
+	const trigger = container.getByTestId('task-status');
+	await trigger.click();
+	const listbox = page.getByRole('listbox');
+	await expect(listbox).toBeVisible();
+	await waitForAnimations(listbox);
+	await page.getByRole('option', { name: labels[status], exact: true }).click();
+	await expect(listbox).toHaveCount(0);
+	await expect(trigger).toBeFocused();
+}

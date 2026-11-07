@@ -44,11 +44,11 @@
 	const titleText = $derived(task?.title || m.task_untitled());
 	const eff = $derived(effectiveOf(ws.index, row.id));
 	const ready = $derived(readyCount(ws.index, row.id));
-	const done = $derived(row.done === 'done');
+	const done = $derived(row.status === 'done');
 	const subtask = $derived(row.level === 1);
 	const mark = $derived(row.mark);
 
-	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, done }));
+	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, status: row.status }));
 
 	const fill = $derived(subtask ? subtaskFill(color) : color);
 

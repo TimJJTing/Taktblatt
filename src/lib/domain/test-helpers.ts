@@ -14,7 +14,7 @@ export function makeTask(partial: Partial<Task> & { id: string }): Task {
 		start: null,
 		end: null,
 		owners: [],
-		done: false,
+		status: 'todo',
 		note: '',
 		dependsOn: [],
 		createdAt: new Date(Date.UTC(2027, 0, 1, 0, 0, counter)).toISOString(),

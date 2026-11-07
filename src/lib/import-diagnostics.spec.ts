@@ -82,8 +82,8 @@ describe('localized import diagnostics', () => {
 				expect(formatImportDiagnostic({ code, version: 99, message: '' })).toContain('99');
 			}
 			expect(
-				formatImportDiagnostic({ code: 'value', path: 'plan.tasks.3.done', message: '' })
-			).toContain('plan.tasks.3.done');
+				formatImportDiagnostic({ code: 'value', path: 'plan.tasks.3.status', message: '' })
+			).toContain('plan.tasks.3.status');
 		}
 	);
 

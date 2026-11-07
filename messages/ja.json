@@ -46,7 +46,6 @@
 	"stage_delete_body": "「{name}」を削除します。ステージと一緒に削除されるタスク：{tasks} 件。これらに依存する他のタスク：{dependents} 件。",
 	"stage_add": "ステージを追加",
 	"stage_drag": "ドラッグしてステージを並べ替え",
-	"column_done": "完了",
 	"column_task": "タスク",
 	"column_deliverable": "成果物",
 	"column_target": "目標日",
@@ -58,8 +57,6 @@
 	"subtask_add": "{task} にサブタスクを追加",
 	"task_expand": "{task} を展開",
 	"task_collapse": "{task} を折りたたむ",
-	"task_done_label": "完了：{task}",
-	"task_done_derived": "サブタスクが完了状態を決めます。",
 	"field_value": "{label}：{value}",
 	"task_details": "詳細：{task}",
 	"task_untitled": "無題のタスク",
@@ -277,5 +274,13 @@
 	"validation_choice": "許可された値を指定してください。",
 	"validation_timestamp": "ISO 形式の日時を指定してください。",
 	"validation_empty": "値は空にできません。",
-	"validation_value": "値が無効です。"
+	"validation_value": "値が無効です。",
+	"task_status_todo": "未着手",
+	"task_status_in_progress": "進行中",
+	"task_status_done": "完了",
+	"task_status_label": "{task}の状態：{status}",
+	"column_status": "状態",
+	"task_status_derived": "サブタスクが状態を決めます。",
+	"stage_progress_in_progress": "{done} / {total} 完了・{inProgress} 進行中",
+	"gantt_in_progress": "進行中"
 }

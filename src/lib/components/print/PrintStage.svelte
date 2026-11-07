@@ -4,6 +4,8 @@
 	Rows are static. A parent row shows its derived values. Labels use the UI language.
 -->
 <script lang="ts">
+	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
+	import { taskStatusLabel } from '#lib/components/task/task-status.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { stagePaperColor } from '#lib/components/plan/colors.ts';
 	import { formatMonthSpan, formatTarget, joinList } from '#lib/domain/format.ts';
@@ -47,7 +49,9 @@
 					>{m.parenthetical({ text: months })}</span
 				>{/if}
 			<span class="ml-auto text-[10px] font-normal whitespace-nowrap text-paper-ink-3">
-				{m.stage_progress({ done: segment.progress.done, total: segment.progress.total })}
+				{segment.progress.inProgress > 0
+					? m.stage_progress_in_progress(segment.progress)
+					: m.stage_progress(segment.progress)}
 			</span>
 		</h3>
 	</div>
@@ -58,7 +62,7 @@
 	data-testid="sheet-table"
 >
 	<colgroup>
-		<col class="w-7" />
+		<col class="w-10" />
 		<col />
 		<col class="w-[26%]" />
 		<col class="w-14" />
@@ -66,7 +70,7 @@
 	</colgroup>
 	<thead data-part="repeat" data-testid="sheet-table-head">
 		<tr>
-			<th class={th} style:border-top="2px solid {color}">{m.column_done()}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_status()}</th>
 			<th class={th} style:border-top="2px solid {color}">{m.column_task()}</th>
 			<th class={th} style:border-top="2px solid {color}">
 				{m.column_deliverable()}
@@ -84,7 +88,7 @@
 			</tr>
 		{/if}
 		{#each rows as row, i (row.task.id)}
-			{@const done = row.eff.done}
+			{@const done = row.eff.status}
 			{@const cell =
 				'border-b px-1.5 py-1 align-top ' +
 				(row.level === 1 ? 'border-paper-rule-3' : 'border-paper-rule-2')}
@@ -94,24 +98,8 @@
 				class={cn(done === 'done' && 'text-paper-ink-3')}
 			>
 				<td class={cn(cell, 'pr-0')}>
-					<span
-						class="flex size-2.5 items-center justify-center border border-paper-ink-3"
-						aria-hidden="true"
-					>
-						{#if done === 'done'}
-							<svg viewBox="0 0 10 10" class="size-2.5">
-								<path
-									d="M2 5.2 4.2 7.4 8 2.8"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.4"
-								/>
-							</svg>
-						{:else if done === 'partial'}
-							<span class="h-px w-1.5 bg-current"></span>
-						{/if}
-					</span>
-					{#if done === 'done'}<span class="sr-only">{m.gantt_done()}</span>{/if}
+					<TaskStatusIcon status={row.eff.status} class="size-2.5 text-paper-ink" />
+					<span class="sr-only">{taskStatusLabel(row.eff.status)}</span>
 				</td>
 				<td class={cell}>
 					<div class={cn('flex items-baseline gap-1', row.level === 1 && 'pl-3.5')}>

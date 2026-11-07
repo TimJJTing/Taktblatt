@@ -18,13 +18,13 @@ describe('effectiveValues', () => {
 			start: '2027-01-02',
 			end: '2027-01-05',
 			owners: [' Ann ', 'ann'],
-			done: true
+			status: 'done'
 		});
 		expect(effectiveValues(t)).toEqual({
 			start: '2027-01-02',
 			end: '2027-01-05',
 			owners: ['Ann'],
-			done: 'done'
+			status: 'done'
 		});
 	});
 
@@ -34,7 +34,7 @@ describe('effectiveValues', () => {
 			start: '2026-01-01',
 			end: '2026-12-31',
 			owners: ['Old'],
-			done: true
+			status: 'done'
 		});
 		const c1 = makeTask({
 			id: 'c1',
@@ -42,7 +42,7 @@ describe('effectiveValues', () => {
 			start: '2027-01-05',
 			end: '2027-01-09',
 			owners: ['Bo'],
-			done: true
+			status: 'done'
 		});
 		const c2 = makeTask({
 			id: 'c2',
@@ -55,8 +55,21 @@ describe('effectiveValues', () => {
 			start: '2027-01-05',
 			end: '2027-01-20',
 			owners: ['Bo', 'Cy'],
-			done: 'partial'
+			status: 'in_progress'
 		});
+	});
+
+	it.each([
+		{ children: ['done', 'done'], expected: 'done' },
+		{ children: ['todo', 'todo'], expected: 'todo' },
+		{ children: ['done', 'todo'], expected: 'in_progress' },
+		{ children: ['in_progress', 'todo'], expected: 'in_progress' },
+		{ children: ['done', 'in_progress'], expected: 'in_progress' }
+	] as const)('derives $expected from $children', ({ children, expected }) => {
+		const parent = makeTask({ id: 'p', status: 'done' });
+		const subtasks = children.map((status, i) => makeTask({ id: `c${i}`, parentId: 'p', status }));
+		expect(effectiveValues(parent, subtasks).status).toBe(expected);
+		expect(parent.status).toBe('done');
 	});
 
 	it('gives empty dates when all subtasks have empty dates', () => {
@@ -94,15 +107,34 @@ describe('indexTasks sort rule', () => {
 
 describe('stage values', () => {
 	const tasks = [
-		makeTask({ id: 'a', start: '2027-01-03', end: '2027-01-08', deliverable: 'Doc', done: true }),
+		makeTask({
+			id: 'a',
+			start: '2027-01-03',
+			end: '2027-01-08',
+			deliverable: 'Doc',
+			status: 'done'
+		}),
 		makeTask({ id: 'b', end: '2027-02-10', deliverable: ' ' }),
-		makeTask({ id: 'c', parentId: 'b', done: true }),
+		makeTask({ id: 'c', parentId: 'b', status: 'done' }),
 		makeTask({ id: 'x', stageId: 's2' })
 	];
 	const index = indexTasks(tasks);
 
 	it('counts done tasks without subtasks', () => {
-		expect(stageProgress(index, 's1')).toEqual({ done: 2, total: 2 });
+		expect(stageProgress(index, 's1')).toEqual({ done: 2, inProgress: 0, total: 2 });
+	});
+
+	it('counts level-1 effective statuses and excludes children and other stages', () => {
+		const index = indexTasks([
+			makeTask({ id: 'done', status: 'done' }),
+			makeTask({ id: 'parent', status: 'done' }),
+			makeTask({ id: 'c1', parentId: 'parent', status: 'done' }),
+			makeTask({ id: 'c2', parentId: 'parent', status: 'todo' }),
+			makeTask({ id: 'todo' }),
+			makeTask({ id: 'other', stageId: 's2', status: 'in_progress' })
+		]);
+		expect(stageProgress(index, 's1')).toEqual({ done: 1, inProgress: 1, total: 3 });
+		expect(stageProgress(index, 'empty')).toEqual({ done: 0, inProgress: 0, total: 0 });
 	});
 
 	it('lists deliverables and skips empty values', () => {

@@ -89,7 +89,7 @@ export interface StageSegment extends Placement {
 	stage: Stage;
 	number: number;
 	span: { start: ISODate; end: ISODate } | null;
-	progress: { done: number; total: number };
+	progress: { done: number; inProgress: number; total: number };
 	/** The visible rows. A stage without tasks has no rows and one item for the empty notice. */
 	rows: TableRow[];
 	/** The first stage shows the title of the work plan above its header. */

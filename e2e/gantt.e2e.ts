@@ -7,7 +7,8 @@ import {
 	expectStickyBelowHeader,
 	openExample,
 	row,
-	storedPlan
+	storedPlan,
+	setTaskStatus
 } from './helpers.ts';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
@@ -47,9 +48,19 @@ test('outgoing dependency lines become fainter when their source is done', async
 	);
 	await expect(line).toHaveCount(1);
 	const normal = await dependencyContrast(line);
-	await row(page, 'First harvest').getByTestId('task-done').click();
+	await setTaskStatus(page, row(page, 'First harvest'), 'done');
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
-	await row(page, 'Sowing').getByTestId('task-done').click();
+	await setTaskStatus(page, row(page, 'Sowing'), 'in_progress');
+	await expect.poll(() => dependencyContrast(line)).toBe(normal);
+	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-bar')).toHaveAccessibleName(
+		/, in progress$/
+	);
+	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-bar').locator(':scope > div')).toHaveCSS(
+		'opacity',
+		'1'
+	);
+	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-label')).not.toHaveClass(/line-through/);
+	await setTaskStatus(page, row(page, 'Sowing'), 'done');
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
 	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();

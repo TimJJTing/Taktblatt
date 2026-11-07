@@ -46,7 +46,6 @@
 	"stage_delete_body": "應用程式會刪除「{name}」。隨階段刪除的任務：{tasks} 個。相依於這些任務的其他任務：{dependents} 個。",
 	"stage_add": "新增階段",
 	"stage_drag": "拖曳以調整階段順序",
-	"column_done": "完成",
 	"column_task": "任務",
 	"column_deliverable": "交付成果",
 	"column_target": "目標日",
@@ -58,8 +57,6 @@
 	"subtask_add": "新增子任務至 {task}",
 	"task_expand": "展開 {task}",
 	"task_collapse": "收合 {task}",
-	"task_done_label": "完成：{task}",
-	"task_done_derived": "子任務決定完成狀態。",
 	"field_value": "{label}：{value}",
 	"task_details": "詳細：{task}",
 	"task_untitled": "未命名任務",
@@ -277,5 +274,13 @@
 	"validation_choice": "請使用允許的值。",
 	"validation_timestamp": "請使用 ISO 格式的日期與時間。",
 	"validation_empty": "值不可為空。",
-	"validation_value": "值無效。"
+	"validation_value": "值無效。",
+	"task_status_todo": "待辦",
+	"task_status_in_progress": "進行中",
+	"task_status_done": "已完成",
+	"task_status_label": "{task}的狀態：{status}",
+	"column_status": "狀態",
+	"task_status_derived": "子任務決定狀態。",
+	"stage_progress_in_progress": "已完成 {done} / {total} · 進行中 {inProgress}",
+	"gantt_in_progress": "進行中"
 }

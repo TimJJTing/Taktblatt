@@ -10,6 +10,8 @@ import { indexTasks } from './derive.ts';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.ts';
 
 export const SCHEMA_VERSION = 1;
+export const TASK_STATUSES = ['todo', 'in_progress', 'done'] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const MILESTONE_SYMBOLS = [
 	'diamond',
 	'flag',
@@ -55,7 +57,7 @@ export const TaskSchema = v.object({
 	start: NullableDate,
 	end: NullableDate,
 	owners: v.array(v.string()),
-	done: v.boolean(),
+	status: v.picklist(TASK_STATUSES),
 	note: v.string(),
 	dependsOn: v.array(Id),
 	createdAt: Timestamp

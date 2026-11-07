@@ -126,10 +126,10 @@ export function dateWarnings(index: TaskIndex): DateWarning[] {
 export function readyCount(index: TaskIndex, id: string): number {
 	const task = index.byId.get(id);
 	if (!task) return 0;
-	if (effectiveValues(task, index.children.get(id)).done === 'done') return 0;
+	if (effectiveValues(task, index.children.get(id)).status !== 'todo') return 0;
 	const deps = effectiveDependencies(index, id);
 	if (deps.size === 0) return 0;
-	for (const dep of deps) if (effectiveOf(index, dep)?.done !== 'done') return 0;
+	for (const dep of deps) if (effectiveOf(index, dep)?.status !== 'done') return 0;
 	return deps.size;
 }
 

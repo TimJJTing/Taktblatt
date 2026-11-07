@@ -135,7 +135,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		const scrollY = await page.evaluate(() => window.scrollY);
 		const monitor = await startTimelineFrameMonitor(page);
 		await row(page, 'First harvest')
-			.getByTestId('task-done')
+			.getByTestId('task-status')
 			.evaluate((element) => {
 				(element as HTMLElement).focus({ preventScroll: true });
 			});
@@ -357,7 +357,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		await expectPanelHeight(page, defaultPanelHeight(page));
 		const panel = page.getByTestId('timeline-panel');
 		await expectStickyBelowHeader(panel);
-		const target = row(page, 'First harvest').getByTestId('task-done');
+		const target = row(page, 'First harvest').getByTestId('task-status');
 		await target.evaluate((element) => {
 			const panel = document
 				.querySelector('[data-testid="timeline-panel"]')!

@@ -66,21 +66,21 @@ The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`.
 
 A **task** has `parentId: null`. A **subtask** has the id of a task in `parentId`.
 
-| Field          | Type             | Rule                                                        |
-| -------------- | ---------------- | ----------------------------------------------------------- |
-| `id`           | string           | Unique in the plan.                                         |
-| `stageId`      | string           | A stage of the plan. A subtask has the stage of its parent. |
-| `parentId`     | string \| `null` | A task (not a subtask) of the same stage.                   |
-| `title`        | string           |                                                             |
-| `deliverable`  | string           |                                                             |
-| `start`, `end` | date \| `null`   |                                                             |
-| `owners`       | string[]         | Compared without case, after the app trims them.            |
-| `done`         | boolean          |                                                             |
-| `note`         | string           | Plain text. Can contain mention tokens `@[task:<id>]`.      |
-| `dependsOn`    | string[]         | Ids of other tasks of the plan. Not its own id.             |
-| `createdAt`    | timestamp        | Sort tie-breaker.                                           |
+| Field          | Type                              | Rule                                                        |
+| -------------- | --------------------------------- | ----------------------------------------------------------- |
+| `id`           | string                            | Unique in the plan.                                         |
+| `stageId`      | string                            | A stage of the plan. A subtask has the stage of its parent. |
+| `parentId`     | string \| `null`                  | A task (not a subtask) of the same stage.                   |
+| `title`        | string                            |                                                             |
+| `deliverable`  | string                            |                                                             |
+| `start`, `end` | date \| `null`                    |                                                             |
+| `owners`       | string[]                          | Compared without case, after the app trims them.            |
+| `status`       | `todo` \| `in_progress` \| `done` | Required. New tasks default to `todo`.                      |
+| `note`         | string                            | Plain text. Can contain mention tokens `@[task:<id>]`.      |
+| `dependsOn`    | string[]                          | Ids of other tasks of the plan. Not its own id.             |
+| `createdAt`    | timestamp                         | Sort tie-breaker.                                           |
 
-A parent keeps its own `start`, `end`, `owners` and `done`. The app does not show these values while the parent has subtasks. Refer to [spec.md](spec.md), section 2.
+A parent keeps its own `start`, `end`, `owners` and `status`. The app does not show these values while the parent has subtasks. The stored values show again after you delete or move the last subtask. Refer to [spec.md](spec.md), section 2.
 
 ## Milestone
 
