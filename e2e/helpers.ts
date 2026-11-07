@@ -472,9 +472,9 @@ export const formatted = (date: string) =>
 export async function setTaskStatus(
 	page: Page,
 	container: Locator,
-	status: 'todo' | 'in_progress' | 'done'
+	status: 'todo' | 'in_progress' | 'done' | 'canceled'
 ): Promise<void> {
-	const labels = { todo: 'Todo', in_progress: 'In progress', done: 'Done' };
+	const labels = { todo: 'Todo', in_progress: 'In progress', done: 'Done', canceled: 'Canceled' };
 	const trigger = container.getByTestId('task-status');
 	await trigger.click();
 	const listbox = page.getByRole('listbox');

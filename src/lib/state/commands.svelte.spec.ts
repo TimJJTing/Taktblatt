@@ -379,6 +379,20 @@ describe('stage commands', () => {
 });
 
 describe('task commands', () => {
+	it('sets canceled with one undo step and restores it with redo', () => {
+		const ws = open();
+		const id = addTask(ws, ws.plan.stages[0].id);
+		ws.history.clear();
+		updateTask(ws, id, { status: 'canceled' });
+		expect(ws.plan.tasks[0].status).toBe('canceled');
+		expect(ws.undo()).toBe(true);
+		expect(ws.plan.tasks[0].status).toBe('todo');
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.redo()).toBe(true);
+		expect(ws.plan.tasks[0].status).toBe('canceled');
+		expect(ws.history.canRedo).toBe(false);
+	});
+
 	it('keeps an otherwise empty new task with in-progress status', () => {
 		const ws = open();
 		const id = addTask(ws, ws.plan.stages[0].id);

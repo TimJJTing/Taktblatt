@@ -61,6 +61,11 @@ describe('effectiveValues', () => {
 
 	it.each([
 		{ children: ['done', 'done'], expected: 'done' },
+		{ children: ['canceled', 'canceled'], expected: 'canceled' },
+		{ children: ['done', 'canceled'], expected: 'done' },
+		{ children: ['todo', 'canceled'], expected: 'todo' },
+		{ children: ['in_progress', 'canceled'], expected: 'in_progress' },
+		{ children: ['done', 'todo', 'canceled'], expected: 'in_progress' },
 		{ children: ['todo', 'todo'], expected: 'todo' },
 		{ children: ['done', 'todo'], expected: 'in_progress' },
 		{ children: ['in_progress', 'todo'], expected: 'in_progress' },
@@ -135,6 +140,27 @@ describe('stage values', () => {
 		]);
 		expect(stageProgress(index, 's1')).toEqual({ done: 1, inProgress: 1, total: 3 });
 		expect(stageProgress(index, 'empty')).toEqual({ done: 0, inProgress: 0, total: 0 });
+	});
+
+	it('excludes canceled leaves and derived canceled parents from progress totals', () => {
+		const tasks = [
+			makeTask({ id: 'canceled', status: 'canceled' }),
+			makeTask({ id: 'parent', status: 'done' }),
+			makeTask({ id: 'child', parentId: 'parent', status: 'canceled' })
+		];
+		expect(stageProgress(indexTasks(tasks), 's1')).toEqual({ done: 0, inProgress: 0, total: 0 });
+		expect(
+			stageProgress(
+				indexTasks([
+					...tasks,
+					makeTask({ id: 'done1', status: 'done' }),
+					makeTask({ id: 'done2', status: 'done' }),
+					makeTask({ id: 'todo' }),
+					makeTask({ id: 'working', status: 'in_progress' })
+				]),
+				's1'
+			)
+		).toEqual({ done: 2, inProgress: 1, total: 4 });
 	});
 
 	it('lists deliverables and skips empty values', () => {

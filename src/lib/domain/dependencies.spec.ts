@@ -81,6 +81,29 @@ describe('canDependOn', () => {
 });
 
 describe('readyCount', () => {
+	it('accepts canceled dependencies, including a derived canceled parent', () => {
+		const index = indexTasks([
+			makeTask({ id: 'canceled', status: 'canceled' }),
+			makeTask({ id: 'parent', status: 'todo' }),
+			makeTask({ id: 'child', parentId: 'parent', status: 'canceled' }),
+			makeTask({ id: 'direct', dependsOn: ['canceled'] }),
+			makeTask({ id: 'derived', dependsOn: ['parent'] })
+		]);
+		expect(readyCount(index, 'direct')).toBe(1);
+		expect(readyCount(index, 'derived')).toBe(1);
+	});
+
+	it('keeps canceled tasks unready even with finished dependencies', () => {
+		const index = indexTasks([
+			makeTask({ id: 'done', status: 'done' }),
+			makeTask({ id: 'canceled', status: 'canceled', dependsOn: ['done'] }),
+			makeTask({ id: 'parent', dependsOn: ['done'] }),
+			makeTask({ id: 'child', parentId: 'parent', status: 'canceled' })
+		]);
+		expect(readyCount(index, 'canceled')).toBe(0);
+		expect(readyCount(index, 'parent')).toBe(0);
+	});
+
 	it('is on when all effective dependencies are done and the task is todo', () => {
 		const index = indexTasks([
 			makeTask({ id: 'a', status: 'done' }),
