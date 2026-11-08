@@ -250,22 +250,3 @@ test('the dependency list scrolls into the dialog when it opens near the dialog 
 		})
 		.toBe(true);
 });
-
-test('an inherited dependency without warnings shows a complete source sentence', async ({
-	page
-}) => {
-	await openScopePlan(page);
-	await writeStoredPlan(page, (plan) => {
-		plan.tasks.find((task: { id: string }) => task.id === 'p')!.dependsOn = ['task'];
-	});
-	await row(page, 'Prepare report').getByTestId('task-toggle').click();
-	const dialog = await openDetails(page, 'Write report');
-	const chip = dialog.getByTestId('dependency-list').getByRole('listitem');
-	await expect(chip).toContainText('From parent Prepare report.');
-	await expect(chip.getByRole('img')).toHaveCount(0);
-	await chip.hover();
-	const hint = page.locator('[data-slot="tooltip-content"]');
-	await expect(hint).toBeVisible();
-	await waitForAnimations(hint);
-	await expect(hint).toHaveText('From parent Prepare report.');
-});

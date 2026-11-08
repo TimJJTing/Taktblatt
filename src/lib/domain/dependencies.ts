@@ -126,15 +126,15 @@ function cycleComponents(index: TaskIndex): Map<string, number> {
 	return components;
 }
 
-/** A stored dependency that breaks the date rule. The UI shows a warning on it. */
-export interface DateWarning {
+/** A stored dependency: the task that stores it and the task it points to. */
+export interface DependencyEdge {
 	/** The task that stores the dependency. */
 	taskId: string;
 	dependencyId: string;
 }
 
 /** A warning on a stored dependency. An edge can have more than one kind. */
-export interface DependencyWarning extends DateWarning {
+export interface DependencyWarning extends DependencyEdge {
 	kind: 'date' | 'subtask_scope' | 'cycle';
 }
 
@@ -254,8 +254,8 @@ export function isValidMoveTarget(plan: Plan, id: string, target: MoveTarget): b
 	return !index.children.get(id)?.length;
 }
 
-function brokenEdgesAround(index: TaskIndex, nodeId: string): DateWarning[] {
-	const result: DateWarning[] = [];
+function brokenEdgesAround(index: TaskIndex, nodeId: string): DependencyEdge[] {
+	const result: DependencyEdge[] = [];
 	for (const task of index.byId.values()) {
 		for (const dep of task.dependsOn) {
 			if ((task.id === nodeId || dep === nodeId) && breaksDateRule(index, dep, task.id)) {

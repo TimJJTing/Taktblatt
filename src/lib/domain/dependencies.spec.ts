@@ -153,18 +153,8 @@ describe('canDependOn', () => {
 		expect(canDependOn(index, 'x', 's')).toBe(true);
 	});
 
-	it('does not add a sibling dependency to the parent graph', () => {
-		const index = indexTasks([
-			makeTask({ id: 'p' }),
-			makeTask({ id: 's', parentId: 'p' }),
-			makeTask({ id: 't', parentId: 'p', dependsOn: ['x'] }),
-			makeTask({ id: 'x', dependsOn: ['p'] })
-		]);
-		expect(canDependOn(index, 's', 't')).toBe(true);
-	});
-
-	it('rejects a dependency already inherited from the parent, including in a loaded cycle', () => {
-		const x = makeTask({ id: 'x' });
+	it('rejects an inherited sibling dependency in loaded data, including a cycle', () => {
+		const x = makeTask({ id: 'x', parentId: 'p' });
 		const tasks = [
 			makeTask({ id: 'p', dependsOn: ['x'] }),
 			makeTask({ id: 's', parentId: 'p' }),

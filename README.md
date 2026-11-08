@@ -35,7 +35,7 @@ Each stage has a card. The card shows the months of the stage, a title, a descri
 - Tasks are in stages. Each stage has a color.
 - A task can have subtasks. The parent has a planned window: its dates and owners grow to include its subtasks, and you can make the window wider. The parent's status follows its subtasks.
 - Each row has a status select (Todo, In progress, Done or Canceled), a deliverable, a target date and owner chips.
-- A green dot, the ready light, shows that all dependencies of a task are done or canceled and the task is still Todo.
+- A green dot, the ready light, shows that all dependencies of a task are done or canceled and the task is still Todo. A subtask also waits for the dependencies of its parent. A parent is ready when its status is Todo and one or more of its subtasks are ready.
 - Click a cell to edit it. Drag a stage to change the stage order.
 
 ### Task dialog

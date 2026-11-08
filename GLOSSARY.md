@@ -33,7 +33,7 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 | **Viewer state**           | Settings for one browser only. They are not in the plan file.                                                                                                                                                    | user settings            |
 | **UI language**            | The language of the app controls, the date formats and the printed labels. Part of the viewer state. A plan has no language.                                                                                     |                          |
 | **Cycle warning**          | A warning on a dependency that is part of a cycle in the effective dependencies. The app permits cycles.                                                                                                         | cycle error              |
-| **Commit**                 | The end of one edit: blur, Enter, a checkbox, a picker, a dialog action. One commit is one undo step.                                                                                                            |                          |
+| **Commit**                 | The end of one edit: blur, Enter, a status selection, a picker, a dialog action. One commit is one undo step.                                                                                                    |                          |
 
 ## Rules for UI text
 
