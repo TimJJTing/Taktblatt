@@ -286,5 +286,6 @@
 	"import_dependency_warnings": "有警告的相依項目：{count} 個。開啟任務即可查看警告。",
 	"dependency_warning_subtask_scope": "子任務只能依賴同一父任務下的任務。",
 	"dependency_subtask_help": "若要依賴其他任務，請將此子任務改為任務，或移至同一父任務下。",
-	"date_subtask_floor": "日期範圍必須包含子任務的日期：{range}。"
+	"date_subtask_floor": "日期範圍必須包含子任務的日期：{range}。",
+	"date_subtask_span": "子任務：{range}"
 }
