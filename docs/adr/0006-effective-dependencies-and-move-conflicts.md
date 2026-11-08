@@ -1,6 +1,6 @@
 # 6. Effective dependencies and move conflicts
 
-Status: Accepted (2026-11-04)
+Status: Accepted (amended by ADR 13) (2026-11-04)
 
 ## Context
 

@@ -262,11 +262,11 @@ describe('indexTasks state', () => {
 		});
 	});
 
-	it('makes a todo leaf without dependencies ready while its light stays off', () => {
+	it('turns on the light for a ready todo leaf without dependencies', () => {
 		const index = indexTasks([makeTask({ id: 't' })]);
 		const readiness = index.state.get('t')!.readiness;
 		expect(readiness).toEqual({ kind: 'ready', via: 'dependencies', count: 0 });
-		expect(readyLight(readiness)).toBeNull();
+		expect(readyLight(readiness)).toEqual({ via: 'dependencies', count: 0 });
 	});
 
 	it.each([
@@ -321,7 +321,7 @@ describe('indexTasks state', () => {
 		expect(state().get('t')!.readiness).toEqual({ kind: 'ready', via: 'dependencies', count: 1 });
 	});
 
-	it("uses a parent's effective dependencies and derived status for readiness", () => {
+	it('uses ready subtask counts and the derived status for parent readiness', () => {
 		const own = makeTask({ id: 'own', status: 'done' });
 		const inherited = makeTask({ id: 'inherited' });
 		const parent = makeTask({ id: 'p', status: 'done', dependsOn: ['own'] });
@@ -336,7 +336,7 @@ describe('indexTasks state', () => {
 			}
 		});
 		inherited.status = 'done';
-		expect(state().readiness).toEqual({ kind: 'ready', via: 'dependencies', count: 2 });
+		expect(state().readiness).toEqual({ kind: 'ready', via: 'subtasks', count: 1 });
 		for (const status of ['in_progress', 'done'] as const) {
 			child.status = status;
 			expect(state()).toMatchObject({
@@ -364,23 +364,124 @@ describe('indexTasks state', () => {
 		});
 	});
 
-	it('deduplicates blockers in effective dependency order and filters unknown ids and own subtasks', () => {
+	it('unions todo subtask blockers in subtask order, then dependency order', () => {
 		const index = indexTasks([
 			makeTask({ id: 'x' }),
 			makeTask({ id: 'y' }),
 			makeTask({ id: 'z' }),
 			makeTask({ id: 'done', status: 'done' }),
-			makeTask({ id: 'p', dependsOn: ['y', 'missing', 'done', 'y', 'c2'] }),
+			makeTask({ id: 'p', dependsOn: ['y', 'done'] }),
 			makeTask({ id: 'c2', parentId: 'p', start: '2027-02-01', dependsOn: ['z', 'x'] }),
-			makeTask({ id: 'c1', parentId: 'p', start: '2027-01-01', dependsOn: ['x', 'y'] })
+			makeTask({ id: 'c1', parentId: 'p', start: '2027-01-01', dependsOn: ['x', 'y'] }),
+			makeTask({ id: 'canceled', parentId: 'p', status: 'canceled', dependsOn: ['done'] })
 		]);
 		expect(index.state.get('p')!.readiness).toEqual({
 			kind: 'blocked',
 			blockers: [
-				{ kind: 'task', id: 'y' },
 				{ kind: 'task', id: 'x' },
+				{ kind: 'task', id: 'y' },
 				{ kind: 'task', id: 'z' }
 			]
+		});
+	});
+
+	it('keeps sibling blockers when no todo subtask is ready and ignores canceled subtask blockers', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'a', parentId: 'p', dependsOn: ['b'] }),
+			makeTask({ id: 'b', parentId: 'p', dependsOn: ['a'] }),
+			makeTask({ id: 'c', parentId: 'p', status: 'canceled', dependsOn: ['x'] }),
+			makeTask({ id: 'x' })
+		]);
+		expect(index.state.get('p')).toMatchObject({
+			eff: { status: 'todo' },
+			readiness: {
+				kind: 'blocked',
+				blockers: [
+					{ kind: 'task', id: 'b' },
+					{ kind: 'task', id: 'a' }
+				]
+			}
+		});
+	});
+
+	it('deduplicates leaf blockers in effective order and filters self and unknown ids', () => {
+		const index = indexTasks([
+			makeTask({ id: 'x' }),
+			makeTask({ id: 'y' }),
+			makeTask({ id: 'p', dependsOn: ['y', 'x'] }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['x', 'missing', 's', 'x'] })
+		]);
+		expect(index.state.get('s')!.readiness).toEqual({
+			kind: 'blocked',
+			blockers: [
+				{ kind: 'task', id: 'x' },
+				{ kind: 'task', id: 'y' }
+			]
+		});
+	});
+
+	it('blocks a subtask on a parent dependency and counts it once when finished', () => {
+		const own = makeTask({ id: 'own', status: 'canceled' });
+		const inherited = makeTask({ id: 'inherited' });
+		const tasks = [
+			makeTask({ id: 'p', dependsOn: ['inherited', 'own'] }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['own'] }),
+			own,
+			inherited
+		];
+		expect(indexTasks(tasks).state.get('s')!.readiness).toEqual({
+			kind: 'blocked',
+			blockers: [{ kind: 'task', id: 'inherited' }]
+		});
+		inherited.status = 'done';
+		expect(indexTasks(tasks).state.get('s')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 2
+		});
+	});
+
+	it('makes a todo parent ready when some subtasks are ready and counts only those subtasks', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'a', parentId: 'p' }),
+			makeTask({ id: 'b', parentId: 'p', dependsOn: ['a'] }),
+			makeTask({ id: 'c', parentId: 'p' })
+		]);
+		expect(index.state.get('p')).toMatchObject({
+			eff: { status: 'todo' },
+			readiness: { kind: 'ready', via: 'subtasks', count: 2 }
+		});
+	});
+
+	it('keeps a ready todo parent when its other subtask is canceled', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'b', parentId: 'p' }),
+			makeTask({ id: 'c', parentId: 'p', status: 'canceled' })
+		]);
+		expect(index.state.get('p')).toMatchObject({
+			eff: { status: 'todo' },
+			readiness: { kind: 'ready', via: 'subtasks', count: 1 }
+		});
+		expect(index.state.get('c')!.readiness).toEqual({ kind: 'inactive' });
+	});
+
+	it('keeps a mixed done and ready parent inactive while its todo subtask is ready', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'a', parentId: 'p', status: 'done' }),
+			makeTask({ id: 'b', parentId: 'p', dependsOn: ['a'] })
+		]);
+		expect(index.state.get('p')).toMatchObject({
+			eff: { status: 'in_progress' },
+			readiness: { kind: 'inactive' }
+		});
+		expect(index.state.get('b')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 1
 		});
 	});
 
@@ -400,6 +501,27 @@ describe('indexTasks state', () => {
 		});
 		for (const task of tasks)
 			expect(reverse.state.get(task.id)).toEqual(forward.state.get(task.id));
+	});
+
+	it('builds leaf readiness before parent readiness regardless of input order in an inherited cycle', () => {
+		const tasks = [
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 'x', dependsOn: ['s'] })
+		];
+		for (const input of [tasks, [...tasks].reverse()]) {
+			const index = indexTasks(input);
+			for (const id of ['p', 's']) {
+				expect(index.state.get(id)!.readiness).toEqual({
+					kind: 'blocked',
+					blockers: [{ kind: 'task', id: 'x' }]
+				});
+			}
+			expect(index.state.get('x')!.readiness).toEqual({
+				kind: 'blocked',
+				blockers: [{ kind: 'task', id: 's' }]
+			});
+		}
 	});
 
 	it('computes direct blockers for cyclic candidate indexes without recursive readiness', () => {

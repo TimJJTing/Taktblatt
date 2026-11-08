@@ -143,20 +143,21 @@ The app calculates a **derived value** from other data. The user cannot edit a d
 ### 3.1 Stored and effective dependencies
 
 - A task or subtask stores its **own dependencies** in `dependsOn`. The app stores ids. The app shows the current titles.
-- The **effective dependencies** of a subtask are its own dependencies.
+- The **effective dependencies** of a subtask are its own dependencies and the own dependencies of its parent. A task without subtasks uses its own dependencies. The app excludes the task itself and unknown ids.
 - The effective dependencies of a parent are the union of its own dependencies and the dependencies of all its subtasks. The app excludes dependencies that point at its own subtasks.
-- The task dialog shows the inherited dependencies of a parent as read-only chips. Each chip shows the subtask that it comes from.
+- The task dialog shows inherited dependencies as read-only chips. A parent inherits dependencies from its subtasks. A subtask inherits the own dependencies of its parent. The source appears in a hint and in the accessible name, with "From subtask {task}" or "From parent {task}". It does not appear as visible text.
 
 ### 3.2 Validation
 
-The app uses the effective graph for all checks.
+The app uses the effective graph for cycle checks and readiness. The date rule checks stored dependencies only, with effective task dates.
 
 1. A task cannot depend on itself.
 2. A task cannot depend on its parent or on its own subtask.
-3. The graph must not have a cycle.
+3. Load and import accept cycles in the effective graph. The dependency picker still hides candidates that make a new cycle. It also hides dependencies that the task already inherits.
 4. **Date rule:** A cannot be a dependency of B if `A.start > B.end`. If one of these dates is empty, the rule does not apply.
 
-- The dependency picker hides the candidates that break a rule.
+- The dependency picker hides candidates that break the structure, cycle or date rules.
+- Cycle warnings in the UI will come in PR 3. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
 - A date change can break the date rule. The app does not remove the dependency. It shows a warning on the dependency.
 - When you delete a task, the app removes the task from all `dependsOn` lists. It also removes all mention tokens for the task.
 
@@ -173,19 +174,20 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 - The dialog has two buttons: **Remove and move** and **Cancel**. When the move has only warnings, the first button is **Move**.
 - **Remove and move** applies all listed removals and the move as one undo step.
 - **Cancel** does not change data.
+- A moved subtask inherits the own dependencies of its new parent. A cycle through these new inherited edges is permitted. The dialog still offers the existing cycle fixes for dependencies that the new parent inherits from the moved subtask. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
 
 ### 3.4 Ready light
 
-- A **ready light** is a small green dot. It shows that the task can start.
-- The ready light is on when all these conditions are true:
-  - The task has one or more effective dependencies.
-  - All effective dependencies are finished: their status is `done` or `canceled`. For a parent dependency, the app uses its derived `status`.
-  - The effective status of the task is `todo`.
+- A **ready light** is a small green dot. It shows that a task is ready. Every ready task has the light on.
+- A leaf is ready when its status is `todo` and all effective dependencies are finished (`done` or `canceled`). A leaf with no effective dependencies is ready. For a parent dependency, the app uses its derived status.
+- A parent is ready when its derived status is `todo` and one or more subtasks are ready. The light counts ready subtasks. Canceled subtasks do not count for the derived status or readiness.
+- A leaf is blocked when its status is `todo` and an effective dependency is not finished. A parent is blocked when its derived status is `todo` and no subtask is ready.
+- A task whose effective status is not `todo` is inactive. It has no ready light. Readiness does not report cycles.
 - The planned `start` date has no effect on the ready light.
 - The ready light shows before the title in the table, before the Gantt label, in the task dialog and on the sheets.
 - In the table, the Gantt labels and the sheets, the ready light has a fixed slot before the title. When the light is off, the slot stays empty. Thus the first letters of the titles at the same level stay aligned, and a title does not move when the light comes on.
 - In the task dialog, the app renders nothing when the ready light is off.
-- It has an `aria-label`, for example "Ready. Dependencies done: 3". On the screen, it also shows this text as a hint on hover. Refer to section 5.10. The sheets show no hint.
+- It has an `aria-label`: "Ready" for a leaf with no effective dependencies, "Ready. Dependencies done: N" for other ready leaves, or "Ready. Subtasks ready: N" for a ready parent. The dependency count includes inherited dependencies. On the screen, it also shows this text as a hint on hover. Refer to section 5.10. The sheets show no hint.
 - When it comes on, it fades in with one soft pulse.
 
 ## 4. Storage and state
@@ -249,7 +251,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Export this plan** writes a `PlanFile`.
 - **Export all plans** writes a `BackupFile`. The file name is `taktblatt-backup-<YYYY-MM-DD>.json`. The date is the export date.
 - Import accepts both kinds. The app validates the file. If the file is not valid, the app shows the errors and does not change data.
-- Import rejects duplicate ids in the stages, tasks, milestones, bands or remark sections of a plan. It also rejects a dependency between a parent and its own subtask. It also rejects a cycle in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
+- Import rejects duplicate ids in the stages, tasks, milestones, bands or remark sections of a plan. It also rejects a dependency between a parent and its own subtask. Load and import accept cycles in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
 - Import permits date-rule conflicts and shows warnings for them.
 - Import adds each plan as a new plan. The last imported plan becomes active. A toast confirms the import. If dependencies break the date rule, a second toast shows the number of warnings. Import is not an undo step.
 - If the browser cannot save the data, import undoes its own writes and shows an error.
@@ -376,7 +378,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
   - **Parent** is "None (task)" or another top-level task in the same stage, with or without subtasks. "None (task)" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
   - A parent change can open the move-conflict dialog (section 3.3).
 - **Note:** plain text. Type "@" to mention a task.
-- **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a rule. A parent also shows its inherited dependencies as read-only chips.
+- **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a rule. Parents and subtasks also show inherited dependencies as read-only chips. The source appears in a hint and in the accessible name.
 - Each field saves on blur.
 - **OK** closes the dialog. **Delete…** opens a confirmation that shows the effect, for example "Subtasks deleted with the task: 2. Other tasks that depend on it: 3. The app removes their links."
 - Esc closes the dialog. The focus stays in the dialog while it is open. On close, the focus goes back to the "…" button.
@@ -475,7 +477,7 @@ Printed work tables use the Status header and the same four status icons in pape
 
 ## Future: Kanban
 
-Kanban cards are leaves only. Canceled items are not on the board. The column comes from the one board-column calculation (`boardColumn`): Blocked, Todo, In progress, or Done. A Kanban view is not part of this change.
+Kanban cards are leaves only. Canceled items are not on the board. The column comes from the one board-column calculation (`boardColumn`): Blocked, Todo, In progress, or Done. Todo contains ready items. Blocked contains blocked items. An item with status `in_progress` stays in In progress. A Kanban view is not part of this change.
 
 ## 10. Quality
 

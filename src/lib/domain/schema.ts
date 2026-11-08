@@ -5,7 +5,6 @@
 import * as v from 'valibot';
 import { isISODate } from './date.ts';
 import type { ValidationCode } from './import-diagnostics.ts';
-import { effectiveDependencies, indexTasks } from './derive.ts';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.ts';
 
 export const SCHEMA_VERSION = 1;
@@ -151,47 +150,8 @@ export const PlanSchema = v.pipe(
 		return plan.tasks.every((t) =>
 			t.dependsOn.every((d) => t.parentId !== d && byId.get(d)?.parentId !== t.id)
 		);
-	}, 'validation_dependency_parent' satisfies ValidationCode),
-	v.check((plan) => {
-		const index = indexTasks(plan.tasks);
-		return !hasCycle(
-			plan.tasks.map((t) => t.id),
-			(id) => effectiveDependencies(index, id)
-		);
-	}, 'validation_dependency_cycle' satisfies ValidationCode)
+	}, 'validation_dependency_parent' satisfies ValidationCode)
 );
-
-/**
- * Finds a cycle with one depth-first search. Time is O(nodes + edges).
- * A node is white (new), grey (on the current path) or black (done).
- * An edge to a grey node closes a cycle. The search uses a stack, not recursion.
- */
-function hasCycle(ids: readonly string[], edges: (id: string) => Iterable<string>): boolean {
-	const GREY = 1;
-	const BLACK = 2;
-	const state = new Map<string, number>();
-	for (const root of ids) {
-		if (state.has(root)) continue;
-		state.set(root, GREY);
-		const stack = [{ id: root, next: edges(root)[Symbol.iterator]() }];
-		while (stack.length > 0) {
-			const top = stack[stack.length - 1];
-			const step = top.next.next();
-			if (step.done) {
-				state.set(top.id, BLACK);
-				stack.pop();
-				continue;
-			}
-			const seen = state.get(step.value);
-			if (seen === GREY) return true;
-			if (seen === undefined) {
-				state.set(step.value, GREY);
-				stack.push({ id: step.value, next: edges(step.value)[Symbol.iterator]() });
-			}
-		}
-	}
-	return false;
-}
 
 export const PlanFileSchema = v.object({
 	schemaVersion: v.literal(SCHEMA_VERSION),

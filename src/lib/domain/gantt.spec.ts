@@ -249,11 +249,12 @@ describe('dependencyLines', () => {
 		]);
 	});
 
-	it('draws the own dependency of an expanded parent from the parent bar', () => {
+	it('draws parent dependencies only from the parent bar, not inheriting subtask rows', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'p')!.dependsOn = ['x', 'a', 'p', 'gone'];
 		tasks.find((t) => t.id === 'a')!.dependsOn = [];
 		expect(lines(tasks, ['p']).map((l) => l.key)).toEqual(['x->p', 'c->y']);
+		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
 	});
 
 	it('merges duplicate lines', () => {

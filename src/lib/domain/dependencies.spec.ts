@@ -23,8 +23,35 @@ describe('effectiveDependencies', () => {
 			makeTask({ id: 'b', parentId: 'p', dependsOn: ['a'] })
 		]);
 		expect([...effectiveDependencies(index, 'p')].sort()).toEqual(['x', 'y']);
-		expect([...effectiveDependencies(index, 'b')]).toEqual(['a']);
+		expect([...effectiveDependencies(index, 'b')]).toEqual(['a', 'x']);
 		expect(inheritedDependencies(index, 'p')).toEqual([{ depId: 'y', fromId: 'a' }]);
+	});
+});
+
+describe('subtask dependencies', () => {
+	it('unions own and parent dependencies in order without self or unknown ids', () => {
+		const index = indexTasks([
+			makeTask({ id: 'x' }),
+			makeTask({ id: 'y' }),
+			makeTask({ id: 'z' }),
+			makeTask({ id: 'p', dependsOn: ['y', 'x', 'z', 'missing'] }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['x', 's', 'missing'] })
+		]);
+		expect([...effectiveDependencies(index, 's')]).toEqual(['x', 'y', 'z']);
+	});
+
+	it('lists only dependencies absent from the subtask with the parent as source', () => {
+		const index = indexTasks([
+			makeTask({ id: 'x' }),
+			makeTask({ id: 'y' }),
+			makeTask({ id: 'z' }),
+			makeTask({ id: 'p', dependsOn: ['z', 'x', 'y'] }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['x'] })
+		]);
+		expect(inheritedDependencies(index, 's')).toEqual([
+			{ depId: 'z', fromId: 'p' },
+			{ depId: 'y', fromId: 'p' }
+		]);
 	});
 });
 
@@ -60,6 +87,47 @@ describe('canDependOn', () => {
 		expect(canDependOn(index, 'yc', 'x')).toBe(false);
 	});
 
+	it('rejects a parent dependency when its candidate reaches an inheriting subtask', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 'x', dependsOn: ['s'] })
+		]);
+		expect(canDependOn(index, 'p', 'x')).toBe(false);
+	});
+
+	it('rejects a dependency on a subtask that inherits a dependency on the dependent', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 'x' })
+		]);
+		expect(canDependOn(index, 'x', 's')).toBe(false);
+	});
+
+	it('checks only the tasks that get a new edge in a loaded cycle', () => {
+		// P → X through T, and X → P. A new S → X adds no edge on P, so it adds no cycle.
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 't', parentId: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 'x', dependsOn: ['p'] })
+		]);
+		expect(canDependOn(index, 's', 'x')).toBe(true);
+	});
+
+	it('rejects a dependency already inherited from the parent, including in a loaded cycle', () => {
+		const x = makeTask({ id: 'x' });
+		const tasks = [
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p' }),
+			x
+		];
+		expect(canDependOn(indexTasks(tasks), 's', 'x')).toBe(false);
+		x.dependsOn = ['s'];
+		expect(canDependOn(indexTasks(tasks), 's', 'x')).toBe(false);
+	});
+
 	it('allows a dependency between siblings', () => {
 		const index = indexTasks([
 			makeTask({ id: 'p' }),
@@ -84,6 +152,14 @@ describe('dateWarnings', () => {
 			makeTask({ id: 'b', end: '2027-02-01', dependsOn: ['a'] })
 		]);
 		expect(dateWarnings(index)).toEqual([{ taskId: 'b', dependencyId: 'a' }]);
+	});
+	it('does not report an inherited edge as a stored date warning', () => {
+		const index = indexTasks([
+			makeTask({ id: 'x', start: '2027-02-01' }),
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p', end: '2027-01-01' })
+		]);
+		expect(dateWarnings(index)).toEqual([{ taskId: 'p', dependencyId: 'x' }]);
 	});
 });
 
@@ -229,6 +305,18 @@ describe('moves', () => {
 			fixes: [],
 			warnings: []
 		});
+	});
+
+	it('allows a move that creates a cycle only through the new inherited dependency', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 'x', dependsOn: ['s'] }),
+			makeTask({ id: 's' })
+		]);
+		const target = { stageId: 's1', parentId: 'p' };
+		expect(moveConflicts(plan, 's', target)).toEqual({ fixes: [], warnings: [] });
+		applyMove(plan, 's', target, []);
+		expect([...effectiveDependencies(indexTasks(plan.tasks), 's')]).toEqual(['x']);
 	});
 
 	it('allows a dependency on a sibling when moving under the same parent', () => {

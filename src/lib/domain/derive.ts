@@ -55,13 +55,12 @@ export function readyLight(
 	readiness: Readiness
 ): { via: 'dependencies' | 'subtasks'; count: number } | null {
 	if (readiness.kind !== 'ready') return null;
-	if (readiness.via === 'dependencies' && readiness.count === 0) return null;
 	return { via: readiness.via, count: readiness.count };
 }
 
 /**
  * Returns the effective dependencies of a task.
- * Subtask: its own dependencies.
+ * Subtask: its own dependencies and the own dependencies of its parent.
  * Parent: its own dependencies and those of its subtasks, minus its own subtasks.
  */
 export function effectiveDependencies(index: TaskIndex, id: string): Set<string> {
@@ -70,7 +69,9 @@ export function effectiveDependencies(index: TaskIndex, id: string): Set<string>
 	const children = index.children.get(id) ?? [];
 	const childIds = new Set(children.map((c) => c.id));
 	const result = new Set<string>();
-	for (const source of [task, ...children]) {
+	const parent = task.parentId === null ? undefined : index.byId.get(task.parentId);
+	const sources = parent ? [task, parent] : [task, ...children];
+	for (const source of sources) {
 		for (const dep of source.dependsOn) {
 			if (dep !== id && !childIds.has(dep) && index.byId.has(dep)) result.add(dep);
 		}
@@ -78,14 +79,22 @@ export function effectiveDependencies(index: TaskIndex, id: string): Set<string>
 	return result;
 }
 
-/** The dependencies that a parent inherits from its subtasks, with the subtask that owns each one. */
+/** Returns inherited dependencies with the parent or subtask that owns each one. */
 export function inheritedDependencies(
 	index: TaskIndex,
 	id: string
 ): { depId: string; fromId: string }[] {
+	const task = index.byId.get(id);
+	if (!task) return [];
+	const own = new Set(task.dependsOn);
+	if (task.parentId !== null) {
+		const parent = index.byId.get(task.parentId);
+		return [...new Set(parent?.dependsOn ?? [])]
+			.filter((dep) => dep !== id && !own.has(dep) && index.byId.has(dep))
+			.map((depId) => ({ depId, fromId: task.parentId! }));
+	}
 	const children = index.children.get(id) ?? [];
 	const childIds = new Set(children.map((c) => c.id));
-	const own = new Set(index.byId.get(id)?.dependsOn ?? []);
 	const result: { depId: string; fromId: string }[] = [];
 	for (const child of children) {
 		for (const dep of child.dependsOn) {
@@ -183,7 +192,7 @@ export function indexTasks(tasks: readonly Task[]): TaskIndex {
 	const index: TaskIndex = { byId, children, stageTasks, state };
 	// All effective values and finished flags must exist before readiness is calculated.
 	for (const [id, taskState] of state) {
-		if (taskState.eff.status !== 'todo') continue;
+		if (taskState.eff.status !== 'todo' || children.get(id)?.length) continue;
 		const deps = effectiveDependencies(index, id);
 		const blockers: Blocker[] = [];
 		for (const dep of deps) {
@@ -193,6 +202,24 @@ export function indexTasks(tasks: readonly Task[]): TaskIndex {
 			blockers.length > 0
 				? { kind: 'blocked', blockers }
 				: { kind: 'ready', via: 'dependencies', count: deps.size };
+	}
+	// Parents read subtask readiness only after all leaves have their readiness.
+	for (const [id, subtasks] of children) {
+		const taskState = state.get(id);
+		if (!taskState || taskState.eff.status !== 'todo') continue;
+		let count = 0;
+		const blockers = new Map<string, Blocker>();
+		for (const subtask of subtasks) {
+			const readiness = state.get(subtask.id)!.readiness;
+			if (readiness.kind === 'ready') count++;
+			if (readiness.kind === 'blocked') {
+				for (const blocker of readiness.blockers) blockers.set(blocker.id, blocker);
+			}
+		}
+		taskState.readiness =
+			count > 0
+				? { kind: 'ready', via: 'subtasks', count }
+				: { kind: 'blocked', blockers: [...blockers.values()] };
 	}
 	for (const list of stageTasks.values()) {
 		const start = (t: Task) => state.get(t.id)!.eff.start;

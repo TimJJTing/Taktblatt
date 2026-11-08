@@ -1,6 +1,6 @@
 <!--
 	The dependencies of a task. Own dependencies are chips that you can remove.
-	A parent also shows the inherited dependencies of its subtasks (read-only).
+	Parents and subtasks also show inherited dependencies (read-only).
 	The search shows only candidates that keep the rules. Refer to docs/spec.md, section 3.
 -->
 <script lang="ts">
@@ -108,7 +108,11 @@
 				</li>
 			{/each}
 			{#each inherited as dep (dep.depId + dep.fromId)}
-				<Hint text={m.dependency_inherited({ task: title(dep.fromId) })} focusable={false}>
+				{@const source =
+					task.parentId !== null
+						? m.dependency_inherited_parent({ task: title(dep.fromId) })
+						: m.dependency_inherited({ task: title(dep.fromId) })}
+				<Hint text={source} focusable={false}>
 					{#snippet child({ props })}
 						<li
 							{...props}
@@ -117,7 +121,7 @@
 							<span class="max-w-48 truncate">{title(dep.depId)}</span>
 							<span class="sr-only"
 								>{m.parenthetical({
-									text: m.dependency_inherited({ task: title(dep.fromId) })
+									text: source
 								})}</span
 							>
 						</li>
