@@ -51,16 +51,14 @@ export function formatRangeDisplay(
 
 /**
  * The target text of a task row. This rule is the same in the workspace and on the sheets.
- * A parent shows its derived end date, or an en dash. A task without subtasks shows its end date,
- * else "start –" when only the start is set. The text is empty when the task has no date.
+ * It shows the end date, else "start –" when only the start is set. A parent uses its planned
+ * window. The text is empty when the task has no date.
  */
 export function formatTarget(
 	dates: { start: ISODate | null; end: ISODate | null },
-	isParent: boolean,
 	locale: string
 ): string {
 	if (dates.end) return formatDay(dates.end, locale);
-	if (isParent) return '–';
 	return dates.start ? `${formatDay(dates.start, locale)} –` : '';
 }
 

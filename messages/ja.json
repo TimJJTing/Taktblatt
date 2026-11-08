@@ -68,7 +68,6 @@
 	"ready_label_plain": "開始可能",
 	"ready_label_subtasks": "開始可能。開始可能なサブタスク：{count} 件",
 	"target_empty": "日付を設定",
-	"target_derived": "サブタスクの最も遅い終了日",
 	"date_start": "開始",
 	"date_end": "終了",
 	"date_clear": "クリア",
@@ -82,7 +81,6 @@
 	"owner_rename": "すべて名前を変更…",
 	"owner_rename_title": "「{name}」の名前をすべて変更",
 	"owner_rename_body": "この計画のすべてのタスクで「{name}」が新しい名前に置き換わります。",
-	"owner_derived": "担当者はサブタスクから決まります。",
 	"owner_more": "+{count}",
 	"owner_suggestions": "候補",
 	"action_rename": "名前を変更",
@@ -123,10 +121,7 @@
 	"move_fix_parent": "「{parent}」からこのタスクへの依存関係を解除します。親タスクはサブタスクに依存できません。",
 	"move_fix_start": "このタスクの開始日をクリアします。そうしないと「{dependency}」が「{dependent}」の終了後に始まります。",
 	"move_fix_end": "このタスクの終了日をクリアします。そうしないと「{dependency}」が「{dependent}」の終了後に始まります。",
-	"move_warnings": "移動後、次の依存関係に警告が表示されます：",
-	"move_warning_item": "「{dependent}」は「{dependency}」に依存",
 	"move_apply": "解除して移動",
-	"move_apply_warn": "移動",
 	"section_header": "ヘッダー",
 	"section_timeline": "タイムライン",
 	"section_stage_overview": "ステージ概要",
@@ -249,7 +244,6 @@
 	"milestone_label": "{symbol} {title}（{date}）",
 	"footer_separator": "・",
 	"sheet_page": "{number} / {total}",
-	"owner_derived_hint": "担当者はサブタスクから決まります。{owners}",
 	"validation_date": "日付は YYYY-MM-DD 形式で指定してください。",
 	"validation_range": "期間の開始日は終了日以前にしてください。",
 	"validation_task_stage": "各タスクは計画内のステージに属する必要があります。",
@@ -291,5 +285,6 @@
 	"move_fix_scope": "依存関係を削除：サブタスクは同じ親を持つタスクにのみ依存できます。",
 	"import_dependency_warnings": "警告のある依存関係：{count} 件。タスクを開くと警告が表示されます。",
 	"dependency_warning_subtask_scope": "サブタスクは同じ親を持つタスクにのみ依存できます。",
-	"dependency_subtask_help": "別のタスクに依存するには、このサブタスクをタスクにするか、同じ親の下に移動してください。"
+	"dependency_subtask_help": "別のタスクに依存するには、このサブタスクをタスクにするか、同じ親の下に移動してください。",
+	"date_subtask_floor": "日付の範囲にはサブタスクの日付を含めてください：{range}。"
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
 	boardColumn,
+	breaksSubtaskFloor,
+	subtaskFloor,
+	expandParents,
 	effectiveOf,
 	effectiveValues,
 	hasValidRange,
@@ -10,12 +13,14 @@ import {
 	stageDeliverables,
 	stageProgress,
 	stageSpan,
+	squashSubtasks,
+	mergeIntoParent,
 	tasksSpan,
 	type Readiness,
 	type TaskState
 } from './derive.ts';
 import { createExamplePlan } from './example.ts';
-import { makeTask } from './test-helpers.ts';
+import { makePlan, makeTask } from './test-helpers.ts';
 
 describe('effectiveValues', () => {
 	it('uses the own values of a task without subtasks', () => {
@@ -34,11 +39,11 @@ describe('effectiveValues', () => {
 		});
 	});
 
-	it('derives the values of a parent from its subtasks and hides the fallback values', () => {
+	it('keeps a wider stored window and derives only status from subtasks', () => {
 		const p = makeTask({
 			id: 'p',
 			start: '2026-01-01',
-			end: '2026-12-31',
+			end: '2028-12-31',
 			owners: ['Old'],
 			status: 'done'
 		});
@@ -58,9 +63,9 @@ describe('effectiveValues', () => {
 			owners: ['bo', 'Cy']
 		});
 		expect(effectiveValues(p, [c1, c2])).toEqual({
-			start: '2027-01-05',
-			end: '2027-01-20',
-			owners: ['Bo', 'Cy'],
+			start: '2026-01-01',
+			end: '2028-12-31',
+			owners: ['Old', 'Bo', 'Cy'],
 			status: 'in_progress'
 		});
 	});
@@ -83,9 +88,12 @@ describe('effectiveValues', () => {
 		expect(parent.status).toBe('done');
 	});
 
-	it('gives empty dates when all subtasks have empty dates', () => {
+	it('keeps stored dates when all subtasks have empty dates', () => {
 		const p = makeTask({ id: 'p', start: '2027-01-01', end: '2027-01-02' });
-		expect(effectiveValues(p, [makeTask({ id: 'c', parentId: 'p' })]).start).toBeNull();
+		expect(effectiveValues(p, [makeTask({ id: 'c', parentId: 'p' })])).toMatchObject({
+			start: '2027-01-01',
+			end: '2027-01-02'
+		});
 	});
 });
 
@@ -173,8 +181,8 @@ describe('stage values', () => {
 		expect(stageDeliverables(index, 's1')).toEqual(['Doc']);
 	});
 
-	it('calculates the span of a stage', () => {
-		expect(stageSpan(index, 's1')).toEqual({ start: '2027-01-03', end: '2027-01-08' });
+	it('calculates the span of a stage with the planned window of a parent', () => {
+		expect(stageSpan(index, 's1')).toEqual({ start: '2027-01-03', end: '2027-02-10' });
 		expect(stageSpan(index, 's2')).toBeNull();
 	});
 });
@@ -206,21 +214,21 @@ describe('orderedMilestones', () => {
 });
 
 describe('tasksSpan', () => {
-	it('uses effective dates and excludes hidden parent fallback dates', () => {
+	it('includes the stored parent window in the plan span', () => {
 		const index = indexTasks([
 			makeTask({ id: 'parent', start: '2026-01-01', end: '2028-12-31' }),
 			makeTask({ id: 'child', parentId: 'parent', start: '2027-02-01', end: '2027-02-10' }),
 			makeTask({ id: 'other', stageId: 's2', start: '2027-01-01', end: '2027-03-01' })
 		]);
-		expect(tasksSpan(index)).toEqual({ start: '2027-01-01', end: '2027-03-01' });
+		expect(tasksSpan(index)).toEqual({ start: '2026-01-01', end: '2028-12-31' });
 	});
 
-	it('returns null when only hidden fallback dates are set', () => {
+	it('keeps the parent span when its subtasks have no dates', () => {
 		const index = indexTasks([
 			makeTask({ id: 'parent', start: '2027-01-01', end: '2027-02-01' }),
 			makeTask({ id: 'child', parentId: 'parent' })
 		]);
-		expect(tasksSpan(index)).toBeNull();
+		expect(tasksSpan(index)).toEqual({ start: '2027-01-01', end: '2027-02-01' });
 	});
 
 	it('includes dates when only one endpoint is set', () => {
@@ -671,5 +679,371 @@ describe('PR 4 example readiness', () => {
 			via: 'subtasks',
 			count: 1
 		});
+	});
+});
+
+describe('squashSubtasks', () => {
+	it('includes canceled dates and owners but excludes canceled status from the parent rule', () => {
+		const children = [
+			makeTask({
+				id: 'done',
+				start: '2027-02-05',
+				end: '2027-02-10',
+				owners: [' Ann ', 'BO'],
+				status: 'done'
+			}),
+			makeTask({
+				id: 'canceled',
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['ann', ' Cy ', ''],
+				status: 'canceled'
+			})
+		];
+		const expected = {
+			start: '2027-02-01',
+			end: '2027-02-20',
+			owners: ['Ann', 'BO', 'Cy'],
+			status: 'done'
+		};
+		expect(squashSubtasks(children)).toEqual(expected);
+		// The parent keeps its own owners first in its planned window.
+		expect(
+			effectiveValues(makeTask({ id: 'parent', status: 'todo', owners: ['Hidden'] }), children)
+		).toEqual({ ...expected, owners: ['Hidden', 'Ann', 'BO', 'Cy'] });
+	});
+
+	it.each([
+		{ statuses: ['canceled', 'canceled'], status: 'canceled' },
+		{ statuses: ['todo', 'canceled'], status: 'todo' },
+		{ statuses: ['done', 'todo'], status: 'in_progress' },
+		{ statuses: ['in_progress', 'canceled'], status: 'in_progress' }
+	] as const)('squashes $statuses with empty dates to $status', ({ statuses, status }) => {
+		expect(
+			squashSubtasks(statuses.map((status, i) => makeTask({ id: String(i), status })))
+		).toEqual({ start: null, end: null, owners: [], status });
+	});
+
+	it('skips empty endpoints independently', () => {
+		expect(
+			squashSubtasks([
+				makeTask({ id: 'a', end: '2027-03-10' }),
+				makeTask({ id: 'b', start: '2027-03-01' })
+			])
+		).toEqual({ start: '2027-03-01', end: '2027-03-10', owners: [], status: 'todo' });
+	});
+});
+
+describe('mergeIntoParent', () => {
+	it.each([
+		{
+			ownStart: '2027-01-01',
+			ownEnd: '2027-12-31',
+			childStart: '2027-02-01',
+			childEnd: '2027-02-20',
+			start: '2027-01-01',
+			end: '2027-12-31'
+		},
+		{
+			ownStart: '2027-02-05',
+			ownEnd: '2027-02-10',
+			childStart: '2027-02-01',
+			childEnd: '2027-02-20',
+			start: '2027-02-01',
+			end: '2027-02-20'
+		},
+		{
+			ownStart: null,
+			ownEnd: '2027-02-10',
+			childStart: '2027-02-01',
+			childEnd: null,
+			start: '2027-02-01',
+			end: '2027-02-10'
+		},
+		{
+			ownStart: '2027-02-01',
+			ownEnd: null,
+			childStart: null,
+			childEnd: '2027-02-10',
+			start: '2027-02-01',
+			end: '2027-02-10'
+		},
+		{ ownStart: null, ownEnd: null, childStart: null, childEnd: null, start: null, end: null }
+	] as const)(
+		'merges date endpoints: $ownStart / $ownEnd with $childStart / $childEnd',
+		({ ownStart, ownEnd, childStart, childEnd, start, end }) => {
+			const parent = makeTask({
+				id: 'p',
+				start: ownStart,
+				end: ownEnd,
+				owners: [' Bo ', 'ANN'],
+				status: 'in_progress'
+			});
+			const merged = mergeIntoParent(parent, [
+				makeTask({
+					id: 'c',
+					parentId: 'p',
+					start: childStart,
+					end: childEnd,
+					owners: ['ann', 'Cy', 'bo'],
+					status: 'done'
+				})
+			]);
+			expect(merged).toMatchObject({ start, end, owners: ['Bo', 'ANN', 'Cy'], status: 'done' });
+		}
+	);
+});
+
+describe('expandParents', () => {
+	it('widens both endpoints, unions owners in parent-first order and writes derived status', () => {
+		const parent = makeTask({
+			id: 'p',
+			start: '2027-02-05',
+			end: '2027-02-10',
+			owners: [' Own ', 'ann'],
+			status: 'todo',
+			note: 'Keep this'
+		});
+		const children = [
+			makeTask({
+				id: 'a',
+				parentId: 'p',
+				start: '2027-02-01',
+				owners: ['Ann', 'Bo'],
+				status: 'done'
+			}),
+			makeTask({
+				id: 'b',
+				parentId: 'p',
+				end: '2027-02-20',
+				owners: ['bo', 'Cy'],
+				status: 'canceled'
+			})
+		];
+		const beforeChildren = structuredClone(children);
+		const plan = makePlan([children[0], parent, children[1]]);
+		expandParents(plan);
+		expect(parent).toMatchObject({
+			start: '2027-02-01',
+			end: '2027-02-20',
+			owners: ['Own', 'ann', 'Bo', 'Cy'],
+			status: 'done',
+			note: 'Keep this'
+		});
+		expect(children).toEqual(beforeChildren);
+	});
+
+	it('ignores null subtask endpoints and keeps empty endpoints when no dates exist', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p', start: '2027-01-01', end: '2027-01-31', status: 'done' }),
+			makeTask({ id: 'c', parentId: 'p' }),
+			makeTask({ id: 'empty' }),
+			makeTask({ id: 'empty-child', parentId: 'empty' })
+		]);
+		expandParents(plan);
+		expect(plan.tasks[0]).toMatchObject({ start: '2027-01-01', end: '2027-01-31', status: 'todo' });
+		expect(plan.tasks[2]).toMatchObject({ start: null, end: null });
+	});
+
+	it('does not shrink dates or owners when a subtask narrows, and still updates status', () => {
+		const parent = makeTask({ id: 'p' });
+		const child = makeTask({
+			id: 'c',
+			parentId: 'p',
+			start: '2027-01-01',
+			end: '2027-03-31',
+			owners: ['Ann']
+		});
+		const plan = makePlan([parent, child]);
+		expandParents(plan);
+		Object.assign(child, { start: '2027-02-01', end: '2027-02-02', owners: [], status: 'done' });
+		expandParents(plan);
+		expect(parent).toMatchObject({
+			start: '2027-01-01',
+			end: '2027-03-31',
+			owners: ['Ann'],
+			status: 'done'
+		});
+		const once = structuredClone(plan);
+		expandParents(plan);
+		expect(plan).toEqual(once);
+	});
+
+	it('leaves childless tasks untouched, including their status and owner spelling', () => {
+		const plan = makePlan([
+			makeTask({ id: 'leaf', owners: [' Ann ', 'ann'], status: 'in_progress', start: '2027-01-01' })
+		]);
+		const before = structuredClone(plan);
+		expandParents(plan);
+		expect(plan).toEqual(before);
+	});
+});
+
+describe('closed parent windows', () => {
+	it.each([
+		{
+			name: 'closes an inverted window made from opposite open endpoints',
+			parent: { start: null, end: '2027-02-01' },
+			children: [{ start: '2027-03-01', end: null }],
+			expected: { start: '2027-02-01', end: '2027-03-01' }
+		},
+		{
+			name: 'extends the end to contain a start-only subtask',
+			parent: { start: '2027-01-01', end: '2027-01-05' },
+			children: [{ start: '2027-03-01', end: null }],
+			expected: { start: '2027-01-01', end: '2027-03-01' }
+		},
+		{
+			name: 'keeps a start-only window open',
+			parent: { start: null, end: null },
+			children: [{ start: '2027-03-01', end: null }],
+			expected: { start: '2027-03-01', end: null }
+		},
+		{
+			name: 'extends the start to contain an end-only subtask',
+			parent: { start: '2027-03-01', end: '2027-03-05' },
+			children: [{ start: null, end: '2027-01-01' }],
+			expected: { start: '2027-01-01', end: '2027-03-05' }
+		},
+		{
+			name: 'keeps an end-only window open',
+			parent: { start: null, end: null },
+			children: [{ start: null, end: '2027-01-01' }],
+			expected: { start: null, end: '2027-01-01' }
+		},
+		{
+			name: 'contains every subtask date even when squashed endpoints hide the extremes',
+			parent: { start: '2027-02-01', end: '2027-02-05' },
+			children: [
+				{ start: '2027-02-02', end: '2027-02-04' },
+				{ start: '2027-03-01', end: null },
+				{ start: null, end: '2027-01-01' }
+			],
+			expected: { start: '2027-01-01', end: '2027-03-01' }
+		}
+	] as const)('$name', ({ parent: dates, children: ranges, expected }) => {
+		const parent = makeTask({ id: 'p', ...dates });
+		const children = ranges.map((range, i) => makeTask({ id: `c${i}`, parentId: 'p', ...range }));
+		const effective = effectiveValues(parent, children);
+		expect.soft(effective).toMatchObject(expected);
+		expect.soft(mergeIntoParent(parent, children)).toMatchObject(expected);
+		expect(parent).toMatchObject(dates);
+		expandParents(makePlan([parent, ...children]));
+		expect(parent).toMatchObject(expected);
+		expect(parent).toMatchObject(effective);
+	});
+});
+
+describe('subtaskFloor', () => {
+	it('has no floor when there are no subtasks', () => {
+		expect(subtaskFloor([])).toBeUndefined();
+	});
+
+	it('keeps all limits empty when subtasks have no dates', () => {
+		expect(subtaskFloor([makeTask({ id: 'empty' })])).toEqual({
+			start: null,
+			end: null,
+			first: null,
+			last: null
+		});
+	});
+
+	it('keeps endpoint limits and all-date limits distinct, including canceled subtasks', () => {
+		const children = [
+			makeTask({ id: 'range', start: '2027-02-01', end: '2027-02-05' }),
+			makeTask({ id: 'late', start: '2027-03-01' }),
+			makeTask({ id: 'early', end: '2027-01-01', status: 'canceled' }),
+			makeTask({ id: 'empty' })
+		];
+		const before = structuredClone(children);
+		expect(subtaskFloor(children)).toEqual({
+			start: '2027-02-01',
+			end: '2027-02-05',
+			first: '2027-01-01',
+			last: '2027-03-01'
+		});
+		expect(children).toEqual(before);
+	});
+
+	it.each([
+		{ dates: { start: '2027-03-01', end: null }, first: '2027-03-01', last: '2027-03-01' },
+		{ dates: { start: null, end: '2027-01-01' }, first: '2027-01-01', last: '2027-01-01' }
+	] as const)(
+		'includes a single non-null date in both all-date limits: $dates',
+		({ dates, first, last }) => {
+			expect(subtaskFloor([makeTask({ id: 'only', ...dates })])).toEqual({ ...dates, first, last });
+		}
+	);
+});
+
+describe('breaksSubtaskFloor', () => {
+	it.each([
+		{
+			name: 'missing required start',
+			range: { start: null, end: '2027-03-01' },
+			child: { start: '2027-02-01', end: null },
+			expected: true
+		},
+		{
+			name: 'start after the earliest subtask start',
+			range: { start: '2027-02-02', end: null },
+			child: { start: '2027-02-01', end: null },
+			expected: true
+		},
+		{
+			name: 'missing required end',
+			range: { start: '2027-01-01', end: null },
+			child: { start: null, end: '2027-02-01' },
+			expected: true
+		},
+		{
+			name: 'end before the latest subtask end',
+			range: { start: null, end: '2027-01-31' },
+			child: { start: null, end: '2027-02-01' },
+			expected: true
+		},
+		{
+			name: 'closed January window excludes a start-only March date',
+			range: { start: '2027-01-01', end: '2027-01-05' },
+			child: { start: '2027-03-01', end: null },
+			expected: true
+		},
+		{
+			name: 'closed March window excludes an end-only January date',
+			range: { start: '2027-03-01', end: '2027-03-05' },
+			child: { start: null, end: '2027-01-01' },
+			expected: true
+		},
+		{
+			name: 'closed window includes dates at both boundaries',
+			range: { start: '2027-01-01', end: '2027-03-01' },
+			child: { start: '2027-01-01', end: '2027-03-01' },
+			expected: false
+		},
+		{
+			name: 'start-only parent stays open',
+			range: { start: '2027-01-01', end: null },
+			child: { start: '2027-03-01', end: null },
+			expected: false
+		},
+		{
+			name: 'end-only parent stays open',
+			range: { start: null, end: '2027-03-01' },
+			child: { start: null, end: '2027-01-01' },
+			expected: false
+		},
+		{
+			name: 'undated subtasks impose no limits',
+			range: { start: null, end: null },
+			child: { start: null, end: null },
+			expected: false
+		}
+	] as const)('$name', ({ range, child, expected }) => {
+		const floor = {
+			...child,
+			first: child.start ?? child.end,
+			last: child.end ?? child.start
+		};
+		expect(breaksSubtaskFloor(range, floor)).toBe(expected);
 	});
 });

@@ -4,6 +4,7 @@
  * All dates are relative to `today`, so the example is always current.
  */
 import { dayNumber, isoFromDayNumber, todayISO, type ISODate } from './date.ts';
+import { expandParents } from './derive.ts';
 import { createId } from './ids.ts';
 import type { Plan, Task } from './schema.ts';
 
@@ -74,7 +75,7 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		dependsOn: [booking.id]
 	});
 
-	return {
+	const plan: Plan = {
 		id: createId(),
 		heading: 'Community Garden — Spring Season',
 		subheading: 'Example plan',
@@ -148,4 +149,6 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		createdAt: now,
 		updatedAt: now
 	};
+	expandParents(plan);
+	return plan;
 }

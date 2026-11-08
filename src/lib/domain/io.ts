@@ -1,5 +1,6 @@
 /** Import and export of plan files. Refer to docs/data-model.md. */
 import * as v from 'valibot';
+import { expandParents } from './derive.ts';
 import {
 	englishImportDiagnostic,
 	isValidationCode,
@@ -84,6 +85,7 @@ export function parseFile(
 	const plans = result.output.kind === 'plan' ? [result.output.plan] : result.output.plans;
 	for (const plan of plans) {
 		for (const task of plan.tasks) task.owners = normalizeOwners(task.owners);
+		expandParents(plan);
 	}
 	return { ok: true, plans };
 }

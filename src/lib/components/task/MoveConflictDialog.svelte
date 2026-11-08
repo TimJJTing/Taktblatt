@@ -1,5 +1,5 @@
 <!--
-	The move-conflict dialog. It lists the changes that a move needs, and the warnings after the move.
+	The move-conflict dialog. It lists the changes that a move needs.
 	"Remove and move" applies all of them as one undo step. Refer to ADR 6.
 -->
 <script lang="ts">
@@ -49,23 +49,10 @@
 				{/each}
 			</ul>
 		{/if}
-		{#if conflicts.warnings.length}
-			<p class="text-sm text-muted-foreground">{m.move_warnings()}</p>
-			<ul class="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-				{#each conflicts.warnings as warning, i (i)}
-					<li>
-						{m.move_warning_item({
-							dependent: title(warning.taskId),
-							dependency: title(warning.dependencyId)
-						})}
-					</li>
-				{/each}
-			</ul>
-		{/if}
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel onclick={onCancel}>{m.action_cancel()}</AlertDialog.Cancel>
 			<AlertDialog.Action onclick={onConfirm}>
-				{conflicts.fixes.length ? m.move_apply() : m.move_apply_warn()}
+				{m.move_apply()}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

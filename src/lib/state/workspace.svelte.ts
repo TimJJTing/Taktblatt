@@ -7,7 +7,7 @@ import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import { dependencyEdgeKey, dependencyWarnings } from '#lib/domain/dependencies.ts';
 import { nowISO } from '#lib/domain/date.ts';
-import { indexTasks, type TaskIndex } from '#lib/domain/derive.ts';
+import { expandParents, indexTasks, type TaskIndex } from '#lib/domain/derive.ts';
 import { createEmptyPlan } from '#lib/domain/factory.ts';
 import { withNewIds } from '#lib/domain/io.ts';
 import type { Plan } from '#lib/domain/schema.ts';
@@ -127,6 +127,7 @@ export class Workspace {
 	commit(mutate: (plan: Plan) => void): void {
 		const before = $state.snapshot(this.plan) as Plan;
 		mutate(this.plan);
+		expandParents(this.plan);
 		if (JSON.stringify(before) === JSON.stringify($state.snapshot(this.plan))) return;
 		this.plan.updatedAt = nowISO();
 		this.history.record(before);

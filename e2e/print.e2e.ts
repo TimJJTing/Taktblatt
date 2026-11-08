@@ -643,7 +643,7 @@ test('the paper size control follows the radio keyboard pattern', async ({ page 
 
 test('the target column of the sheets follows the workspace rule', async ({ page }) => {
 	await openExample(page);
-	// Keep the start dates and remove the end dates. A parent then has no derived end.
+	// Keep the start dates and remove the end dates. Parents then have only a start, too.
 	await writeStoredPlan(page, (plan) => {
 		for (const task of plan.tasks) {
 			if (task.start) task.end = null;

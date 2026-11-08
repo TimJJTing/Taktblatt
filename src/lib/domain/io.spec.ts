@@ -555,3 +555,62 @@ describe('limitErrors', () => {
 		expect(limitErrors(['a', 'b', 'c', 'd'], 3)).toEqual({ shown: ['a', 'b', 'c'], more: 1 });
 	});
 });
+
+describe('planned windows on import', () => {
+	it.each(['plan', 'backup'] as const)(
+		'widens narrow parents and preserves wider windows in a %s file',
+		(kind) => {
+			const narrow = makeTask({
+				id: 'narrow',
+				start: '2027-02-05',
+				end: '2027-02-10',
+				owners: ['Own'],
+				status: 'todo'
+			});
+			const wide = makeTask({
+				id: 'wide',
+				start: '2027-01-01',
+				end: '2027-12-31',
+				owners: ['Own', 'Child'],
+				status: 'todo'
+			});
+			const plan = makePlan([
+				narrow,
+				makeTask({
+					id: 'a',
+					parentId: 'narrow',
+					start: '2027-02-01',
+					end: '2027-02-20',
+					owners: ['Child'],
+					status: 'done'
+				}),
+				wide,
+				makeTask({
+					id: 'b',
+					parentId: 'wide',
+					start: '2027-02-01',
+					end: '2027-02-20',
+					owners: ['Child'],
+					status: 'done'
+				})
+			]);
+			const file =
+				kind === 'plan'
+					? { schemaVersion: SCHEMA_VERSION, kind, plan }
+					: { schemaVersion: SCHEMA_VERSION, kind, plans: [plan] };
+			const result = parseFile(JSON.stringify(file));
+			expect(result.ok).toBe(true);
+			if (!result.ok) throw new Error('Expected the file to import');
+			expect(result.plans[0].tasks.find((task) => task.id === 'narrow')).toMatchObject({
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['Own', 'Child'],
+				status: 'done'
+			});
+			expect(result.plans[0].tasks.find((task) => task.id === 'wide')).toEqual({
+				...wide,
+				status: 'done'
+			});
+		}
+	);
+});

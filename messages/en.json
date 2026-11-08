@@ -68,7 +68,6 @@
 	"ready_label_plain": "Ready",
 	"ready_label_subtasks": "Ready. Subtasks ready: {count}",
 	"target_empty": "Set date",
-	"target_derived": "The latest end date of the subtasks",
 	"date_start": "Start",
 	"date_end": "End",
 	"date_clear": "Clear",
@@ -82,7 +81,6 @@
 	"owner_rename": "Rename everywhere…",
 	"owner_rename_title": "Rename “{name}” everywhere",
 	"owner_rename_body": "The new name replaces “{name}” in all tasks of this plan.",
-	"owner_derived": "Owners come from the subtasks.",
 	"owner_more": "+{count}",
 	"owner_suggestions": "Suggestions",
 	"action_rename": "Rename",
@@ -123,10 +121,7 @@
 	"move_fix_parent": "Remove the dependency of “{parent}” on this task. A parent cannot depend on its subtask.",
 	"move_fix_start": "Clear the start date of this task. Else “{dependency}” would start after “{dependent}” ends.",
 	"move_fix_end": "Clear the end date of this task. Else “{dependency}” would start after “{dependent}” ends.",
-	"move_warnings": "After the move, these dependencies will show a warning:",
-	"move_warning_item": "“{dependent}” depends on “{dependency}”",
 	"move_apply": "Remove and move",
-	"move_apply_warn": "Move",
 	"section_header": "Header",
 	"section_timeline": "Timeline",
 	"section_stage_overview": "Stage overview",
@@ -249,7 +244,6 @@
 	"milestone_label": "{symbol} {title} ({date})",
 	"footer_separator": " · ",
 	"sheet_page": "{number} / {total}",
-	"owner_derived_hint": "Owners come from the subtasks. {owners}",
 	"validation_date": "Use a date in YYYY-MM-DD format.",
 	"validation_range": "The range must start on or before it ends.",
 	"validation_task_stage": "Each task must belong to a stage of the plan.",
@@ -291,5 +285,6 @@
 	"move_fix_scope": "Remove dependency: a subtask can depend only on tasks with the same parent.",
 	"import_dependency_warnings": "Dependencies with warnings: {count}. Open a task to see the warning.",
 	"dependency_warning_subtask_scope": "A subtask can depend only on tasks with the same parent.",
-	"dependency_subtask_help": "To depend on another task, make this subtask a task, or move it under the same parent."
+	"dependency_subtask_help": "To depend on another task, make this subtask a task, or move it under the same parent.",
+	"date_subtask_floor": "The dates must include the subtask dates: {range}."
 }

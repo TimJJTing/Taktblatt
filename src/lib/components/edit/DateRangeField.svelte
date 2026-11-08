@@ -4,13 +4,14 @@
 -->
 <script lang="ts">
 	import { parseDate, type DateValue } from '@internationalized/date';
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { isComposing } from '#lib/browser/keyboard.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
 	import * as Popover from '#lib/components/ui/popover/index.ts';
 	import { RangeCalendar } from '#lib/components/ui/range-calendar/index.ts';
 	import { todayISO, type ISODate } from '#lib/domain/date.ts';
+	import { breaksSubtaskFloor, type SubtaskFloor } from '#lib/domain/derive.ts';
 	import { formatDate, formatRangeDisplay, readTypedDate } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -21,11 +22,12 @@
 		label: string;
 		/** Set to false for a range that must have both dates (for example the plan range). */
 		allowEmpty?: boolean;
+		floor?: SubtaskFloor;
 		onCommit: (range: { start: ISODate | null; end: ISODate | null }) => void;
 		trigger: Snippet<[{ props: Record<string, unknown> }]>;
 	}
 
-	let { start, end, label, allowEmpty = true, onCommit, trigger }: Props = $props();
+	let { start, end, label, allowEmpty = true, floor, onCommit, trigger }: Props = $props();
 
 	let open = $state(false);
 	let draftStart = $state<ISODate | null>(null);
@@ -48,6 +50,15 @@
 			? { start: parseDate(draftStart), end: parseDate(draftEnd) }
 			: { start: draftStart ? parseDate(draftStart) : undefined, end: undefined }
 	);
+
+	$effect(() => {
+		void [floor?.start, floor?.end, floor?.first, floor?.last];
+		if (open) {
+			untrack(() => {
+				if (error !== m.date_invalid({ example })) validate();
+			});
+		}
+	});
 
 	function reset() {
 		draftStart = start;
@@ -109,7 +120,12 @@
 	}
 
 	function validate() {
-		error = draftStart && draftEnd && draftStart > draftEnd ? m.date_order() : '';
+		error =
+			draftStart && draftEnd && draftStart > draftEnd
+				? m.date_order()
+				: floor && breaksSubtaskFloor({ start: draftStart, end: draftEnd }, floor)
+					? m.date_subtask_floor({ range: formatRangeDisplay(floor.first, floor.last, tag) })
+					: '';
 	}
 
 	function onCalendar(value: { start?: DateValue; end?: DateValue } | undefined) {
@@ -126,7 +142,7 @@
 		draftEnd = null;
 		startText = '';
 		endText = '';
-		error = '';
+		validate();
 	}
 </script>
 

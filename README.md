@@ -33,7 +33,7 @@ Each stage has a card. The card shows the months of the stage, a title, a descri
 ![The work plan table with stages, subtasks and ready lights](docs/screenshots/work-plan.png)
 
 - Tasks are in stages. Each stage has a color.
-- A task can have subtasks. The parent shows the earliest start, the latest end, the owners and the progress of its subtasks.
+- A task can have subtasks. The parent has a planned window: its dates and owners grow to include its subtasks, and you can make the window wider. The parent's status follows its subtasks.
 - Each row has a status select (Todo, In progress, Done or Canceled), a deliverable, a target date and owner chips.
 - A green dot, the ready light, shows that all dependencies of a task are done or canceled and the task is still Todo.
 - Click a cell to edit it. Drag a stage to change the stage order.

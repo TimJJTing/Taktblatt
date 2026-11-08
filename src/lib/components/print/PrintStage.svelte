@@ -1,7 +1,7 @@
 <!--
 	One stage of the work plan on paper: the header and a table of tasks and subtasks.
 	The table header repeats on each sheet where the table continues.
-	Rows are static. A parent row shows its derived values. Labels use the UI language.
+	Rows are static. A parent row shows its planned window and derived status. Labels use the UI language.
 -->
 <script lang="ts">
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
@@ -112,7 +112,7 @@
 				</td>
 				<td class={cn(cell, 'break-words')}>{row.task.deliverable}</td>
 				<td class={cn(cell, 'whitespace-nowrap tabular-nums')}
-					>{formatTarget(row.eff, row.isParent, intl) || '–'}</td
+					>{formatTarget(row.eff, intl) || '–'}</td
 				>
 				<td class={cn(cell, 'break-words')}>{joinList(row.eff.owners, intl)}</td>
 			</tr>

@@ -80,7 +80,13 @@ A **task** has `parentId: null`. A **subtask** has the id of a task in `parentId
 | `dependsOn`    | string[]                                        | Ids of other tasks of the plan. Not its own id.                                                                                                  |
 | `createdAt`    | timestamp                                       | Sort tie-breaker.                                                                                                                                |
 
-A parent keeps its own `start`, `end`, `owners` and `status`. The app does not show these values while the parent has subtasks. The stored values show again after you delete or move the last subtask. Refer to [spec.md](spec.md), section 2.
+A parent's stored `start` and `end` form its **planned window**. All views use these values. For a parent with subtasks, `start` is no later than each non-empty subtask start, and `end` is no earlier than each non-empty subtask end. When the window has both dates, it contains every subtask date. An open window stays open. Its `owners` include all subtask owners. The app normalizes the union with parent owners first. Canceled subtasks contribute dates and owners.
+
+The app expands these stored values after each edit, load and import. A wider window stays. A narrower subtask range or removal of a subtask owner does not remove stored parent values. Users can edit parent dates and owners within the subtask limits. When both parent dates are set, the range must contain every subtask date, including a start-only or end-only date. An open range can stay open if it meets the start and end limits.
+
+The app derives and stores parent `status` from its subtasks on each edit, load and import. It ignores canceled subtasks unless all are canceled. When the last subtask is deleted or moved out, the task keeps its stored dates, owners and status. The action and any expansion form one undo step.
+
+These semantics use the existing fields. The file shape and `schemaVersion` stay unchanged at version 1. Refer to [spec.md](spec.md), section 2, and [ADR 15](adr/0015-parent-planned-window.md).
 
 ## Milestone
 

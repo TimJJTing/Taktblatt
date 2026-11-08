@@ -117,26 +117,32 @@ The `required` title rules and text length limits above are limits of the worksp
 - Owners are plain strings. The app trims them. The app compares them without case. A task has no duplicate owners.
 - A note can contain mention tokens: `@[task:<id>]`. The app shows each token as a chip with the current title of the task.
 
-## 2. Derived values
+## 2. Derived values and planned windows
 
-The app calculates a **derived value** from other data. The user cannot edit a derived value directly. Each derived value has one calculation. All views use the same calculation.
+The app calculates a **derived value** from other data. The user cannot edit a derived value directly. Each derived value has one calculation. All views use the same calculation. A parent's dates and owners are stored, editable values. The app expands them to include the subtasks.
 
-| Value                   | Rule                                                                                                                                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Parent `start`          | The earliest `start` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                    |
-| Parent `end`            | The latest `end` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                        |
-| Parent `owners`         | The union of the owners of its subtasks.                                                                                                                                                                |
-| Parent `status`         | Ignore `canceled` subtasks. Of the other subtasks: all `done` → `done`; all `todo` → `todo`; all other combinations → `in_progress`. All subtasks `canceled` → `canceled`.                              |
-| Parent fallback         | The parent keeps its own `start`, `end`, `owners` and `status` in storage. The app hides these values while the parent has subtasks. The app shows them again when you delete or move the last subtask. |
-| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Tasks or subtasks without `start` go last.                                                    |
-| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The app animates the new order (FLIP).                                                                       |
-| Milestone labels        | The app numbers milestones M1 … Mn by date order.                                                                                                                                                       |
-| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                                           |
-| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". The app hides the months when no tasks have dates.                      |
-| Stage deliverables      | The list of task deliverables of the stage, in task order. The app skips empty values.                                                                                                                  |
-| Stage progress          | "x / y done · z in progress". Count level-1 tasks by effective status. The total y leaves out `canceled` tasks. Hide the in-progress part when z is 0.                                                  |
-| Page numbers            | "n / N". The paginator calculates these values (section 7).                                                                                                                                             |
-| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                                        |
+| Value                   | Rule                                                                                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parent `start`          | The stored start of the planned window. It is no later than the earliest subtask start. Empty subtask dates do not count.                                                                                                              |
+| Parent `end`            | The stored end of the planned window. It is no earlier than the latest subtask end. Empty subtask dates do not count.                                                                                                                  |
+| Parent `owners`         | The stored owners include all subtask owners. The app trims names and compares them without case. It keeps parent owners first, then new subtask owners, with the first spelling.                                                      |
+| Parent `status`         | Ignore `canceled` subtasks. Of the other subtasks: all `done` → `done`; all `todo` → `todo`; all other combinations → `in_progress`. All subtasks `canceled` → `canceled`. The app writes this status on each commit, load and import. |
+| Last subtask removal    | The parent keeps its stored dates, owners and status when the last subtask is deleted or moved out. There is no removal snapshot.                                                                                                      |
+| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Tasks or subtasks without `start` go last.                                                                                   |
+| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The app animates the new order (FLIP).                                                                                                      |
+| Milestone labels        | The app numbers milestones M1 … Mn by date order.                                                                                                                                                                                      |
+| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                                                                          |
+| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". The app hides the months when no tasks have dates.                                                     |
+| Stage deliverables      | The list of task deliverables of the stage, in task order. The app skips empty values.                                                                                                                                                 |
+| Stage progress          | "x / y done · z in progress". Count level-1 tasks by effective status. The total y leaves out `canceled` tasks. Hide the in-progress part when z is 0.                                                                                 |
+| Page numbers            | "n / N". The paginator calculates these values (section 7).                                                                                                                                                                            |
+| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                                                                       |
+
+A **planned window** is the stored date range of a parent. All views and date warnings use it, including the table, task dialog, Gantt, Preview and print. It can be wider than the subtask range. When the window has both dates, it contains every subtask date. An open window stays open.
+
+After each edit, the app expands each parent with subtasks. It keeps the earliest of the parent and subtask starts, the latest of their ends, and the normalized union of their owners. Empty dates do not count. Canceled subtasks contribute dates and owners. The status follows the rule above. The edit and this expansion form one undo step. Undo and redo restore the whole step.
+
+The window never shrinks automatically. A narrower subtask range or removal of a subtask owner does not remove parent values. Edit the parent to reduce its range or remove owners. An empty first subtask keeps the task's dates and owners, but changes its status to the derived status. Load and import apply the same expansion. Refer to [ADR 15](adr/0015-parent-planned-window.md).
 
 ## 3. Dependencies
 
@@ -169,12 +175,12 @@ The app uses the effective graph for cycle checks and readiness. The date rule c
 A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - A stage move does not change the effective graph or any date. It never causes a conflict.
-- A parent change can cause conflicts. Before the move, the app shows the **move-conflict dialog**. The dialog lists:
+- A parent change can require fixes. When fixes are required, the app shows the **move-conflict dialog** before the move. The dialog lists:
   - **Remove dependency (scope):** each own dependency outside the new parent when the moved item becomes a subtask. Also remove dependencies on the moved item from its remaining old siblings.
   - **Remove dependency (parent and child):** a dependency of the new parent on the task or subtask that you move.
-  - **Clear date:** the `start` or the `end` of the task or subtask that you move. The app lists it when the new derived dates of the new parent break the date rule.
-  - **Warning only:** date-rule breaks on the old parent. The app does not change data for these. It shows the usual warning after the move.
-- The dialog has two buttons: **Remove and move** and **Cancel**. When the move has only warnings, the first button is **Move**.
+  - **Clear date:** the `start` or the `end` of the task or subtask that you move. The app lists it when expansion of the new parent's planned window would break the date rule.
+- The dialog has two buttons: **Remove and move** and **Cancel**.
+- A move does not change the old parent's planned window. It causes no date-rule warnings on the old parent.
 - **Remove and move** applies all listed removals and the move as one undo step.
 - **Cancel** does not change data.
 - A moved subtask inherits the own dependencies of its new parent. A cycle through these new inherited edges is permitted. The dialog has no cycle fix. A subtask that becomes a task keeps its dependencies on its old siblings. Legacy incoming dependencies from other parents stay and show a scope warning. Refer to [ADR 13](adr/0013-cycles-are-warnings.md) and [ADR 14](adr/0014-subtasks-depend-only-on-siblings.md).
@@ -220,7 +226,8 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 ### 4.3 Save
 
-- The app saves automatically after each commit.
+- The app saves automatically after each commit. It expands parent windows and writes derived parent status before it saves.
+- When it loads a plan, the app expands parent windows to include the subtasks. Wider stored windows stay unchanged.
 - **Cmd/Ctrl+S** does not do a save. It shows a "Saved" toast. It prevents the browser save dialog.
 - When a plan changes in a different browser tab, the app loads the new data (the `storage` event). The last write wins.
 - When the stored data does not parse or validate, the app:
@@ -255,6 +262,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Export all plans** writes a `BackupFile`. The file name is `taktblatt-backup-<YYYY-MM-DD>.json`. The date is the export date.
 - Import accepts both kinds. The app validates the file. If the file is not valid, the app shows the errors and does not change data.
 - Import rejects duplicate ids in the stages, tasks, milestones, bands or remark sections of a plan. It also rejects a dependency between a parent and its own subtask. Load and import accept cycles in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
+- Import expands parent windows and owners to include the subtasks, and writes derived parent status. This applies to each plan in a backup. Wider imported windows stay unchanged.
 - Import permits date-rule conflicts and shows warnings for them.
 - Import adds each plan as a new plan. The last imported plan becomes active. A toast confirms the import. If stored dependencies have cycle, date or subtask scope warnings, a second toast shows the number of dependency rows with warnings. A row with one or more warning kinds counts once. Import is not an undo step.
 - If the browser cannot save the data, import undoes its own writes and shows an error.
@@ -361,8 +369,9 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Columns:** Status | Task | Deliverable | Target | Owner | "…".
 - **Status:** a compact select with an icon. An empty circle means Todo. A half-filled circle means In progress. A check-circle means Done. A circle with a slash means Canceled. The options are Todo, In progress, Done and Canceled, in this order. They show the icon and label. The trigger has a status hint and an accessible name with the task and status. Only done and canceled rows are dimmed, and their titles are struck through. A parent shows its derived status in a disabled select. Its hint wrapper gets keyboard focus.
 - Each status change uses `updateTask` and adds one undo step. Opening or closing the select, or selecting the current value, adds no step. Undo and redo restore the status. The select uses standard keyboard controls: Enter or Space opens it, arrows move between options, Enter selects, and Escape closes it. Focus returns to the trigger.
-- **Target:** shows the `end` date. Hover shows the full range. Click opens the date picker. It can be empty. For a parent, the app calculates it from the subtask dates.
-- **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. For a parent, the app calculates the owners from its subtasks. The chip menu has **Rename everywhere…**. This renames the owner in all tasks of the plan.
+- **Target:** shows the `end` date, or "start –" when only the start is set. This rule is the same for all rows and on the sheets. Hover shows the full range. Click opens the date picker. It can be empty. A parent shows its stored planned window. Its dates are editable within the subtask limits below.
+- **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. A parent shows its stored owners. Its editor has no remove button for an owner that a subtask uses. It compares these names without case, after trimming. Other owners can be removed, and new owners can be added. The chip menu has **Rename everywhere…**. This renames the owner in all tasks of the plan.
+- **Parent date limits:** the start must be no later than the earliest subtask start. The end must be no earlier than the latest subtask end. Empty subtask dates do not count. A parent date cannot be cleared when a subtask has that date. When both parent dates are set, the range must contain every subtask date, including a start-only or end-only date. An open range can stay open if it meets the start and end limits. A typed or calendar range that breaks a limit shows an alert with the required range and disables **Done**. If subtask dates change while the editor is open, the app checks the draft against the new limits. It keeps any typed-date error. An ordinary close discards this invalid draft. Esc cancels any draft. Focus returns to the trigger after dismissal.
 - **Tasks and subtasks:** a parent has a chevron. Other tasks have a spacer, so the titles align. Subtask rows indent the title cell only.
 - **Add task:** a "+" line at the end of the stage. It starts at the task indent.
 - **Add subtask:** a "+" line after the last subtask of a parent. It starts at the subtask indent. It shows when the task or one of its subtasks has hover or focus. On a task without subtasks, it adds the first subtask and expands the task.
@@ -376,6 +385,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 - The dialog shows all fields of the task: title, deliverable, range, owners, status, note, dependencies.
 - The status uses the same select as the table. The dialog trigger shows the icon and label, so it has no status hint. A parent shows its derived status in a disabled select. The hint wrapper adds no tab stop.
+- Parent dates and owners use the same editors and subtask limits as the table.
 - It also shows **Stage** and **Parent**.
   - **Stage** moves a task and its subtasks to a different stage.
   - **Parent** is "None (task)" or another top-level task in the same stage, with or without subtasks. "None (task)" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
@@ -406,11 +416,11 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 ### 5.10 Hints
 
-- Controls and status marks show their hints in a tooltip. Examples: the header buttons, the "+" buttons, the pin and height buttons of the timeline, the Gantt labels, bars, points, milestones and bands, the stage color swatches, the ready light and the derived values of a parent.
+- Controls and status marks show their hints in a tooltip. Examples: the header buttons, the "+" buttons, the pin and height buttons of the timeline, the Gantt labels, bars, points, milestones and bands, the stage color swatches, the ready light and the derived status of a parent.
 - The app does not use the native `title` attribute. A unit test checks this.
-- A tooltip opens on hover. On an element that can get keyboard focus, it also opens on keyboard focus. The controls, the Gantt bars and points, and the derived status select of a parent in the work plan get keyboard focus. Other status marks do not get a tab stop: the ready light, the derived range and owners, the Gantt outside markers, the dependency warnings and inherited dependencies, and the derived status select in the task dialog.
+- A tooltip opens on hover. On an element that can get keyboard focus, it also opens on keyboard focus. The controls, the Gantt bars and points, and the derived status select of a parent in the work plan get keyboard focus. Other status marks do not get a tab stop: the ready light, the Gantt outside markers, the dependency warnings and inherited dependencies, and the derived status select in the task dialog.
 - The text alternative stays in the `aria-label`. When the hint gives more information than the name, the app gives this information to assistive technology too. For example, a Gantt label has the hint "Title: Show in the work plan" as its accessible description. A stage color swatch that another stage uses has "Another stage uses this color." in its accessible name.
-- An owner field with more owners than chips shows the full owner list as its hint. The derived owners of a parent show "Owners come from the subtasks." and, when chips are hidden, the full owner list.
+- An owner field with more owners than chips shows the full owner list as its hint.
 - Preview and printed sheets show no hints.
 - Components show hints with `Hint.svelte` in `src/lib/components/app/`. It wraps the tooltip primitive.
 

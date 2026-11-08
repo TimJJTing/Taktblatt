@@ -3,10 +3,8 @@
 	Each field saves on blur. Esc closes the modal. The focus goes back to the "…" button.
 -->
 <script lang="ts">
-	import Hint from '#lib/components/app/Hint.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
@@ -22,6 +20,7 @@
 		type MoveTarget
 	} from '#lib/domain/dependencies.ts';
 	import { formatRangeDisplay } from '#lib/domain/format.ts';
+	import { squashSubtasks, subtaskFloor } from '#lib/domain/derive.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { allOwners } from '#lib/domain/owners.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -41,6 +40,7 @@
 	const open = $derived(task !== undefined);
 	const children = $derived(task ? (ws.index.children.get(task.id) ?? []) : []);
 	const isParent = $derived(children.length > 0);
+	const subtaskValues = $derived(isParent ? squashSubtasks(children) : undefined);
 	const taskState = $derived(task ? ws.index.state.get(task.id) : undefined);
 	const eff = $derived(taskState?.eff ?? null);
 	const locale = uiIntl();
@@ -81,7 +81,7 @@
 	function requestMove(target: MoveTarget) {
 		if (!task) return;
 		const conflicts = moveConflicts(ws.plan, task.id, target);
-		if (conflicts.fixes.length || conflicts.warnings.length) {
+		if (conflicts.fixes.length) {
 			pendingMove = { target, conflicts };
 			return;
 		}
@@ -154,62 +154,40 @@
 
 				<dt class="text-muted-foreground">{m.field_range()}</dt>
 				<dd>
-					{#if isParent}
-						<Hint text={m.target_derived()} focusable={false}>
-							{#snippet child({ props })}
-								<span {...props} class="px-1.5 text-foreground/80">
-									{formatRangeDisplay(eff.start, eff.end, locale)}
-								</span>
-							{/snippet}
-						</Hint>
-					{:else}
-						<DateRangeField
-							start={task.start}
-							end={task.end}
-							label={m.field_range()}
-							onCommit={(range) => updateTask(ws, task.id, range)}
-						>
-							{#snippet trigger({ props })}
-								<button
-									{...props}
-									type="button"
-									class="rounded-sm px-1.5 py-0.5 text-left hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-									data-testid="dialog-range"
-								>
-									{#if task.start || task.end}
-										{formatRangeDisplay(task.start, task.end, locale)}
-									{:else}
-										<span class="text-muted-foreground">{m.target_empty()}</span>
-									{/if}
-								</button>
-							{/snippet}
-						</DateRangeField>
-					{/if}
+					<DateRangeField
+						floor={subtaskFloor(children)}
+						start={task.start}
+						end={task.end}
+						label={m.field_range()}
+						onCommit={(range) => updateTask(ws, task.id, range)}
+					>
+						{#snippet trigger({ props })}
+							<button
+								{...props}
+								type="button"
+								class="rounded-sm px-1.5 py-0.5 text-left hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+								data-testid="dialog-range"
+							>
+								{#if task.start || task.end}
+									{formatRangeDisplay(task.start, task.end, locale)}
+								{:else}
+									<span class="text-muted-foreground">{m.target_empty()}</span>
+								{/if}
+							</button>
+						{/snippet}
+					</DateRangeField>
 				</dd>
 
 				<dt class="text-muted-foreground">{m.column_owner()}</dt>
 				<dd>
-					{#if isParent}
-						{@const ownersHint = ownerListHint(eff.owners, 6)}
-						<Hint
-							text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
-							focusable={false}
-						>
-							{#snippet child({ props })}
-								<span {...props} class="flex px-1.5"
-									><OwnerChips owners={eff.owners} max={6} /></span
-								>
-							{/snippet}
-						</Hint>
-					{:else}
-						<OwnerField
-							owners={task.owners}
-							suggestions={ownerSuggestions}
-							label={m.column_owner()}
-							onChange={(owners) => updateTask(ws, task.id, { owners })}
-							onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
-						/>
-					{/if}
+					<OwnerField
+						locked={subtaskValues?.owners}
+						owners={task.owners}
+						suggestions={ownerSuggestions}
+						label={m.column_owner()}
+						onChange={(owners) => updateTask(ws, task.id, { owners })}
+						onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
+					/>
 				</dd>
 
 				<dt class="text-muted-foreground">{m.field_stage()}</dt>

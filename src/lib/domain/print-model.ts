@@ -76,8 +76,6 @@ export interface TableRow {
 	task: Task;
 	/** 0 for a task, 1 for a subtask. */
 	level: 0 | 1;
-	/** True when the task has subtasks. Its values are derived. */
-	isParent: boolean;
 	eff: EffectiveValues;
 	readiness: Readiness;
 }
@@ -221,7 +219,6 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 			tableRows.push({
 				task,
 				level: 0,
-				isParent: children.length > 0,
 				eff: index.state.get(task.id)!.eff,
 				readiness: index.state.get(task.id)!.readiness
 			});
@@ -230,7 +227,6 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 				tableRows.push({
 					task: child,
 					level: 1,
-					isParent: false,
 					eff: index.state.get(child.id)!.eff,
 					readiness: index.state.get(child.id)!.readiness
 				});

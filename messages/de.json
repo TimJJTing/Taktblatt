@@ -68,7 +68,6 @@
 	"ready_label_plain": "Bereit",
 	"ready_label_subtasks": "Bereit. Bereite Teilaufgaben: {count}",
 	"target_empty": "Datum setzen",
-	"target_derived": "Das späteste Enddatum der Teilaufgaben",
 	"date_start": "Beginn",
 	"date_end": "Ende",
 	"date_clear": "Löschen",
@@ -82,7 +81,6 @@
 	"owner_rename": "Überall umbenennen…",
 	"owner_rename_title": "„{name}“ überall umbenennen",
 	"owner_rename_body": "Der neue Name ersetzt „{name}“ in allen Aufgaben dieses Plans.",
-	"owner_derived": "Die Verantwortlichen kommen von den Teilaufgaben.",
 	"owner_more": "+{count}",
 	"owner_suggestions": "Vorschläge",
 	"action_rename": "Umbenennen",
@@ -123,10 +121,7 @@
 	"move_fix_parent": "Abhängigkeit von „{parent}“ von dieser Aufgabe entfernen. Eine übergeordnete Aufgabe kann nicht von ihrer Teilaufgabe abhängen.",
 	"move_fix_start": "Beginn dieser Aufgabe löschen. Sonst würde „{dependency}“ nach dem Ende von „{dependent}“ beginnen.",
 	"move_fix_end": "Ende dieser Aufgabe löschen. Sonst würde „{dependency}“ nach dem Ende von „{dependent}“ beginnen.",
-	"move_warnings": "Nach der Verschiebung zeigen diese Abhängigkeiten eine Warnung:",
-	"move_warning_item": "„{dependent}“ hängt ab von „{dependency}“",
 	"move_apply": "Entfernen und verschieben",
-	"move_apply_warn": "Verschieben",
 	"section_header": "Kopfbereich",
 	"section_timeline": "Zeitachse",
 	"section_stage_overview": "Phasenübersicht",
@@ -249,7 +244,6 @@
 	"milestone_label": "{symbol} {title} ({date})",
 	"footer_separator": " · ",
 	"sheet_page": "{number} / {total}",
-	"owner_derived_hint": "Die Verantwortlichen kommen von den Teilaufgaben. {owners}",
 	"validation_date": "Verwenden Sie ein Datum im Format JJJJ-MM-TT.",
 	"validation_range": "Das Startdatum des Zeitraums muss vor oder auf dem Enddatum liegen.",
 	"validation_task_stage": "Jede Aufgabe muss zu einer Phase des Plans gehören.",
@@ -291,5 +285,6 @@
 	"move_fix_scope": "Abhängigkeit entfernen: Eine Teilaufgabe kann nur von Aufgaben mit derselben übergeordneten Aufgabe abhängen.",
 	"import_dependency_warnings": "Abhängigkeiten mit Warnungen: {count}. Öffnen Sie eine Aufgabe, um die Warnung zu sehen.",
 	"dependency_warning_subtask_scope": "Eine Teilaufgabe kann nur von Aufgaben mit derselben übergeordneten Aufgabe abhängen.",
-	"dependency_subtask_help": "Um eine Abhängigkeit zu einer anderen Aufgabe hinzuzufügen, machen Sie diese Teilaufgabe zu einer Aufgabe oder verschieben Sie sie unter dieselbe übergeordnete Aufgabe."
+	"dependency_subtask_help": "Um eine Abhängigkeit zu einer anderen Aufgabe hinzuzufügen, machen Sie diese Teilaufgabe zu einer Aufgabe oder verschieben Sie sie unter dieselbe übergeordnete Aufgabe.",
+	"date_subtask_floor": "Die Daten müssen die Daten der Teilaufgaben einschließen: {range}."
 }
