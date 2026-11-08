@@ -1,4 +1,3 @@
-import { effectiveValues, indexTasks } from '#lib/domain/derive.ts';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	addTask,
