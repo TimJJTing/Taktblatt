@@ -121,10 +121,7 @@
 	"move_fix_parent": "Abhängigkeit von „{parent}“ von dieser Aufgabe entfernen. Eine übergeordnete Aufgabe kann nicht von ihrer Teilaufgabe abhängen.",
 	"move_fix_start": "Beginn dieser Aufgabe löschen. Sonst würde „{dependency}“ nach dem Ende von „{dependent}“ beginnen.",
 	"move_fix_end": "Ende dieser Aufgabe löschen. Sonst würde „{dependency}“ nach dem Ende von „{dependent}“ beginnen.",
-	"move_warnings": "Nach der Verschiebung zeigen diese Abhängigkeiten eine Warnung:",
-	"move_warning_item": "„{dependent}“ hängt ab von „{dependency}“",
 	"move_apply": "Entfernen und verschieben",
-	"move_apply_warn": "Verschieben",
 	"section_header": "Kopfbereich",
 	"section_timeline": "Zeitachse",
 	"section_stage_overview": "Phasenübersicht",
@@ -289,5 +286,5 @@
 	"import_dependency_warnings": "Abhängigkeiten mit Warnungen: {count}. Öffnen Sie eine Aufgabe, um die Warnung zu sehen.",
 	"dependency_warning_subtask_scope": "Eine Teilaufgabe kann nur von Aufgaben mit derselben übergeordneten Aufgabe abhängen.",
 	"dependency_subtask_help": "Um eine Abhängigkeit zu einer anderen Aufgabe hinzuzufügen, machen Sie diese Teilaufgabe zu einer Aufgabe oder verschieben Sie sie unter dieselbe übergeordnete Aufgabe.",
-	"date_subtask_floor": "Die Daten müssen die Termine der Unteraufgaben einschließen: {range}."
+	"date_subtask_floor": "Die Daten müssen die Daten der Teilaufgaben einschließen: {range}."
 }

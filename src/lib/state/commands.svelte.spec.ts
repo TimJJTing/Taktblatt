@@ -155,9 +155,6 @@ describe('commands', () => {
 		addTask(ws, stageId, { parentId: id });
 		discardNewTask(ws, id);
 		expect(ws.plan.tasks).toHaveLength(2);
-		updateTask(ws, id, { status: 'done' });
-		discardNewTask(ws, id);
-		expect(ws.plan.tasks).toHaveLength(2);
 
 		for (const patch of [
 			{ deliverable: 'Spec' },
@@ -392,13 +389,16 @@ describe('task commands', () => {
 		expect(ws.history.canRedo).toBe(false);
 	});
 
-	it('keeps an otherwise empty new task with in-progress status', () => {
-		const ws = open();
-		const id = addTask(ws, ws.plan.stages[0].id);
-		updateTask(ws, id, { status: 'in_progress' });
-		discardNewTask(ws, id);
-		expect(ws.plan.tasks.find((task) => task.id === id)?.status).toBe('in_progress');
-	});
+	it.each(['in_progress', 'done', 'canceled'] as const)(
+		'keeps an otherwise empty new task with %s status',
+		(status) => {
+			const ws = open();
+			const id = addTask(ws, ws.plan.stages[0].id);
+			updateTask(ws, id, { status });
+			discardNewTask(ws, id);
+			expect(ws.plan.tasks.find((task) => task.id === id)?.status).toBe(status);
+		}
+	);
 
 	it('restores a status change with one undo and redo step and ignores the current status', () => {
 		const ws = open();

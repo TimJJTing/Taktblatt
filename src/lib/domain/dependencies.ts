@@ -2,13 +2,7 @@
  * Dependencies, validation, deletion and move conflicts.
  * Refer to docs/spec.md, section 3, and ADR 6.
  */
-import {
-	effectiveDependencies,
-	effectiveOf,
-	indexTasks,
-	expandParents,
-	type TaskIndex
-} from './derive.ts';
+import { effectiveDependencies, effectiveOf, indexTasks, type TaskIndex } from './derive.ts';
 import type { Plan, Task } from './schema.ts';
 import { removeMentions } from './mentions.ts';
 
@@ -232,13 +226,11 @@ export type MoveFix =
 	| { kind: 'remove-scope-dependency'; taskId: string; dependencyId: string }
 	/** Remove the moved task from the dependencies of its new parent. */
 	| { kind: 'remove-parent-dependency'; parentId: string }
-	/** Clear a date of the moved task. The new derived dates of the parent break the date rule. */
+	/** Clear a date of the moved task. Expansion of the new parent's planned window breaks the date rule. */
 	| { kind: 'clear-date'; field: 'start' | 'end'; dependencyId: string; dependentId: string };
 
 export interface MoveConflicts {
 	fixes: MoveFix[];
-	/** Date-rule breaks on the old parent. The move does not fix these. */
-	warnings: DateWarning[];
 }
 
 function applyMoveTo(tasks: Task[], id: string, target: MoveTarget): Task[] {
@@ -282,19 +274,11 @@ export function dependencyEdgeKey(taskId: string, dependencyId: string): string 
 /** Calculates the conflicts of a move. A stage move without a parent change has no conflicts. */
 export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveConflicts {
 	const task = plan.tasks.find((t) => t.id === id);
-	const result: MoveConflicts = { fixes: [], warnings: [] };
+	const result: MoveConflicts = { fixes: [] };
 	if (!task || task.parentId === target.parentId) return result;
 
 	const before = indexTasks(plan.tasks);
-	const simulation: Plan = {
-		...plan,
-		tasks: plan.tasks.map((task) => ({
-			...task,
-			owners: [...task.owners],
-			dependsOn: [...task.dependsOn]
-		}))
-	};
-	const after = indexTasks(applyMoveTo(simulation.tasks, id, target));
+	const after = indexTasks(applyMoveTo(plan.tasks, id, target));
 	const newParentId = target.parentId;
 	const oldParentId = task.parentId;
 
@@ -308,7 +292,7 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 		if (newParent.dependsOn.includes(id)) {
 			result.fixes.push({ kind: 'remove-parent-dependency', parentId: newParentId });
 		}
-		// Dates: the derived dates of the new parent can break edges on the new parent.
+		// Dates: expansion of the new parent's planned window can set an empty date and break an edge.
 		const old = new Set(
 			brokenEdgesAround(before, newParentId).map((edge) =>
 				dependencyEdgeKey(edge.taskId, edge.dependencyId)
@@ -337,20 +321,6 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 				});
 			}
 		}
-	}
-
-	applyMove(simulation, id, target, result.fixes);
-	expandParents(simulation);
-	const warningIndex = indexTasks(simulation.tasks);
-	if (oldParentId !== null) {
-		const old = new Set(
-			brokenEdgesAround(before, oldParentId).map((edge) =>
-				dependencyEdgeKey(edge.taskId, edge.dependencyId)
-			)
-		);
-		result.warnings = brokenEdgesAround(warningIndex, oldParentId).filter(
-			(e) => !old.has(dependencyEdgeKey(e.taskId, e.dependencyId))
-		);
 	}
 
 	return result;

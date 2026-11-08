@@ -121,10 +121,7 @@
 	"move_fix_parent": "「{parent}」からこのタスクへの依存関係を解除します。親タスクはサブタスクに依存できません。",
 	"move_fix_start": "このタスクの開始日をクリアします。そうしないと「{dependency}」が「{dependent}」の終了後に始まります。",
 	"move_fix_end": "このタスクの終了日をクリアします。そうしないと「{dependency}」が「{dependent}」の終了後に始まります。",
-	"move_warnings": "移動後、次の依存関係に警告が表示されます：",
-	"move_warning_item": "「{dependent}」は「{dependency}」に依存",
 	"move_apply": "解除して移動",
-	"move_apply_warn": "移動",
 	"section_header": "ヘッダー",
 	"section_timeline": "タイムライン",
 	"section_stage_overview": "ステージ概要",
@@ -289,5 +286,5 @@
 	"import_dependency_warnings": "警告のある依存関係：{count} 件。タスクを開くと警告が表示されます。",
 	"dependency_warning_subtask_scope": "サブタスクは同じ親を持つタスクにのみ依存できます。",
 	"dependency_subtask_help": "別のタスクに依存するには、このサブタスクをタスクにするか、同じ親の下に移動してください。",
-	"date_subtask_floor": "日付の範囲にはサブタスクの日付を含めてください: {range}。"
+	"date_subtask_floor": "日付の範囲にはサブタスクの日付を含めてください：{range}。"
 }

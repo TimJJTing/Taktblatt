@@ -81,7 +81,7 @@
 	function requestMove(target: MoveTarget) {
 		if (!task) return;
 		const conflicts = moveConflicts(ws.plan, task.id, target);
-		if (conflicts.fixes.length || conflicts.warnings.length) {
+		if (conflicts.fixes.length) {
 			pendingMove = { target, conflicts };
 			return;
 		}

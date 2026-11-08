@@ -10,6 +10,7 @@ import {
 	canDependOn,
 	candidateWarnings,
 	dependencyWarnings,
+	dependencyEdgeKey,
 	deleteImpact,
 	deleteTasks,
 	isValidMoveTarget,
@@ -17,6 +18,7 @@ import {
 	stageDeleteImpact
 } from './dependencies.ts';
 import { mentionToken } from './mentions.ts';
+import type { Task } from './schema.ts';
 import { makePlan, makeTask } from './test-helpers.ts';
 
 describe('effectiveDependencies', () => {
@@ -369,6 +371,78 @@ describe('deleteTasks', () => {
 });
 
 describe('moves', () => {
+	it('introduces no date-rule breaks after fixes across random valid moves in under one second', () => {
+		let seed = 0x5eed1234;
+		const random = (limit: number) => {
+			seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+			return Math.floor((seed / 0x100000000) * limit);
+		};
+		const date = () =>
+			random(3) === 0 ? null : `2027-01-${String(1 + random(28)).padStart(2, '0')}`;
+		let dateFixes = 0;
+		const started = performance.now();
+		for (let caseNumber = 0; caseNumber < 400; caseNumber += 1) {
+			const tasks: Task[] = [];
+			for (let root = 0, roots = 3 + random(3); root < roots; root += 1) {
+				const parent = makeTask({ id: `p${root}`, stageId: random(2) === 0 ? 's1' : 's2' });
+				tasks.push(parent);
+				for (let child = 0, children = random(3); child < children; child += 1) {
+					tasks.push(
+						makeTask({ id: `${parent.id}c${child}`, stageId: parent.stageId, parentId: parent.id })
+					);
+				}
+			}
+			for (const task of tasks) {
+				task.start = date();
+				task.end = date();
+				if (task.start && task.end && task.start > task.end) {
+					[task.start, task.end] = [task.end, task.start];
+				}
+			}
+			const plan = makePlan(tasks, ['s1', 's2']);
+			expandParents(plan);
+			for (const task of tasks) {
+				for (const dependency of tasks) {
+					if (random(4) === 0 && canDependOn(indexTasks(tasks), task.id, dependency.id)) {
+						task.dependsOn.push(dependency.id);
+					}
+				}
+			}
+			const moves = tasks.flatMap((task) =>
+				plan.stages.flatMap((stage) =>
+					[
+						null,
+						...tasks
+							.filter((candidate) => candidate.parentId === null)
+							.map((candidate) => candidate.id)
+					]
+						.map((parentId) => ({ id: task.id, target: { stageId: stage.id, parentId } }))
+						.filter(
+							({ id, target }) =>
+								(task.stageId !== target.stageId || task.parentId !== target.parentId) &&
+								isValidMoveTarget(plan, id, target)
+						)
+				)
+			);
+			const { id, target } = moves[random(moves.length)];
+			const dateEdges = () =>
+				dependencyWarnings(indexTasks(plan.tasks))
+					.filter((warning) => warning.kind === 'date')
+					.map((edge) => dependencyEdgeKey(edge.taskId, edge.dependencyId));
+			const before = new Set(dateEdges());
+			const { fixes } = moveConflicts(plan, id, target);
+			dateFixes += fixes.filter((fix) => fix.kind === 'clear-date').length;
+			applyMove(plan, id, target, fixes);
+			expandParents(plan);
+			expect(
+				dateEdges().filter((key) => !before.has(key)),
+				`case ${caseNumber}: ${id} to ${JSON.stringify(target)}`
+			).toEqual([]);
+		}
+		expect(dateFixes).toBeGreaterThan(0);
+		expect(performance.now() - started).toBeLessThan(1_000);
+	});
+
 	it('keeps a stored early start when the first subtask starts later', () => {
 		const plan = makePlan([
 			makeTask({ id: 'a→a', start: '2027-01-01', end: '2027-01-02', dependsOn: ['a'] }),
@@ -376,8 +450,7 @@ describe('moves', () => {
 			makeTask({ id: 't', start: '2027-01-09', end: '2027-01-10' })
 		]);
 		expect(moveConflicts(plan, 't', { stageId: 's1', parentId: 'a→a' })).toEqual({
-			fixes: [],
-			warnings: []
+			fixes: []
 		});
 	});
 
@@ -401,8 +474,7 @@ describe('moves', () => {
 	it('has no conflicts for a stage move', () => {
 		const plan = makePlan([makeTask({ id: 't', dependsOn: [] })], ['s1', 's2']);
 		expect(moveConflicts(plan, 't', { stageId: 's2', parentId: null })).toEqual({
-			fixes: [],
-			warnings: []
+			fixes: []
 		});
 	});
 
@@ -453,7 +525,6 @@ describe('moves', () => {
 				});
 			expect(conflicts.fixes).toHaveLength(fixes.length);
 			expect(conflicts.fixes).toEqual(expect.arrayContaining(fixes));
-			expect(conflicts.warnings).toEqual([]);
 			applyMove(plan, 't', target, conflicts.fixes);
 			expect(plan.tasks.find((task) => task.id === 's')!.dependsOn).toEqual([]);
 			expect(plan.tasks.find((task) => task.id === 't')!.dependsOn).toEqual(
@@ -471,7 +542,7 @@ describe('moves', () => {
 		]);
 		const target = { stageId: 's1', parentId: null };
 		const conflicts = moveConflicts(plan, 't', target);
-		expect(conflicts).toEqual({ fixes: [], warnings: [] });
+		expect(conflicts).toEqual({ fixes: [] });
 		applyMove(plan, 't', target, conflicts.fixes);
 		expect(plan.tasks.find((task) => task.id === 't')).toMatchObject({
 			parentId: null,
@@ -501,7 +572,7 @@ describe('moves', () => {
 		expect(index.state.get('p')!.eff.start).toBe('2027-01-01');
 	});
 
-	it('does not warn when moving out an early subtask leaves the planned start unchanged', () => {
+	it('keeps the stored parent values when an early subtask moves out', () => {
 		// p has subtasks a (early) and b (late). z depends on p and ends before b starts.
 		// The stored start stays early when a moves out.
 		const plan = makePlan([
@@ -511,9 +582,13 @@ describe('moves', () => {
 			makeTask({ id: 'z', end: '2027-01-10', dependsOn: ['p'] })
 		]);
 		expandParents(plan);
-		const conflicts = moveConflicts(plan, 'a', { stageId: 's1', parentId: null });
-		expect(conflicts.fixes).toEqual([]);
-		expect(conflicts.warnings).toEqual([]);
+		const parentBefore = structuredClone(plan.tasks[0]);
+		const target = { stageId: 's1', parentId: null };
+		const conflicts = moveConflicts(plan, 'a', target);
+		expect(conflicts).toEqual({ fixes: [] });
+		applyMove(plan, 'a', target, conflicts.fixes);
+		expandParents(plan);
+		expect(plan.tasks.find((task) => task.id === 'p')).toEqual(parentBefore);
 	});
 
 	it('moves the subtasks of a task with the task to the new stage', () => {
@@ -549,8 +624,7 @@ describe('moves', () => {
 			makeTask({ id: 't', parentId: 'q', start: '2027-01-02', end: '2027-01-05' })
 		]);
 		expect(moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' })).toEqual({
-			fixes: [],
-			warnings: []
+			fixes: []
 		});
 	});
 
@@ -561,7 +635,7 @@ describe('moves', () => {
 			makeTask({ id: 's' })
 		]);
 		const target = { stageId: 's1', parentId: 'p' };
-		expect(moveConflicts(plan, 's', target)).toEqual({ fixes: [], warnings: [] });
+		expect(moveConflicts(plan, 's', target)).toEqual({ fixes: [] });
 		applyMove(plan, 's', target, []);
 		expect([...effectiveDependencies(indexTasks(plan.tasks), 's')]).toEqual(['x']);
 	});
@@ -573,8 +647,7 @@ describe('moves', () => {
 			makeTask({ id: 't', dependsOn: ['s'] })
 		]);
 		expect(moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' })).toEqual({
-			fixes: [],
-			warnings: []
+			fixes: []
 		});
 	});
 });
@@ -711,7 +784,7 @@ describe('planned windows after subtask removal', () => {
 		expect(parent).toEqual(before);
 	});
 
-	it('uses the stored window for old-parent warnings without mutating the plan', () => {
+	it('checks a move without mutating the stored planned window', () => {
 		const plan = makePlan([
 			makeTask({ id: 'p', start: '2027-01-01', end: '2027-01-05' }),
 			makeTask({ id: 'c', parentId: 'p', start: '2027-03-01', end: '2027-03-31' }),
@@ -720,8 +793,7 @@ describe('planned windows after subtask removal', () => {
 		expandParents(plan);
 		const before = structuredClone(plan);
 		expect(moveConflicts(plan, 'c', { stageId: 's1', parentId: null })).toEqual({
-			fixes: [],
-			warnings: []
+			fixes: []
 		});
 		expect(plan).toEqual(before);
 	});

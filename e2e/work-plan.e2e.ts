@@ -9,6 +9,7 @@ import {
 	openExample,
 	row,
 	stage,
+	storedPlan,
 	titles,
 	waitForAnimations,
 	setTaskStatus,
@@ -234,7 +235,7 @@ test.describe('work plan', () => {
 		await expect.poll(left).toEqual(before);
 	});
 
-	test('a subtask can be added, and the parent shows derived values', async ({ page }) => {
+	test("a new subtask's owner is added to the parent's owners", async ({ page }) => {
 		await openExample(page);
 		const first = stage(page, 0);
 		const parent = row(page, 'Soil preparation');
@@ -252,7 +253,18 @@ test.describe('work plan', () => {
 			'Mulch',
 			'Order seeds'
 		]);
-		await expect(parent.getByTestId('task-owners')).toContainText('Kai');
+		await row(page, 'Mulch').getByTestId('owner-field').click();
+		await page.getByTestId('owner-input').fill('Mira');
+		await page.getByTestId('owner-input').press('Enter');
+		await page.keyboard.press('Escape');
+		// The cell can fold extra owners into "+N". The accessible name lists all owners.
+		await expect(parent.getByRole('button', { name: /^Owner:/ })).toHaveAccessibleName(/Mira/);
+		await expect
+			.poll(
+				async () =>
+					(await storedPlan(page)).tasks.find((task) => task.title === 'Soil preparation').owners
+			)
+			.toContain('Mira');
 	});
 
 	test('a date change re-sorts the tasks', async ({ page }) => {

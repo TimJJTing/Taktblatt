@@ -175,12 +175,12 @@ The app uses the effective graph for cycle checks and readiness. The date rule c
 A **move** changes the stage or the parent of a task or subtask (section 5.6).
 
 - A stage move does not change the effective graph or any date. It never causes a conflict.
-- A parent change can cause conflicts. Before the move, the app shows the **move-conflict dialog**. The dialog lists:
+- A parent change can require fixes. When fixes are required, the app shows the **move-conflict dialog** before the move. The dialog lists:
   - **Remove dependency (scope):** each own dependency outside the new parent when the moved item becomes a subtask. Also remove dependencies on the moved item from its remaining old siblings.
   - **Remove dependency (parent and child):** a dependency of the new parent on the task or subtask that you move.
   - **Clear date:** the `start` or the `end` of the task or subtask that you move. The app lists it when expansion of the new parent's planned window would break the date rule.
-  - **Warning only:** date-rule breaks on the old parent. The app does not change data for these. It shows the usual warning after the move.
-- The dialog has two buttons: **Remove and move** and **Cancel**. When the move has only warnings, the first button is **Move**.
+- The dialog has two buttons: **Remove and move** and **Cancel**.
+- A move does not change the old parent's planned window. It causes no date-rule warnings on the old parent.
 - **Remove and move** applies all listed removals and the move as one undo step.
 - **Cancel** does not change data.
 - A moved subtask inherits the own dependencies of its new parent. A cycle through these new inherited edges is permitted. The dialog has no cycle fix. A subtask that becomes a task keeps its dependencies on its old siblings. Legacy incoming dependencies from other parents stay and show a scope warning. Refer to [ADR 13](adr/0013-cycles-are-warnings.md) and [ADR 14](adr/0014-subtasks-depend-only-on-siblings.md).
@@ -369,7 +369,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Columns:** Status | Task | Deliverable | Target | Owner | "…".
 - **Status:** a compact select with an icon. An empty circle means Todo. A half-filled circle means In progress. A check-circle means Done. A circle with a slash means Canceled. The options are Todo, In progress, Done and Canceled, in this order. They show the icon and label. The trigger has a status hint and an accessible name with the task and status. Only done and canceled rows are dimmed, and their titles are struck through. A parent shows its derived status in a disabled select. Its hint wrapper gets keyboard focus.
 - Each status change uses `updateTask` and adds one undo step. Opening or closing the select, or selecting the current value, adds no step. Undo and redo restore the status. The select uses standard keyboard controls: Enter or Space opens it, arrows move between options, Enter selects, and Escape closes it. Focus returns to the trigger.
-- **Target:** shows the `end` date. Hover shows the full range. Click opens the date picker. It can be empty. A parent shows its stored planned window. Its dates are editable within the subtask limits below.
+- **Target:** shows the `end` date, or "start –" when only the start is set. This rule is the same for all rows and on the sheets. Hover shows the full range. Click opens the date picker. It can be empty. A parent shows its stored planned window. Its dates are editable within the subtask limits below.
 - **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. A parent shows its stored owners. Its editor has no remove button for an owner that a subtask uses. It compares these names without case, after trimming. Other owners can be removed, and new owners can be added. The chip menu has **Rename everywhere…**. This renames the owner in all tasks of the plan.
 - **Parent date limits:** the start must be no later than the earliest subtask start. The end must be no earlier than the latest subtask end. Empty subtask dates do not count. A parent date cannot be cleared when a subtask has that date. When both parent dates are set, the range must contain every subtask date, including a start-only or end-only date. An open range can stay open if it meets the start and end limits. A typed or calendar range that breaks a limit shows an alert with the required range and disables **Done**. If subtask dates change while the editor is open, the app checks the draft against the new limits. It keeps any typed-date error. An ordinary close discards this invalid draft. Esc cancels any draft. Focus returns to the trigger after dismissal.
 - **Tasks and subtasks:** a parent has a chevron. Other tasks have a spacer, so the titles align. Subtask rows indent the title cell only.

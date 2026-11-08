@@ -184,9 +184,13 @@ describe('buildPrintModel and itemCount', () => {
 		});
 		const collapsedStage = collapsed.find((s): s is StageSegment => s.kind === 'stage')!;
 		const collapsedGantt = collapsed.find((s) => s.kind === 'gantt')!;
-		expect(collapsedStage.rows.map((r) => [r.task.id, r.level, r.isParent])).toEqual([
-			['p', 0, true]
-		]);
+		const expectedRow = (task: (typeof plan.tasks)[number], level: 0 | 1) => ({
+			task,
+			level,
+			eff: index.state.get(task.id)!.eff,
+			readiness: index.state.get(task.id)!.readiness
+		});
+		expect(collapsedStage.rows).toEqual([expectedRow(plan.tasks[0], 0)]);
 		expect(itemCount(collapsedStage)).toBe(1);
 		expect(itemCount(collapsedGantt)).toBe(1);
 
@@ -198,10 +202,10 @@ describe('buildPrintModel and itemCount', () => {
 		});
 		const expandedStage = expanded.find((s): s is StageSegment => s.kind === 'stage')!;
 		const expandedGantt = expanded.find((s) => s.kind === 'gantt')!;
-		expect(expandedStage.rows.map((r) => [r.task.id, r.level, r.isParent])).toEqual([
-			['p', 0, true],
-			['c1', 1, false],
-			['c2', 1, false]
+		expect(expandedStage.rows).toEqual([
+			expectedRow(plan.tasks[0], 0),
+			expectedRow(plan.tasks[1], 1),
+			expectedRow(plan.tasks[2], 1)
 		]);
 		expect(itemCount(expandedStage)).toBe(3);
 		expect(itemCount(expandedGantt)).toBe(3);
