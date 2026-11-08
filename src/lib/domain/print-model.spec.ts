@@ -113,6 +113,61 @@ describe('buildPrintModel and itemCount', () => {
 		expect(stage.rows.find((row) => row.task.id === 'parent')?.eff.status).toBe('in_progress');
 	});
 
+	it('keeps canceled rows but excludes their effective statuses from printed progress', () => {
+		const tasks = [
+			makeTask({ id: 'canceled', status: 'canceled' }),
+			makeTask({ id: 'parent', status: 'todo' }),
+			makeTask({ id: 'child', parentId: 'parent', status: 'canceled' })
+		];
+		const progress = (plan: ReturnType<typeof makePlan>) => {
+			const segments = buildPrintModel({
+				plan,
+				index: indexTasks(plan.tasks),
+				isExpanded: () => true,
+				today: '2027-01-10'
+			});
+			return segments.find((segment): segment is StageSegment => segment.kind === 'stage')!;
+		};
+		const canceled = progress(makePlan(tasks));
+		expect(canceled.progress).toEqual({ done: 0, inProgress: 0, total: 0 });
+		expect(canceled.rows.map((row) => [row.task.id, row.eff.status])).toEqual([
+			['canceled', 'canceled'],
+			['parent', 'canceled'],
+			['child', 'canceled']
+		]);
+		expect(
+			progress(
+				makePlan([...tasks, makeTask({ id: 'done', status: 'done' }), makeTask({ id: 'todo' })])
+			).progress
+		).toEqual({ done: 1, inProgress: 0, total: 2 });
+	});
+
+	it('carries readiness for parent and subtask rows in printed tables', () => {
+		const plan = makePlan([
+			makeTask({ id: 'done', status: 'done' }),
+			makeTask({ id: 'open' }),
+			makeTask({ id: 'ready', dependsOn: ['done'] }),
+			makeTask({ id: 'parent', dependsOn: ['done'] }),
+			makeTask({ id: 'child', parentId: 'parent', dependsOn: ['open'] }),
+			makeTask({ id: 'canceled', status: 'canceled' })
+		]);
+		const segments = buildPrintModel({
+			plan,
+			index: indexTasks(plan.tasks),
+			isExpanded: () => true,
+			today: '2027-01-10'
+		});
+		const stage = segments.find((segment): segment is StageSegment => segment.kind === 'stage')!;
+		expect(stage.rows.map((row) => [row.task.id, row.readiness])).toEqual([
+			['done', { kind: 'inactive' }],
+			['open', { kind: 'ready', via: 'dependencies', count: 0 }],
+			['ready', { kind: 'ready', via: 'dependencies', count: 1 }],
+			['parent', { kind: 'blocked', blockers: [{ kind: 'task', id: 'open' }] }],
+			['child', { kind: 'blocked', blockers: [{ kind: 'task', id: 'open' }] }],
+			['canceled', { kind: 'inactive' }]
+		]);
+	});
+
 	it('includes subtask rows in stage tables only when the parent is expanded', () => {
 		const plan = makePlan([
 			makeTask({ id: 'p', stageId: 's1' }),

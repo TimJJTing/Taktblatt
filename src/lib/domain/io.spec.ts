@@ -74,9 +74,11 @@ describe('milestone symbol contract', () => {
 });
 
 describe('parseFile', () => {
-	it('imports all three statuses without changing their stored values', () => {
+	it('imports all four statuses without changing their stored values', () => {
 		const plan = makePlan(
-			(['todo', 'in_progress', 'done'] as const).map((status) => makeTask({ id: status, status }))
+			(['todo', 'in_progress', 'done', 'canceled'] as const).map((status) =>
+				makeTask({ id: status, status })
+			)
 		);
 		expect(parseFile(serializeFile(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
 	});
@@ -101,12 +103,14 @@ describe('parseFile', () => {
 				expect.objectContaining({
 					code: 'choice',
 					path: 'plan.tasks.0.status',
-					values: ['"todo"', '"in_progress"', '"done"']
+					values: ['"todo"', '"in_progress"', '"done"', '"canceled"']
 				})
 			]);
 			expect(parseFile(text)).toEqual({
 				ok: false,
-				errors: ['plan.tasks.0.status: Use one of these values: "todo", "in_progress", "done".']
+				errors: [
+					'plan.tasks.0.status: Use one of these values: "todo", "in_progress", "done", "canceled".'
+				]
 			});
 		}
 	);

@@ -5,6 +5,7 @@ export function taskStatusLabel(status: TaskStatus): string {
 	return {
 		todo: m.task_status_todo(),
 		in_progress: m.task_status_in_progress(),
-		done: m.task_status_done()
+		done: m.task_status_done(),
+		canceled: m.task_status_canceled()
 	}[status];
 }

@@ -15,8 +15,6 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { subtaskFill } from '#lib/components/plan/colors.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveOf } from '#lib/domain/derive.ts';
 	import type { GanttMark, GanttRow } from '#lib/domain/gantt.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -42,9 +40,9 @@
 
 	const task = $derived(ws.index.byId.get(row.id));
 	const titleText = $derived(task?.title || m.task_untitled());
-	const eff = $derived(effectiveOf(ws.index, row.id));
-	const ready = $derived(readyCount(ws.index, row.id));
-	const done = $derived(row.status === 'done');
+	const taskState = $derived(ws.index.state.get(row.id)!);
+	const eff = $derived(taskState.eff);
+	const muted = $derived(taskState.finished);
 	const subtask = $derived(row.level === 1);
 	const mark = $derived(row.mark);
 
@@ -126,7 +124,7 @@
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} reserve />
+		<ReadyDot readiness={taskState.readiness} reserve />
 		<Hint text={showRow}>
 			{#snippet child({ props })}
 				<button
@@ -135,7 +133,7 @@
 					class={cn(
 						'min-w-0 flex-1 truncate rounded-sm px-0.5 text-left text-xs hover:underline focus-visible:outline-2 focus-visible:outline-ring',
 						!subtask && 'font-medium',
-						done && 'text-muted-foreground line-through decoration-muted-foreground/50'
+						muted && 'text-muted-foreground line-through decoration-muted-foreground/50'
 					)}
 					aria-describedby={showRowId}
 					data-testid="gantt-label">{titleText}</button
@@ -176,7 +174,7 @@
 								'absolute inset-0',
 								!mark.clipStart && 'rounded-l-sm',
 								!mark.clipEnd && 'rounded-r-sm',
-								done && 'opacity-40'
+								muted && 'opacity-40'
 							)}
 							style:background={fill}
 							style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
@@ -195,7 +193,7 @@
 						aria-label={markName}
 						class={cn(
 							'pointer-events-auto absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							done && 'opacity-40',
+							muted && 'opacity-40',
 							highlighted && 'ring-2 ring-ring/70'
 						)}
 						style:left="{x.current.x0 * 100}%"

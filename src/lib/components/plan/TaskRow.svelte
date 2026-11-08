@@ -15,8 +15,6 @@
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import { focusSiblingRow } from '#lib/browser/grid.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveValues } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Task } from '#lib/domain/schema.ts';
@@ -44,12 +42,12 @@
 	const children = $derived(ws.index.children.get(task.id) ?? []);
 	const isParent = $derived(children.length > 0);
 	const isSubtask = $derived(task.parentId !== null);
-	const eff = $derived(effectiveValues(task, children));
-	const ready = $derived(readyCount(ws.index, task.id));
+	const taskState = $derived(ws.index.state.get(task.id)!);
+	const eff = $derived(taskState.eff);
 	const expanded = $derived(viewer.isExpanded(ws.plan.id, task.id));
 	const locale = uiIntl();
 	const titleText = $derived(task.title || m.task_untitled());
-	const muted = $derived(eff.status === 'done');
+	const muted = $derived(taskState.finished);
 
 	let titleCell = $state<HTMLTableCellElement | null>(null);
 
@@ -98,7 +96,7 @@
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} reserve />
+		<ReadyDot readiness={taskState.readiness} reserve />
 		<div class="min-w-0 flex-1">
 			<InlineText
 				value={task.title}

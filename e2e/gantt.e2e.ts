@@ -34,7 +34,7 @@ test('the Gantt shows bars, lines and the today line of the example plan', async
 	);
 });
 
-test('outgoing dependency lines become fainter when their source is done', async ({ page }) => {
+test('outgoing dependency lines mute done and canceled sources', async ({ page }) => {
 	await openExample(page);
 	await page.reload();
 	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
@@ -67,6 +67,17 @@ test('outgoing dependency lines become fainter when their source is done', async
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
+	const doneContrast = await dependencyContrast(line);
+	await setTaskStatus(page, row(page, 'Sowing'), 'canceled');
+	await expect.poll(() => dependencyContrast(line)).toBe(doneContrast);
+	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	const canceled = ganttRow(page, 'Sowing');
+	await expect(canceled.getByTestId('gantt-bar')).toHaveAccessibleName(/, canceled$/);
+	await expect(canceled.getByTestId('gantt-bar').locator(':scope > div')).toHaveCSS(
+		'opacity',
+		'0.4'
+	);
+	await expect(canceled.getByTestId('gantt-label')).toHaveClass(/line-through/);
 });
 
 test('expand and collapse are shared between the Gantt and the table', async ({ page }) => {

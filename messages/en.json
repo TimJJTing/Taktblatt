@@ -277,10 +277,12 @@
 	"validation_value": "The value is not valid.",
 	"task_status_todo": "Todo",
 	"task_status_in_progress": "In progress",
+	"task_status_canceled": "Canceled",
 	"task_status_done": "Done",
 	"task_status_label": "Status of {task}: {status}",
 	"column_status": "Status",
 	"task_status_derived": "The subtasks set the status.",
 	"stage_progress_in_progress": "{done} / {total} done · {inProgress} in progress",
-	"gantt_in_progress": "in progress"
+	"gantt_in_progress": "in progress",
+	"gantt_canceled": "canceled"
 }

@@ -5,12 +5,11 @@
 import * as v from 'valibot';
 import { isISODate } from './date.ts';
 import type { ValidationCode } from './import-diagnostics.ts';
-import { effectiveDependencies } from './dependencies.ts';
-import { indexTasks } from './derive.ts';
+import { effectiveDependencies, indexTasks } from './derive.ts';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.ts';
 
 export const SCHEMA_VERSION = 1;
-export const TASK_STATUSES = ['todo', 'in_progress', 'done'] as const;
+export const TASK_STATUSES = ['todo', 'in_progress', 'done', 'canceled'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const MILESTONE_SYMBOLS = [
 	'diamond',

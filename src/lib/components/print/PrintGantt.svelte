@@ -15,8 +15,7 @@
 	import { clipEdges, elbowPath, rowCenterY } from '#lib/components/timeline/gantt-layout.ts';
 	import { markLabel } from '#lib/components/timeline/mark-label.ts';
 	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveOf } from '#lib/domain/derive.ts';
+	import { isFinished } from '#lib/domain/derive.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { GanttSegment } from '#lib/domain/print-model.ts';
@@ -122,9 +121,11 @@
 		{#each rows as row, i (row.id)}
 			{@const task = ws.index.byId.get(row.id)}
 			{@const title = task?.title || m.task_untitled()}
-			{@const done = row.status === 'done'}
+			<!-- The print model is a snapshot. Undo can remove a task before the model updates. -->
+			{@const taskState = ws.index.state.get(row.id)}
+			{@const muted = isFinished(row.status)}
 			{@const mark = row.mark}
-			{@const eff = effectiveOf(ws.index, row.id)}
+			{@const eff = taskState?.eff ?? null}
 			{@const base = colors.get(row.stageId) ?? stagePaperColor('slate')}
 			{@const fill = row.level === 1 ? subtaskFill(base) : base}
 			<div
@@ -140,12 +141,12 @@
 					)}
 					style:width="{GANTT_LABEL_WIDTH}px"
 				>
-					<ReadyDot count={readyCount(ws.index, row.id)} still reserve />
+					<ReadyDot readiness={taskState?.readiness ?? { kind: 'inactive' }} still reserve />
 					<span
 						class={cn(
 							'min-w-0 truncate',
 							row.level === 0 && 'font-medium',
-							done && 'text-paper-ink-3 line-through decoration-paper-ink-3/50'
+							muted && 'text-paper-ink-3 line-through decoration-paper-ink-3/50'
 						)}>{title}</span
 					>
 				</div>
@@ -160,7 +161,7 @@
 									'absolute top-1/2 min-w-0.5 -translate-y-1/2',
 									!mark.clipStart && 'rounded-l-[2px]',
 									!mark.clipEnd && 'rounded-r-[2px]',
-									done && 'opacity-40'
+									muted && 'opacity-40'
 								)}
 								style:left="{mark.x0 * 100}%"
 								style:width="{(mark.x1 - mark.x0) * 100}%"
@@ -175,7 +176,7 @@
 								aria-label={name}
 								class={cn(
 									'absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45',
-									done && 'opacity-40'
+									muted && 'opacity-40'
 								)}
 								style:left="{mark.x * 100}%"
 								style:background={fill}
@@ -265,9 +266,9 @@
 						</marker>
 					</defs>
 					{#each lines as line (line.key)}
-						{@const done = segment.rows[line.row0].status === 'done'}
+						{@const muted = isFinished(segment.rows[line.row0].status)}
 						<path
-							class={done ? 'opacity-40' : undefined}
+							class={muted ? 'opacity-40' : undefined}
 							d={elbowPath(
 								line.x0 * timelineWidth,
 								centerY(line.row0),

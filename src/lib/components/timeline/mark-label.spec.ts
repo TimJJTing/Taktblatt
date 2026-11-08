@@ -28,6 +28,37 @@ describe('markLabel', () => {
 		).toBe('');
 	});
 
+	it('adds the canceled clause to bars and points', () => {
+		overwriteGetLocale(() => 'en');
+		const bar = markLabel({
+			mark: { kind: 'bar', x0: 0, x1: 1, clipStart: true, clipEnd: false },
+			title: 'Site survey',
+			dates,
+			status: 'canceled'
+		});
+		expect(bar).toBe(
+			[
+				m.gantt_bar({
+					task: 'Site survey',
+					dates: formatRangeDisplay(dates.start, dates.end, uiIntl())
+				}),
+				m.gantt_canceled(),
+				m.gantt_clipped_start()
+			].join(', ')
+		);
+		const date = dates.start;
+		expect(
+			markLabel({
+				mark: { kind: 'point', x: 0.2, date },
+				title: 'Permit',
+				dates: { start: date, end: null },
+				status: 'canceled'
+			})
+		).toBe(
+			`${m.gantt_bar({ task: 'Permit', dates: formatDate(date, uiIntl()) })}, ${m.gantt_canceled()}`
+		);
+	});
+
 	it('adds the in-progress clause to a clipped bar and a point', () => {
 		overwriteGetLocale(() => 'en');
 		const base = m.gantt_bar({

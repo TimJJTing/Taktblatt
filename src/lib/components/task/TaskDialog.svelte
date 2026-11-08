@@ -18,11 +18,9 @@
 		deleteImpact,
 		isValidMoveTarget,
 		moveConflicts,
-		readyCount,
 		type MoveConflicts,
 		type MoveTarget
 	} from '#lib/domain/dependencies.ts';
-	import { effectiveValues } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { allOwners } from '#lib/domain/owners.ts';
@@ -43,8 +41,8 @@
 	const open = $derived(task !== undefined);
 	const children = $derived(task ? (ws.index.children.get(task.id) ?? []) : []);
 	const isParent = $derived(children.length > 0);
-	const eff = $derived(task ? effectiveValues(task, children) : null);
-	const ready = $derived(task ? readyCount(ws.index, task.id) : 0);
+	const taskState = $derived(task ? ws.index.state.get(task.id) : undefined);
+	const eff = $derived(taskState?.eff ?? null);
 	const locale = uiIntl();
 	const titleText = $derived(task?.title || m.task_untitled());
 	const ownerSuggestions = $derived(
@@ -294,7 +292,7 @@
 			<section class="flex flex-col gap-1.5">
 				<h3 class="flex items-center gap-2 text-sm text-muted-foreground">
 					{m.field_dependencies()}
-					<ReadyDot count={ready} />
+					<ReadyDot readiness={taskState?.readiness ?? { kind: 'inactive' }} />
 				</h3>
 				<DependencyPicker {task} />
 			</section>

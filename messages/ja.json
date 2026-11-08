@@ -277,10 +277,12 @@
 	"validation_value": "値が無効です。",
 	"task_status_todo": "未着手",
 	"task_status_in_progress": "進行中",
+	"task_status_canceled": "中止",
 	"task_status_done": "完了",
 	"task_status_label": "{task}の状態：{status}",
 	"column_status": "状態",
 	"task_status_derived": "サブタスクが状態を決めます。",
 	"stage_progress_in_progress": "{done} / {total} 完了・{inProgress} 進行中",
-	"gantt_in_progress": "進行中"
+	"gantt_in_progress": "進行中",
+	"gantt_canceled": "中止"
 }

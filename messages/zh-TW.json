@@ -277,10 +277,12 @@
 	"validation_value": "值無效。",
 	"task_status_todo": "待辦",
 	"task_status_in_progress": "進行中",
+	"task_status_canceled": "已取消",
 	"task_status_done": "已完成",
 	"task_status_label": "{task}的狀態：{status}",
 	"column_status": "狀態",
 	"task_status_derived": "子任務決定狀態。",
 	"stage_progress_in_progress": "已完成 {done} / {total} · 進行中 {inProgress}",
-	"gantt_in_progress": "進行中"
+	"gantt_in_progress": "進行中",
+	"gantt_canceled": "已取消"
 }

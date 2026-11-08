@@ -5,13 +5,12 @@
  * Refer to docs/spec.md, section 7.
  */
 import type { ISODate } from './date.ts';
-import { readyCount } from './dependencies.ts';
 import {
-	effectiveValues,
 	stageDeliverables,
 	stageProgress,
 	stageSpan,
 	type EffectiveValues,
+	type Readiness,
 	type TaskIndex
 } from './derive.ts';
 import {
@@ -80,7 +79,7 @@ export interface TableRow {
 	/** True when the task has subtasks. Its values are derived. */
 	isParent: boolean;
 	eff: EffectiveValues;
-	ready: number;
+	readiness: Readiness;
 }
 
 export interface StageSegment extends Placement {
@@ -223,8 +222,8 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 				task,
 				level: 0,
 				isParent: children.length > 0,
-				eff: effectiveValues(task, children),
-				ready: readyCount(index, task.id)
+				eff: index.state.get(task.id)!.eff,
+				readiness: index.state.get(task.id)!.readiness
 			});
 			if (!isExpanded(task.id)) continue;
 			for (const child of children) {
@@ -232,8 +231,8 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 					task: child,
 					level: 1,
 					isParent: false,
-					eff: effectiveValues(child, index.children.get(child.id)),
-					ready: readyCount(index, child.id)
+					eff: index.state.get(child.id)!.eff,
+					readiness: index.state.get(child.id)!.readiness
 				});
 			}
 		}

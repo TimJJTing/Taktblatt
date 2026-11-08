@@ -13,15 +13,15 @@
 
 	interface Props {
 		line: DependencyLine;
-		/** Whether the visible predecessor row is done. */
-		done: boolean;
+		/** Whether the visible predecessor row is done or canceled. */
+		muted: boolean;
 		/** The width of the timeline area in pixels. */
 		width: number;
 		/** The id of the arrow marker. */
 		marker: string;
 	}
 
-	let { line, done, width, marker }: Props = $props();
+	let { line, muted, width, marker }: Props = $props();
 
 	const ends = (l: DependencyLine) => ({
 		x0: l.x0,
@@ -42,7 +42,7 @@
 
 <path
 	{d}
-	class={done ? 'opacity-40' : undefined}
+	class={muted ? 'opacity-40' : undefined}
 	fill="none"
 	stroke="currentColor"
 	stroke-width="1.25"

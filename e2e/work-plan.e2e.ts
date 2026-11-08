@@ -104,6 +104,28 @@ test.describe('work plan', () => {
 		await expect(task).toHaveClass(/text-muted-foreground/);
 	});
 
+	test('the fourth status cancels and mutes a task in one undo step', async ({ page }) => {
+		await openExample(page);
+		// Loading the example is an undo step. A reload starts with an empty history.
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		const task = row(page, 'Sowing');
+		const trigger = task.getByTestId('task-status');
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		await expect(undo).toBeDisabled();
+		await trigger.click();
+		await expect(page.getByRole('option')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await page.keyboard.press('Escape');
+		await setTaskStatus(page, task, 'canceled');
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Canceled');
+		await expect(task).toHaveClass(/text-muted-foreground/);
+		await expect(task.getByTestId('task-title')).toHaveClass(/line-through/);
+		await undo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Todo');
+		await expect(task).not.toHaveClass(/text-muted-foreground/);
+		await expect(undo).toBeDisabled();
+	});
+
 	test('keyboard selects the next status and returns focus to the trigger', async ({ page }) => {
 		await openExample(page);
 		await writeStoredPlan(page, (plan) => {
@@ -158,10 +180,15 @@ test.describe('work plan', () => {
 		await waitForAnimations(dialog);
 		await setTaskStatus(page, dialog, 'in_progress');
 		await expect(dialog.getByTestId('task-status')).toContainText('In progress');
+		await dialog.getByTestId('task-status').click();
+		await expect(page.getByRole('option')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await page.keyboard.press('Escape');
+		await setTaskStatus(page, dialog, 'canceled');
+		await expect(dialog.getByTestId('task-status')).toContainText('Canceled');
 		await page.keyboard.press('Escape');
 		await expect(dialog).toHaveCount(0);
 		await expect(row(page, 'Sowing').getByTestId('task-status')).toHaveAccessibleName(
-			'Status of Sowing: In progress'
+			'Status of Sowing: Canceled'
 		);
 	});
 

@@ -29,6 +29,7 @@ export function markLabel({ mark, title, dates, status }: MarkLabelInput): strin
 	const parts = [m.gantt_bar({ task: title, dates: range })];
 	if (status === 'done') parts.push(m.gantt_done());
 	if (status === 'in_progress') parts.push(m.gantt_in_progress());
+	if (status === 'canceled') parts.push(m.gantt_canceled());
 	if (mark.kind === 'bar' && mark.clipStart) parts.push(m.gantt_clipped_start());
 	if (mark.kind === 'bar' && mark.clipEnd) parts.push(m.gantt_clipped_end());
 	return parts.reduce((text, clause) => m.gantt_bar_clause({ text, clause }));
