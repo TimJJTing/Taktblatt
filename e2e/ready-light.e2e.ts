@@ -56,14 +56,14 @@ test('a subtask dependency list exposes a read-only inherited row with a From pa
 	await waitForAnimations(dialog);
 	const inherited = dialog.getByTestId('dependency-list').getByRole('listitem');
 	await expect(inherited).toMatchAriaSnapshot(`
-		- listitem: Approve brief (From parent Prepare report)
+		- listitem: Approve brief (From parent Prepare report.)
 	`);
 	await expect(inherited.getByRole('button')).toHaveCount(0);
 	await inherited.hover();
 	const hint = page.locator('[data-slot="tooltip-content"]');
 	await expect(hint).toBeVisible();
 	await waitForAnimations(hint);
-	await expect(hint).toHaveText('From parent Prepare report');
+	await expect(hint).toHaveText('From parent Prepare report.');
 });
 
 test('the example stall shows one ready subtask and no light for blocked signs', async ({

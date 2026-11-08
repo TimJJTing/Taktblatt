@@ -264,11 +264,23 @@
 						>
 							<path d="M 0 0 L 6 3 L 0 6 z" fill="currentColor" />
 						</marker>
+						<marker
+							id={`${marker}-cycle`}
+							viewBox="0 0 6 6"
+							refX="5"
+							refY="3"
+							markerWidth="5"
+							markerHeight="5"
+							orient="auto"
+						>
+							<path d="M 0 0 L 6 3 L 0 6 z" class="text-paper-warning" fill="currentColor" />
+						</marker>
 					</defs>
 					{#each lines as line (line.key)}
 						{@const muted = isFinished(segment.rows[line.row0].status)}
 						<path
-							class={muted ? 'opacity-40' : undefined}
+							class={line.cycle ? 'text-paper-warning' : muted ? 'opacity-40' : undefined}
+							data-cycle={line.cycle ? 'true' : undefined}
 							d={elbowPath(
 								line.x0 * timelineWidth,
 								centerY(line.row0),
@@ -278,7 +290,7 @@
 							fill="none"
 							stroke="currentColor"
 							stroke-width="1"
-							marker-end="url(#{marker})"
+							marker-end="url(#{line.cycle ? `${marker}-cycle` : marker})"
 							data-testid="sheet-gantt-dependency"
 						/>
 					{/each}

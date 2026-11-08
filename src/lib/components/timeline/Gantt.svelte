@@ -327,13 +327,24 @@
 						>
 							<path d="M 0 0 L 6 3 L 0 6 z" fill="currentColor" />
 						</marker>
+						<marker
+							id={`${MARKER_ID}-cycle`}
+							viewBox="0 0 6 6"
+							refX="5"
+							refY="3"
+							markerWidth="6"
+							markerHeight="6"
+							orient="auto"
+						>
+							<path d="M 0 0 L 6 3 L 0 6 z" class="text-destructive" fill="currentColor" />
+						</marker>
 					</defs>
 					{#each lines as line (line.key)}
 						<GanttLine
 							{line}
 							muted={isFinished(rows[line.row0].status)}
 							width={timelineWidth}
-							marker={MARKER_ID}
+							marker={line.cycle ? `${MARKER_ID}-cycle` : MARKER_ID}
 						/>
 					{/each}
 				</svg>

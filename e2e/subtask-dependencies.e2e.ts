@@ -112,7 +112,7 @@ test('a task picker groups indented subtasks under parents in plan order and sea
 	await expect(options).toHaveText([/Write report.*Prepare report/]);
 });
 
-test('candidate subtasks remain visible when their parent is not a candidate and the limit counts every option', async ({
+test('unwarned options fill the limit first and a subtask stays before its warned parent', async ({
 	page
 }) => {
 	await openScopePlan(page);
@@ -139,7 +139,7 @@ test('candidate subtasks remain visible when their parent is not a candidate and
 		/Delivery 4.*Publish report/,
 		/Delivery 5.*Publish report/
 	]);
-	// A date-invalid parent can still have a date-valid candidate subtask.
+	// An unwarned subtask stays before its warned parent and sibling.
 	await page.keyboard.press('Escape');
 	await page.getByTestId('dialog-ok').click();
 	await writeStoredPlan(page, (plan) => {
@@ -149,7 +149,18 @@ test('candidate subtasks remain visible when their parent is not a candidate and
 	});
 	const reopened = await openDetails(page, 'Approve brief');
 	await reopened.getByTestId('dependency-input').fill('Prepare');
-	await expect(options).toHaveText([/Write report.*Prepare report/]);
+	await expect(options).toHaveText([
+		/Write report.*Prepare report/,
+		/Prepare report/,
+		/Review report.*Prepare report/
+	]);
+	await expect(options.nth(1)).toHaveAccessibleName(/Starts after this task ends\./);
+	await expect(options.nth(2)).toHaveAccessibleName(/Starts after this task ends\./);
+	await options.nth(1).hover();
+	const hint = page.locator('[data-slot="tooltip-content"]');
+	await expect(hint).toBeVisible();
+	await waitForAnimations(hint);
+	await expect(hint).toHaveText('Starts after this task ends.');
 });
 
 test('legacy imports count warned rows once and show one icon with all warning reasons', async ({
@@ -173,14 +184,16 @@ test('legacy imports count warned rows once and show one icon with all warning r
 	await expect(external.getByRole('img')).toHaveAccessibleName(scopeHint);
 	const both = list.getByRole('listitem').filter({ hasText: 'Send report' });
 	await expect(both.getByRole('img')).toHaveCount(1);
-	await expect(both.getByRole('img')).toHaveAccessibleName(/same parent/);
-	await expect(both.getByRole('img')).toHaveAccessibleName(/starts after this task ends/);
+	await expect(both.getByRole('img')).toHaveAccessibleName(
+		'Send report starts after this task ends. A subtask can depend only on tasks with the same parent.'
+	);
 	await both.getByText('Send report', { exact: true }).hover();
 	const hint = page.locator('[data-slot="tooltip-content"]');
 	await expect(hint).toBeVisible();
 	await waitForAnimations(hint);
-	await expect(hint).toContainText(scopeHint);
-	await expect(hint).toContainText('starts after this task ends');
+	await expect(hint).toHaveText(
+		'Send report starts after this task ends. A subtask can depend only on tasks with the same parent.'
+	);
 	await page.getByTestId('dialog-ok').click();
 	const parent = await openDetails(page, 'Prepare report');
 	await expect(parent.getByTestId('dependency-list')).toHaveCount(0);
@@ -236,4 +249,23 @@ test('the dependency list scrolls into the dialog when it opens near the dialog 
 			return listBox.y + listBox.height <= dialogBox.y + dialogBox.height;
 		})
 		.toBe(true);
+});
+
+test('an inherited dependency without warnings shows a complete source sentence', async ({
+	page
+}) => {
+	await openScopePlan(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.tasks.find((task: { id: string }) => task.id === 'p')!.dependsOn = ['task'];
+	});
+	await row(page, 'Prepare report').getByTestId('task-toggle').click();
+	const dialog = await openDetails(page, 'Write report');
+	const chip = dialog.getByTestId('dependency-list').getByRole('listitem');
+	await expect(chip).toContainText('From parent Prepare report.');
+	await expect(chip.getByRole('img')).toHaveCount(0);
+	await chip.hover();
+	const hint = page.locator('[data-slot="tooltip-content"]');
+	await expect(hint).toBeVisible();
+	await waitForAnimations(hint);
+	await expect(hint).toHaveText('From parent Prepare report.');
 });

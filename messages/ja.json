@@ -1,4 +1,8 @@
 {
+	"dependency_candidate_cycle": "依存関係の循環が発生します。",
+	"dependency_candidate_date": "このタスクの終了後に開始します。",
+	"dependency_warning_cycle": "この依存関係は循環の一部です。",
+	"toast_cycle_created": "この変更により依存関係の循環が発生します。",
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "Taktblatt",
 	"settings": "設定",
@@ -107,7 +111,7 @@
 	"dependency_search": "入力してタスクを検索",
 	"dependency_none": "一致するタスクがありません",
 	"dependency_remove": "依存関係 {task} を解除",
-	"dependency_inherited_parent": "親タスク {task} から",
+	"dependency_inherited_parent": "親タスク {task} から。",
 	"dependency_warning": "{task} はこのタスクの終了後に開始します。",
 	"mention_hint": "Enter で挿入、Esc で閉じる",
 	"action_ok": "OK",

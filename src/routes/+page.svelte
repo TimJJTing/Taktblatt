@@ -22,7 +22,9 @@
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.ts';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.ts';
 
-	const ws = setWorkspace(new Workspace(localStorage));
+	const ws = setWorkspace(
+		new Workspace(localStorage, () => toast.warning(m.toast_cycle_created()))
+	);
 	setViewer(new ViewerState(localStorage));
 	setEditing(new EditingState());
 	const preview = setPreview(new PreviewState());

@@ -267,6 +267,66 @@ describe('dependencyLines', () => {
 		expect(lines(tasks, []).map((l) => l.key)).toEqual(['p->y']);
 	});
 
+	it('marks the parent line when only an inherited edge is in a cycle', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p', start: '2027-01-01', end: '2027-01-02' }),
+			makeTask({
+				id: 'x',
+				start: '2027-01-03',
+				end: '2027-01-04',
+				dependsOn: ['s'],
+				status: 'done'
+			}),
+			makeTask({ id: 'outside', start: '2027-01-05', end: '2027-01-06', dependsOn: ['x'] })
+		]);
+		const result = dependencyLines(
+			index,
+			ganttRows(index, ['s1'], () => true, WIN)
+		);
+		expect(result.find((line) => line.key === 'x->p')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 's->x')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 'x->outside')).toMatchObject({ cycle: false });
+	});
+
+	it('keeps an acyclic line unmarked when task ids contain the cycle edge separator', () => {
+		const index = indexTasks([
+			makeTask({ id: 'a→b', start: '2027-01-01', end: '2027-01-02', dependsOn: ['c'] }),
+			makeTask({ id: 'c', start: '2027-01-03', end: '2027-01-04', dependsOn: ['a→b'] }),
+			makeTask({ id: 'a', start: '2027-01-05', end: '2027-01-06', dependsOn: ['b→c'] }),
+			makeTask({ id: 'b→c', start: '2027-01-07', end: '2027-01-08' })
+		]);
+		const result = dependencyLines(
+			index,
+			ganttRows(index, ['s1'], () => false, WIN)
+		);
+		expect(result.find((line) => line.key === 'c->a→b')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 'a→b->c')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 'b→c->a')).toMatchObject({ cycle: false });
+	});
+
+	it('keeps the cycle flag when a later cyclic edge merges into an acyclic line', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'a', parentId: 'p', start: '2027-01-01', end: '2027-01-02' }),
+			makeTask({
+				id: 'b',
+				parentId: 'p',
+				start: '2027-01-03',
+				end: '2027-01-04',
+				dependsOn: ['y']
+			}),
+			makeTask({ id: 'y', start: '2027-01-05', end: '2027-01-06', dependsOn: ['a', 'b'] })
+		]);
+		// y → a is acyclic and makes p->y first. y → b is cyclic and merges into it.
+		const result = dependencyLines(
+			index,
+			ganttRows(index, ['s1'], () => false, WIN)
+		);
+		expect(result).toHaveLength(1);
+		expect(result[0]).toMatchObject({ key: 'p->y', cycle: true });
+	});
+
 	it('draws no line to or from a task without a drawn mark', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'x')!.start = null;
