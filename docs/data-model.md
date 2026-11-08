@@ -80,7 +80,7 @@ A **task** has `parentId: null`. A **subtask** has the id of a task in `parentId
 | `dependsOn`    | string[]                                        | Ids of other tasks of the plan. Not its own id.                                                                                                  |
 | `createdAt`    | timestamp                                       | Sort tie-breaker.                                                                                                                                |
 
-A parent keeps its own `start`, `end`, `owners` and `status`. The app does not show these values while the parent has subtasks. The stored values show again after you delete or move the last subtask. Refer to [spec.md](spec.md), section 2.
+A parent keeps its own `start`, `end`, `owners` and `status`. The app does not show these values while the parent has subtasks. These own values can be stale while the parent has subtasks. When an action deletes or moves all remaining subtasks, the app replaces the own values with a snapshot that combines the former subtasks and the parent's own values. Import keeps the imported own values. Refer to [spec.md](spec.md), section 2.
 
 ## Milestone
 

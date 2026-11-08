@@ -10,6 +10,8 @@ import {
 	stageDeliverables,
 	stageProgress,
 	stageSpan,
+	squashSubtasks,
+	mergeIntoParent,
 	tasksSpan,
 	type Readiness,
 	type TaskState
@@ -672,4 +674,111 @@ describe('PR 4 example readiness', () => {
 			count: 1
 		});
 	});
+});
+
+describe('squashSubtasks', () => {
+	it('includes canceled dates and owners but excludes canceled status from the parent rule', () => {
+		const children = [
+			makeTask({
+				id: 'done',
+				start: '2027-02-05',
+				end: '2027-02-10',
+				owners: [' Ann ', 'BO'],
+				status: 'done'
+			}),
+			makeTask({
+				id: 'canceled',
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['ann', ' Cy ', ''],
+				status: 'canceled'
+			})
+		];
+		const expected = {
+			start: '2027-02-01',
+			end: '2027-02-20',
+			owners: ['Ann', 'BO', 'Cy'],
+			status: 'done'
+		};
+		expect(
+			effectiveValues(makeTask({ id: 'parent', status: 'todo', owners: ['Hidden'] }), children)
+		).toEqual(expected);
+		expect(squashSubtasks(children)).toEqual(expected);
+	});
+
+	it.each([
+		{ statuses: ['canceled', 'canceled'], status: 'canceled' },
+		{ statuses: ['todo', 'canceled'], status: 'todo' },
+		{ statuses: ['done', 'todo'], status: 'in_progress' },
+		{ statuses: ['in_progress', 'canceled'], status: 'in_progress' }
+	] as const)('squashes $statuses with empty dates to $status', ({ statuses, status }) => {
+		expect(
+			squashSubtasks(statuses.map((status, i) => makeTask({ id: String(i), status })))
+		).toEqual({ start: null, end: null, owners: [], status });
+	});
+
+	it('skips empty endpoints independently', () => {
+		expect(
+			squashSubtasks([
+				makeTask({ id: 'a', end: '2027-03-10' }),
+				makeTask({ id: 'b', start: '2027-03-01' })
+			])
+		).toEqual({ start: '2027-03-01', end: '2027-03-10', owners: [], status: 'todo' });
+	});
+});
+
+describe('mergeIntoParent', () => {
+	it.each([
+		{
+			ownStart: '2027-01-01',
+			ownEnd: '2027-12-31',
+			childStart: '2027-02-01',
+			childEnd: '2027-02-20',
+			start: '2027-01-01',
+			end: '2027-12-31'
+		},
+		{
+			ownStart: '2027-02-05',
+			ownEnd: '2027-02-10',
+			childStart: '2027-02-01',
+			childEnd: '2027-02-20',
+			start: '2027-02-01',
+			end: '2027-02-20'
+		},
+		{
+			ownStart: null,
+			ownEnd: '2027-02-10',
+			childStart: '2027-02-01',
+			childEnd: null,
+			start: '2027-02-01',
+			end: '2027-02-10'
+		},
+		{
+			ownStart: '2027-02-01',
+			ownEnd: null,
+			childStart: null,
+			childEnd: '2027-02-10',
+			start: '2027-02-01',
+			end: '2027-02-10'
+		},
+		{ ownStart: null, ownEnd: null, childStart: null, childEnd: null, start: null, end: null }
+	] as const)(
+		'merges date endpoints: $ownStart / $ownEnd with $childStart / $childEnd',
+		({ ownStart, ownEnd, childStart, childEnd, start, end }) => {
+			const parent = makeTask({
+				id: 'p',
+				start: ownStart,
+				end: ownEnd,
+				owners: [' Bo ', 'ANN'],
+				status: 'in_progress'
+			});
+			const merged = mergeIntoParent(parent, {
+				start: childStart,
+				end: childEnd,
+				owners: ['ann', 'Cy', 'bo'],
+				status: 'done'
+			});
+			expect(merged).toMatchObject({ start, end, owners: ['Bo', 'ANN', 'Cy'], status: 'done' });
+		}
+	);
 });

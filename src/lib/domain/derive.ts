@@ -123,7 +123,12 @@ export function effectiveValues(task: Task, children: readonly Task[] = []): Eff
 			status: task.status
 		};
 	}
-	// Canceled subtasks do not count. All subtasks canceled gives canceled.
+	return squashSubtasks(children);
+}
+
+/** Combines subtask dates, owners and status with the parent rule. */
+export function squashSubtasks(children: readonly Task[]): EffectiveValues {
+	// Canceled subtasks contribute dates and owners, but not status.
 	const active = children.filter((c) => c.status !== 'canceled');
 	const doneCount = active.filter((c) => c.status === 'done').length;
 	const todoCount = active.filter((c) => c.status === 'todo').length;
@@ -139,6 +144,16 @@ export function effectiveValues(task: Task, children: readonly Task[] = []): Eff
 					: todoCount === active.length
 						? 'todo'
 						: 'in_progress'
+	};
+}
+
+/** Merges subtask values with the own values of a parent. */
+export function mergeIntoParent(parent: Task, squashed: EffectiveValues): EffectiveValues {
+	return {
+		start: minDate([parent.start, squashed.start]),
+		end: maxDate([parent.end, squashed.end]),
+		owners: normalizeOwners([...parent.owners, ...squashed.owners]),
+		status: squashed.status
 	};
 }
 

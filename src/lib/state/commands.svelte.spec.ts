@@ -417,20 +417,84 @@ describe('task commands', () => {
 	});
 
 	it.each(['delete', 'move'] as const)(
-		'shows the stored status after the last child is removed by %s',
+		'snapshots the last child removed by %s in one undo and redo step',
 		(action) => {
 			const ws = open();
 			const stageId = ws.plan.stages[0].id;
-			const parent = addTask(ws, stageId, { parentId: null, patch: { status: 'in_progress' } });
-			const child = addTask(ws, stageId, { parentId: parent, patch: { status: 'done' } });
-			const effective = () => ws.index.state.get(parent)!.eff.status;
-			expect(effective()).toBe('done');
+			const parent = addTask(ws, stageId, {
+				parentId: null,
+				patch: { start: '2027-02-05', end: '2027-02-10', owners: ['Own'], status: 'in_progress' }
+			});
+			const child = addTask(ws, stageId, {
+				parentId: parent,
+				patch: { start: '2027-02-01', end: '2027-02-20', owners: ['Child'], status: 'done' }
+			});
+			ws.history.clear();
+			const before = $state.snapshot(ws.plan);
+			expect(ws.history.canUndo).toBe(false);
+			expect(ws.history.canRedo).toBe(false);
 			if (action === 'delete') removeTasks(ws, [child]);
 			else moveTask(ws, child, { target: { stageId, parentId: null }, fixes: [] });
-			expect(effective()).toBe('in_progress');
-			expect(ws.plan.tasks.find((task) => task.id === parent)?.status).toBe('in_progress');
+			const expected = {
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['Own', 'Child'],
+				status: 'done'
+			};
+			expect(ws.plan.tasks.find((task) => task.id === parent)).toMatchObject(expected);
+			expect(ws.index.state.get(parent)!.eff).toEqual(expected);
+			expect(ws.index.children.get(parent) ?? []).toHaveLength(0);
+			const after = $state.snapshot(ws.plan);
+			expect(ws.undo()).toBe(true);
+			expect($state.snapshot(ws.plan)).toEqual(before);
+			expect(ws.index.children.get(parent)?.map((task) => task.id)).toEqual([child]);
+			expect(ws.history.canUndo).toBe(false);
+			expect(ws.redo()).toBe(true);
+			expect($state.snapshot(ws.plan)).toEqual(after);
+			expect(ws.index.state.get(parent)!.eff).toEqual(expected);
+			expect(ws.history.canRedo).toBe(false);
 		}
 	);
+
+	it('discards a new empty only subtask by rolling back its creation without a snapshot', () => {
+		const ws = open();
+		const stageId = ws.plan.stages[0].id;
+		const parent = addTask(ws, stageId, {
+			parentId: null,
+			patch: { start: '2027-02-01', end: '2027-02-20', owners: ['Own'], status: 'done' }
+		});
+		ws.history.clear();
+		const before = $state.snapshot(ws.plan);
+		const child = addTask(ws, stageId, { parentId: parent });
+		discardNewTask(ws, child);
+		expect($state.snapshot(ws.plan)).toEqual(before);
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.history.canRedo).toBe(false);
+	});
+
+	it('discards an empty only subtask without a snapshot when its creation is not the newest step', () => {
+		const ws = open();
+		const stageId = ws.plan.stages[0].id;
+		const parent = addTask(ws, stageId, {
+			parentId: null,
+			patch: { owners: ['Own'], status: 'done' }
+		});
+		const child = addTask(ws, stageId, { parentId: parent });
+		ws.history.clear();
+		const before = $state.snapshot(ws.plan);
+		discardNewTask(ws, child);
+		expect(ws.plan.tasks.find((task) => task.id === child)).toBeUndefined();
+		expect(ws.plan.tasks.find((task) => task.id === parent)).toEqual(
+			before.tasks.find((task) => task.id === parent)
+		);
+		const after = $state.snapshot(ws.plan);
+		expect(ws.undo()).toBe(true);
+		expect($state.snapshot(ws.plan)).toEqual(before);
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.redo()).toBe(true);
+		expect($state.snapshot(ws.plan)).toEqual(after);
+		expect(ws.history.canRedo).toBe(false);
+	});
 
 	it('updates cached dependent readiness after a dependency status change, undo and redo', () => {
 		const ws = open();

@@ -629,3 +629,60 @@ test.describe('work plan', () => {
 		});
 	});
 });
+
+test('deleting the last subtask shows the parent snapshot and supports Undo and Redo', async ({
+	page
+}) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		const parent = plan.tasks.find((task) => task.title === 'Soil preparation')!;
+		const child = plan.tasks.find((task) => task.title === 'Soil test')!;
+		Object.assign(parent, {
+			start: '2027-02-05',
+			end: '2027-02-10',
+			owners: ['Own'],
+			status: 'in_progress',
+			dependsOn: []
+		});
+		Object.assign(child, {
+			start: '2027-02-01',
+			end: '2027-02-20',
+			owners: ['Child'],
+			status: 'done',
+			dependsOn: []
+		});
+		plan.tasks = [parent, child];
+	});
+	const parent = row(page, 'Soil preparation');
+	const child = row(page, 'Soil test');
+	const undo = page.getByRole('button', { name: 'Undo', exact: true });
+	const redo = page.getByRole('button', { name: 'Redo', exact: true });
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeDisabled();
+	await parent.getByTestId('task-toggle').click();
+	await expect(child).toBeVisible();
+	await child.getByTestId('task-details').click();
+	await expect(page.getByTestId('task-dialog')).toBeVisible();
+	await page.getByRole('button', { name: 'Delete…', exact: true }).click();
+	await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click();
+	await expect(page.getByTestId('task-dialog')).toBeHidden();
+	const expectSnapshot = async () => {
+		await expect(child).toHaveCount(0);
+		await expect(parent.getByTestId('task-target')).toContainText('Feb 20');
+		await expect(parent.getByTestId('task-owners')).toContainText('Own');
+		await expect(parent.getByTestId('task-owners')).toContainText('Child');
+		await expect(parent.getByTestId('task-status')).toHaveAccessibleName(
+			'Status of Soil preparation: Done'
+		);
+	};
+	await expectSnapshot();
+	await undo.click();
+	await expect(child).toBeVisible();
+	await expect(parent.getByTestId('task-target')).toContainText('Feb 20');
+	await expect(parent.getByTestId('task-owners')).toContainText('Child');
+	await expect(parent.getByTestId('task-owners')).not.toContainText('Own');
+	await expect(undo).toBeDisabled();
+	await redo.click();
+	await expectSnapshot();
+	await expect(redo).toBeDisabled();
+});
