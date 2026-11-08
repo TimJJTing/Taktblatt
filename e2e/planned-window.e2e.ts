@@ -135,10 +135,10 @@ test('the parent dialog edits its stored window and rejects dates inside the sub
 	// Click inside the dialog, outside the popover.
 	const box = (await dialog.boundingBox())!;
 	await page.mouse.click(box.x + 12, box.y + 12);
+	// Wait until the popover is closed. An Escape during its exit animation closes the dialog.
+	await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);
+	await expect(dialog).toBeVisible();
 	await expect.poll(() => parentValues(page)).toEqual(before);
-	if (await page.getByRole('textbox', { name: 'Start', exact: true }).isVisible()) {
-		await page.keyboard.press('Escape');
-	}
 	// The calendar marks the subtask range. A pick that breaks the floor shows the alert.
 	await openRange(page, range);
 	const popover = page.locator('[data-slot="popover-content"]');
