@@ -11,7 +11,7 @@
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import * as Select from '#lib/components/ui/select/index.ts';
 	import {
@@ -126,26 +126,12 @@
 			</Dialog.Header>
 
 			<div class="-mt-2 flex items-center gap-2">
-				{#if isParent}
-					<Hint text={m.task_done_derived()} focusable={false}>
-						{#snippet child({ props })}
-							<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
-								<Checkbox
-									checked={eff.done === 'done'}
-									indeterminate={eff.done === 'partial'}
-									disabled
-									aria-label={m.task_done_label({ task: titleText })}
-								/>
-							</span>
-						{/snippet}
-					</Hint>
-				{:else}
-					<Checkbox
-						checked={task.done}
-						onCheckedChange={(done) => updateTask(ws, task.id, { done })}
-						aria-label={m.task_done_label({ task: titleText })}
-					/>
-				{/if}
+				<TaskStatusSelect
+					status={eff.status}
+					task={titleText}
+					disabled={isParent}
+					onChange={(status) => updateTask(ws, task.id, { status })}
+				/>
 				<div class="min-w-0 flex-1 text-lg font-semibold">
 					<InlineText
 						value={task.title}

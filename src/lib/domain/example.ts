@@ -33,7 +33,7 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		start: start === null ? null : at(start),
 		end: end === null ? null : at(end),
 		owners,
-		done: false,
+		status: 'todo',
 		note: '',
 		dependsOn: [],
 		createdAt: new Date(Date.parse(now) + order++).toISOString(),
@@ -41,15 +41,16 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 	});
 
 	const survey = task(stage.prepare, 'Site survey', 'Bed layout sketch', -14, -7, ['Noor'], {
-		done: true
+		status: 'done'
 	});
 	const soil = task(stage.prepare, 'Soil preparation', 'Ready beds', null, null, []);
 	const soilTest = task(stage.prepare, 'Soil test', 'Test results', -6, -2, ['Kai'], {
 		parentId: soil.id,
-		done: true
+		status: 'done'
 	});
 	const compost = task(stage.prepare, 'Add compost', 'Amended beds', -1, 6, ['Kai', 'Rosa'], {
 		parentId: soil.id,
+		status: 'in_progress',
 		dependsOn: [soilTest.id]
 	});
 	const seeds = task(stage.prepare, 'Order seeds', 'Seed stock', -5, 3, ['Rosa'], {

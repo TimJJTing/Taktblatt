@@ -4,9 +4,7 @@
  */
 import type { ISODate } from './date.ts';
 import { normalizeOwners } from './owners.ts';
-import type { Milestone, Task } from './schema.ts';
-
-export type DoneState = 'done' | 'partial' | 'open';
+import type { Milestone, Task, TaskStatus } from './schema.ts';
 
 export interface TaskIndex {
 	byId: ReadonlyMap<string, Task>;
@@ -20,7 +18,12 @@ export interface EffectiveValues {
 	start: ISODate | null;
 	end: ISODate | null;
 	owners: string[];
-	done: DoneState;
+	status: TaskStatus;
+}
+
+/** Returns true for done and canceled. A finished task satisfies dependencies and looks muted. */
+export function isFinished(status: TaskStatus): boolean {
+	return status === 'done' || status === 'canceled';
 }
 
 function minDate(dates: (ISODate | null)[]): ISODate | null {
@@ -42,15 +45,25 @@ export function effectiveValues(task: Task, children: readonly Task[] = []): Eff
 			start: task.start,
 			end: task.end,
 			owners: normalizeOwners(task.owners),
-			done: task.done ? 'done' : 'open'
+			status: task.status
 		};
 	}
-	const doneCount = children.filter((c) => c.done).length;
+	// Canceled subtasks do not count. All subtasks canceled gives canceled.
+	const active = children.filter((c) => c.status !== 'canceled');
+	const doneCount = active.filter((c) => c.status === 'done').length;
+	const todoCount = active.filter((c) => c.status === 'todo').length;
 	return {
 		start: minDate(children.map((c) => c.start)),
 		end: maxDate(children.map((c) => c.end)),
 		owners: normalizeOwners(children.flatMap((c) => c.owners)),
-		done: doneCount === children.length ? 'done' : doneCount > 0 ? 'partial' : 'open'
+		status:
+			active.length === 0
+				? 'canceled'
+				: doneCount === active.length
+					? 'done'
+					: todoCount === active.length
+						? 'todo'
+						: 'in_progress'
 	};
 }
 
@@ -118,11 +131,23 @@ export function stageSpan(
 	return { start: dates[0], end: dates[dates.length - 1] };
 }
 
-/** "x / y done". Counts tasks (level 1) only. */
-export function stageProgress(index: TaskIndex, stageId: string): { done: number; total: number } {
+/** Counts level-1 tasks by their effective status. The total leaves out canceled tasks. */
+export function stageProgress(
+	index: TaskIndex,
+	stageId: string
+): { done: number; inProgress: number; total: number } {
 	const tasks = index.stageTasks.get(stageId) ?? [];
-	const done = tasks.filter((t) => effectiveValues(t, index.children.get(t.id)).done === 'done');
-	return { done: done.length, total: tasks.length };
+	let done = 0;
+	let inProgress = 0;
+	let total = 0;
+	for (const task of tasks) {
+		const status = effectiveValues(task, index.children.get(task.id)).status;
+		if (status === 'canceled') continue;
+		total++;
+		if (status === 'done') done++;
+		if (status === 'in_progress') inProgress++;
+	}
+	return { done, inProgress, total };
 }
 
 /** The deliverables of the tasks of a stage, in task order. Empty values are skipped. */

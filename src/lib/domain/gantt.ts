@@ -6,9 +6,9 @@
  * Refer to docs/spec.md, section 5.4.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
-import { effectiveValues, orderedMilestones, type DoneState, type TaskIndex } from './derive.ts';
+import { effectiveValues, orderedMilestones, type TaskIndex } from './derive.ts';
 import { effectiveDependencies } from './dependencies.ts';
-import type { Band, Milestone } from './schema.ts';
+import type { Band, Milestone, TaskStatus } from './schema.ts';
 
 /** The visible range of the timeline. Both dates are inclusive. */
 export interface GanttWindow {
@@ -120,7 +120,7 @@ export interface GanttRow {
 	parentId: string | null;
 	isParent: boolean;
 	expanded: boolean;
-	done: DoneState;
+	status: TaskStatus;
 	mark: GanttMark;
 	/** 0-based. */
 	row: number;
@@ -150,7 +150,7 @@ export function ganttRows(
 				parentId: null,
 				isParent,
 				expanded,
-				done: eff.done,
+				status: eff.status,
 				mark: taskMark(win, eff),
 				row: rows.length
 			});
@@ -164,7 +164,7 @@ export function ganttRows(
 					parentId: task.id,
 					isParent: false,
 					expanded: false,
-					done: childEff.done,
+					status: childEff.status,
 					mark: taskMark(win, childEff),
 					row: rows.length
 				});

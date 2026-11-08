@@ -33,7 +33,7 @@ export function createTask(stageId: string, parentId: string | null = null): Tas
 		start: null,
 		end: null,
 		owners: [],
-		done: false,
+		status: 'todo',
 		note: '',
 		dependsOn: [],
 		createdAt: new Date().toISOString()

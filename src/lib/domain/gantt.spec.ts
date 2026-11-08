@@ -163,9 +163,9 @@ describe('taskMark', () => {
 
 describe('ganttRows', () => {
 	const tasks = [
-		makeTask({ id: 'b', stageId: 's1', start: '2027-01-05', end: '2027-01-06', done: true }),
+		makeTask({ id: 'b', stageId: 's1', start: '2027-01-05', end: '2027-01-06', status: 'done' }),
 		makeTask({ id: 'p', stageId: 's1' }),
-		makeTask({ id: 'p2', parentId: 'p', start: '2027-01-04', end: '2027-01-04', done: true }),
+		makeTask({ id: 'p2', parentId: 'p', start: '2027-01-04', end: '2027-01-04', status: 'done' }),
 		makeTask({ id: 'p1', parentId: 'p', start: '2027-01-02', end: '2027-01-03' }),
 		makeTask({ id: 'q', stageId: 's2' }),
 		makeTask({ id: 'q1', stageId: 's2', parentId: 'q', start: '2027-01-08' }),
@@ -192,16 +192,16 @@ describe('ganttRows', () => {
 		expect(rows.map((r) => r.id)).toEqual(['q', 'p', 'b']);
 	});
 
-	it('uses the effective dates and done state', () => {
+	it('uses the effective dates and status', () => {
 		const rows = ganttRows(index, ['s1', 's2'], () => false, WIN);
 		const p = rows.find((r) => r.id === 'p')!;
-		expect(p.done).toBe('partial');
+		expect(p.status).toBe('in_progress');
 		expect(p.mark).toMatchObject({ kind: 'bar' });
 		if (p.mark.kind === 'bar') {
 			expect(p.mark.x0).toBeCloseTo(0.1);
 			expect(p.mark.x1).toBeCloseTo(0.4);
 		}
-		expect(rows.find((r) => r.id === 'b')!.done).toBe('done');
+		expect(rows.find((r) => r.id === 'b')!.status).toBe('done');
 		expect(rows.find((r) => r.id === 'q')!.mark.kind).toBe('point');
 	});
 

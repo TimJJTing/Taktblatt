@@ -68,7 +68,7 @@ interface Task {
 	start: ISODate | null;
 	end: ISODate | null;
 	owners: string[];
-	done: boolean;
+	status: 'todo' | 'in_progress' | 'done' | 'canceled';
 	note: string; // plain text with mention tokens
 	dependsOn: string[]; // task ids
 	createdAt: string; // ISO timestamp, sort tie-breaker
@@ -121,22 +121,22 @@ The `required` title rules and text length limits above are limits of the worksp
 
 The app calculates a **derived value** from other data. The user cannot edit a derived value directly. Each derived value has one calculation. All views use the same calculation.
 
-| Value                   | Rule                                                                                                                                                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Parent `start`          | The earliest `start` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                  |
-| Parent `end`            | The latest `end` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                      |
-| Parent `owners`         | The union of the owners of its subtasks.                                                                                                                                                              |
-| Parent `done`           | All subtasks done → done. Some subtasks done → indeterminate. No subtasks done → not done.                                                                                                            |
-| Parent fallback         | The parent keeps its own `start`, `end`, `owners` and `done` in storage. The app hides these values while the parent has subtasks. The app shows them again when you delete or move the last subtask. |
-| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Tasks or subtasks without `start` go last.                                                  |
-| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The app animates the new order (FLIP).                                                                     |
-| Milestone labels        | The app numbers milestones M1 … Mn by date order.                                                                                                                                                     |
-| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                                         |
-| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". The app hides the months when no tasks have dates.                    |
-| Stage deliverables      | The list of task deliverables of the stage, in task order. The app skips empty values.                                                                                                                |
-| Stage progress          | "x / y done". y is the number of tasks in the stage (not subtasks). x is the number of done tasks.                                                                                                    |
-| Page numbers            | "n / N". The paginator calculates these values (section 7).                                                                                                                                           |
-| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                                      |
+| Value                   | Rule                                                                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parent `start`          | The earliest `start` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                    |
+| Parent `end`            | The latest `end` of its subtasks. The app skips empty values. All empty → empty.                                                                                                                        |
+| Parent `owners`         | The union of the owners of its subtasks.                                                                                                                                                                |
+| Parent `status`         | Ignore `canceled` subtasks. Of the other subtasks: all `done` → `done`; all `todo` → `todo`; all other combinations → `in_progress`. All subtasks `canceled` → `canceled`.                              |
+| Parent fallback         | The parent keeps its own `start`, `end`, `owners` and `status` in storage. The app hides these values while the parent has subtasks. The app shows them again when you delete or move the last subtask. |
+| Task order              | Tasks sort by `start` in their stage. Subtasks sort by `start` in their parent. Ties sort by `createdAt`. Tasks or subtasks without `start` go last.                                                    |
+| Sort time               | The app sorts after a commit (blur, Enter, picker close). It does not sort while you type. The app animates the new order (FLIP).                                                                       |
+| Milestone labels        | The app numbers milestones M1 … Mn by date order.                                                                                                                                                       |
+| Stage number            | "Stage N". N is the position of the stage in the stage order.                                                                                                                                           |
+| Stage months            | The months from the earliest `start` to the latest `end` of the tasks in the stage. One month: "Nov". More months: "Nov – Dec". The app hides the months when no tasks have dates.                      |
+| Stage deliverables      | The list of task deliverables of the stage, in task order. The app skips empty values.                                                                                                                  |
+| Stage progress          | "x / y done · z in progress". Count level-1 tasks by effective status. The total y leaves out `canceled` tasks. Hide the in-progress part when z is 0.                                                  |
+| Page numbers            | "n / N". The paginator calculates these values (section 7).                                                                                                                                             |
+| Tab title and file name | The tab title is the heading. The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`. The date is the export date.                                                                        |
 
 ## 3. Dependencies
 
@@ -179,8 +179,8 @@ A **move** changes the stage or the parent of a task or subtask (section 5.6).
 - A **ready light** is a small green dot. It shows that the task can start.
 - The ready light is on when all these conditions are true:
   - The task has one or more effective dependencies.
-  - All effective dependencies are done. For a parent dependency, the app uses its derived `done`.
-  - The task is not done.
+  - All effective dependencies are finished: their status is `done` or `canceled`. For a parent dependency, the app uses its derived `status`.
+  - The effective status of the task is `todo`.
 - The planned `start` date has no effect on the ready light.
 - The ready light shows before the title in the table, before the Gantt label, in the task dialog and on the sheets.
 - In the table, the Gantt labels and the sheets, the ready light has a fixed slot before the title. When the light is off, the slot stays empty. Thus the first letters of the titles at the same level stay aligned, and a title does not move when the light comes on.
@@ -240,7 +240,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 ### 4.5 Undo
 
 - The app keeps one undo history in memory for the active plan. The history keeps 50 steps.
-- One commit is one step: a blur, Enter, a checkbox, a picker, a dialog action, a move.
+- One commit is one step: a blur, Enter, a status selection, a picker, a dialog action, a move.
 - **Cmd/Ctrl+Z** undoes. **Shift+Cmd/Ctrl+Z** and **Ctrl+Y** redo.
 - The app clears the history when you switch to a different plan, when another browser tab changes the active plan, after an import, when you change the UI language (the page reloads, see section 6), and when you reload the page.
 
@@ -264,7 +264,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - The workspace is one page that scrolls. The parts are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
 - The sticky app header has a second row, **Plan sections**. It is a navigation with a link to each part.
 - The first row of the app header contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and Settings.
-- All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and mark tasks done. The Gantt and the table scroll horizontally.
+- All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and set the task status. The Gantt and the table scroll horizontally.
 - The **Settings** menu has two labeled radio groups. **Theme** has three choices: **Light**, **Dark** and **System**. A separator comes before **Language**, which has **English**, **Deutsch**, **繁體中文** and **日本語**. Each group heading has a decorative icon: a sun and moon for **Theme** and a language icon for **Language**. Each group shows its selected choice with a check mark. The menu supports pointer and keyboard input. Its labels use the UI language. The header has one Settings button with a gear icon.
 - The default theme is **System**. It follows changes to the system theme while the app is open. **Light** and **Dark** override the system theme.
 - A theme change applies at once. It does not reload the page, change plan data or clear the undo history. The app saves the choice in this browser. It restores the choice after a reload, also offline. An import does not change it.
@@ -299,12 +299,13 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - A task with a start after its end shows a muted "Start is after end" cue. It has no bar.
 - The app clips a bar outside the window at the edge. The clipped edge has a mark.
 - A task fully outside the window has no bar. A chevron at the near edge shows the side.
-- Done tasks have a muted bar and label.
+- Only tasks with effective status `done` or `canceled` have a muted bar and a struck-through label. Bars and points use 40% opacity. Tasks with status `todo` or `in_progress` keep their normal appearance. This rule also applies in Preview and print.
+- The accessible name of a bar or point adds "done", "in progress" or "canceled" for that status. It adds no status text for `todo`.
 - Bars are read-only. You edit dates in the table or in the task dialog.
 - **Labels:** click a label to scroll to its table row. The row flashes one time. You cannot edit a label in the Gantt.
 - **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Timeline section, the app scrolls the chart to show the bar.
 - **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
-- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When you expand a parent, the lines connect to the subtask that owns the dependency. When you collapse a parent, the lines connect to the parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done row use 40% opacity, the same as done bars. This also applies in Preview and print. For a parent row, the app uses its derived done state.
+- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. When you expand a parent, the lines connect to the subtask that owns the dependency. When you collapse a parent, the lines connect to the parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done or canceled row use 40% opacity, the same as done and canceled bars. This also applies in Preview and print. For a parent row, the app uses its derived status.
 - **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestone and band dialogs:** an outside click saves an edit. Esc and **Cancel** discard the changes. An outside click on a new entry does not add it.
@@ -339,7 +340,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 
 ### 5.6 Work plan
 
-- **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done". Click the title to edit it.
+- **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done · z in progress". Hide the in-progress part when z is 0. Animate both counts. Use the same text on printed sheets. Keep the word order and punctuation in translation messages. Click the title to edit it. When the header is too wide for the screen, the progress and the stage menu move to a second line.
 - **Sticky stage headers:** while a stage scrolls, its header stays below the app header and the pinned Timeline section. The header stays within its stage. It scrolls out when the stage ends.
   - The app header and pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
   - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height.
@@ -352,8 +353,9 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Stage order:** a drag handle (it also works with the keyboard), and **Move up** and **Move down** in the stage menu.
 - **Add stage:** a "+" line between two stages and after the last stage. It adds an empty stage. An empty stage stays after blur.
 - **Delete stage…:** in the stage menu. The confirmation shows the effect, for example "Tasks deleted with the stage: 5. Other tasks that depend on them: 2." The app deletes the tasks of the stage. You can undo it.
-- **Columns:** Done | Task | Deliverable | Target | Owner | "…".
-- **Done:** a checkbox. The app dims done rows. For a parent, the app calculates the checkbox state from its subtasks. The state can be indeterminate.
+- **Columns:** Status | Task | Deliverable | Target | Owner | "…".
+- **Status:** a compact select with an icon. An empty circle means Todo. A half-filled circle means In progress. A check-circle means Done. A circle with a slash means Canceled. The options are Todo, In progress, Done and Canceled, in this order. They show the icon and label. The trigger has a status hint and an accessible name with the task and status. Only done and canceled rows are dimmed, and their titles are struck through. A parent shows its derived status in a disabled select. Its hint wrapper gets keyboard focus.
+- Each status change uses `updateTask` and adds one undo step. Opening or closing the select, or selecting the current value, adds no step. Undo and redo restore the status. The select uses standard keyboard controls: Enter or Space opens it, arrows move between options, Enter selects, and Escape closes it. Focus returns to the trigger.
 - **Target:** shows the `end` date. Hover shows the full range. Click opens the date picker. It can be empty. For a parent, the app calculates it from the subtask dates.
 - **Owner:** chips with suggestions from all owners of the plan. "+N" shows when the chips do not fit. For a parent, the app calculates the owners from its subtasks. The chip menu has **Rename everywhere…**. This renames the owner in all tasks of the plan.
 - **Tasks and subtasks:** a parent has a chevron. Other tasks have a spacer, so the titles align. Subtask rows indent the title cell only.
@@ -367,7 +369,8 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 
 The title of the dialog in the UI is "Task details" ("Subtask details" for a subtask).
 
-- The dialog shows all fields of the task: title, deliverable, range, owners, done, note, dependencies.
+- The dialog shows all fields of the task: title, deliverable, range, owners, status, note, dependencies.
+- The status uses the same select as the table. The dialog trigger shows the icon and label, so it has no status hint. A parent shows its derived status in a disabled select. The hint wrapper adds no tab stop.
 - It also shows **Stage** and **Parent**.
   - **Stage** moves a task and its subtasks to a different stage.
   - **Parent** is "None (task)" or another top-level task in the same stage, with or without subtasks. "None (task)" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
@@ -400,7 +403,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 - Controls and status marks show their hints in a tooltip. Examples: the header buttons, the "+" buttons, the pin and height buttons of the timeline, the Gantt labels, bars, points, milestones and bands, the stage color swatches, the ready light and the derived values of a parent.
 - The app does not use the native `title` attribute. A unit test checks this.
-- A tooltip opens on hover. On an element that can get keyboard focus, it also opens on keyboard focus. The controls, the Gantt bars and points, and the derived done checkbox of a parent in the work plan get keyboard focus. Other status marks do not get a tab stop: the ready light, the derived range and owners, the Gantt outside markers, the dependency warnings and inherited dependencies, and the derived done checkbox in the task dialog.
+- A tooltip opens on hover. On an element that can get keyboard focus, it also opens on keyboard focus. The controls, the Gantt bars and points, and the derived status select of a parent in the work plan get keyboard focus. Other status marks do not get a tab stop: the ready light, the derived range and owners, the Gantt outside markers, the dependency warnings and inherited dependencies, and the derived status select in the task dialog.
 - The text alternative stays in the `aria-label`. When the hint gives more information than the name, the app gives this information to assistive technology too. For example, a Gantt label has the hint "Title: Show in the work plan" as its accessible description. A stage color swatch that another stage uses has "Another stage uses this color." in its accessible name.
 - An owner field with more owners than chips shows the full owner list as its hint. The derived owners of a parent show "Owners come from the subtasks." and, when chips are hidden, the full owner list.
 - Preview and printed sheets show no hints.
@@ -430,6 +433,8 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - User-facing item lists use `joinList()`, which formats the list with `Intl.ListFormat` for the UI language. This includes owner lists on screen and on sheets. Stored owner arrays stay unchanged.
 
 ## 7. Preview and print
+
+Printed work tables use the Status header and the same four status icons in paper ink. Each icon has screen-reader text for its status. Only done and canceled rows are muted. Stage progress uses the same text as the workspace.
 
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.
 - Print keeps the fills of task bars, task points, bands and legend swatches when background graphics are off in the print dialog. Dependency lines connect to the same visible task marks as in Preview.
@@ -467,6 +472,10 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - Ink `#1A1D23`. Secondary text `#3A3F4A` and `#5A6070`. Rules `#C9CDD4` and `#E1E4E8`. Neutral fill `#EEF0F3`.
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
 - Stage palette: 8 colors. Band palette: 4 light tints. All pass WCAG AA against their background. Each has a dark-mode variant for the screen.
+
+## Future: Kanban
+
+Ready means `todo` with the ready light on. Blocked means a status other than `done` or `canceled` with an effective dependency whose status is not `done` or `canceled`. The column for `canceled` tasks is open. A Kanban view is not part of this change.
 
 ## 10. Quality
 

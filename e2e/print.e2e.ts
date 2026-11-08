@@ -10,7 +10,8 @@ import {
 	openSettings,
 	row,
 	storedPlan,
-	writeStoredPlan
+	writeStoredPlan,
+	setTaskStatus
 } from './helpers.ts';
 
 declare global {
@@ -23,15 +24,76 @@ declare global {
 const sheets = (page: Page) => page.getByTestId('sheet');
 const previewButton = (page: Page) => page.getByTestId('preview-open');
 
-test('Preview and print use fainter dependency lines from done sources', async ({ page }) => {
+test('Preview and printed tables show four status icons and mute done and canceled rows', async ({
+	page
+}) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.tasks = plan.tasks.filter((task) => task.parentId === null).slice(0, 4);
+		for (const [index, task] of plan.tasks.entries()) {
+			task.stageId = plan.stages[0].id;
+			task.title = ['Status done', 'Status working', 'Status todo', 'Status canceled'][index];
+			task.start = plan.range.start;
+			task.end = null;
+			task.status = ['done', 'in_progress', 'todo', 'canceled'][index];
+			task.dependsOn = [];
+		}
+	});
+	for (const title of ['Status done', 'Status working', 'Status todo', 'Status canceled']) {
+		const point = page
+			.getByTestId('gantt-point')
+			.and(page.getByRole('img', { name: new RegExp(`^${title}:`) }));
+		await expect(point).toHaveCSS(
+			'opacity',
+			title === 'Status done' || title === 'Status canceled' ? '0.4' : '1'
+		);
+	}
+	await openPreview(page);
+	const rows = sheets(page).getByTestId('sheet-task-row');
+	await expect(rows).toHaveCount(4);
+	const checkRows = async () => {
+		const icons: string[] = [];
+		for (const title of ['Status done', 'Status working', 'Status todo', 'Status canceled']) {
+			const task = rows.filter({ hasText: title });
+			const point = sheets(page)
+				.getByTestId('sheet-gantt-point')
+				.and(page.getByRole('img', { name: new RegExp(`^${title}:`) }));
+			await expect(point).toHaveCSS(
+				'opacity',
+				title === 'Status done' || title === 'Status canceled' ? '0.4' : '1'
+			);
+			const statusCell = task.locator('td').first();
+			if (title === 'Status canceled') {
+				await expect(statusCell.locator('.sr-only')).toHaveText(/^canceled$/i);
+				await expect(point).toHaveAccessibleName(/, canceled$/);
+			}
+			const icon = statusCell.locator('svg');
+			await expect(icon).toHaveCount(1);
+			icons.push(await icon.innerHTML());
+			if (title === 'Status done' || title === 'Status canceled') {
+				await expect(task).toHaveClass(/text-paper-ink-3/);
+				await expect(task.locator('td').nth(1).locator('.line-through')).toHaveCount(1);
+			} else {
+				await expect(task).not.toHaveClass(/text-paper-ink-3/);
+				await expect(task.locator('.line-through')).toHaveCount(0);
+			}
+		}
+		expect(new Set(icons).size).toBe(4);
+	};
+	await checkRows();
+	await page.emulateMedia({ media: 'print' });
+	await checkRows();
+});
+
+test('Preview and print mute dependency lines from done and canceled sources', async ({ page }) => {
 	await openExample(page);
 	await writeStoredPlan(page, (plan) => {
 		const source = plan.tasks.find((task) => task.title === 'Site survey')!;
 		const target = plan.tasks.find((task) => task.title === 'Sowing')!;
 		plan.tasks = [source, target];
-		source.done = false;
+		source.status = 'todo';
 		source.dependsOn = [];
-		target.done = false;
+		target.status = 'todo';
 		target.dependsOn = [source.id];
 	});
 	await openPreview(page);
@@ -40,11 +102,25 @@ test('Preview and print use fainter dependency lines from done sources', async (
 	const normal = await dependencyContrast(line, true);
 	const sheetCount = await sheets(page).count();
 	await page.keyboard.press('Escape');
-	await row(page, 'Sowing').getByTestId('task-done').click();
+	await setTaskStatus(page, row(page, 'Sowing'), 'done');
 	await openPreview(page);
 	await expect.poll(() => dependencyContrast(line, true)).toBe(normal);
 	await page.keyboard.press('Escape');
-	await row(page, 'Site survey').getByTestId('task-done').click();
+	await setTaskStatus(page, row(page, 'Site survey'), 'in_progress');
+	await openPreview(page);
+	await expect.poll(() => dependencyContrast(line, true)).toBe(normal);
+	const workingBar = sheets(page)
+		.first()
+		.getByTestId('sheet-gantt-bar')
+		.and(page.getByRole('img', { name: /^Site survey: .+, in progress$/ }));
+	await expect(workingBar).toHaveCount(1);
+	await expect(workingBar).toHaveCSS('opacity', '1');
+	await page.emulateMedia({ media: 'print' });
+	await expect.poll(() => dependencyContrast(line, true)).toBe(normal);
+	await expect(workingBar).toHaveCSS('opacity', '1');
+	await page.emulateMedia({ media: 'screen' });
+	await page.keyboard.press('Escape');
+	await setTaskStatus(page, row(page, 'Site survey'), 'done');
 	await openPreview(page);
 	await expect.poll(() => dependencyContrast(line, true)).toBeLessThan(normal);
 	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
@@ -53,6 +129,19 @@ test('Preview and print use fainter dependency lines from done sources', async (
 	await page.emulateMedia({ media: 'print' });
 	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
 	await expect(sheets(page)).toHaveCount(sheetCount);
+	await page.emulateMedia({ media: 'screen' });
+	await page.keyboard.press('Escape');
+	await setTaskStatus(page, row(page, 'Site survey'), 'canceled');
+	await openPreview(page);
+	const canceledBar = sheets(page)
+		.getByTestId('sheet-gantt-bar')
+		.and(page.getByRole('img', { name: /^Site survey: .+, canceled$/ }));
+	await expect(canceledBar).toHaveCSS('opacity', '0.4');
+	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
+	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	await page.emulateMedia({ media: 'print' });
+	await expect(canceledBar).toHaveCSS('opacity', '0.4');
+	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
 });
 
 const addDays = (date: string, days: number) =>
@@ -73,7 +162,7 @@ async function addManyTasks(page: Page, count: number) {
 				start: addDays(plan.range.start, i % 40),
 				end: addDays(plan.range.start, (i % 40) + 5),
 				owners: ['Noor'],
-				done: false,
+				status: 'todo',
 				note: '',
 				dependsOn: [],
 				createdAt: new Date(Date.UTC(2030, 0, 1, 0, 0, i)).toISOString()
