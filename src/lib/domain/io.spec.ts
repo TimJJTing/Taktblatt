@@ -273,6 +273,21 @@ describe('parseFile', () => {
 		expect(parseFile(JSON.stringify(toPlanFile(plan))).ok).toBe(false);
 	});
 
+	it('loads and imports legacy dependencies outside a subtask parent without changing them', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['x', 'u'] }),
+			makeTask({ id: 'x' }),
+			makeTask({ id: 'q' }),
+			makeTask({ id: 'u', parentId: 'q' })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
+	});
+
 	it('rejects an inverted plan range', () => {
 		const plan = makePlan([]);
 		plan.range = { start: '2027-02-01', end: '2027-01-01' };

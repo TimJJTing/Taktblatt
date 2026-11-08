@@ -14,6 +14,7 @@ import {
 	type Readiness,
 	type TaskState
 } from './derive.ts';
+import { createExamplePlan } from './example.ts';
 import { makeTask } from './test-helpers.ts';
 
 describe('effectiveValues', () => {
@@ -602,5 +603,73 @@ describe('boardColumn', () => {
 			readiness
 		};
 		expect(boardColumn(state)).toBe(expected);
+	});
+});
+
+describe('PR 4 example readiness', () => {
+	it('has one ready stall subtask and blocks signs on booking the table', () => {
+		const plan = createExamplePlan('2027-04-01');
+		const stall = plan.tasks.find((task) => task.title === 'Neighbourhood stall')!;
+		const children = plan.tasks.filter((task) => task.parentId === stall.id);
+		expect(children.map((task) => task.title)).toEqual(['Book a table', 'Make signs']);
+		const [booking, signs] = children;
+		expect(booking).toMatchObject({
+			start: '2027-06-05',
+			end: '2027-06-05',
+			owners: ['Kai'],
+			status: 'todo',
+			dependsOn: []
+		});
+		expect(signs).toMatchObject({
+			start: '2027-06-12',
+			end: '2027-06-12',
+			owners: ['Kai'],
+			status: 'todo',
+			dependsOn: [booking.id]
+		});
+		const index = indexTasks(plan.tasks);
+		expect(index.state.get(stall.id)!.readiness).toEqual({
+			kind: 'ready',
+			via: 'subtasks',
+			count: 1
+		});
+		expect(index.state.get(booking.id)!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 0
+		});
+		expect(index.state.get(signs.id)!.readiness).toEqual({
+			kind: 'blocked',
+			blockers: [{ kind: 'task', id: booking.id }]
+		});
+		const sowing = plan.tasks.find((task) => task.title === 'Sowing')!;
+		expect(sowing.dependsOn).toEqual([
+			plan.tasks.find((task) => task.title === 'Add compost')!.id,
+			plan.tasks.find((task) => task.title === 'Order seeds')!.id
+		]);
+	});
+
+	it('keeps legacy blockers on the subtask and parent readiness without inheriting them as parent dependencies', () => {
+		const tasks = [
+			makeTask({ id: 'external' }),
+			makeTask({ id: 'p' }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['external'] })
+		];
+		const blocked = { kind: 'blocked', blockers: [{ kind: 'task', id: 'external' }] };
+		const index = indexTasks(tasks);
+		expect(index.state.get('s')!.readiness).toEqual(blocked);
+		expect(index.state.get('p')!.readiness).toEqual(blocked);
+		tasks[0].status = 'done';
+		const after = indexTasks(tasks);
+		expect(after.state.get('s')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 1
+		});
+		expect(after.state.get('p')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'subtasks',
+			count: 1
+		});
 	});
 });

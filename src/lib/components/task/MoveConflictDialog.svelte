@@ -22,8 +22,8 @@
 
 	function describe(fix: MoveFix): string {
 		switch (fix.kind) {
-			case 'remove-cycle-dependency':
-				return m.move_fix_cycle({ task: title(fix.dependencyId) });
+			case 'remove-scope-dependency':
+				return m.move_fix_scope();
 			case 'remove-parent-dependency':
 				return m.move_fix_parent({ parent: title(fix.parentId) });
 			case 'clear-date': {

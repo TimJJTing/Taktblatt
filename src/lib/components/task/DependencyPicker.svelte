@@ -1,6 +1,6 @@
 <!--
 	The dependencies of a task. Own dependencies are chips that you can remove.
-	Parents and subtasks also show inherited dependencies (read-only).
+	Subtasks also show inherited dependencies (read-only).
 	The search shows only candidates that keep the rules. Refer to docs/spec.md, section 3.
 -->
 <script lang="ts">
@@ -9,7 +9,9 @@
 	import { isComposing } from '#lib/browser/keyboard.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Input } from '#lib/components/ui/input/index.ts';
-	import { breaksDateRule, canDependOn } from '#lib/domain/dependencies.ts';
+	import { canDependOn, dependencyWarnings } from '#lib/domain/dependencies.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
+	import { joinList } from '#lib/domain/format.ts';
 	import { inheritedDependencies } from '#lib/domain/derive.ts';
 	import { matchesWords } from '#lib/domain/mentions.ts';
 	import type { Task } from '#lib/domain/schema.ts';
@@ -29,13 +31,39 @@
 
 	const title = (id: string) => ws.index.byId.get(id)?.title || m.task_untitled();
 	const inherited = $derived(inheritedDependencies(ws.index, task.id));
+	const warnings = $derived(dependencyWarnings(ws.index).filter((w) => w.taskId === task.id));
+	const orderedOptions = $derived(
+		task.parentId !== null
+			? ws.plan.tasks.filter((t) => t.parentId === task.parentId)
+			: ws.plan.tasks
+					.filter((t) => t.parentId === null)
+					.flatMap((parent) => [parent, ...ws.plan.tasks.filter((t) => t.parentId === parent.id)])
+	);
 	const candidates = $derived(
 		focused
-			? ws.plan.tasks
-					.filter((t) => canDependOn(ws.index, task.id, t.id) && matchesWords(t.title || '', query))
+			? orderedOptions
+					.filter(
+						(t) =>
+							canDependOn(ws.index, task.id, t.id) &&
+							(matchesWords(t.title || '', query) ||
+								(t.parentId !== null && matchesWords(title(t.parentId), query)))
+					)
 					.slice(0, 8)
 			: []
 	);
+
+	function warningText(dependencyId: string): string {
+		return joinList(
+			warnings
+				.filter((w) => w.dependencyId === dependencyId)
+				.map((w) =>
+					w.kind === 'date'
+						? m.dependency_warning({ task: title(dependencyId) })
+						: m.dependency_warning_subtask_scope()
+				),
+			uiIntl()
+		);
+	}
 
 	const listOpen = $derived(focused && !suggestionsHidden);
 	const activeIndex = $derived(Math.min(active, candidates.length - 1));
@@ -75,7 +103,7 @@
 	{#if task.dependsOn.length || inherited.length}
 		<ul class="flex flex-wrap gap-1.5" data-testid="dependency-list">
 			{#each task.dependsOn as id (id)}
-				{@const warn = breaksDateRule(ws.index, id, task.id)}
+				{@const warn = warningText(id)}
 				<li
 					class={cn(
 						'flex items-center gap-1 rounded-full border bg-background py-0.5 pr-0.5 pl-2 text-xs',
@@ -83,16 +111,9 @@
 					)}
 				>
 					{#if warn}
-						<TriangleAlertIcon
-							class="size-3 text-amber-600"
-							role="img"
-							aria-label={m.dependency_warning({ task: title(id) })}
-						/>
+						<TriangleAlertIcon class="size-3 text-amber-600" role="img" aria-label={warn} />
 					{/if}
-					<Hint
-						text={warn ? m.dependency_warning({ task: title(id) }) : undefined}
-						focusable={false}
-					>
+					<Hint text={warn || undefined} focusable={false}>
 						{#snippet child({ props })}
 							<span {...props} class="max-w-48 truncate">{title(id)}</span>
 						{/snippet}
@@ -108,10 +129,7 @@
 				</li>
 			{/each}
 			{#each inherited as dep (dep.depId + dep.fromId)}
-				{@const source =
-					task.parentId !== null
-						? m.dependency_inherited_parent({ task: title(dep.fromId) })
-						: m.dependency_inherited({ task: title(dep.fromId) })}
+				{@const source = m.dependency_inherited_parent({ task: title(dep.fromId) })}
 				<Hint text={source} focusable={false}>
 					{#snippet child({ props })}
 						<li
@@ -130,9 +148,14 @@
 			{/each}
 		</ul>
 	{/if}
+	<!-- The help is above the input. The open list covers the space below it. -->
+	{#if task.parentId !== null}
+		<p id={`${id}-help`} class="text-xs text-muted-foreground">{m.dependency_subtask_help()}</p>
+	{/if}
 	<div class="relative">
 		<Input
 			bind:value={query}
+			aria-describedby={task.parentId !== null ? `${id}-help` : undefined}
 			placeholder={m.dependency_search()}
 			aria-label={m.dependency_add()}
 			role="combobox"
@@ -175,7 +198,8 @@
 						aria-selected={i === activeIndex}
 						class={cn(
 							'block w-full truncate rounded-sm px-2 py-1 text-left',
-							i === activeIndex && 'bg-accent'
+							i === activeIndex && 'bg-accent',
+							candidate.parentId !== null && task.parentId === null && 'pl-6'
 						)}
 						onmousedown={(e) => {
 							e.preventDefault();
@@ -183,6 +207,9 @@
 						}}
 					>
 						{candidate.title || m.task_untitled()}
+						{#if candidate.parentId !== null && task.parentId === null}
+							<span class="ml-2 text-xs text-muted-foreground">{title(candidate.parentId)}</span>
+						{/if}
 					</button>
 				{:else}
 					<p class="px-2 py-1 text-muted-foreground">{m.dependency_none()}</p>

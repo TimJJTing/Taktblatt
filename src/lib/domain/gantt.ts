@@ -6,7 +6,7 @@
  * Refer to docs/spec.md, section 5.4.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
-import { effectiveDependencies, orderedMilestones, type TaskIndex } from './derive.ts';
+import { orderedMilestones, type TaskIndex } from './derive.ts';
 import type { Band, Milestone, TaskStatus } from './schema.ts';
 
 /** The visible range of the timeline. Both dates are inclusive. */
@@ -196,9 +196,8 @@ function markEnd(mark: GanttMark): number {
 	return mark.kind === 'bar' ? mark.x1 : mark.kind === 'point' ? mark.x : 0;
 }
 
-/** Subtasks and expanded parents draw only their own stored dependencies. */
+/** Every row draws only its own stored dependencies. */
 function rowDependencies(index: TaskIndex, row: GanttRow): Iterable<string> {
-	if (row.level === 0 && !row.expanded) return effectiveDependencies(index, row.id);
 	const task = index.byId.get(row.id);
 	if (!task) return [];
 	const childIds = new Set((index.children.get(row.id) ?? []).map((c) => c.id));

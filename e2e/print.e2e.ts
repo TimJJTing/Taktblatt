@@ -474,8 +474,7 @@ for (const source of ['preview', 'direct'] as const) {
 		await openExample(page);
 		await writeStoredPlan(page, (plan) => {
 			// Cover a point and a completed bar that starts before the visible range.
-			plan.tasks.find((task: { title: string }) => task.title === 'Neighbourhood stall')!.end =
-				null;
+			plan.tasks.find((task: { title: string }) => task.title === 'First harvest')!.end = null;
 			plan.tasks.find((task: { title: string }) => task.title === 'Site survey')!.start = addDays(
 				plan.range.start,
 				-3

@@ -125,9 +125,13 @@ The app rejects a file when one of these conditions is true:
 - A task depends on itself.
 - A parent depends on one of its own subtasks, or a subtask depends on its own parent.
 
-A subtask uses its own dependencies and the own dependencies of its parent in the effective graph. A task without subtasks uses its own dependencies. The app excludes the task itself and unknown ids. A parent uses its own dependencies and the dependencies of its subtasks. Remove the parent's own subtasks from this set.
+A subtask uses its own dependencies and the own dependencies of its parent in the effective graph. A task, with or without subtasks, uses its own dependencies. The app excludes the task itself and unknown ids. Remove a task's own subtasks from this set. A parent does not inherit the stored dependencies of its subtasks.
 
 Load and import accept cycles in the effective dependency graph. UI cycle warnings will come in PR 3. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
+
+The sibling dependency rule is an editor rule. A subtask can add dependencies only on siblings with the same parent. A task can depend on other tasks and on subtasks of other tasks. Stored and imported legacy subtask dependencies outside the parent stay valid. They count for that subtask only and show a scope warning. No migration or new schema validation is required. Refer to [ADR 14](adr/0014-subtasks-depend-only-on-siblings.md).
+
+Import counts stored dependency rows with date or scope warnings. A row with both kinds counts once.
 
 The date rule checks stored dependencies only. It uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
 

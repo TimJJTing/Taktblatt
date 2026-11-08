@@ -107,7 +107,6 @@
 	"dependency_search": "入力してタスクを検索",
 	"dependency_none": "一致するタスクがありません",
 	"dependency_remove": "依存関係 {task} を解除",
-	"dependency_inherited": "サブタスク {task} から",
 	"dependency_inherited_parent": "親タスク {task} から",
 	"dependency_warning": "{task} はこのタスクの終了後に開始します。",
 	"mention_hint": "Enter で挿入、Esc で閉じる",
@@ -117,7 +116,6 @@
 	"task_delete_body": "タスクと一緒に削除されるサブタスク：{subtasks} 件。このタスクに依存する他のタスク：{dependents} 件。それらのリンクは解除されます。",
 	"move_title": "この移動には変更が必要です",
 	"move_body": "「{task}」を移動するため、次の変更を行います：",
-	"move_fix_cycle": "「{task}」への依存関係を解除します。循環が発生するためです。",
 	"move_fix_parent": "「{parent}」からこのタスクへの依存関係を解除します。親タスクはサブタスクに依存できません。",
 	"move_fix_start": "このタスクの開始日をクリアします。そうしないと「{dependency}」が「{dependent}」の終了後に始まります。",
 	"move_fix_end": "このタスクの終了日をクリアします。そうしないと「{dependency}」が「{dependent}」の終了後に始まります。",
@@ -232,7 +230,6 @@
 	"import_keep_both": "両方を残す",
 	"import_done_one": "計画をインポートしました",
 	"import_done_many": "{count} 件の計画をインポートしました",
-	"import_date_warnings": "日付のルールに違反している依存関係：{count} 件。タスクを開くと警告が表示されます。",
 	"import_error_storage": "ブラウザの保存領域がいっぱいです。データは変更されていません。不要な計画を削除してから、もう一度お試しください。",
 	"import_error_read": "このファイルを読み込めません。データは変更されていません。",
 	"ui_language_reload_title": "言語を切り替えて再読み込みしますか？",
@@ -286,5 +283,9 @@
 	"task_status_derived": "サブタスクが状態を決めます。",
 	"stage_progress_in_progress": "{done} / {total} 完了・{inProgress} 進行中",
 	"gantt_in_progress": "進行中",
-	"gantt_canceled": "中止"
+	"gantt_canceled": "中止",
+	"move_fix_scope": "依存関係を削除：サブタスクは同じ親を持つタスクにのみ依存できます。",
+	"import_dependency_warnings": "警告のある依存関係：{count} 件。タスクを開くと警告が表示されます。",
+	"dependency_warning_subtask_scope": "サブタスクは同じ親を持つタスクにのみ依存できます。",
+	"dependency_subtask_help": "別のタスクに依存するには、このサブタスクをタスクにするか、同じ親の下に移動してください。"
 }

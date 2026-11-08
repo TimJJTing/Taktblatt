@@ -197,7 +197,7 @@ test.describe('import', () => {
 		survey.end = '2099-01-02';
 		await importJson(page, file);
 		await expect(page.getByText('Plan imported', { exact: true })).toBeVisible();
-		await expect(page.getByText(/Dependencies that break the date rule: 1/)).toBeVisible();
+		await expect(page.getByText(/(?:Dependencies|Dependency).*: 1/)).toBeVisible();
 		await row(page, 'Order seeds').getByTestId('task-details').click();
 		await expect(page.getByLabel(/starts after this task ends/)).toBeVisible();
 	});

@@ -268,7 +268,8 @@ test.describe('work plan', () => {
 
 	test('owners can be added and renamed everywhere', async ({ page }) => {
 		await openExample(page);
-		const stall = row(page, 'Neighbourhood stall');
+		await row(page, 'Neighbourhood stall').getByTestId('task-toggle').click();
+		const stall = row(page, 'Book a table');
 		await stall.getByTestId('owner-field').click();
 		await page.getByTestId('owner-input').fill('Lee');
 		await page.getByTestId('owner-input').press('Enter');

@@ -497,7 +497,7 @@ describe('task commands', () => {
 		moveTask(ws, task, {
 			target: { stageId: s2, parentId: parent },
 			fixes: [
-				{ kind: 'remove-cycle-dependency', dependencyId: parent },
+				{ kind: 'remove-scope-dependency', taskId: task, dependencyId: parent },
 				{ kind: 'remove-parent-dependency', parentId: parent },
 				{ kind: 'clear-date', field: 'start', dependencyId: parent, dependentId: task }
 			]
@@ -520,6 +520,15 @@ describe('task commands', () => {
 		});
 		expect(ws.plan.tasks.find((t) => t.id === parent)?.dependsOn).toEqual([task]);
 		expect(ws.history.canUndo).toBe(false);
+		expect(ws.redo()).toBe(true);
+		expect(ws.plan.tasks.find((t) => t.id === task)).toMatchObject({
+			stageId: s2,
+			parentId: parent,
+			start: null,
+			dependsOn: []
+		});
+		expect(ws.plan.tasks.find((t) => t.id === parent)?.dependsOn).toEqual([]);
+		expect(ws.history.canRedo).toBe(false);
 	});
 });
 
