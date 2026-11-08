@@ -16,15 +16,25 @@ import {
 const toggle = (page: Page) => page.getByTestId('timeline-legends-toggle');
 const legends = (page: Page) => page.getByTestId('timeline-legends');
 
-async function expectFullWidthDivider(page: Page) {
+async function expectRegionWidthDivider(page: Page) {
 	await expect
 		.poll(() =>
 			page.getByTestId('gantt-resize').evaluate((element) => {
 				const bounds = element.getBoundingClientRect();
+				const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+				const scroller =
+					content.dataset.layout === 'split'
+						? document.querySelector<HTMLElement>('#plan-pane')!
+						: content;
+				const box = scroller.getBoundingClientRect();
+				const region = {
+					left: box.left + scroller.clientLeft,
+					right: box.left + scroller.clientLeft + scroller.clientWidth
+				};
 				const width = document.documentElement.clientWidth;
 				return {
-					left: Math.abs(bounds.left) <= 1,
-					right: Math.abs(bounds.right - width) <= 1,
+					left: Math.abs(bounds.left - region.left) <= 1,
+					right: Math.abs(bounds.right - region.right) <= 1,
 					overflow: document.documentElement.scrollWidth > width
 				};
 			})
@@ -150,7 +160,7 @@ for (const width of [1280, 390]) {
 }
 
 for (const width of [390, 1280, 1920]) {
-	test(`the pinned divider spans the app and resizes from its edges at ${width}px`, async ({
+	test(`the pinned divider spans its region and resizes from its edges at ${width}px`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 900 });
@@ -161,9 +171,9 @@ for (const width of [390, 1280, 1920]) {
 		await page.getByTestId('gantt-pin').click();
 		const panel = page.getByTestId('timeline-panel');
 		await expectPanelHeight(page, defaultPanelHeight(page));
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await expectStickyBelowHeader(panel);
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await expect
 			.poll(async () => (await page.getByTestId('gantt').boundingBox())!.width)
 			.toBeCloseTo(chartWidth, 0);
@@ -181,17 +191,17 @@ for (const width of [390, 1280, 1920]) {
 			const x = edge === 'left' ? bounds.left + 2 : bounds.right - 2;
 			await page.mouse.move(x, bounds.y);
 			await page.mouse.down();
-			await page.mouse.move(x, bounds.y + 24);
+			await page.mouse.move(x, bounds.y + 20);
 			await page.mouse.up();
-			await expectPanelHeight(page, bounds.height + 24);
+			await expectPanelHeight(page, bounds.height + 20);
 		}
 		await toggle(page).click();
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await page.evaluate(() => (document.documentElement.style.overflowY = 'hidden'));
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await page.evaluate(() => document.documentElement.style.removeProperty('overflow-y'));
 		await page.setViewportSize({ width: width + 80, height: 900 });
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await page.getByTestId('gantt-pin').click();
 		await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
 	});

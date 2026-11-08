@@ -6,10 +6,10 @@
 -->
 <script lang="ts">
 	import { mergeProps } from 'bits-ui';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
+	import { workspaceLayout, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
 	import { isFinished } from '#lib/domain/derive.ts';
@@ -105,7 +105,6 @@
 
 	let timelineWidth = $state(TIMELINE_MIN_WIDTH);
 	let scroller = $state<HTMLDivElement | null>(null);
-	const headerHeight = $derived(appHeader.height);
 
 	const scrollBehavior = (): ScrollBehavior => (motionDuration(1) === 0 ? 'instant' : 'smooth');
 
@@ -151,26 +150,34 @@
 	}
 
 	/** Scrolls to the table row of the task and flashes it one time. */
-	function jump(id: string) {
-		const row = document.querySelector<HTMLElement>(`tr[data-task-id="${CSS.escape(id)}"]`);
-		if (!row) return;
-		const behavior = scrollBehavior();
-		if (viewer.ganttPinned) {
-			// Clear the sticky stage header and any sticky column headers at the target row.
-			const stage = row.closest('section[data-stage-id]');
-			const stageHeader = stage?.querySelector('header');
-			const columnHeader = stage?.querySelector('thead th');
-			const stageHeight = stageHeader?.getBoundingClientRect().height ?? 0;
-			const columnHeight =
-				columnHeader && getComputedStyle(columnHeader).position === 'sticky'
-					? columnHeader.getBoundingClientRect().height
-					: 0;
-			const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-			const offset = headerHeight + pinnedTimeline.height + stageHeight + columnHeight + rem;
-			window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - offset, behavior });
-		} else {
-			row.scrollIntoView({ block: 'center', behavior });
+	async function jump(id: string) {
+		if (!workspaceLayout.split && viewer.narrowTab !== 'work-plan') {
+			viewer.setNarrowTab('work-plan');
+			await tick();
+			// The shell restores the tab scroll position after its layout update.
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 		}
+		const row = document.querySelector<HTMLElement>(`tr[data-task-id="${CSS.escape(id)}"]`);
+		const scroller = document.querySelector<HTMLElement>(
+			workspaceLayout.split ? '#work-pane' : '[data-testid="workspace-content"]'
+		);
+		if (!row || !scroller) return;
+		const stage = row.closest('section[data-stage-id]');
+		const stageHeight = stage?.querySelector('header')?.getBoundingClientRect().height ?? 0;
+		const column = stage?.querySelector<HTMLElement>(
+			stage.getBoundingClientRect().width >= 640 ? 'thead th' : '[data-testid="stage-band"]'
+		);
+		const columnHeight = column?.getBoundingClientRect().height ?? 0;
+		const pinned = !workspaceLayout.split && viewer.ganttPinned ? pinnedTimeline.height : 0;
+		const offset = pinned + stageHeight + columnHeight + 16;
+		scroller.scrollTo({
+			top:
+				scroller.scrollTop +
+				row.getBoundingClientRect().top -
+				scroller.getBoundingClientRect().top -
+				offset,
+			behavior: scrollBehavior()
+		});
 		editing.flash(id);
 	}
 </script>

@@ -7,42 +7,20 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getPreview } from '#lib/state/preview.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
-	import { appHeader } from './app-layout.svelte.ts';
+	import WorkspaceTabs from './WorkspaceTabs.svelte';
 	import ExportMenu from './ExportMenu.svelte';
 	import Hint from './Hint.svelte';
 	import ImportButton from './ImportButton.svelte';
 	import PlanSwitcher from './PlanSwitcher.svelte';
 	import SettingsMenu from './SettingsMenu.svelte';
-	import { SECTIONS } from './sections.ts';
 
 	const ws = getWorkspace();
 	const preview = getPreview();
 	const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 	const mod = isMac ? '⌘' : 'Ctrl+';
-
-	let element = $state<HTMLElement | null>(null);
-
-	// Share the header height. Anchor jumps and the pinned Timeline section use it.
-	$effect(() => {
-		if (!element) return;
-		const header = element;
-		const root = document.documentElement;
-		const measure = () => {
-			appHeader.height = header.offsetHeight;
-			root.style.setProperty('--app-header-h', `${header.getBoundingClientRect().height}px`);
-		};
-		const observer = new ResizeObserver(measure);
-		observer.observe(header);
-		measure();
-		return () => {
-			observer.disconnect();
-			root.style.removeProperty('--app-header-h');
-		};
-	});
 </script>
 
 <header
-	bind:this={element}
 	data-app-header
 	class="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/75"
 >
@@ -105,13 +83,5 @@
 			<SettingsMenu />
 		</div>
 	</div>
-	<nav aria-label={m.section_navigation()} class="flex w-full gap-1 overflow-x-auto pb-2 text-xs">
-		{#each SECTIONS as section (section.id)}
-			<a
-				href="#{section.id}"
-				class="shrink-0 rounded px-3 py-1.5 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-				>{section.label()}</a
-			>
-		{/each}
-	</nav>
+	<WorkspaceTabs />
 </header>

@@ -1,6 +1,6 @@
 <!--
 	The timeline section: the heading, Gantt chart and three legends (stages, milestones, bands).
-	The pin keeps the full section below the app header.
+	The pin keeps the full section at the top of its scroller.
 	A milestone or band in the chart or in a legend opens its dialog. The "+" buttons add a new one.
 	Dates use the UI language.
 -->
@@ -13,7 +13,7 @@
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
+	import { workspaceLayout, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Toggle } from '#lib/components/ui/toggle/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
@@ -43,17 +43,12 @@
 	const entryButton =
 		'flex min-w-0 items-center gap-2 rounded px-2 py-1 text-left [overflow-wrap:anywhere] hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring';
 
-	let slot = $state<HTMLDivElement | null>(null);
 	let panel = $state<HTMLDivElement | null>(null);
 	let body = $state<HTMLDivElement | null>(null);
 	let boxHeight = $state(0);
-	let stuck = $state(false);
-	let slotBox = $state({ left: 0, width: 0 });
-	let appWidth = $state(0);
-	const headerHeight = $derived(appHeader.height);
 	const viewport = $derived(innerHeight.current ?? 800);
-	const limits = $derived(heightLimits(viewport));
-	const height = $derived(pinnedHeight(viewer.ganttHeight, viewport));
+	const limits = $derived(heightLimits(viewport, workspaceLayout.split));
+	const height = $derived(pinnedHeight(viewer.ganttHeight, viewport, workspaceLayout.split));
 	const percent = (px: number) => Math.round((px / viewport) * 100);
 	// The stored fraction times the viewport can differ from a limit by a rounding error.
 	const atMin = $derived(height <= limits.min + 0.5);
@@ -67,63 +62,17 @@
 		if (panel) previousHeight = panel.getBoundingClientRect().height;
 	});
 
-	// Pin and unpin change the slot height. Scroll anchoring can then follow content below the slot
-	// and scroll the page, so the section leaves its fixed place. Disable anchoring until the slot settles.
-	// Do this only for a pin change: at other times, anchoring keeps the page stable.
-	// Chromium reads the page setting from the body, not from the root element.
-	let anchorPinned: boolean | undefined;
-	$effect.pre(() => {
-		const pinned = viewer.ganttPinned;
-		const changed = anchorPinned !== undefined && anchorPinned !== pinned;
-		anchorPinned = pinned;
-		if (!changed) return;
-		const body = document.body;
-		const anchor = body.style.overflowAnchor;
-		body.style.overflowAnchor = 'none';
-		const restoreAnchor = () => {
-			body.style.overflowAnchor = anchor;
-		};
-		const element = panel;
-		let frame = 0;
-		// ResizeObserver updates the slot after the panel's final animation frame.
-		const settle = () => {
-			cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(() => {
-				frame = requestAnimationFrame(restoreAnchor);
-			});
-		};
-		const isHeight = (event: TransitionEvent) =>
-			event.target === element && event.propertyName === 'height';
-		// A replacement transition, for example after Page Down, cancels the current one.
-		// The browser sends its run event before the next frame. Thus it stops a pending restore.
-		const onRun = (event: TransitionEvent) => {
-			if (!isHeight(event)) return;
-			window.clearTimeout(timer);
-			cancelAnimationFrame(frame);
-		};
-		const onEnd = (event: TransitionEvent) => {
-			if (isHeight(event)) settle();
-		};
-		element?.addEventListener('transitionrun', onRun);
-		element?.addEventListener('transitionend', onEnd);
-		element?.addEventListener('transitioncancel', onEnd);
-		// Fallback when no height transition runs, for example with reduced motion.
-		const timer = window.setTimeout(settle, motionDuration(TIMELINE_MOTION_MS) + 200);
-		return () => {
-			element?.removeEventListener('transitionrun', onRun);
-			element?.removeEventListener('transitionend', onEnd);
-			element?.removeEventListener('transitioncancel', onEnd);
-			window.clearTimeout(timer);
-			cancelAnimationFrame(frame);
-			restoreAnchor();
-		};
-	});
-
 	// Measure with auto, then transition between pixels. Restore auto after unpinning.
 	$effect(() => {
 		if (!panel) return;
 		const element = panel;
 		const pinned = viewer.ganttPinned;
+		// A hidden panel cannot measure its natural height or finish a transition.
+		if (!pinned && element.getClientRects().length === 0) {
+			element.style.height = 'auto';
+			heightInitialized = false;
+			return;
+		}
 		const duration = motionDuration(drag ? 0 : TIMELINE_MOTION_MS);
 		let target = height;
 		untrack(() => {
@@ -164,19 +113,11 @@
 		return () => element.removeEventListener('transitionend', releaseHeight);
 	});
 
-	// Share the full section height with section links, table headers and chart label jumps.
+	// Share the animated height with pane scroll padding and narrow sticky headers.
 	$effect(() => {
-		const root = document.documentElement;
-		const offset = viewer.ganttPinned ? boxHeight || height : 0;
-		pinnedTimeline.height = offset;
-		if (offset === 0) {
-			root.style.removeProperty('--gantt-pinned-h');
-			return;
-		}
-		root.style.setProperty('--gantt-pinned-h', `${offset}px`);
+		pinnedTimeline.height = viewer.ganttPinned ? boxHeight || height : 0;
 		return () => {
 			pinnedTimeline.height = 0;
-			root.style.removeProperty('--gantt-pinned-h');
 		};
 	});
 
@@ -193,29 +134,6 @@
 			body.scrollBy({ top: delta, behavior: motionDuration(1) === 0 ? 'instant' : 'smooth' });
 		}
 	}
-
-	// Keep the section fixed after its slot passes the header. The slot preserves page layout.
-	function updateStuck() {
-		if (!slot) return;
-		const rect = slot.getBoundingClientRect();
-		stuck = viewer.ganttPinned && rect.top < headerHeight;
-		slotBox = { left: rect.left, width: rect.width };
-		appWidth = document.documentElement.clientWidth;
-	}
-
-	$effect(() => {
-		void [viewer.ganttPinned, headerHeight, slot];
-		untrack(updateStuck);
-	});
-
-	$effect(() => {
-		if (!slot) return;
-		// Scrollbar changes can alter the app width without a window resize.
-		const observer = new ResizeObserver(updateStuck);
-		observer.observe(document.documentElement);
-		observer.observe(slot);
-		return () => observer.disconnect();
-	});
 
 	function setHeight(px: number) {
 		const clamped = Math.min(limits.max, Math.max(limits.min, px));
@@ -256,21 +174,14 @@
 	<span class="size-2.5 shrink-0 rounded-sm" style:background aria-hidden="true"></span>
 {/snippet}
 
-<svelte:window onscroll={updateStuck} onresize={updateStuck} />
-
-<div bind:this={slot} style:height={stuck ? `${boxHeight}px` : undefined}>
+<div>
 	<div
 		bind:this={panel}
 		bind:offsetHeight={boxHeight}
 		class={cn(
 			'flex min-w-0 flex-col bg-background text-sm transition-[height] ease-out',
-			stuck &&
-				'fixed top-(--timeline-top) left-(--timeline-left) z-30 w-(--timeline-width) shadow-md'
+			viewer.ganttPinned && 'shadow-md'
 		)}
-		style:--timeline-top="{headerHeight}px"
-		style:--timeline-left="{slotBox.left}px"
-		style:--timeline-width="{slotBox.width}px"
-		style:--timeline-app-width="{appWidth}px"
 		data-testid="timeline-panel"
 		data-pinned={viewer.ganttPinned || undefined}
 	>
@@ -447,8 +358,7 @@
 				aria-valuemax={percent(limits.max)}
 				aria-valuetext="{percent(height)} %"
 				tabindex="0"
-				class="relative mt-2 flex h-3 w-(--timeline-app-width) shrink-0 cursor-row-resize touch-none items-center justify-center border-t bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-				style:left="calc(-1 * var(--timeline-left))"
+				class="timeline-divider relative mt-2 flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center border-t bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 				onkeydown={onSeparatorKey}
 				onpointerdown={onSeparatorDown}
 				onpointermove={onSeparatorMove}
@@ -469,3 +379,10 @@
 		entry={band ?? undefined}
 		onClose={() => (band = undefined)}
 	/>{/if}
+
+<style>
+	.timeline-divider {
+		margin-left: calc(-1 * var(--pane-padding, 16px));
+		width: calc(100% + 2 * var(--pane-padding, 16px));
+	}
+</style>

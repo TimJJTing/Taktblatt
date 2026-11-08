@@ -109,7 +109,7 @@ export async function startTimelineFrameMonitor(page: Page) {
 			const body = panel.querySelector<HTMLElement>('[data-testid="timeline-body"]')!;
 			const scroller = panel.querySelector<HTMLElement>('[data-testid="gantt-scroller"]')!;
 			const bounds = panel.getBoundingClientRect();
-			const slot = panel.parentElement!.getBoundingClientRect();
+			const slot = panel.closest('#timeline')!.getBoundingClientRect();
 			const toggle = panel
 				.querySelector('[data-testid="timeline-legends-toggle"]')!
 				.getBoundingClientRect();
@@ -121,8 +121,13 @@ export async function startTimelineFrameMonitor(page: Page) {
 				legend: legend.getBoundingClientRect().top - bounds.top,
 				slot: slot.height,
 				slotTop: slot.top,
-				fixed: getComputedStyle(panel).position === 'fixed',
+				pinned: panel.hasAttribute('data-pinned'),
 				scrollY: window.scrollY,
+				paneScroll: (document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!
+					.dataset.layout === 'split'
+					? document.querySelector<HTMLElement>('#plan-pane')!
+					: document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!
+				).scrollTop,
 				bodyScroll: body.scrollTop,
 				chartScroll: scroller.scrollTop,
 				legendsX: toggle.x,
@@ -233,6 +238,11 @@ export async function openPreview(page: Page): Promise<Locator> {
 	const preview = page.getByRole('dialog', { name: 'Print preview' });
 	await expect(preview).toBeVisible();
 	await expect(preview.getByTestId('sheet').first()).toBeVisible();
+	await page.evaluate(async () => {
+		await document.fonts.ready;
+		await new Promise(requestAnimationFrame);
+	});
+	await expect(preview.getByTestId('sheets')).toHaveAttribute('data-sheet-count', /^[1-9]\d*$/);
 	return preview;
 }
 
@@ -346,23 +356,74 @@ export async function writeStoredPlan(
 		localStorage.setItem(key, JSON.stringify(data));
 	}, plan);
 	await page.reload();
-	await expect(page.getByTestId('plan-heading')).toBeVisible();
+	await expect(page.getByTestId('plan-heading')).toBeAttached();
+}
+
+/** Adds enough task rows and remarks to exercise both workspace scrollers. */
+export async function addWorkspaceOverflow(page: Page): Promise<void> {
+	await writeStoredPlan(page, (plan) => {
+		const template = plan.tasks.find((task) => task.parentId === null);
+		for (let i = 0; i < 36; i++) {
+			plan.tasks.push({
+				...template,
+				id: `scroll-task-${i}`,
+				title: `Scroll task ${i + 1}`,
+				parentId: null,
+				stageId: plan.stages[i < 24 ? 0 : plan.stages.length - 1].id,
+				dependsOn: []
+			});
+		}
+		plan.remarks.push({
+			id: 'scroll-remarks',
+			title: 'Scroll notes',
+			bullets: Array.from({ length: 30 }, (_, i) => `Scroll note ${i + 1}`)
+		});
+	});
 }
 
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
 
-/** Scrolls a sticky band below the app header and checks their current positions together. */
+export const workspaceContent = (page: Page) => page.getByTestId('workspace-content');
+export const planPane = (page: Page) => page.getByTestId('plan-pane');
+export const workPane = (page: Page) => page.getByTestId('work-pane');
+
+/** Selects a group when the workspace uses tabs. */
+export async function selectTab(page: Page, name: 'Plan' | 'Work plan'): Promise<void> {
+	if ((await workspaceContent(page).getAttribute('data-layout')) === 'tabs') {
+		const tab = page.getByRole('tab', { name, exact: true });
+		if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+		await expect(tab).toHaveAttribute('aria-selected', 'true');
+		await waitForAnimations(workspaceContent(page));
+	}
+}
+
+/** Returns the vertical scroller for the selected group. */
+export async function groupScroller(page: Page, group: 'plan' | 'work-plan'): Promise<Locator> {
+	return (await workspaceContent(page).getAttribute('data-layout')) === 'tabs'
+		? workspaceContent(page)
+		: group === 'plan'
+			? planPane(page)
+			: workPane(page);
+}
+
+/** Scrolls the Timeline to the top of its region and checks its sticky position. */
 export async function expectStickyBelowHeader(band: Locator): Promise<void> {
 	await band.evaluate((element) => {
-		const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-		// Put the natural place of the band 25 px above the bottom of the app header.
-		window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - header.bottom + 25);
+		const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+		const scroller =
+			content.dataset.layout === 'split'
+				? document.querySelector<HTMLElement>('#plan-pane')!
+				: content;
+		scroller.scrollTop +=
+			element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 25;
 	});
 	await expect
 		.poll(() =>
 			band.evaluate((element) => {
-				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				return Math.abs(element.getBoundingClientRect().top - header.bottom);
+				const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+				const scroller =
+					content.dataset.layout === 'split' ? document.querySelector('#plan-pane')! : content;
+				return Math.abs(element.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
 			})
 		)
 		.toBeLessThanOrEqual(1);
@@ -370,30 +431,34 @@ export async function expectStickyBelowHeader(band: Locator): Promise<void> {
 
 /** Scrolls into a stage and checks its complete sticky header stack in one snapshot. */
 export async function expectStickyStageStack(section: Locator): Promise<void> {
+	await selectTab(section.page(), 'Work plan');
 	await section.evaluate((element) => {
-		const root = getComputedStyle(document.documentElement);
-		const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-		const pinned = parseFloat(root.getPropertyValue('--gantt-pinned-h')) || 0;
-		window.scrollTo(
-			0,
-			element.getBoundingClientRect().top + window.scrollY - app.bottom - pinned + 60
-		);
+		const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+		const split = content.dataset.layout === 'split';
+		const scroller = split ? document.querySelector<HTMLElement>('#work-pane')! : content;
+		const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
+		const pinned = !split && panel.dataset.pinned ? panel.getBoundingClientRect().height : 0;
+		scroller.scrollTop +=
+			element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pinned + 60;
 	});
 	await expect
 		.poll(() =>
 			section.evaluate((element) => {
-				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				const pinned =
-					parseFloat(
-						getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
-					) || 0;
+				const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+				const split = content.dataset.layout === 'split';
+				const scroller = split ? document.querySelector('#work-pane')! : content;
+				const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
+				const top =
+					!split && panel.dataset.pinned
+						? panel.getBoundingClientRect().bottom
+						: scroller.getBoundingClientRect().top;
 				const header = element.querySelector(':scope > header')!.getBoundingClientRect();
 				const narrow = element.getBoundingClientRect().width < 640;
 				const band = element
 					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
 					.getBoundingClientRect();
 				return {
-					headerAligned: Math.abs(header.top - app.bottom - pinned) <= 1,
+					headerAligned: Math.abs(header.top - top) <= 1,
 					bandAligned: Math.abs(band.top - header.bottom) <= 1
 				};
 			})

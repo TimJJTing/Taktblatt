@@ -243,9 +243,11 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - the screen theme (`light`, `dark` or `system`);
 - the expanded tasks, for each plan (shared by the Gantt and the table);
 - the pinned state and the height of the Timeline section;
-- whether the Timeline legends are collapsed.
+- whether the Timeline legends are collapsed;
+- the width ratio of the split view;
+- the selected tab on narrow screens.
 
-The app keeps the expanded tasks and the Timeline settings as `expanded`, `ganttPinned`, `ganttHeight` and `timelineLegendsCollapsed` under the key `taktblatt:ui`. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`.
+The app keeps the expanded tasks, the Timeline settings and the layout settings as `expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio` and `narrowTab` under the key `taktblatt:ui`. `splitRatio` is the width of the left pane as a fraction of the split width, from 0 to 1. The default is 0.5. `narrowTab` is `plan` or `work-plan`. The default is `plan`. An invalid or absent value of these two fields gives its default and does not reset the other fields. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`.
 
 An explicit stored boolean for `timelineLegendsCollapsed` takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the legends start expanded and the Timeline section starts unpinned. Unreadable or invalid viewer data gives these defaults.
 
@@ -274,9 +276,25 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 
 ### 5.1 Layout
 
-- The workspace is one page that scrolls. The parts are: Header, Timeline (Gantt), Stage overview, Work plan, Remarks.
-- The sticky app header has a second row, **Plan sections**. It is a navigation with a link to each part.
-- The first row of the app header contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and Settings.
+- The workspace has two groups. **Plan** has, in this order: Header (with the sheet footer fields), Timeline (Gantt), Stage overview and Remarks. **Work plan** has the work plan.
+- The workspace layout is for the screen only. It does not change the Preview, the sheets, pagination or print. The sheets keep the order of section 7.
+- The page does not scroll. The app header stays at the top. Each group scrolls in its own region below the app header.
+- The app header row contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and Settings.
+- **Split view (viewport width 1024 px or more):** Plan is the left pane and Work plan is the right pane. The panes fill the width of the window. Each pane scrolls vertically on its own.
+  - When the viewport becomes wider and hides the focused tab, focus moves to the group of that tab.
+  - A vertical divider between the panes changes their widths. Its resize target is at least 12 px wide. It shows a grip on hover and focus.
+  - The divider is a `separator` with `aria-orientation="vertical"` and the accessible name "Resize panes". Its value is the left pane width in percent. Pointer drag changes the widths at once. Left and Right arrows change the ratio by 2 %. Page Up and Page Down change it by 10 %. Home and End go to the limits. A double-click resets the ratio to 50 %.
+  - Each pane is at least 360 px wide. When the window is too narrow for the stored ratio, the app clamps the widths and keeps the stored ratio.
+  - Keyboard steps and the reset animate the widths through `motionDuration(ms)`. Drag is immediate. Reduced motion makes all changes immediate.
+  - The app keeps the ratio after a reload (section 4.4).
+- **Tabs (viewport width below 1024 px):** a second app header row has two tabs, **Plan** and **Work plan**. Only the selected group shows. The tabs use the WAI-ARIA tabs pattern with automatic activation: Left and Right arrows, Home and End move focus and select the tab.
+  - Only the selected group is a tab panel. Its tab gives its accessible name. The pinned Timeline keeps its own region.
+  - When the viewport becomes narrower and hides the focused divider, focus moves to the selected tab.
+  - Each group keeps its scroll position when the other tab shows. When the content is shorter than before, the app uses the nearest possible position.
+  - When the viewport becomes narrower than 1024 px and keyboard focus is in a group, the app selects the tab of that group. Focus stays on its element. Changing the tab does not reset fields or the expand state.
+  - The selected group fades in through `motionDuration(ms)`. Its position does not change. Reduced motion makes it immediate.
+  - The app keeps the selected tab after a reload (section 4.4).
+- When the layout changes between split view and tabs, the app keeps the plan, the expand state, the pin state and the open dialogs. It does not create the Timeline section again.
 - All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and set the task status. The Gantt and the table scroll horizontally.
 - The **Settings** menu has two labeled radio groups. **Theme** has three choices: **Light**, **Dark** and **System**. A separator comes before **Language**, which has **English**, **Deutsch**, **繁體中文** and **日本語**. Each group heading has a decorative icon: a sun and moon for **Theme** and a language icon for **Language**. Each group shows its selected choice with a check mark. The menu supports pointer and keyboard input. Its labels use the UI language. The header has one Settings button with a gear icon.
 - The default theme is **System**. It follows changes to the system theme while the app is open. **Light** and **Dark** override the system theme.
@@ -301,6 +319,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Heading:** required, max 2 lines (about 80 characters). Empty on blur → the previous value comes back.
 - **Plan range:** a date range picker. It sets the Gantt window. A **Fit to tasks** button sets the range to the dates of all tasks.
 - **Objective:** text, max 250 characters. The label text is "Objective:". The sheets hide it when it is empty.
+- **Sheet footer:** a row after the objective with the label "Sheet footer". It has the footer fields of section 5.9. A hint on the label says "Prints at the bottom of each sheet." The note, version and date are on the left. The right note is on the right. The row wraps when it does not fit. The row is a group with the accessible name "Sheet footer".
 
 ### 5.4 Timeline (Gantt)
 
@@ -315,7 +334,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - Only tasks with effective status `done` or `canceled` have a muted bar and a struck-through label. Bars and points use 40% opacity. Tasks with status `todo` or `in_progress` keep their normal appearance. This rule also applies in Preview and print.
 - The accessible name of a bar or point adds "done", "in progress" or "canceled" for that status. It adds no status text for `todo`.
 - Bars are read-only. You edit dates in the table or in the task dialog.
-- **Labels:** click a label to scroll to its table row. The row flashes one time. You cannot edit a label in the Gantt.
+- **Labels:** click a label to scroll the Work plan to its table row. The row flashes one time. With tabs, a click on the Plan tab first selects the Work plan tab, except when the Timeline section is pinned and the Work plan tab shows. You cannot edit a label in the Gantt.
 - **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Timeline section, the app scrolls the chart to show the bar.
 - **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
 - **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. Each visible row draws its own stored dependencies. A collapsed parent draws only its own dependencies. Hidden legacy subtask dependencies do not draw lines. A dependency on a hidden subtask connects to its parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done or canceled row use 40% opacity, the same as done and canceled bars. This also applies in Preview and print. For a parent row, the app uses its derived status. A line is red at full opacity when any effective edge of its stored dependencies is part of a cycle. This rule includes inherited edges and merged duplicate lines. The arrowhead has the same color. Red overrides the muted source style in the workspace, Preview and print. Lines are decorative. The dependency dialog gives the text alternative.
@@ -331,22 +350,26 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
   - The Milestones and Bands add buttons use a 24 px target and a decorative 12 px plus icon. Their accessible names and actions stay the same.
   - Collapse and expansion animate the content and its spacing. Reduced motion uses immediate updates. Collapsed entries cannot receive focus. The chart gets the space that the legends used in the pinned section.
   - Preview and printed sheets always show the legends. The Legends button does not appear on sheets. The workspace setting does not change sheet content or pagination.
-- **Pin:** a toggle beside the Timeline heading pins the whole Timeline section below the app header. The heading, chart and expanded legends stay together.
-  - The default height of the whole section is 35 % of the viewport. The maximum is 50 %. The minimum is 120 px, or 50 % when the viewport is shorter than 240 px.
+- **Pin:** a toggle beside the Timeline heading pins the whole Timeline section. The heading, chart and expanded legends stay together.
+  - In split view, the pinned section stays at the top of the Plan pane. The Plan content below it scrolls under it. It never covers the Work plan pane.
+  - The heights use the viewport height in split view and with tabs.
+  - With tabs, the pinned section stays between the tab row and the selected group. It shows with both tabs. Each group scrolls below it. When unpinned, the Timeline section is part of the Plan group and does not show with the Work plan tab.
+  - Pin and unpin do not create the chart again. The chart keeps its scroll position when the content still overflows. Otherwise it uses the nearest possible position.
+  - The default height of the whole section is 35 % of the viewport. The maximum is 50 %, or 40 % with tabs. The minimum is 120 px, or the maximum when the maximum is less than 120 px.
   - Pin and unpin animate the section height in Chromium, Safari and Firefox. The chart, legends and page layout follow the height without a jump at the start or end. All motion durations use `motionDuration(ms)`. Reduced motion makes the change immediate. Drag resize stays immediate.
   - The chart content scrolls vertically. If the chart and legends do not fit in the section, the section body also scrolls. The heading and pin toggle stay visible.
-  - A handle on the bottom edge changes the height of the whole section. Its divider and resize target span the full app width, up to the scrollbar. The heading, chart and legends keep their content width. The divider appears only when pinned. It does not appear in Preview or print.
+  - A handle on the bottom edge changes the height of the whole section. Its divider and resize target span the width of the Plan pane in split view, and the full app width with tabs. The heading, chart and legends keep their content width. The divider appears only when pinned. It does not appear in Preview or print.
   - The handle is a `separator`. The arrow keys, Page Up, Page Down, Home and End also change the height. Page Up makes the section shorter by 10 % of the viewport height. Page Down makes it taller by the same step. The height stays within the limits.
   - While pinned, two icon buttons beside the pin provide the same 10 % step. Their accessible names are "Make timeline shorter" and "Make timeline taller". The Shorter button is disabled at the minimum height. The Taller button is disabled at the maximum height. Each press stops at the applicable limit. Both buttons support keyboard activation and have a target of at least 24 × 24 px. Their icons are decorative. The names use the UI language.
   - The buttons appear and disappear with a transition through `motionDuration(ms)`. The Legends button stays in position. Button resize uses the same height transition as keyboard resize. Reduced motion makes these changes immediate. The buttons are hidden while unpinned and do not appear in Preview or print.
   - The app keeps the pin state and section height after a reload.
-  - Section links, sticky table headers and Gantt label jumps use the height of the whole pinned section as their offset.
-  - When keyboard focus moves to an element below the pinned section, the app keeps that element fully below the app header and the pinned section. This focus offset does not apply to elements inside the pinned section.
+  - Anchor jumps and keyboard focus in the Plan pane stop below the pinned section. This focus offset does not apply to elements inside the pinned section.
+  - The pinned section does not cover the Work plan content. In split view, sticky stage headers, table headers and label jumps in the Work plan use the top of the Work plan pane as their offset. With tabs and a pinned section, they use the bottom of the pinned section.
   - The pin state does not change the sheets, pagination, Preview or print.
 
 ### 5.5 Stage overview
 
-- Three cards for each row from 768 px. One card for each row below 768 px. More cards go to the next row. Cards in a row have the same height.
+- The number of cards in a row depends on the width of the Stage overview section, not the viewport: three cards from 720 px, two cards from 480 px, one card below 480 px. More cards go to the next row. Cards in a row have the same height. The sheets keep three cards for each row.
 - A card shows "STAGE N · months", the title, the description and the derived deliverables.
 - The title: click to edit. Workspace limits: single line, required, max 30 characters. Empty → "Stage N".
 - The description: click to edit. Free text. The sheets limit it to 3 lines.
@@ -354,8 +377,8 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 ### 5.6 Work plan
 
 - **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done · z in progress". Hide the in-progress part when z is 0. Animate both counts. Use the same text on printed sheets. Keep the word order and punctuation in translation messages. Click the title to edit it. When the header is too wide for the screen, the progress and the stage menu move to a second line.
-- **Sticky stage headers:** while a stage scrolls, its header stays below the app header and the pinned Timeline section. The header stays within its stage. It scrolls out when the stage ends.
-  - The app header and pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
+- **Sticky stage headers:** while a stage scrolls, its header stays at the top of the Work plan region: the top of the Work plan pane in split view, or below a pinned Timeline section with tabs. The header stays within its stage. It scrolls out when the stage ends.
+  - The app header and a pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
   - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height.
   - Below a stage width of 640 px, the separate color band stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
   - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.
@@ -399,8 +422,8 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 ### 5.8 Remarks
 
 - A remark section has an editable title and bullets.
-- Remark sections are at the end of the plan, after all stages.
-- Two remark sections for each row from 640 px. One for each row below 640 px.
+- On the sheets, remark sections come after all stages. In the workspace, they are at the end of the Plan group.
+- Two remark sections for each row when the Remarks section is 640 px wide or more. One for each row below 640 px. The width is the section width, not the viewport width.
 - A "+" line in a remark section adds an empty bullet. Enter at the end of a bullet adds the next bullet. Backspace on an empty bullet removes it.
 - The app trims spaces and removes empty bullets on blur.
 - A "+" line after the last remark section adds a remark section. Its title is in edit mode. The app removes a new remark section on blur when its title and bullets are empty.
@@ -408,11 +431,12 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 ### 5.9 Footer
 
+- On the screen, the footer fields are in the Header (section 5.3, **Sheet footer**). The workspace has no footer at the end of the page. On the sheets, the footer stays at the bottom of each page.
 - **Left:** note · version · date. Three fields. The sheets hide empty parts.
 - **Right:** a note and the page number. The app calculates the page number.
 - The plan stores these fields one time. All pages show the same values.
 - The date picker has a **Today** button. It puts the current date in the field. **Done** saves it. The app does not set the date automatically.
-- The page number shows only on the sheets (section 7). The workspace footer keeps an empty slot for it.
+- The page number shows only on the sheets (section 7). The workspace does not show a page number.
 
 ### 5.10 Hints
 

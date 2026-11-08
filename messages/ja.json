@@ -126,7 +126,6 @@
 	"section_timeline": "タイムライン",
 	"section_stage_overview": "ステージ概要",
 	"section_remarks": "備考",
-	"section_navigation": "計画のセクション",
 	"field_heading": "見出し",
 	"field_subheading": "小見出し",
 	"field_plan_range": "計画の期間",
@@ -287,5 +286,10 @@
 	"dependency_warning_subtask_scope": "サブタスクは同じ親を持つタスクにのみ依存できます。",
 	"dependency_subtask_help": "別のタスクに依存するには、このサブタスクをタスクにするか、同じ親の下に移動してください。",
 	"date_subtask_floor": "日付の範囲にはサブタスクの日付を含めてください：{range}。",
-	"date_subtask_span": "サブタスク：{range}"
+	"date_subtask_span": "サブタスク：{range}",
+	"resize_panes": "ペインのサイズを変更",
+	"workspace_view": "ワークスペース表示",
+	"workspace_plan": "計画",
+	"sheet_footer": "シートのフッター",
+	"sheet_footer_hint": "各シートの下部に印刷されます。"
 }

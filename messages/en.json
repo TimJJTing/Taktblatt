@@ -126,7 +126,6 @@
 	"section_timeline": "Timeline",
 	"section_stage_overview": "Stage overview",
 	"section_remarks": "Remarks",
-	"section_navigation": "Plan sections",
 	"field_heading": "Heading",
 	"field_subheading": "Subheading",
 	"field_plan_range": "Plan range",
@@ -287,5 +286,10 @@
 	"dependency_warning_subtask_scope": "A subtask can depend only on tasks with the same parent.",
 	"dependency_subtask_help": "To depend on another task, make this subtask a task, or move it under the same parent.",
 	"date_subtask_floor": "The dates must include the subtask dates: {range}.",
-	"date_subtask_span": "Subtasks: {range}"
+	"date_subtask_span": "Subtasks: {range}",
+	"resize_panes": "Resize panes",
+	"workspace_view": "Workspace view",
+	"workspace_plan": "Plan",
+	"sheet_footer": "Sheet footer",
+	"sheet_footer_hint": "Prints at the bottom of each sheet."
 }

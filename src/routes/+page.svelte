@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { loadExample } from '#lib/state/commands.ts';
 	import { toast } from 'svelte-sonner';
-	import AppHeader from '#lib/components/app/AppHeader.svelte';
+	import WorkspaceShell from '#lib/components/app/WorkspaceShell.svelte';
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
 	import LanguageReloadDialog from '#lib/components/app/LanguageReloadDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
@@ -76,50 +76,64 @@
 <svelte:window onkeydown={onKeydown} onstorage={onStorage} />
 
 <!-- The workspace never prints. Print uses the sheets (PrintHost). The preview makes the workspace inert. -->
-<div data-workspace class="contents" inert={preview.open}>
-	<AppHeader />
+<div data-workspace inert={preview.open}>
+	<WorkspaceShell>
+		{#snippet plan()}
+			<DamagedNotice />
+			{#if ws.isPristine}
+				<div class="flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm">
+					<span class="text-muted-foreground">{m.example_prompt()}</span>
+					<Button size="sm" variant="outline" onclick={() => loadExample(ws)}
+						>{m.example_load()}</Button
+					>
+				</div>
+			{/if}
+			<section id="header" aria-label={m.section_header()} class="space-y-3">
+				<PlanHeader />
+				<PlanFooter />
+			</section>
+			<section id="timeline" class="mt-10" aria-labelledby="timeline-title">
+				<Timeline />
+			</section>
+			<section id="stage-overview" class="mt-10" aria-labelledby="overview-title">
+				<h2 id="overview-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
+					{m.section_stage_overview()}
+				</h2>
+				<StageOverview />
+			</section>
+
+			<section id="remarks" class="mt-10" aria-labelledby="remarks-title">
+				<h2 id="remarks-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
+					{m.section_remarks()}
+				</h2>
+				<Remarks />
+			</section>
+		{/snippet}
+		{#snippet work()}
+			<section id="work-plan" aria-labelledby="work-plan-title">
+				<h2 id="work-plan-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
+					{m.section_work_plan()}
+				</h2>
+				<WorkPlan />
+			</section>
+		{/snippet}
+	</WorkspaceShell>
 	<LanguageReloadDialog />
-	<DamagedNotice />
-
-	<main class="mx-auto max-w-6xl px-4 py-8 pl-8">
-		{#if ws.isPristine}
-			<div class="flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm">
-				<span class="text-muted-foreground">{m.example_prompt()}</span>
-				<Button size="sm" variant="outline" onclick={() => loadExample(ws)}
-					>{m.example_load()}</Button
-				>
-			</div>
-		{/if}
-		<section id="header" aria-label={m.section_header()} class="mt-6 scroll-mt-header space-y-3">
-			<PlanHeader />
-		</section>
-		<section id="timeline" class="mt-10 scroll-mt-header" aria-labelledby="timeline-title">
-			<Timeline />
-		</section>
-		<section id="stage-overview" class="mt-10 scroll-mt-anchor" aria-labelledby="overview-title">
-			<h2 id="overview-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
-				{m.section_stage_overview()}
-			</h2>
-			<StageOverview />
-		</section>
-
-		<section id="work-plan" class="mt-10 scroll-mt-anchor" aria-labelledby="work-plan-title">
-			<h2 id="work-plan-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
-				{m.section_work_plan()}
-			</h2>
-			<WorkPlan />
-		</section>
-		<section id="remarks" class="mt-10 scroll-mt-anchor" aria-labelledby="remarks-title">
-			<h2 id="remarks-title" class="mb-2 text-sm font-semibold tracking-wide uppercase">
-				{m.section_remarks()}
-			</h2>
-			<Remarks />
-		</section>
-	</main>
-
-	<PlanFooter />
 
 	<TaskDialog />
 </div>
 
 <PrintHost />
+
+<style>
+	@media screen {
+		[data-workspace] {
+			height: 100dvh;
+			display: grid;
+			grid-template-rows: auto minmax(0, 1fr);
+			/* The column must not grow to the width of the Gantt or the table. */
+			grid-template-columns: minmax(0, 1fr);
+			overflow: hidden;
+		}
+	}
+</style>

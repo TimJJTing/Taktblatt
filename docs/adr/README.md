@@ -4,7 +4,7 @@ Each record has a number, a status and a date. Write a new record when a decisio
 
 | No. | Title                                                                                            | Status                                          | Date       |
 | --- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ---------- |
-| 1   | [Workspace for editing, preview for print](0001-workspace-and-preview.md)                        | Accepted (amended by ADR 8)                     | 2026-11-04 |
+| 1   | [Workspace for editing, preview for print](0001-workspace-and-preview.md)                        | Accepted (amended by ADR 8 and ADR 16)          | 2026-11-04 |
 | 2   | [Pagination in JavaScript](0002-pagination-in-javascript.md)                                     | Accepted                                        | 2026-11-04 |
 | 3   | [One Workspace store, localStorage, sync between tabs, undo](0003-store-persistence-and-sync.md) | Accepted                                        | 2026-11-04 |
 | 4   | [Viewer state is not in the plan](0004-viewer-state.md)                                          | Accepted                                        | 2026-11-04 |
@@ -19,3 +19,4 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 13  | [Cycles are warnings, not errors](0013-cycles-are-warnings.md)                                   | Accepted                                        | 2026-11-08 |
 | 14  | [Subtasks depend only on siblings](0014-subtasks-depend-only-on-siblings.md)                     | Accepted                                        | 2026-11-08 |
 | 15  | [A parent's planned window grows with its subtasks](0015-parent-planned-window.md)               | Accepted                                        | 2026-11-08 |
+| 16  | [Split workspace with pane scrolling](0016-split-workspace.md)                                   | Accepted                                        | 2026-11-09 |

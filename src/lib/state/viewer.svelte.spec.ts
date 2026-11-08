@@ -4,6 +4,111 @@ import { KEYS } from './storage.ts';
 import { GANTT_HEIGHT, ViewerState } from './viewer.svelte.ts';
 
 describe('ViewerState', () => {
+	it('defaults the split ratio and narrow tab for new and older viewer data', () => {
+		for (const data of [null, { ganttPinned: true, expanded: { p1: ['t1'] } }]) {
+			const storage = new MemoryStorage();
+			if (data) storage.setItem(KEYS.viewer, JSON.stringify(data));
+			const viewer = new ViewerState(storage);
+			expect(viewer.splitRatio).toBe(0.5);
+			expect(viewer.narrowTab).toBe('plan');
+			if (data) {
+				expect(viewer.ganttPinned).toBe(true);
+				expect(viewer.isExpanded('p1', 't1')).toBe(true);
+			}
+		}
+	});
+
+	it('persists layout preferences when other viewer settings are saved', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		viewer.setSplitRatio(0.63);
+		viewer.setNarrowTab('work-plan');
+		viewer.setGanttPinned(true);
+		viewer.setGanttHeight(0.42);
+		viewer.setTimelineLegendsCollapsed(false);
+		viewer.setExpanded('p1', 't1', true);
+		const again = new ViewerState(storage);
+		expect(again.splitRatio).toBe(0.63);
+		expect(again.narrowTab).toBe('work-plan');
+		expect(again.ganttPinned).toBe(true);
+		expect(again.ganttHeight).toBe(0.42);
+		expect(again.timelineLegendsCollapsed).toBe(false);
+		expect(again.isExpanded('p1', 't1')).toBe(true);
+		again.setNarrowTab('plan');
+		again.setSplitRatio(0.37);
+		expect(new ViewerState(storage).narrowTab).toBe('plan');
+		expect(new ViewerState(storage).splitRatio).toBe(0.37);
+	});
+
+	it.each([
+		[-0.2, 0],
+		[1.2, 1],
+		[0, 0],
+		[1, 1],
+		[0.63, 0.63]
+	])('clamps split ratio %s to %s and persists it', (input, expected) => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		viewer.setSplitRatio(input);
+		expect(viewer.splitRatio).toBe(expected);
+		expect(new ViewerState(storage).splitRatio).toBe(expected);
+	});
+
+	it.each([NaN, Infinity, -Infinity])(
+		'keeps a finite split ratio after invalid setter input %s',
+		(input) => {
+			const storage = new MemoryStorage();
+			const viewer = new ViewerState(storage);
+			viewer.setSplitRatio(0.63);
+			viewer.setSplitRatio(input);
+			expect(Number.isFinite(viewer.splitRatio)).toBe(true);
+			expect(viewer.splitRatio).toBeGreaterThanOrEqual(0);
+			expect(viewer.splitRatio).toBeLessThanOrEqual(1);
+			expect(new ViewerState(storage).splitRatio).toBe(viewer.splitRatio);
+		}
+	);
+
+	it.each(['x', null, -0.1, 1.1])(
+		'defaults only an invalid stored split ratio (%s)',
+		(splitRatio) => {
+			const storage = new MemoryStorage();
+			storage.setItem(
+				KEYS.viewer,
+				JSON.stringify({
+					splitRatio,
+					narrowTab: 'work-plan',
+					ganttPinned: true,
+					ganttHeight: 0.42,
+					expanded: { p1: ['t1'] }
+				})
+			);
+			const viewer = new ViewerState(storage);
+			expect(viewer.splitRatio).toBe(0.5);
+			expect(viewer.narrowTab).toBe('work-plan');
+			expect(viewer.ganttPinned).toBe(true);
+			expect(viewer.ganttHeight).toBe(0.42);
+			expect(viewer.isExpanded('p1', 't1')).toBe(true);
+		}
+	);
+
+	it.each(['other', null, 1])('defaults only an invalid stored narrow tab (%s)', (narrowTab) => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({
+				splitRatio: 0.63,
+				narrowTab,
+				ganttPinned: true,
+				timelineLegendsCollapsed: false
+			})
+		);
+		const viewer = new ViewerState(storage);
+		expect(viewer.narrowTab).toBe('plan');
+		expect(viewer.splitRatio).toBe(0.63);
+		expect(viewer.ganttPinned).toBe(true);
+		expect(viewer.timelineLegendsCollapsed).toBe(false);
+	});
+
 	it('starts with collapsed legends when older viewer data is pinned', () => {
 		const storage = new MemoryStorage();
 		storage.setItem(

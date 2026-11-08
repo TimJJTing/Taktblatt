@@ -2,13 +2,23 @@
 
 Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
 
-![The workspace with the plan header and the Gantt timeline](docs/screenshots/workspace.png)
+![The split workspace: the plan header, sheet footer and Gantt timeline on the left, the work plan on the right](docs/screenshots/workspace.png)
+
+## Workspace layout
+
+On a wide screen (1024 px or more), the workspace has two panes. The left pane shows the plan: the header, the timeline, the stage overview and the remarks. The right pane shows the work plan. Each pane scrolls on its own. Drag the divider between the panes to change their widths, or select it and use the arrow keys. Double-click the divider to reset it to 50/50.
+
+On a narrower screen, two tabs, **Plan** and **Work plan**, show one group at a time. A pinned timeline stays visible with both tabs.
+
+The Preview and the printed sheets do not change with the screen layout.
 
 ## Features
 
 ### Plan header and range
 
 Each plan has a heading, a subheading and an objective. The plan range sets the dates that the Gantt shows. Click **Fit to tasks** to set the range to the dates of all tasks.
+
+The **Sheet footer** row below the objective has a note, a version, a date and a text on the right side. The sheets show this footer at the bottom of each page.
 
 ### Gantt timeline
 
@@ -20,7 +30,7 @@ Each plan has a heading, a subheading and an objective. The plan range sets the 
 - Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
-- Use the pin button to keep the whole Timeline section at the top of the page while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
+- Use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. With tabs, it stays above the work plan too. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
 
 ### Stage overview
 
@@ -44,11 +54,11 @@ Each stage has a card. The card shows the months of the stage, a title, a descri
 
 Click the "…" button of a row to open the task dialog ("Task details"). You can change the stage or the parent of the task, write a note and choose the dependencies. Type `@` in a note to mention a task. If a change causes a conflict, the app lists it before the change.
 
-### Remarks and footer
+### Remarks
 
-![Remark sections and the plan footer](docs/screenshots/remarks-footer.png)
+![Two remark sections with bullets](docs/screenshots/remarks.png)
 
-Remark sections hold lists of short bullets at the end of the plan. The footer has a note, a version, a date and a text on the right side. The sheets show the same footer on each page.
+Remark sections hold lists of short bullets. They are at the end of the plan pane. On the sheets, they come after the work plan.
 
 ### Preview and print
 
