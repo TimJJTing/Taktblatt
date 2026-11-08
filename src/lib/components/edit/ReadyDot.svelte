@@ -6,24 +6,26 @@
 <script lang="ts">
 	import { scale } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
+	import { readyLight, type Readiness } from '#lib/domain/derive.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
-		/** The number of effective dependencies. 0 means off. */
-		count: number;
+		/** The task readiness. */
+		readiness: Readiness;
 		/** Static output for print: no transition, no animation. */
 		still?: boolean;
 		/** Keep the slot when the light is off, so that the next element does not move. */
 		reserve?: boolean;
 	}
 
-	let { count, still = false, reserve = false }: Props = $props();
-	const label = $derived(m.ready_label({ count }));
+	let { readiness, still = false, reserve = false }: Props = $props();
+	const lightData = $derived(readyLight(readiness));
+	const label = $derived(m.ready_label({ count: lightData?.count ?? 0 }));
 </script>
 
 {#snippet light()}
-	{#if count > 0}
+	{#if lightData !== null}
 		{#if still}
 			<span
 				class="ready-dot inline-block size-2 shrink-0 rounded-full bg-paper-ready"

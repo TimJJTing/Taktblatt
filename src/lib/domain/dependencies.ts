@@ -1,51 +1,14 @@
 /**
- * Dependencies, validation, the ready light, deletion and move conflicts.
+ * Dependencies, validation, deletion and move conflicts.
  * Refer to docs/spec.md, section 3, and ADR 6.
  */
-import { effectiveOf, effectiveValues, indexTasks, isFinished, type TaskIndex } from './derive.ts';
+import { effectiveDependencies, effectiveOf, indexTasks, type TaskIndex } from './derive.ts';
 import type { Plan, Task } from './schema.ts';
 import { removeMentions } from './mentions.ts';
 
 // ---------------------------------------------------------------------------
 // Effective graph
 // ---------------------------------------------------------------------------
-
-/**
- * Returns the effective dependencies of a task.
- * Subtask: its own dependencies.
- * Parent: its own dependencies and those of its subtasks, minus its own subtasks.
- */
-export function effectiveDependencies(index: TaskIndex, id: string): Set<string> {
-	const task = index.byId.get(id);
-	if (!task) return new Set();
-	const children = index.children.get(id) ?? [];
-	const childIds = new Set(children.map((c) => c.id));
-	const result = new Set<string>();
-	for (const source of [task, ...children]) {
-		for (const dep of source.dependsOn) {
-			if (dep !== id && !childIds.has(dep) && index.byId.has(dep)) result.add(dep);
-		}
-	}
-	return result;
-}
-
-/** The dependencies that a parent inherits from its subtasks, with the subtask that owns each one. */
-export function inheritedDependencies(
-	index: TaskIndex,
-	id: string
-): { depId: string; fromId: string }[] {
-	const children = index.children.get(id) ?? [];
-	const childIds = new Set(children.map((c) => c.id));
-	const own = new Set(index.byId.get(id)?.dependsOn ?? []);
-	const result: { depId: string; fromId: string }[] = [];
-	for (const child of children) {
-		for (const dep of child.dependsOn) {
-			if (!childIds.has(dep) && !own.has(dep) && dep !== id)
-				result.push({ depId: dep, fromId: child.id });
-		}
-	}
-	return result;
-}
 
 /** Returns true when `to` can be reached from `from` in the effective graph. */
 export function reaches(index: TaskIndex, from: string, to: string): boolean {
@@ -116,24 +79,6 @@ export function dateWarnings(index: TaskIndex): DateWarning[] {
 		}
 	}
 	return result;
-}
-
-// ---------------------------------------------------------------------------
-// Ready light
-// ---------------------------------------------------------------------------
-
-/** Returns the number of effective dependencies when the ready light is on. Else returns 0. */
-export function readyCount(index: TaskIndex, id: string): number {
-	const task = index.byId.get(id);
-	if (!task) return 0;
-	if (effectiveValues(task, index.children.get(id)).status !== 'todo') return 0;
-	const deps = effectiveDependencies(index, id);
-	if (deps.size === 0) return 0;
-	for (const dep of deps) {
-		const status = effectiveOf(index, dep)?.status;
-		if (status === undefined || !isFinished(status)) return 0;
-	}
-	return deps.size;
 }
 
 // ---------------------------------------------------------------------------

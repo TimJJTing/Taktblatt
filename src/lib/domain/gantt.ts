@@ -6,8 +6,7 @@
  * Refer to docs/spec.md, section 5.4.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
-import { effectiveValues, orderedMilestones, type TaskIndex } from './derive.ts';
-import { effectiveDependencies } from './dependencies.ts';
+import { effectiveDependencies, orderedMilestones, type TaskIndex } from './derive.ts';
 import type { Band, Milestone, TaskStatus } from './schema.ts';
 
 /** The visible range of the timeline. Both dates are inclusive. */
@@ -142,7 +141,7 @@ export function ganttRows(
 			const children = index.children.get(task.id) ?? [];
 			const isParent = children.length > 0;
 			const expanded = isParent && isExpanded(task.id);
-			const eff = effectiveValues(task, children);
+			const eff = index.state.get(task.id)!.eff;
 			rows.push({
 				id: task.id,
 				stageId,
@@ -156,7 +155,7 @@ export function ganttRows(
 			});
 			if (!expanded) continue;
 			for (const child of children) {
-				const childEff = effectiveValues(child);
+				const childEff = index.state.get(child.id)!.eff;
 				rows.push({
 					id: child.id,
 					stageId,

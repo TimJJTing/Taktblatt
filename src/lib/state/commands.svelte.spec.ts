@@ -1,4 +1,3 @@
-import { effectiveValues, indexTasks } from '#lib/domain/derive.ts';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	addTask,
@@ -424,10 +423,7 @@ describe('task commands', () => {
 			const stageId = ws.plan.stages[0].id;
 			const parent = addTask(ws, stageId, { parentId: null, patch: { status: 'in_progress' } });
 			const child = addTask(ws, stageId, { parentId: parent, patch: { status: 'done' } });
-			const effective = () => {
-				const index = indexTasks(ws.plan.tasks);
-				return effectiveValues(index.byId.get(parent)!, index.children.get(parent)).status;
-			};
+			const effective = () => ws.index.state.get(parent)!.eff.status;
 			expect(effective()).toBe('done');
 			if (action === 'delete') removeTasks(ws, [child]);
 			else moveTask(ws, child, { target: { stageId, parentId: null }, fixes: [] });
@@ -435,6 +431,29 @@ describe('task commands', () => {
 			expect(ws.plan.tasks.find((task) => task.id === parent)?.status).toBe('in_progress');
 		}
 	);
+
+	it('updates cached dependent readiness after a dependency status change, undo and redo', () => {
+		const ws = open();
+		const stageId = ws.plan.stages[0].id;
+		const dependency = addTask(ws, stageId);
+		const dependent = addTask(ws, stageId, {
+			parentId: null,
+			patch: { dependsOn: [dependency] }
+		});
+		ws.history.clear();
+		const readiness = () => ws.index.state.get(dependent)!.readiness;
+		const blocked = { kind: 'blocked', blockers: [{ kind: 'task', id: dependency }] };
+		const ready = { kind: 'ready', via: 'dependencies', count: 1 };
+		expect(readiness()).toEqual(blocked);
+		updateTask(ws, dependency, { status: 'done' });
+		expect(readiness()).toEqual(ready);
+		expect(ws.undo()).toBe(true);
+		expect(readiness()).toEqual(blocked);
+		expect(ws.history.canUndo).toBe(false);
+		expect(ws.redo()).toBe(true);
+		expect(readiness()).toEqual(ready);
+		expect(ws.history.canRedo).toBe(false);
+	});
 
 	it('removes several tasks with their subtasks in one undo step', () => {
 		const ws = open();

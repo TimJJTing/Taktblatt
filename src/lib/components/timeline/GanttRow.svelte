@@ -15,8 +15,6 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { subtaskFill } from '#lib/components/plan/colors.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveOf, isFinished } from '#lib/domain/derive.ts';
 	import type { GanttMark, GanttRow } from '#lib/domain/gantt.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -42,9 +40,9 @@
 
 	const task = $derived(ws.index.byId.get(row.id));
 	const titleText = $derived(task?.title || m.task_untitled());
-	const eff = $derived(effectiveOf(ws.index, row.id));
-	const ready = $derived(readyCount(ws.index, row.id));
-	const muted = $derived(isFinished(row.status));
+	const taskState = $derived(ws.index.state.get(row.id)!);
+	const eff = $derived(taskState.eff);
+	const muted = $derived(taskState.finished);
 	const subtask = $derived(row.level === 1);
 	const mark = $derived(row.mark);
 
@@ -126,7 +124,7 @@
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} reserve />
+		<ReadyDot readiness={taskState.readiness} reserve />
 		<Hint text={showRow}>
 			{#snippet child({ props })}
 				<button
