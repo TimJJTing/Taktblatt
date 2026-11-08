@@ -1,4 +1,8 @@
 {
+	"dependency_candidate_cycle": "Erzeugt einen Abhängigkeitszyklus.",
+	"dependency_candidate_date": "Beginnt nach dem Ende dieser Aufgabe.",
+	"dependency_warning_cycle": "Diese Abhängigkeit ist Teil eines Zyklus.",
+	"toast_cycle_created": "Diese Änderung erzeugt einen Abhängigkeitszyklus.",
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "Taktblatt",
 	"settings": "Einstellungen",
@@ -107,7 +111,7 @@
 	"dependency_search": "Tippen, um eine Aufgabe zu finden",
 	"dependency_none": "Keine passende Aufgabe",
 	"dependency_remove": "Abhängigkeit {task} entfernen",
-	"dependency_inherited_parent": "Von übergeordneter Aufgabe {task}",
+	"dependency_inherited_parent": "Von übergeordneter Aufgabe {task}.",
 	"dependency_warning": "{task} beginnt nach dem Ende dieser Aufgabe.",
 	"mention_hint": "Eingabe zum Einfügen, Esc zum Schließen",
 	"action_ok": "OK",

@@ -4,14 +4,15 @@
 	The search shows only candidates that keep the rules. Refer to docs/spec.md, section 3.
 -->
 <script lang="ts">
+	import { mergeProps } from 'bits-ui';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { isComposing } from '#lib/browser/keyboard.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Input } from '#lib/components/ui/input/index.ts';
-	import { canDependOn, dependencyWarnings } from '#lib/domain/dependencies.ts';
+	import { canDependOn, candidateWarnings, dependencyWarnings } from '#lib/domain/dependencies.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
-	import { joinList } from '#lib/domain/format.ts';
+	import { joinSentences } from '#lib/domain/format.ts';
 	import { inheritedDependencies } from '#lib/domain/derive.ts';
 	import { matchesWords } from '#lib/domain/mentions.ts';
 	import type { Task } from '#lib/domain/schema.ts';
@@ -32,7 +33,7 @@
 
 	const title = (id: string) => ws.index.byId.get(id)?.title || m.task_untitled();
 	const inherited = $derived(inheritedDependencies(ws.index, task.id));
-	const warnings = $derived(dependencyWarnings(ws.index).filter((w) => w.taskId === task.id));
+	const warnings = $derived(dependencyWarnings(ws.index));
 	const orderedOptions = $derived(
 		task.parentId !== null
 			? ws.plan.tasks.filter((t) => t.parentId === task.parentId)
@@ -49,19 +50,35 @@
 							(matchesWords(t.title || '', query) ||
 								(t.parentId !== null && matchesWords(title(t.parentId), query)))
 					)
+					.map((candidate) => ({
+						...candidate,
+						warnings: candidateWarnings(ws.index, task.id, candidate.id)
+					}))
+					.sort((a, b) => Number(a.warnings.length > 0) - Number(b.warnings.length > 0))
 					.slice(0, 8)
 			: []
 	);
 
-	function warningText(dependencyId: string): string {
-		return joinList(
+	function warningText(dependencyId: string, ownerId = task.id): string {
+		return joinSentences(
 			warnings
-				.filter((w) => w.dependencyId === dependencyId)
+				.filter((w) => w.taskId === ownerId && w.dependencyId === dependencyId)
 				.map((w) =>
 					w.kind === 'date'
 						? m.dependency_warning({ task: title(dependencyId) })
-						: m.dependency_warning_subtask_scope()
+						: w.kind === 'cycle'
+							? m.dependency_warning_cycle()
+							: m.dependency_warning_subtask_scope()
 				),
+			uiIntl()
+		);
+	}
+
+	function candidateText(warnings: ('cycle' | 'date')[]): string {
+		return joinSentences(
+			warnings.map((kind) =>
+				kind === 'cycle' ? m.dependency_candidate_cycle() : m.dependency_candidate_date()
+			),
 			uiIntl()
 		);
 	}
@@ -139,12 +156,16 @@
 			{/each}
 			{#each inherited as dep (dep.depId + dep.fromId)}
 				{@const source = m.dependency_inherited_parent({ task: title(dep.fromId) })}
-				<Hint text={source} focusable={false}>
+				{@const warn = warningText(dep.depId, dep.fromId)}
+				<Hint text={joinSentences([source, ...(warn ? [warn] : [])], uiIntl())} focusable={false}>
 					{#snippet child({ props })}
 						<li
 							{...props}
 							class="flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
 						>
+							{#if warn}
+								<TriangleAlertIcon class="size-3 text-amber-600" role="img" aria-label={warn} />
+							{/if}
 							<span class="max-w-48 truncate">{title(dep.depId)}</span>
 							<span class="sr-only"
 								>{m.parenthetical({
@@ -200,27 +221,39 @@
 				class="absolute inset-x-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-md border bg-popover p-1 text-sm shadow-md"
 			>
 				{#each candidates as candidate, i (candidate.id)}
-					<button
-						type="button"
-						role="option"
-						id={`${id}-option-${i}`}
-						tabindex="-1"
-						aria-selected={i === activeIndex}
-						class={cn(
-							'block w-full truncate rounded-sm px-2 py-1 text-left',
-							i === activeIndex && 'bg-accent',
-							candidate.parentId !== null && task.parentId === null && 'pl-6'
-						)}
-						onmousedown={(e) => {
-							e.preventDefault();
-							add(candidate.id);
-						}}
-					>
-						{candidate.title || m.task_untitled()}
-						{#if candidate.parentId !== null && task.parentId === null}
-							<span class="ml-2 text-xs text-muted-foreground">{title(candidate.parentId)}</span>
-						{/if}
-					</button>
+					{@const warn = candidateText(candidate.warnings)}
+					<Hint text={warn || undefined} focusable={false}>
+						{#snippet child({ props })}
+							<button
+								{...mergeProps(props, {
+									onmousedown: (event: MouseEvent) => {
+										event.preventDefault();
+										add(candidate.id);
+									}
+								})}
+								type="button"
+								role="option"
+								id={`${id}-option-${i}`}
+								tabindex="-1"
+								aria-selected={i === activeIndex}
+								class={cn(
+									'block w-full truncate rounded-sm px-2 py-1 text-left',
+									i === activeIndex && 'bg-accent',
+									candidate.parentId !== null && task.parentId === null && 'pl-6'
+								)}
+							>
+								{candidate.title || m.task_untitled()}
+								{#if warn}
+									<TriangleAlertIcon class="ml-1 inline size-3 text-amber-600" aria-hidden="true" />
+									<span class="sr-only">{warn}</span>
+								{/if}
+								{#if candidate.parentId !== null && task.parentId === null}
+									<span class="ml-2 text-xs text-muted-foreground">{title(candidate.parentId)}</span
+									>
+								{/if}
+							</button>
+						{/snippet}
+					</Hint>
 				{:else}
 					<p class="px-2 py-1 text-muted-foreground">{m.dependency_none()}</p>
 				{/each}

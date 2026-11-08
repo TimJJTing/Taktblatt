@@ -42,7 +42,8 @@
 
 <path
 	{d}
-	class={muted ? 'opacity-40' : undefined}
+	class={line.cycle ? 'text-destructive' : muted ? 'opacity-40' : undefined}
+	data-cycle={line.cycle ? 'true' : undefined}
 	fill="none"
 	stroke="currentColor"
 	stroke-width="1.25"

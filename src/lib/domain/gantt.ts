@@ -6,6 +6,7 @@
  * Refer to docs/spec.md, section 5.4.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
+import { dependencyEdgeKey, dependencyWarnings } from './dependencies.ts';
 import { orderedMilestones, type TaskIndex } from './derive.ts';
 import type { Band, Milestone, TaskStatus } from './schema.ts';
 
@@ -174,6 +175,7 @@ export function ganttRows(
 }
 
 export interface DependencyLine {
+	cycle: boolean;
 	/** `${fromId}->${toId}`. */
 	key: string;
 	/** The row of the dependency (predecessor). */
@@ -218,6 +220,11 @@ export function dependencyLines(index: TaskIndex, rows: readonly GanttRow[]): De
 		const parentId = index.byId.get(id)?.parentId;
 		return parentId ? byId.get(parentId) : undefined;
 	};
+	const cycles = new Set(
+		dependencyWarnings(index)
+			.filter((w) => w.kind === 'cycle')
+			.map((w) => dependencyEdgeKey(w.taskId, w.dependencyId))
+	);
 	const lines = new Map<string, DependencyLine>();
 	for (const to of rows) {
 		if (!isDrawn(to.mark)) continue;
@@ -225,8 +232,14 @@ export function dependencyLines(index: TaskIndex, rows: readonly GanttRow[]): De
 			const from = visibleRow(depId);
 			if (!from || from.row === to.row || !isDrawn(from.mark)) continue;
 			const key = `${from.id}->${to.id}`;
-			if (lines.has(key)) continue;
+			const cycle = cycles.has(dependencyEdgeKey(to.id, depId));
+			const existing = lines.get(key);
+			if (existing) {
+				existing.cycle ||= cycle;
+				continue;
+			}
 			lines.set(key, {
+				cycle,
 				key,
 				fromId: from.id,
 				toId: to.id,

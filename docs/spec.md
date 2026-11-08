@@ -145,7 +145,7 @@ The app calculates a **derived value** from other data. The user cannot edit a d
 - A task or subtask stores its **own dependencies** in `dependsOn`. The app stores ids. The app shows the current titles.
 - The **effective dependencies** of a subtask are its own dependencies and the own dependencies of its parent. A task, with or without subtasks, uses its own dependencies. The app excludes the task itself and unknown ids.
 - A parent does not inherit dependencies from its subtasks. The app excludes dependencies that point at its own subtasks.
-- The subtask dialog shows inherited dependencies as read-only chips. A subtask inherits the own dependencies of its parent. The source appears in a hint and in the accessible name, with "From parent {task}". It does not appear as visible text.
+- The subtask dialog shows inherited dependencies as read-only chips. A subtask inherits the own dependencies of its parent. The source appears in a hint and in the accessible name, with "From parent {task}." It does not appear as visible text.
 - In the editor, a subtask can add dependencies only on siblings with the same parent. A task can depend on other tasks and on subtasks of other tasks. Legacy subtask dependencies outside the parent stay valid. They count for that subtask and show a scope warning. Refer to [ADR 14](adr/0014-subtasks-depend-only-on-siblings.md).
 
 ### 3.2 Validation
@@ -154,13 +154,14 @@ The app uses the effective graph for cycle checks and readiness. The date rule c
 
 1. A task cannot depend on itself.
 2. A task cannot depend on its parent or on its own subtask.
-3. Load and import accept cycles in the effective graph. The dependency picker still hides candidates that make a new cycle. It also hides dependencies that the task already inherits.
-4. **Date rule:** A cannot be a dependency of B if `A.start > B.end`. If one of these dates is empty, the rule does not apply.
+3. The app permits cycles in the effective graph, including on load and import. The dependency picker hides dependencies that are already stored or inherited.
+4. **Date rule:** A dependency from B to A has a warning if `A.start > B.end`. If one of these dates is empty, the rule does not apply.
 
-- The dependency picker hides candidates that break the structure, cycle or date rules.
-- Cycle warnings in the UI will come in PR 3. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
+- The dependency picker hides candidates that break the structure or scope rules. It permits candidates that make a cycle or break the date rule. It marks these candidates with a warning icon and hint. Their accessible names include all warning reasons. Unwarned candidates come first. Each group keeps the plan order and subtask grouping. The eight-option limit fills with unwarned candidates first.
+- A stored dependency has a cycle warning when any effective edge that it makes is part of a cycle. A parent stores its own edge and the edges that its subtasks inherit. The app computes strongly connected components without recursion. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
+- A forward commit that adds one or more new cycle-warning rows shows one warning toast: "This change makes a dependency cycle." The app shows it after the save succeeds. Undo, redo, plan activation, import and tab sync do not show this toast.
 - A date change can break the date rule. The app does not remove the dependency. It shows a warning on the dependency.
-- Each stored dependency row shows one warning icon if it breaks the date rule or the subtask scope rule. Its hint and accessible name include all warning reasons. Scope warnings do not make Gantt lines red.
+- Each stored dependency row shows one warning icon if it has a cycle, date or subtask scope warning. Its hint and accessible name include all warning reasons. Inherited "From parent" chips show the warnings of the parent-stored dependency. Date and scope warnings do not make Gantt lines red.
 - When you delete a task, the app removes the task from all `dependsOn` lists. It also removes all mention tokens for the task.
 
 ### 3.3 Move conflicts
@@ -255,7 +256,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - Import accepts both kinds. The app validates the file. If the file is not valid, the app shows the errors and does not change data.
 - Import rejects duplicate ids in the stages, tasks, milestones, bands or remark sections of a plan. It also rejects a dependency between a parent and its own subtask. Load and import accept cycles in the effective dependency graph. Refer to [data-model.md](data-model.md) for all import rules.
 - Import permits date-rule conflicts and shows warnings for them.
-- Import adds each plan as a new plan. The last imported plan becomes active. A toast confirms the import. If stored dependencies break the date rule or the subtask scope rule, a second toast shows the number of dependency rows with warnings. A row with both kinds counts once. Import is not an undo step.
+- Import adds each plan as a new plan. The last imported plan becomes active. A toast confirms the import. If stored dependencies have cycle, date or subtask scope warnings, a second toast shows the number of dependency rows with warnings. A row with one or more warning kinds counts once. Import is not an undo step.
 - If the browser cannot save the data, import undoes its own writes and shows an error.
 - If a plan with the same `id` exists, one dialog lists all such plans. Each plan has the choices **Replace** and **Keep both**. The default is **Keep both**. **Replace** overwrites the existing plan with the same `id`. **Cancel** imports nothing. **Keep both** gives the copy a new id and adds the copy suffix to its heading. The suffix follows the UI language (English: " (copy)").
 - If the file is not valid, a dialog lists the errors (the first eight, and the number of other errors).
@@ -309,7 +310,7 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Labels:** click a label to scroll to its table row. The row flashes one time. You cannot edit a label in the Gantt.
 - **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. When you pin the Timeline section, the app scrolls the chart to show the bar.
 - **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
-- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. Each visible row draws its own stored dependencies. A collapsed parent draws only its own dependencies. Hidden legacy subtask dependencies do not draw lines. A dependency on a hidden subtask connects to its parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done or canceled row use 40% opacity, the same as done and canceled bars. This also applies in Preview and print. For a parent row, the app uses its derived status.
+- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. Each visible row draws its own stored dependencies. A collapsed parent draws only its own dependencies. Hidden legacy subtask dependencies do not draw lines. A dependency on a hidden subtask connects to its parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done or canceled row use 40% opacity, the same as done and canceled bars. This also applies in Preview and print. For a parent row, the app uses its derived status. A line is red at full opacity when any effective edge of its stored dependencies is part of a cycle. This rule includes inherited edges and merged duplicate lines. The arrowhead has the same color. Red overrides the muted source style in the workspace, Preview and print. Lines are decorative. The dependency dialog gives the text alternative.
 - **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestone and band dialogs:** an outside click saves an edit. Esc and **Cancel** discard the changes. An outside click on a new entry does not add it.
@@ -380,7 +381,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
   - **Parent** is "None (task)" or another top-level task in the same stage, with or without subtasks. "None (task)" changes a subtask to a task. A task without subtasks can become a subtask. A task with subtasks cannot become a subtask.
   - A parent change can open the move-conflict dialog (section 3.3).
 - **Note:** plain text. Type "@" to mention a task.
-- **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a rule or are already effective dependencies. A subtask lists only siblings. A plain help line above the input says: "To depend on another task, make this subtask a task, or move it under the same parent." The input uses this help as its accessible description. A task lists tasks in plan order, with candidate subtasks indented after each task. Each subtask shows its parent title as secondary text. Candidate subtasks stay visible when their parent is not a candidate. Search matches the subtask title or parent title. The limit is eight options in total. When the list opens, the dialog scrolls so that the full list is visible. Subtasks show inherited dependencies as read-only chips. The source appears in a hint and in the accessible name.
+- **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a structure or scope rule, or are already effective dependencies. Cycle and date candidates stay selectable. Unwarned options come first, then warned options. Each part keeps the grouping and order below. Warning icons, hints and accessible names give all reasons: "Makes a dependency cycle." and "Starts after this task ends." A subtask lists only siblings. A plain help line above the input says: "To depend on another task, make this subtask a task, or move it under the same parent." The input uses this help as its accessible description. A task lists tasks in plan order, with candidate subtasks indented after each task. Each subtask shows its parent title as secondary text. Candidate subtasks stay visible when their parent is not a candidate. Search matches the subtask title or parent title. The limit is eight options in total. When the list opens, the dialog scrolls so that the full list is visible. Subtasks show inherited dependencies as read-only chips. The source appears in a hint and in the accessible name. Inherited chips also show the warnings on the parent-stored dependency.
 - Each field saves on blur.
 - **OK** closes the dialog. **Delete…** opens a confirmation that shows the effect, for example "Subtasks deleted with the task: 2. Other tasks that depend on it: 3. The app removes their links."
 - Esc closes the dialog. The focus stays in the dialog while it is open. On close, the focus goes back to the "…" button.
@@ -434,6 +435,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - The `de`, `zh-TW` and `ja` texts are machine drafts. A native speaker must review them.
 - Dates use `Intl`. Weeks start on Monday.
 - Messages control punctuation, spaces and word order when a label combines text with a name, value, qualifier or status clause. This applies to visible labels, hints, accessible names and printed labels. Traditional Chinese uses `·` (U+00B7) between a name and a qualifier. Japanese uses `・` (U+30FB). Accessible names for Gantt bars and points join status and clipping clauses with localized clause punctuation (English and German: `, `; Traditional Chinese: `，`; Japanese: `、`), not conjunctions.
+- Complete warning sentences use `joinSentences()`. English and German sentences have one space between them. Japanese and Traditional Chinese sentences have no space between them. Each message contains its final punctuation.
 - User-facing item lists use `joinList()`, which formats the list with `Intl.ListFormat` for the UI language. This includes owner lists on screen and on sheets. Stored owner arrays stay unchanged.
 
 ## 7. Preview and print
@@ -475,6 +477,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - Font: IBM Plex Sans, self-hosted.
 - Ink `#1A1D23`. Secondary text `#3A3F4A` and `#5A6070`. Rules `#C9CDD4` and `#E1E4E8`. Neutral fill `#EEF0F3`.
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
+- Cycle lines and arrowheads use `--color-paper-warning`, with value `#C2453A`. Its contrast against white paper is 4.99:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token.
 - Stage palette: 8 colors. Band palette: 4 light tints. All pass WCAG AA against their background. Each has a dark-mode variant for the screen.
 
 ## Future: Kanban

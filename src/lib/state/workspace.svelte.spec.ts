@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createEmptyPlan, createTask } from '#lib/domain/factory.ts';
 import { SCHEMA_VERSION } from '#lib/domain/schema.ts';
-import { addBand, addMilestone, addRemarkSection, loadExample, updateStage } from './commands.ts';
+import { makeTask } from '#lib/domain/test-helpers.ts';
+import {
+	addBand,
+	addMilestone,
+	addRemarkSection,
+	loadExample,
+	updateStage,
+	updateTask
+} from './commands.ts';
 import { MemoryStorage } from './memory-storage.ts';
 import { KEYS, StorageWriteError } from './storage.ts';
 import { Workspace } from './workspace.svelte.ts';
@@ -12,6 +20,25 @@ const open = (storage = new MemoryStorage()) => ({
 });
 
 describe('Workspace', () => {
+	it('notifies for a new cyclic edge when task ids collide with an existing edge key', () => {
+		const notify = vi.fn();
+		const ws = new Workspace(new MemoryStorage(), notify);
+		ws.commit((plan) => {
+			const stageId = plan.stages[0].id;
+			plan.tasks = [
+				makeTask({ id: 'a→b', stageId, dependsOn: ['c'] }),
+				makeTask({ id: 'c', stageId, dependsOn: ['a→b'] }),
+				makeTask({ id: 'a', stageId, dependsOn: ['d'] }),
+				makeTask({ id: 'd', stageId, dependsOn: ['b→c'] }),
+				makeTask({ id: 'b→c', stageId, dependsOn: ['a'] })
+			];
+		});
+		notify.mockClear();
+		updateTask(ws, 'a', { dependsOn: ['d', 'b→c'] });
+		expect(ws.plan.tasks.find((task) => task.id === 'a')?.dependsOn).toEqual(['d', 'b→c']);
+		expect(notify).toHaveBeenCalledTimes(1);
+	});
+
 	it('drops an old locale key from a stored plan at the next save', () => {
 		const storage = new MemoryStorage();
 		const plan = createEmptyPlan('2027-04-01');

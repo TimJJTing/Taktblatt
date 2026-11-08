@@ -51,12 +51,17 @@ test.describe('task dialog', () => {
 		);
 	});
 
-	test('the dependency picker hides invalid candidates and adds a dependency', async ({ page }) => {
+	test('the dependency picker marks cycle candidates and adds a dependency', async ({ page }) => {
 		await openExample(page);
 		await openDetails(page, 'Sowing');
 		await page.getByTestId('dependency-input').fill('harvest');
-		// "First harvest" depends on "Sowing", so it would make a cycle.
-		await expect(page.getByRole('option')).toHaveCount(0);
+		// "First harvest" depends on "Sowing", so it is allowed with a cycle warning.
+		await expect(
+			page.getByRole('option', { name: /First harvest.*Makes a dependency cycle/ })
+		).toBeVisible();
+		await expect(page.getByRole('option', { name: /First harvest/ })).toHaveAccessibleName(
+			/Starts after this task ends/
+		);
 		await page.getByTestId('dependency-input').fill('site');
 		await expect(page.getByRole('option', { name: 'Site survey' })).toBeVisible();
 		await page.keyboard.press('Enter');

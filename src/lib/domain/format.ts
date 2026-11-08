@@ -159,3 +159,8 @@ export function joinList(
 ): string {
 	return new Intl.ListFormat(locale, { style: 'long', type }).format(items);
 }
+
+/** Joins complete sentences with the spacing of their language. */
+export function joinSentences(parts: readonly string[], locale: string): string {
+	return parts.join(/^(ja|zh)(-|$)/i.test(locale) ? '' : ' ');
+}

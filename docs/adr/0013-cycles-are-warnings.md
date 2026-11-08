@@ -17,11 +17,15 @@ A subtask now depends on the own dependencies of its parent. Thus the effective 
 
 ## Rollout
 
-- PR 2 accepts cycles on load and import. The dependency picker still blocks new cycles. The move-conflict dialog still offers the existing cycle fixes. Import counts date warnings only.
-- PR 4 removes the move cycle fix. Parents no longer inherit dependencies from subtasks. Subtasks can add dependencies only on siblings. The move dialog removes dependencies that break this scope rule. Import counts date and scope warnings. Refer to [ADR 14](0014-subtasks-depend-only-on-siblings.md).
-- PR 3 removes the picker cycle rejection. It adds the cycle warnings, marked candidates, sorting, commit toast, and import cycle count described above.
-- From PR 4, moving subtask S under parent P adds inherited edges S → P.own. It does not add edges P → S.own. A cycle through S → P.own is permitted.
-- Inherited edges can make a cycle in an existing plan. For example, P depends on X, X depends on S, and S is a subtask of P. Load and import must accept this plan from PR 2.
+All parts are complete.
+
+- Load and import accept cycles. Import counts stored rows with cycle, date or scope warnings. Each row counts once.
+- Parents use their own dependencies. Subtasks inherit the own dependencies of their parent. Subtasks can add dependencies only on siblings. The move dialog removes dependencies that break this scope rule. It has no cycle fix. Refer to [ADR 14](0014-subtasks-depend-only-on-siblings.md).
+- The picker permits cycle and date candidates. It marks them with icons and hints and puts warned candidates last.
+- Stored dependencies and inherited "From parent" chips show cycle warnings. Gantt lines and arrowheads are red at full opacity when any effective edge that they represent is part of a cycle. This applies in the workspace, Preview and print.
+- A forward commit shows one warning toast after a successful save when it adds a new cycle-warning row. Undo, redo, activation, import and tab sync do not show this toast.
+- Moving subtask S under parent P adds inherited edges S → P.own. It does not add edges P → S.own. A cycle through S → P.own is permitted.
+- Inherited edges can make a cycle in an existing plan. For example, P depends on X, X depends on S, and S is a subtask of P. Load and import accept this plan.
 
 ## Consequences
 

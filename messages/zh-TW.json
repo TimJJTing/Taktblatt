@@ -1,4 +1,8 @@
 {
+	"dependency_candidate_cycle": "會形成相依循環。",
+	"dependency_candidate_date": "開始日期晚於此任務的結束日期。",
+	"dependency_warning_cycle": "此相依關係是循環的一部分。",
+	"toast_cycle_created": "此變更會形成相依循環。",
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "Taktblatt",
 	"settings": "設定",
@@ -107,7 +111,7 @@
 	"dependency_search": "輸入以搜尋任務",
 	"dependency_none": "沒有符合的任務",
 	"dependency_remove": "移除相依項目 {task}",
-	"dependency_inherited_parent": "來自父任務 {task}",
+	"dependency_inherited_parent": "來自父任務 {task}。",
 	"dependency_warning": "{task} 的開始日晚於此任務的結束日。",
 	"mention_hint": "Enter 插入，Esc 關閉",
 	"action_ok": "確定",

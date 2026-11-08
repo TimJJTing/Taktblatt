@@ -1,4 +1,8 @@
 {
+	"dependency_candidate_cycle": "Makes a dependency cycle.",
+	"dependency_candidate_date": "Starts after this task ends.",
+	"dependency_warning_cycle": "This dependency is part of a cycle.",
+	"toast_cycle_created": "This change makes a dependency cycle.",
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "Taktblatt",
 	"settings": "Settings",
@@ -107,7 +111,7 @@
 	"dependency_search": "Type to find a task",
 	"dependency_none": "No matching task",
 	"dependency_remove": "Remove dependency {task}",
-	"dependency_inherited_parent": "From parent {task}",
+	"dependency_inherited_parent": "From parent {task}.",
 	"dependency_warning": "{task} starts after this task ends.",
 	"mention_hint": "Enter to insert, Esc to close",
 	"action_ok": "OK",

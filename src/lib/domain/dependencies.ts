@@ -56,13 +56,74 @@ export function canDependOn(index: TaskIndex, dependentId: string, candidateId: 
 	if (dependentId === candidateId) return false;
 	if (isParentAndChild(index, dependentId, candidateId)) return false;
 	if (effectiveDependencies(index, dependentId).has(candidateId)) return false;
-	if (breaksDateRule(index, candidateId, dependentId)) return false;
-	// The dependent gets the new edge. Its subtasks inherit the edge.
+	return true;
+}
+
+/** Returns warnings for the new effective edges of a picker candidate. */
+export function candidateWarnings(
+	index: TaskIndex,
+	dependentId: string,
+	candidateId: string
+): ('cycle' | 'date')[] {
+	const result: ('cycle' | 'date')[] = [];
 	const nodes = [dependentId, ...(index.children.get(dependentId) ?? []).map((t) => t.id)];
-	// Check only the tasks that get a new edge. A task that has the edge already adds no cycle.
-	return nodes
-		.filter((node) => node === dependentId || !effectiveDependencies(index, node).has(candidateId))
-		.every((node) => node !== candidateId && !reaches(index, candidateId, node));
+	if (
+		nodes.some(
+			(node) =>
+				!effectiveDependencies(index, node).has(candidateId) && reaches(index, candidateId, node)
+		)
+	)
+		result.push('cycle');
+	if (breaksDateRule(index, candidateId, dependentId)) result.push('date');
+	return result;
+}
+
+/** Computes strongly connected components with two iterative graph passes. */
+function cycleComponents(index: TaskIndex): Map<string, number> {
+	const edges = new Map<string, string[]>();
+	const reverse = new Map<string, string[]>();
+	for (const id of index.byId.keys()) reverse.set(id, []);
+	for (const id of index.byId.keys()) {
+		const deps = [...effectiveDependencies(index, id)];
+		edges.set(id, deps);
+		for (const dep of deps) reverse.get(dep)!.push(id);
+	}
+	const seen = new Set<string>();
+	const order: string[] = [];
+	for (const id of edges.keys()) {
+		if (seen.has(id)) continue;
+		seen.add(id);
+		const stack = [{ id, next: 0 }];
+		while (stack.length) {
+			const frame = stack[stack.length - 1];
+			const deps = edges.get(frame.id)!;
+			if (frame.next === deps.length) {
+				order.push(frame.id);
+				stack.pop();
+			} else {
+				const dep = deps[frame.next++];
+				if (!seen.has(dep)) {
+					seen.add(dep);
+					stack.push({ id: dep, next: 0 });
+				}
+			}
+		}
+	}
+	const components = new Map<string, number>();
+	for (const id of order.reverse()) {
+		if (components.has(id)) continue;
+		const component = components.size;
+		const stack = [id];
+		components.set(id, component);
+		while (stack.length) {
+			for (const next of reverse.get(stack.pop()!)!) {
+				if (components.has(next)) continue;
+				components.set(next, component);
+				stack.push(next);
+			}
+		}
+	}
+	return components;
 }
 
 /** A stored dependency that breaks the date rule. The UI shows a warning on it. */
@@ -72,16 +133,26 @@ export interface DateWarning {
 	dependencyId: string;
 }
 
-/** A warning on a stored dependency. An edge can have both kinds. */
+/** A warning on a stored dependency. An edge can have more than one kind. */
 export interface DependencyWarning extends DateWarning {
-	kind: 'date' | 'subtask_scope';
+	kind: 'date' | 'subtask_scope' | 'cycle';
 }
 
-/** Returns date and scope warnings on stored dependencies. */
+/** Returns cycle, date and scope warnings on stored dependencies. */
 export function dependencyWarnings(index: TaskIndex): DependencyWarning[] {
 	const result: DependencyWarning[] = [];
+	const components = cycleComponents(index);
 	for (const task of index.byId.values()) {
-		for (const dep of task.dependsOn) {
+		const nodes = [task.id, ...(index.children.get(task.id) ?? []).map((t) => t.id)];
+		const cyclicTargets = new Set<string>();
+		for (const node of nodes) {
+			for (const dep of effectiveDependencies(index, node)) {
+				if (components.get(node) === components.get(dep)) cyclicTargets.add(dep);
+			}
+		}
+		for (const dep of new Set(task.dependsOn)) {
+			if (cyclicTargets.has(dep))
+				result.push({ kind: 'cycle', taskId: task.id, dependencyId: dep });
 			if (breaksDateRule(index, dep, task.id))
 				result.push({ kind: 'date', taskId: task.id, dependencyId: dep });
 			if (task.parentId !== null && index.byId.get(dep)?.parentId !== task.parentId)
@@ -197,7 +268,10 @@ function brokenEdgesAround(index: TaskIndex, nodeId: string): DateWarning[] {
 	return result;
 }
 
-const edgeKey = (w: DateWarning) => `${w.taskId}→${w.dependencyId}`;
+/** Returns a unique key for a stored dependency edge. */
+export function dependencyEdgeKey(taskId: string, dependencyId: string): string {
+	return JSON.stringify([taskId, dependencyId]);
+}
 
 /** Calculates the conflicts of a move. A stage move without a parent change has no conflicts. */
 export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveConflicts {
@@ -221,9 +295,13 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 			result.fixes.push({ kind: 'remove-parent-dependency', parentId: newParentId });
 		}
 		// Dates: the derived dates of the new parent can break edges on the new parent.
-		const old = new Set(brokenEdgesAround(before, newParentId).map(edgeKey));
+		const old = new Set(
+			brokenEdgesAround(before, newParentId).map((edge) =>
+				dependencyEdgeKey(edge.taskId, edge.dependencyId)
+			)
+		);
 		for (const edge of brokenEdgesAround(after, newParentId)) {
-			if (old.has(edgeKey(edge))) continue;
+			if (old.has(dependencyEdgeKey(edge.taskId, edge.dependencyId))) continue;
 			const parentIsDependency = edge.dependencyId === newParentId;
 			// Parent is the dependency: its start is too late. Parent is the dependent: its end is too early.
 			result.fixes.push({
@@ -245,8 +323,14 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 				});
 			}
 		}
-		const old = new Set(brokenEdgesAround(before, oldParentId).map(edgeKey));
-		result.warnings = brokenEdgesAround(after, oldParentId).filter((e) => !old.has(edgeKey(e)));
+		const old = new Set(
+			brokenEdgesAround(before, oldParentId).map((edge) =>
+				dependencyEdgeKey(edge.taskId, edge.dependencyId)
+			)
+		);
+		result.warnings = brokenEdgesAround(after, oldParentId).filter(
+			(e) => !old.has(dependencyEdgeKey(e.taskId, e.dependencyId))
+		);
 	}
 
 	return result;
