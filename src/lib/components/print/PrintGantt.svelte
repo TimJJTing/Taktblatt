@@ -15,8 +15,7 @@
 	import { clipEdges, elbowPath, rowCenterY } from '#lib/components/timeline/gantt-layout.ts';
 	import { markLabel } from '#lib/components/timeline/mark-label.ts';
 	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveOf, isFinished } from '#lib/domain/derive.ts';
+	import { isFinished } from '#lib/domain/derive.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { GanttSegment } from '#lib/domain/print-model.ts';
@@ -122,9 +121,11 @@
 		{#each rows as row, i (row.id)}
 			{@const task = ws.index.byId.get(row.id)}
 			{@const title = task?.title || m.task_untitled()}
+			<!-- The print model is a snapshot. Undo can remove a task before the model updates. -->
+			{@const taskState = ws.index.state.get(row.id)}
 			{@const muted = isFinished(row.status)}
 			{@const mark = row.mark}
-			{@const eff = effectiveOf(ws.index, row.id)}
+			{@const eff = taskState?.eff ?? null}
 			{@const base = colors.get(row.stageId) ?? stagePaperColor('slate')}
 			{@const fill = row.level === 1 ? subtaskFill(base) : base}
 			<div
@@ -140,7 +141,7 @@
 					)}
 					style:width="{GANTT_LABEL_WIDTH}px"
 				>
-					<ReadyDot count={readyCount(ws.index, row.id)} still reserve />
+					<ReadyDot readiness={taskState?.readiness ?? { kind: 'inactive' }} still reserve />
 					<span
 						class={cn(
 							'min-w-0 truncate',

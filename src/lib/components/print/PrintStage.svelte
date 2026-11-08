@@ -100,7 +100,7 @@
 				</td>
 				<td class={cell}>
 					<div class={cn('flex items-baseline gap-1', row.level === 1 && 'pl-3.5')}>
-						<ReadyDot count={row.ready} still reserve />
+						<ReadyDot readiness={row.readiness} still reserve />
 						<span
 							class={cn(
 								'min-w-0 break-words',

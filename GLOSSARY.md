@@ -9,6 +9,8 @@ Use these terms in the UI, the code, the JSON schema and the docs. Do not use ot
 | **Task**                   | A work entry with no parent (level 1).                                                                                                  | activity, item           |
 | **Subtask**                | A task with a parent (level 2). A subtask cannot have subtasks.                                                                         | child item, sub-item     |
 | **Parent**                 | A task that has one or more subtasks.                                                                                                   | group                    |
+| **Leaf**                   | A task without subtasks, or a subtask. Only a leaf has a status that the user sets.                                                     | child, atomic task       |
+| **Finished**               | The status done or canceled. Only a finished task satisfies a dependency.                                                               |                          |
 | **Derived value**          | A value that the app calculates from other data. The user cannot edit it directly.                                                      | computed field           |
 | **Fallback value**         | The own value of a parent. The app hides it while the parent has subtasks.                                                              |                          |
 | **Own dependencies**       | The ids in the `dependsOn` field of a task or subtask.                                                                                  |                          |

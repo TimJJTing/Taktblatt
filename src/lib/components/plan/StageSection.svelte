@@ -15,7 +15,7 @@
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.ts';
-	import { effectiveValues, isFinished, stageProgress, stageSpan } from '#lib/domain/derive.ts';
+	import { stageProgress, stageSpan } from '#lib/domain/derive.ts';
 	import { formatMonthSpan } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { type Stage, type Task } from '#lib/domain/schema.ts';
@@ -231,14 +231,14 @@
 					animate:flip={{ duration: flipDuration, easing: cubicOut }}
 				>
 					{#each [task, ...(expanded ? children : [])] as rowTask (rowTask.id)}
-						{@const eff = effectiveValues(rowTask, ws.index.children.get(rowTask.id) ?? [])}
+						{@const taskState = ws.index.state.get(rowTask.id)!}
 						<tr
 							data-grid-row
 							data-task-id={rowTask.id}
 							class={cn(
 								'border-b transition-colors',
 								rowTask.parentId !== null ? 'border-border/50' : 'border-border',
-								isFinished(eff.status) && 'text-muted-foreground',
+								taskState.finished && 'text-muted-foreground',
 								editing.highlightId === rowTask.id && 'bg-accent/60',
 								editing.flashId === rowTask.id && 'row-flash'
 							)}

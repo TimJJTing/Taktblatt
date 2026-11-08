@@ -475,7 +475,7 @@ Printed work tables use the Status header and the same four status icons in pape
 
 ## Future: Kanban
 
-Ready means `todo` with the ready light on. Blocked means a status other than `done` or `canceled` with an effective dependency whose status is not `done` or `canceled`. The column for `canceled` tasks is open. A Kanban view is not part of this change.
+Kanban cards are leaves only. Canceled items are not on the board. The column comes from the one board-column calculation (`boardColumn`): Blocked, Todo, In progress, or Done. A Kanban view is not part of this change.
 
 ## 10. Quality
 

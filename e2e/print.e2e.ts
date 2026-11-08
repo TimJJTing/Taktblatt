@@ -706,6 +706,28 @@ test('the printed Gantt names points and marks tasks outside the range', async (
 	await expect(first.getByTestId('sheet-gantt-outside')).toHaveCount(1);
 });
 
+test('undo in the preview removes a new task from the sheets without an error', async ({
+	page
+}) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	await openExample(page);
+	await page.getByTestId('add-task').first().click();
+	await page.keyboard.type('Undo me');
+	await page.keyboard.press('Enter');
+	const preview = await openPreview(page);
+	const rows = preview.getByTestId('sheet').getByTestId('sheet-task-row');
+	await expect(rows.filter({ hasText: 'Undo me' })).toHaveCount(1);
+	// The first undo reverts the title. The second removes the task.
+	await preview.press('ControlOrMeta+z');
+	await expect(rows.filter({ hasText: 'Undo me' })).toHaveCount(0);
+	const count = await rows.count();
+	await preview.press('ControlOrMeta+z');
+	await expect(rows).toHaveCount(count - 1);
+	await expect(preview.getByTestId('sheet').first()).toBeVisible();
+	expect(errors).toEqual([]);
+});
+
 test('a print dialog that is cancelled leaves the plan on screen without an error', async ({
 	page
 }) => {

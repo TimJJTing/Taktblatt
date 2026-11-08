@@ -9,7 +9,8 @@
 	import { isComposing } from '#lib/browser/keyboard.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Input } from '#lib/components/ui/input/index.ts';
-	import { breaksDateRule, canDependOn, inheritedDependencies } from '#lib/domain/dependencies.ts';
+	import { breaksDateRule, canDependOn } from '#lib/domain/dependencies.ts';
+	import { inheritedDependencies } from '#lib/domain/derive.ts';
 	import { matchesWords } from '#lib/domain/mentions.ts';
 	import type { Task } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';

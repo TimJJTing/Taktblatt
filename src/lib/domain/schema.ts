@@ -5,8 +5,7 @@
 import * as v from 'valibot';
 import { isISODate } from './date.ts';
 import type { ValidationCode } from './import-diagnostics.ts';
-import { effectiveDependencies } from './dependencies.ts';
-import { indexTasks } from './derive.ts';
+import { effectiveDependencies, indexTasks } from './derive.ts';
 import { BAND_TINT_KEYS, STAGE_COLOR_KEYS } from './palette.ts';
 
 export const SCHEMA_VERSION = 1;
