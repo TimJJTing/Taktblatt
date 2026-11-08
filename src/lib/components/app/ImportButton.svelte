@@ -11,7 +11,7 @@
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
-	import { dateWarnings } from '#lib/domain/dependencies.ts';
+	import { dependencyWarnings } from '#lib/domain/dependencies.ts';
 	import { indexTasks } from '#lib/domain/derive.ts';
 	import { limitErrors, parseFile } from '#lib/domain/io.ts';
 	import type { Plan } from '#lib/domain/schema.ts';
@@ -92,11 +92,17 @@
 			{ description: nameOf(ws.plan.heading) }
 		);
 		const warnings = plans.reduce(
-			(sum, plan) => sum + dateWarnings(indexTasks(plan.tasks)).length,
+			(sum, plan) =>
+				sum +
+				new Set(
+					dependencyWarnings(indexTasks(plan.tasks)).map((warning) =>
+						JSON.stringify([warning.taskId, warning.dependencyId])
+					)
+				).size,
 			0
 		);
 		if (warnings > 0)
-			toast.warning(m.import_date_warnings({ count: warnings }), { duration: 10_000 });
+			toast.warning(m.import_dependency_warnings({ count: warnings }), { duration: 10_000 });
 	}
 </script>
 

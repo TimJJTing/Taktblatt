@@ -107,7 +107,6 @@
 	"dependency_search": "Tippen, um eine Aufgabe zu finden",
 	"dependency_none": "Keine passende Aufgabe",
 	"dependency_remove": "Abhängigkeit {task} entfernen",
-	"dependency_inherited": "Von Teilaufgabe {task}",
 	"dependency_inherited_parent": "Von übergeordneter Aufgabe {task}",
 	"dependency_warning": "{task} beginnt nach dem Ende dieser Aufgabe.",
 	"mention_hint": "Eingabe zum Einfügen, Esc zum Schließen",
@@ -117,7 +116,6 @@
 	"task_delete_body": "Mit der Aufgabe gelöschte Teilaufgaben: {subtasks}. Andere Aufgaben, die davon abhängen: {dependents}. Diese Verknüpfungen werden entfernt.",
 	"move_title": "Diese Verschiebung erfordert Änderungen",
 	"move_body": "Um „{task}“ zu verschieben, nimmt die App diese Änderungen vor:",
-	"move_fix_cycle": "Abhängigkeit von „{task}“ entfernen. Sie würde einen Zyklus bilden.",
 	"move_fix_parent": "Abhängigkeit von „{parent}“ von dieser Aufgabe entfernen. Eine übergeordnete Aufgabe kann nicht von ihrer Teilaufgabe abhängen.",
 	"move_fix_start": "Beginn dieser Aufgabe löschen. Sonst würde „{dependency}“ nach dem Ende von „{dependent}“ beginnen.",
 	"move_fix_end": "Ende dieser Aufgabe löschen. Sonst würde „{dependency}“ nach dem Ende von „{dependent}“ beginnen.",
@@ -232,7 +230,6 @@
 	"import_keep_both": "Beide behalten",
 	"import_done_one": "Plan importiert",
 	"import_done_many": "{count} Pläne importiert",
-	"import_date_warnings": "Abhängigkeiten, die die Datumsregel verletzen: {count}. Öffnen Sie eine Aufgabe, um die Warnung zu sehen.",
 	"import_error_storage": "Der Browser-Speicher ist voll. Die App hat keine Daten geändert. Löschen Sie Pläne, die Sie nicht brauchen, und versuchen Sie es erneut.",
 	"import_error_read": "Die App kann diese Datei nicht lesen. Die App hat keine Daten geändert.",
 	"ui_language_reload_title": "Sprache wechseln und neu laden?",
@@ -286,5 +283,9 @@
 	"task_status_derived": "Die Teilaufgaben bestimmen den Status.",
 	"stage_progress_in_progress": "{done} / {total} erledigt · {inProgress} in Bearbeitung",
 	"gantt_in_progress": "in Bearbeitung",
-	"gantt_canceled": "abgebrochen"
+	"gantt_canceled": "abgebrochen",
+	"move_fix_scope": "Abhängigkeit entfernen: Eine Teilaufgabe kann nur von Aufgaben mit derselben übergeordneten Aufgabe abhängen.",
+	"import_dependency_warnings": "Abhängigkeiten mit Warnungen: {count}. Öffnen Sie eine Aufgabe, um die Warnung zu sehen.",
+	"dependency_warning_subtask_scope": "Eine Teilaufgabe kann nur von Aufgaben mit derselben übergeordneten Aufgabe abhängen.",
+	"dependency_subtask_help": "Um eine Abhängigkeit zu einer anderen Aufgabe hinzuzufügen, machen Sie diese Teilaufgabe zu einer Aufgabe oder verschieben Sie sie unter dieselbe übergeordnete Aufgabe."
 }

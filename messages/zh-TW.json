@@ -107,7 +107,6 @@
 	"dependency_search": "輸入以搜尋任務",
 	"dependency_none": "沒有符合的任務",
 	"dependency_remove": "移除相依項目 {task}",
-	"dependency_inherited": "來自子任務 {task}",
 	"dependency_inherited_parent": "來自父任務 {task}",
 	"dependency_warning": "{task} 的開始日晚於此任務的結束日。",
 	"mention_hint": "Enter 插入，Esc 關閉",
@@ -117,7 +116,6 @@
 	"task_delete_body": "隨任務刪除的子任務：{subtasks} 個。相依於此任務的其他任務：{dependents} 個。這些連結將被移除。",
 	"move_title": "此移動需要進行變更",
 	"move_body": "為了移動「{task}」，將進行以下變更：",
-	"move_fix_cycle": "移除相依項目「{task}」。它會造成循環。",
 	"move_fix_parent": "移除「{parent}」對此任務的相依。上層任務不能相依於其子任務。",
 	"move_fix_start": "清除此任務的開始日期。否則「{dependency}」會在「{dependent}」結束後才開始。",
 	"move_fix_end": "清除此任務的結束日期。否則「{dependency}」會在「{dependent}」結束後才開始。",
@@ -232,7 +230,6 @@
 	"import_keep_both": "兩者都保留",
 	"import_done_one": "已匯入計畫",
 	"import_done_many": "已匯入 {count} 個計畫",
-	"import_date_warnings": "違反日期規則的相依項目：{count} 個。開啟任務即可查看警告。",
 	"import_error_storage": "瀏覽器儲存空間已滿。應用程式未變更任何資料。請刪除不需要的計畫後再試一次。",
 	"import_error_read": "無法讀取此檔案。應用程式未變更任何資料。",
 	"ui_language_reload_title": "要切換語言並重新載入嗎？",
@@ -286,5 +283,9 @@
 	"task_status_derived": "子任務決定狀態。",
 	"stage_progress_in_progress": "已完成 {done} / {total} · 進行中 {inProgress}",
 	"gantt_in_progress": "進行中",
-	"gantt_canceled": "已取消"
+	"gantt_canceled": "已取消",
+	"move_fix_scope": "移除相依項目：子任務只能依賴同一父任務下的任務。",
+	"import_dependency_warnings": "有警告的相依項目：{count} 個。開啟任務即可查看警告。",
+	"dependency_warning_subtask_scope": "子任務只能依賴同一父任務下的任務。",
+	"dependency_subtask_help": "若要依賴其他任務，請將此子任務改為任務，或移至同一父任務下。"
 }

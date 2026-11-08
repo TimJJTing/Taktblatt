@@ -57,7 +57,7 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		dependsOn: [survey.id]
 	});
 	const sowing = task(stage.grow, 'Sowing', 'Planted beds', 8, 20, ['Noor', 'Kai'], {
-		dependsOn: [soil.id, seeds.id],
+		dependsOn: [compost.id, seeds.id],
 		note: `Start after the soil work. Refer to @[task:${compost.id}].`
 	});
 	const watering = task(stage.grow, 'Watering rota', 'Weekly schedule', 10, 60, ['Rosa']);
@@ -65,6 +65,14 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		dependsOn: [sowing.id]
 	});
 	const market = task(stage.share, 'Neighbourhood stall', 'Stall day', 72, 72, ['Kai']);
+
+	const booking = task(stage.share, 'Book a table', '', 65, 65, ['Kai'], {
+		parentId: market.id
+	});
+	const signs = task(stage.share, 'Make signs', '', 72, 72, ['Kai'], {
+		parentId: market.id,
+		dependsOn: [booking.id]
+	});
 
 	return {
 		id: createId(),
@@ -95,7 +103,19 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 				color: 'blue'
 			}
 		],
-		tasks: [survey, soil, soilTest, compost, seeds, sowing, watering, harvest, market],
+		tasks: [
+			survey,
+			soil,
+			soilTest,
+			compost,
+			seeds,
+			sowing,
+			watering,
+			harvest,
+			market,
+			booking,
+			signs
+		],
 		milestones: [
 			{
 				id: createId(),

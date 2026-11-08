@@ -18,8 +18,9 @@ A subtask now depends on the own dependencies of its parent. Thus the effective 
 ## Rollout
 
 - PR 2 accepts cycles on load and import. The dependency picker still blocks new cycles. The move-conflict dialog still offers the existing cycle fixes. Import counts date warnings only.
-- PR 3 removes the picker cycle rejection and the move cycle fixes. It adds the cycle warnings, candidate hints and sorting, commit toast, and import cycle count described above.
-- Moving subtask S under parent P adds edges P → S.own and S → P.own. PR 2 keeps the existing fixes for cycles through P → S.own. A cycle through S → P.own is permitted. No new move-fix kind is added.
+- PR 4 removes the move cycle fix. Parents no longer inherit dependencies from subtasks. Subtasks can add dependencies only on siblings. The move dialog removes dependencies that break this scope rule. Import counts date and scope warnings. Refer to [ADR 14](0014-subtasks-depend-only-on-siblings.md).
+- PR 3 removes the picker cycle rejection. It adds the cycle warnings, marked candidates, sorting, commit toast, and import cycle count described above.
+- From PR 4, moving subtask S under parent P adds inherited edges S → P.own. It does not add edges P → S.own. A cycle through S → P.own is permitted.
 - Inherited edges can make a cycle in an existing plan. For example, P depends on X, X depends on S, and S is a subtask of P. Load and import must accept this plan from PR 2.
 
 ## Consequences

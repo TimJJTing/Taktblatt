@@ -61,7 +61,7 @@ export function readyLight(
 /**
  * Returns the effective dependencies of a task.
  * Subtask: its own dependencies and the own dependencies of its parent.
- * Parent: its own dependencies and those of its subtasks, minus its own subtasks.
+ * Task, with or without subtasks: its own dependencies, minus its own subtasks.
  */
 export function effectiveDependencies(index: TaskIndex, id: string): Set<string> {
 	const task = index.byId.get(id);
@@ -70,7 +70,7 @@ export function effectiveDependencies(index: TaskIndex, id: string): Set<string>
 	const childIds = new Set(children.map((c) => c.id));
 	const result = new Set<string>();
 	const parent = task.parentId === null ? undefined : index.byId.get(task.parentId);
-	const sources = parent ? [task, parent] : [task, ...children];
+	const sources = parent ? [task, parent] : [task];
 	for (const source of sources) {
 		for (const dep of source.dependsOn) {
 			if (dep !== id && !childIds.has(dep) && index.byId.has(dep)) result.add(dep);
@@ -79,7 +79,7 @@ export function effectiveDependencies(index: TaskIndex, id: string): Set<string>
 	return result;
 }
 
-/** Returns inherited dependencies with the parent or subtask that owns each one. */
+/** Returns inherited dependencies with the parent that owns each one. */
 export function inheritedDependencies(
 	index: TaskIndex,
 	id: string
@@ -93,16 +93,7 @@ export function inheritedDependencies(
 			.filter((dep) => dep !== id && !own.has(dep) && index.byId.has(dep))
 			.map((depId) => ({ depId, fromId: task.parentId! }));
 	}
-	const children = index.children.get(id) ?? [];
-	const childIds = new Set(children.map((c) => c.id));
-	const result: { depId: string; fromId: string }[] = [];
-	for (const child of children) {
-		for (const dep of child.dependsOn) {
-			if (!childIds.has(dep) && !own.has(dep) && dep !== id)
-				result.push({ depId: dep, fromId: child.id });
-		}
-	}
-	return result;
+	return [];
 }
 
 /** Returns true for done and canceled. A finished task satisfies dependencies and looks muted. */

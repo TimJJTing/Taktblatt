@@ -65,3 +65,14 @@ test('a subtask dependency list exposes a read-only inherited row with a From pa
 	await waitForAnimations(hint);
 	await expect(hint).toHaveText('From parent Prepare report');
 });
+
+test('the example stall shows one ready subtask and no light for blocked signs', async ({
+	page
+}) => {
+	await openExample(page);
+	const stall = row(page, 'Neighbourhood stall');
+	await expect(stall.getByTestId('ready-dot')).toHaveAccessibleName('Ready. Subtasks ready: 1');
+	await stall.getByTestId('task-toggle').click();
+	await expect(row(page, 'Book a table').getByTestId('ready-dot')).toHaveAccessibleName('Ready');
+	await expect(row(page, 'Make signs').getByTestId('ready-dot')).toHaveCount(0);
+});

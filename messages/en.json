@@ -107,7 +107,6 @@
 	"dependency_search": "Type to find a task",
 	"dependency_none": "No matching task",
 	"dependency_remove": "Remove dependency {task}",
-	"dependency_inherited": "From subtask {task}",
 	"dependency_inherited_parent": "From parent {task}",
 	"dependency_warning": "{task} starts after this task ends.",
 	"mention_hint": "Enter to insert, Esc to close",
@@ -117,7 +116,6 @@
 	"task_delete_body": "Subtasks deleted with the task: {subtasks}. Other tasks that depend on it: {dependents}. The app removes their links.",
 	"move_title": "This move needs changes",
 	"move_body": "To move “{task}”, the app makes these changes:",
-	"move_fix_cycle": "Remove the dependency on “{task}”. It would make a cycle.",
 	"move_fix_parent": "Remove the dependency of “{parent}” on this task. A parent cannot depend on its subtask.",
 	"move_fix_start": "Clear the start date of this task. Else “{dependency}” would start after “{dependent}” ends.",
 	"move_fix_end": "Clear the end date of this task. Else “{dependency}” would start after “{dependent}” ends.",
@@ -232,7 +230,6 @@
 	"import_keep_both": "Keep both",
 	"import_done_one": "Plan imported",
 	"import_done_many": "{count} plans imported",
-	"import_date_warnings": "Dependencies that break the date rule: {count}. Open a task to see the warning.",
 	"import_error_storage": "The browser storage is full. The app did not change any data. Delete plans that you do not need and try again.",
 	"import_error_read": "The app cannot read this file. The app did not change any data.",
 	"ui_language_reload_title": "Switch language and reload?",
@@ -286,5 +283,9 @@
 	"task_status_derived": "The subtasks set the status.",
 	"stage_progress_in_progress": "{done} / {total} done · {inProgress} in progress",
 	"gantt_in_progress": "in progress",
-	"gantt_canceled": "canceled"
+	"gantt_canceled": "canceled",
+	"move_fix_scope": "Remove dependency: a subtask can depend only on tasks with the same parent.",
+	"import_dependency_warnings": "Dependencies with warnings: {count}. Open a task to see the warning.",
+	"dependency_warning_subtask_scope": "A subtask can depend only on tasks with the same parent.",
+	"dependency_subtask_help": "To depend on another task, make this subtask a task, or move it under the same parent."
 }

@@ -50,16 +50,15 @@ function isParentAndChild(index: TaskIndex, x: string, y: string): boolean {
  */
 export function canDependOn(index: TaskIndex, dependentId: string, candidateId: string): boolean {
 	const dependent = index.byId.get(dependentId);
-	if (!dependent || !index.byId.has(candidateId)) return false;
+	const candidate = index.byId.get(candidateId);
+	if (!dependent || !candidate) return false;
+	if (dependent.parentId !== null && candidate.parentId !== dependent.parentId) return false;
 	if (dependentId === candidateId) return false;
 	if (isParentAndChild(index, dependentId, candidateId)) return false;
 	if (effectiveDependencies(index, dependentId).has(candidateId)) return false;
 	if (breaksDateRule(index, candidateId, dependentId)) return false;
-	// The parent gets the new edge unless the candidate is a sibling. Subtasks inherit the edge.
+	// The dependent gets the new edge. Its subtasks inherit the edge.
 	const nodes = [dependentId, ...(index.children.get(dependentId) ?? []).map((t) => t.id)];
-	if (dependent.parentId !== null && index.byId.get(candidateId)?.parentId !== dependent.parentId) {
-		nodes.push(dependent.parentId);
-	}
 	// Check only the tasks that get a new edge. A task that has the edge already adds no cycle.
 	return nodes
 		.filter((node) => node === dependentId || !effectiveDependencies(index, node).has(candidateId))
@@ -73,12 +72,20 @@ export interface DateWarning {
 	dependencyId: string;
 }
 
-/** Returns all stored dependencies that break the date rule. */
-export function dateWarnings(index: TaskIndex): DateWarning[] {
-	const result: DateWarning[] = [];
+/** A warning on a stored dependency. An edge can have both kinds. */
+export interface DependencyWarning extends DateWarning {
+	kind: 'date' | 'subtask_scope';
+}
+
+/** Returns date and scope warnings on stored dependencies. */
+export function dependencyWarnings(index: TaskIndex): DependencyWarning[] {
+	const result: DependencyWarning[] = [];
 	for (const task of index.byId.values()) {
 		for (const dep of task.dependsOn) {
-			if (breaksDateRule(index, dep, task.id)) result.push({ taskId: task.id, dependencyId: dep });
+			if (breaksDateRule(index, dep, task.id))
+				result.push({ kind: 'date', taskId: task.id, dependencyId: dep });
+			if (task.parentId !== null && index.byId.get(dep)?.parentId !== task.parentId)
+				result.push({ kind: 'subtask_scope', taskId: task.id, dependencyId: dep });
 		}
 	}
 	return result;
@@ -144,8 +151,8 @@ export interface MoveTarget {
 }
 
 export type MoveFix =
-	/** Remove `dependencyId` from the own dependencies of the moved task. It causes a cycle. */
-	| { kind: 'remove-cycle-dependency'; dependencyId: string }
+	/** Remove a dependency that no longer points to a sibling. */
+	| { kind: 'remove-scope-dependency'; taskId: string; dependencyId: string }
 	/** Remove the moved task from the dependencies of its new parent. */
 	| { kind: 'remove-parent-dependency'; parentId: string }
 	/** Clear a date of the moved task. The new derived dates of the parent break the date rule. */
@@ -205,12 +212,9 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 
 	if (newParentId !== null) {
 		const newParent = after.byId.get(newParentId)!;
-		// Fix cycles through newParent → D for each own dependency D of the moved task.
-		// Cycles through the inherited edges of the moved task are permitted. Refer to ADR 13.
 		for (const dep of task.dependsOn) {
-			const sibling = after.byId.get(dep)?.parentId === newParentId;
-			if (!sibling && (dep === newParentId || reaches(after, dep, newParentId))) {
-				result.fixes.push({ kind: 'remove-cycle-dependency', dependencyId: dep });
+			if (after.byId.get(dep)?.parentId !== newParentId) {
+				result.fixes.push({ kind: 'remove-scope-dependency', taskId: id, dependencyId: dep });
 			}
 		}
 		if (newParent.dependsOn.includes(id)) {
@@ -232,6 +236,15 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 	}
 
 	if (oldParentId !== null) {
+		for (const sibling of before.children.get(oldParentId) ?? []) {
+			if (sibling.id !== id && sibling.dependsOn.includes(id)) {
+				result.fixes.push({
+					kind: 'remove-scope-dependency',
+					taskId: sibling.id,
+					dependencyId: id
+				});
+			}
+		}
 		const old = new Set(brokenEdgesAround(before, oldParentId).map(edgeKey));
 		result.warnings = brokenEdgesAround(after, oldParentId).filter((e) => !old.has(edgeKey(e)));
 	}
@@ -249,8 +262,9 @@ export function applyMove(
 	const task = plan.tasks.find((t) => t.id === id);
 	if (!task) return;
 	for (const fix of fixes) {
-		if (fix.kind === 'remove-cycle-dependency') {
-			task.dependsOn = task.dependsOn.filter((d) => d !== fix.dependencyId);
+		if (fix.kind === 'remove-scope-dependency') {
+			const owner = plan.tasks.find((t) => t.id === fix.taskId);
+			if (owner) owner.dependsOn = owner.dependsOn.filter((d) => d !== fix.dependencyId);
 		} else if (fix.kind === 'remove-parent-dependency') {
 			const parent = plan.tasks.find((t) => t.id === fix.parentId);
 			if (parent) parent.dependsOn = parent.dependsOn.filter((d) => d !== id);

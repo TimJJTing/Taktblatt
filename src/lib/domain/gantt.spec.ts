@@ -241,12 +241,9 @@ describe('dependencyLines', () => {
 		]);
 	});
 
-	it('connects to the parent bar when the parent is collapsed', () => {
+	it('omits hidden legacy subtask dependencies when the parent is collapsed', () => {
 		// Rows: x 0, p 1, y 2.
-		expect(lines(base(), [])).toEqual([
-			{ key: 'x->p', x0: 0.2, row0: 0, x1: 0.2, row1: 1 },
-			{ key: 'p->y', x0: 0.6, row0: 1, x1: 0.7, row1: 2 }
-		]);
+		expect(lines(base(), [])).toEqual([{ key: 'p->y', x0: 0.6, row0: 1, x1: 0.7, row1: 2 }]);
 	});
 
 	it('draws parent dependencies only from the parent bar, not inheriting subtask rows', () => {
@@ -260,14 +257,14 @@ describe('dependencyLines', () => {
 	it('merges duplicate lines', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'c')!.dependsOn = ['x'];
-		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
+		expect(lines(tasks, []).map((l) => l.key)).toEqual(['p->y']);
 		expect(lines(tasks, ['p']).map((l) => l.key)).toEqual(['x->a', 'x->c', 'c->y']);
 	});
 
 	it('merges lines from two subtasks of a collapsed predecessor', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'y')!.dependsOn = ['a', 'c'];
-		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
+		expect(lines(tasks, []).map((l) => l.key)).toEqual(['p->y']);
 	});
 
 	it('draws no line to or from a task without a drawn mark', () => {
