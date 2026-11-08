@@ -31,15 +31,22 @@
 
 	onMount(() => {
 		const query = matchMedia('(min-width: 1024px)');
+		// The browser can remove focus from a hidden control before the change event.
+		// Then the active element is the body. Use the last focused element instead.
+		let lastFocused: Element | null = null;
+		const trackFocus = (event: FocusEvent) => (lastFocused = event.target as Element);
+		document.addEventListener('focusin', trackFocus);
 		function update() {
-			const focused = document.activeElement;
+			const active = document.activeElement;
+			const focused = active && active !== document.body ? active : lastFocused;
 			if (workspaceLayout.split && !query.matches) {
 				const group = focused?.closest('#work-pane, #plan-pane')?.id;
 				if (group) viewer.setNarrowTab(group === 'work-pane' ? 'work-plan' : 'plan');
 			}
 			workspaceLayout.split = query.matches;
 			void tick().then(() => {
-				if (focused instanceof HTMLElement && !focused.checkVisibility()) {
+				const lost = document.activeElement === document.body || document.activeElement === focused;
+				if (focused instanceof HTMLElement && lost && !focused.checkVisibility()) {
 					if (focused.matches('.split-resize')) {
 						document.getElementById(`workspace-tab-${viewer.narrowTab}`)?.focus();
 					} else if (focused.matches('#workspace-tab-plan, #workspace-tab-work-plan')) {
@@ -52,7 +59,10 @@
 		}
 		update();
 		query.addEventListener('change', update);
-		return () => query.removeEventListener('change', update);
+		return () => {
+			query.removeEventListener('change', update);
+			document.removeEventListener('focusin', trackFocus);
+		};
 	});
 
 	$effect.pre(() => {

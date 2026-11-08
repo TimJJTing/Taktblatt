@@ -256,12 +256,9 @@ async function checkPinAnimations(page: Page) {
 	// The chart rows animate in after load. Start from the final natural height.
 	await settledPanelHeight(page);
 	// Start with the Timeline at the top of the Plan pane.
-	// Use a whole pixel. Chromium rounds a fractional offset when the scroll height changes.
 	await panel.evaluate((element) => {
 		const pane = document.querySelector<HTMLElement>('#plan-pane')!;
-		pane.scrollTop = Math.round(
-			pane.scrollTop + element.getBoundingClientRect().top - pane.getBoundingClientRect().top
-		);
+		pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top;
 	});
 	const pinMonitor = await startTimelineFrameMonitor(page);
 	await clickInPlace(page, pin);
@@ -686,12 +683,9 @@ test('a resize during the pin animation does not jump the Plan pane', async ({ p
 	const pin = page.getByTestId('gantt-pin');
 	const panel = page.getByTestId('timeline-panel');
 	// Start with the Timeline at the top of the Plan pane.
-	// Use a whole pixel. Chromium rounds a fractional offset when the scroll height changes.
 	await panel.evaluate((element) => {
 		const pane = document.querySelector<HTMLElement>('#plan-pane')!;
-		pane.scrollTop = Math.round(
-			pane.scrollTop + element.getBoundingClientRect().top - pane.getBoundingClientRect().top
-		);
+		pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top;
 	});
 	const monitor = await startTimelineFrameMonitor(page);
 	await clickInPlace(page, pin);
@@ -708,6 +702,9 @@ test('a resize during the pin animation does not jump the Plan pane', async ({ p
 			}),
 		naturalHeight
 	);
+	// Focus without the browser scroll-into-view. It can move a sticky section by 1 px.
+	// This test checks the resize, not the focus scroll.
+	await page.getByTestId('gantt-resize').evaluate((e) => e.focus({ preventScroll: true }));
 	await page.getByTestId('gantt-resize').press('PageUp');
 	const viewport = page.viewportSize()!.height;
 	await expectPanelHeight(page, defaultPanelHeight(page) - viewport * 0.1);
