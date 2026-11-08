@@ -112,7 +112,7 @@
 				</td>
 				<td class={cn(cell, 'break-words')}>{row.task.deliverable}</td>
 				<td class={cn(cell, 'whitespace-nowrap tabular-nums')}
-					>{formatTarget(row.eff, row.isParent, intl) || '–'}</td
+					>{formatTarget(row.eff, intl) || '–'}</td
 				>
 				<td class={cn(cell, 'break-words')}>{joinList(row.eff.owners, intl)}</td>
 			</tr>

@@ -68,7 +68,6 @@
 	"ready_label_plain": "可開始",
 	"ready_label_subtasks": "可開始。可開始的子任務：{count} 個",
 	"target_empty": "設定日期",
-	"target_derived": "子任務中最晚的結束日期",
 	"date_start": "開始",
 	"date_end": "結束",
 	"date_clear": "清除",
@@ -82,7 +81,6 @@
 	"owner_rename": "全部重新命名…",
 	"owner_rename_title": "將「{name}」全部重新命名",
 	"owner_rename_body": "新名稱會取代此計畫中所有任務的「{name}」。",
-	"owner_derived": "負責人來自子任務。",
 	"owner_more": "+{count}",
 	"owner_suggestions": "建議",
 	"action_rename": "重新命名",
@@ -249,7 +247,6 @@
 	"milestone_label": "{symbol} {title}（{date}）",
 	"footer_separator": " · ",
 	"sheet_page": "{number} / {total}",
-	"owner_derived_hint": "負責人來自子任務。{owners}",
 	"validation_date": "請使用 YYYY-MM-DD 格式的日期。",
 	"validation_range": "日期範圍的開始日期必須早於或等於結束日期。",
 	"validation_task_stage": "每個任務都必須屬於計畫中的階段。",
@@ -291,5 +288,6 @@
 	"move_fix_scope": "移除相依項目：子任務只能依賴同一父任務下的任務。",
 	"import_dependency_warnings": "有警告的相依項目：{count} 個。開啟任務即可查看警告。",
 	"dependency_warning_subtask_scope": "子任務只能依賴同一父任務下的任務。",
-	"dependency_subtask_help": "若要依賴其他任務，請將此子任務改為任務，或移至同一父任務下。"
+	"dependency_subtask_help": "若要依賴其他任務，請將此子任務改為任務，或移至同一父任務下。",
+	"date_subtask_floor": "日期範圍必須包含子任務的日期：{range}。"
 }

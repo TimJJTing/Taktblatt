@@ -139,11 +139,8 @@ describe('formatTarget', () => {
 		const none = { start: null, end: null };
 		const startOnly = { start: '2026-11-27', end: null };
 		const both = { start: '2026-11-01', end: '2026-11-27' };
-		expect(formatTarget(both, false, locale)).toBe(day);
-		expect(formatTarget(both, true, locale)).toBe(day);
-		expect(formatTarget(startOnly, false, locale)).toBe(`${day} –`);
-		expect(formatTarget(startOnly, true, locale)).toBe('–');
-		expect(formatTarget(none, false, locale)).toBe('');
-		expect(formatTarget(none, true, locale)).toBe('–');
+		expect(formatTarget(both, locale)).toBe(day);
+		expect(formatTarget(startOnly, locale)).toBe(`${day} –`);
+		expect(formatTarget(none, locale)).toBe('');
 	});
 });

@@ -3,6 +3,7 @@
  * Refer to docs/spec.md, section 4.2.
  */
 import * as v from 'valibot';
+import { expandParents } from '#lib/domain/derive.ts';
 import { createId } from '#lib/domain/ids.ts';
 import { migrate } from '#lib/domain/migrate.ts';
 import { PlanSchema, SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
@@ -111,7 +112,9 @@ export class PlanStorage {
 export function parsePlan(raw: string): LoadResult<Plan> {
 	try {
 		const migrated = migrate(JSON.parse(raw)) as { plan?: unknown };
-		return { ok: true, value: v.parse(PlanSchema, migrated.plan) };
+		const plan = v.parse(PlanSchema, migrated.plan);
+		expandParents(plan);
+		return { ok: true, value: plan };
 	} catch {
 		return { ok: false, raw };
 	}

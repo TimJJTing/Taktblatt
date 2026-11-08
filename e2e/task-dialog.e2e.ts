@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample, row, stage } from './helpers.ts';
+import { openExample, row, stage, storedPlan } from './helpers.ts';
 
 async function openDetails(page: Page, title: string) {
 	await row(page, title).getByTestId('task-details').click();
@@ -68,10 +68,12 @@ test.describe('task dialog', () => {
 		await expect(page.getByTestId('dependency-list')).toContainText('Site survey');
 	});
 
-	test('a parent change with a date conflict asks to clear the date', async ({ page }) => {
+	test('a later first subtask widens the parent end and keeps its planned start', async ({
+		page
+	}) => {
 		await openExample(page);
 		// "First harvest" depends on "Sowing" and ends 70 days from today.
-		// Give "Watering rota" dates after that, then make it the first subtask of "Sowing".
+		// Give "Watering rota" later dates. The planned start of "Sowing" stays unchanged.
 		// Get the local dates from the browser, as the example plan does.
 		const [start, end] = await page.evaluate(() =>
 			[90, 95].map((days) => {
@@ -81,13 +83,20 @@ test.describe('task dialog', () => {
 			})
 		);
 		await setDates(page, 'Watering rota', start, end);
+		const before = await storedPlan(page);
+		const plannedStart = before.tasks.find((task) => task.title === 'Sowing')!.start;
 		await openDetails(page, 'Watering rota');
 		await page.getByTestId('dialog-parent').click();
 		await page.getByRole('option', { name: 'Sowing' }).click();
-		const dialog = page.getByTestId('move-dialog');
-		await expect(dialog).toContainText('Clear the start date of this task');
-		await dialog.getByRole('button', { name: 'Remove and move' }).click();
+		await expect(page.getByTestId('move-dialog')).toHaveCount(0);
 		await expect(page.getByTestId('dialog-parent')).toContainText('Sowing');
+		await expect
+			.poll(async () => {
+				const plan = await storedPlan(page);
+				const parent = plan.tasks.find((task) => task.title === 'Sowing')!;
+				return { start: parent.start, end: parent.end };
+			})
+			.toEqual({ start: plannedStart, end });
 		await page.getByTestId('dialog-ok').click();
 		await expect(row(page, 'Sowing').getByTestId('task-toggle')).toBeVisible();
 	});

@@ -6,8 +6,7 @@ import {
 	effectiveDependencies,
 	effectiveOf,
 	indexTasks,
-	mergeIntoParent,
-	squashSubtasks,
+	expandParents,
 	type TaskIndex
 } from './derive.ts';
 import type { Plan, Task } from './schema.ts';
@@ -208,26 +207,6 @@ export function stageDeleteImpact(plan: Plan, id: string): { tasks: number; depe
 	return { tasks: impact.ids.length, dependents: impact.dependents };
 }
 
-/** Preserves subtask values when an action removes all subtasks of a surviving parent. */
-export function withParentSnapshots(plan: Plan, mutate: () => void): void {
-	const formerChildren = new Map<string, Task[]>();
-	for (const task of plan.tasks) {
-		if (task.parentId === null) continue;
-		const children = formerChildren.get(task.parentId) ?? [];
-		children.push({ ...task, owners: [...task.owners], dependsOn: [...task.dependsOn] });
-		formerChildren.set(task.parentId, children);
-	}
-	mutate();
-	const byId = new Map(plan.tasks.map((task) => [task.id, task]));
-	const parents = new Set(plan.tasks.map((task) => task.parentId));
-	for (const [parentId, children] of formerChildren) {
-		const parent = byId.get(parentId);
-		if (!parent || parents.has(parentId)) continue;
-		const values = children.map((child) => byId.get(child.id) ?? child);
-		Object.assign(parent, mergeIntoParent(parent, squashSubtasks(values)));
-	}
-}
-
 /** Deletes tasks and their subtasks. Removes them from all dependency lists and notes. Mutates the plan. */
 export function deleteTasks(plan: Plan, taskIds: readonly string[]): void {
 	const ids = new Set(deleteImpact(plan, taskIds).ids);
@@ -360,7 +339,8 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 		}
 	}
 
-	withParentSnapshots(simulation, () => applyMove(simulation, id, target, result.fixes));
+	applyMove(simulation, id, target, result.fixes);
+	expandParents(simulation);
 	const warningIndex = indexTasks(simulation.tasks);
 	if (oldParentId !== null) {
 		const old = new Set(

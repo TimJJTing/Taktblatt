@@ -112,23 +112,11 @@ test.describe('hints show in a tooltip', () => {
 		await expect(dot).not.toHaveAttribute('title');
 	});
 
-	test('the derived range and owners of a parent task', async ({ page }) => {
+	test('the planned window of a parent task', async ({ page }) => {
 		await openExample(page);
-		const parent = row(page, 'Soil preparation');
-		const target = parent.getByTestId('task-target');
-		await expectHint(page, target, /^The latest end date of the subtasks/, { focus: false });
+		const target = row(page, 'Soil preparation').getByTestId('task-target');
+		await expectHint(page, target, /\S+ – \S+/, { focus: false });
 		await expect(target).not.toHaveAttribute('title');
-
-		const owners = parent.getByTestId('task-owners');
-		await expectHint(
-			page,
-			owners.getByText('Kai', { exact: true }),
-			'Owners come from the subtasks.',
-			{
-				focus: false
-			}
-		);
-		await expect(owners.locator('[title]')).toHaveCount(0);
 	});
 
 	test('a stage color swatch names its in-use state', async ({ page }) => {

@@ -1,6 +1,6 @@
 <!--
 	The cells of one work-plan row: a task (level 1) or a subtask (level 2).
-	A parent shows derived values for target, owners and status. These cells are read-only.
+	A parent has editable dates and owners. Its status comes from its subtasks.
 -->
 <script lang="ts">
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -8,7 +8,6 @@
 	import { mergeProps } from 'bits-ui';
 	import { tick } from 'svelte';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
@@ -16,6 +15,7 @@
 	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import { focusSiblingRow } from '#lib/browser/grid.ts';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
+	import { squashSubtasks, subtaskFloor } from '#lib/domain/derive.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Task } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -41,6 +41,7 @@
 
 	const children = $derived(ws.index.children.get(task.id) ?? []);
 	const isParent = $derived(children.length > 0);
+	const subtaskValues = $derived(isParent ? squashSubtasks(children) : undefined);
 	const isSubtask = $derived(task.parentId !== null);
 	const taskState = $derived(ws.index.state.get(task.id)!);
 	const eff = $derived(taskState.eff);
@@ -128,72 +129,45 @@
 	/>
 </td>
 <td class="py-1 whitespace-nowrap" data-grid-col="target">
-	{#if isParent}
-		<Hint
-			text={eff.start || eff.end
-				? m.label_qualifier({ name: m.target_derived(), qualifier: rangeText })
-				: m.target_derived()}
-			focusable={false}
-		>
-			{#snippet child({ props })}
-				<span {...props} class="block px-1.5 py-0.5 tabular-nums" data-testid="task-target">
-					{formatTarget(eff, true, locale)}
-				</span>
-			{/snippet}
-		</Hint>
-	{:else}
-		<DateRangeField
-			start={task.start}
-			end={task.end}
-			label={m.column_target()}
-			onCommit={(range) => updateTask(ws, task.id, range)}
-		>
-			{#snippet trigger({ props: fieldProps })}
-				<Hint text={eff.start || eff.end ? rangeText : undefined}>
-					{#snippet child({ props: hintProps })}
-						<button
-							{...mergeProps(hintProps, fieldProps)}
-							type="button"
-							class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
-							style:transition-duration={`${motionDuration(150)}ms`}
-							data-testid="task-target"
-						>
-							{#if task.end}
-								{formatTarget(task, false, locale)}
-							{:else if task.start}
-								<span class="text-muted-foreground">{formatTarget(task, false, locale)}</span>
-							{:else}
-								<span class="text-muted-foreground/70">{m.target_empty()}</span>
-							{/if}
-						</button>
-					{/snippet}
-				</Hint>
-			{/snippet}
-		</DateRangeField>
-	{/if}
+	<DateRangeField
+		floor={subtaskFloor(children)}
+		start={task.start}
+		end={task.end}
+		label={m.column_target()}
+		onCommit={(range) => updateTask(ws, task.id, range)}
+	>
+		{#snippet trigger({ props: fieldProps })}
+			<Hint text={eff.start || eff.end ? rangeText : undefined}>
+				{#snippet child({ props: hintProps })}
+					<button
+						{...mergeProps(hintProps, fieldProps)}
+						type="button"
+						class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+						style:transition-duration={`${motionDuration(150)}ms`}
+						data-testid="task-target"
+					>
+						{#if task.end}
+							{formatTarget(task, locale)}
+						{:else if task.start}
+							<span class="text-muted-foreground">{formatTarget(task, locale)}</span>
+						{:else}
+							<span class="text-muted-foreground/70">{m.target_empty()}</span>
+						{/if}
+					</button>
+				{/snippet}
+			</Hint>
+		{/snippet}
+	</DateRangeField>
 </td>
 <td class="py-1" data-grid-col="owner" data-testid="task-owners">
-	{#if isParent}
-		{@const ownersHint = ownerListHint(eff.owners)}
-		<Hint
-			text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
-			focusable={false}
-		>
-			{#snippet child({ props })}
-				<span {...props} class="flex px-1.5 py-0.5">
-					<OwnerChips owners={eff.owners} />
-				</span>
-			{/snippet}
-		</Hint>
-	{:else}
-		<OwnerField
-			owners={task.owners}
-			suggestions={ownerSuggestions}
-			label={m.column_owner()}
-			onChange={(owners) => updateTask(ws, task.id, { owners })}
-			onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
-		/>
-	{/if}
+	<OwnerField
+		locked={subtaskValues?.owners}
+		owners={task.owners}
+		suggestions={ownerSuggestions}
+		label={m.column_owner()}
+		onChange={(owners) => updateTask(ws, task.id, { owners })}
+		onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
+	/>
 </td>
 <td class="py-1 pr-1 text-right">
 	<button

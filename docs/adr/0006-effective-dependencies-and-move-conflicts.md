@@ -1,6 +1,8 @@
 # 6. Effective dependencies and move conflicts
 
-Status: Accepted (amended by ADR 13 and ADR 14) (2026-11-04)
+Status: Accepted (amended by ADR 13, ADR 14 and ADR 15) (2026-11-04)
+
+ADR 13 and ADR 14 replace the dependency and cycle rules below. [ADR 15](0015-parent-planned-window.md) replaces the date derivation used in the analysis. Parent dates now form a stored planned window. Moving a subtask out does not shrink that window. Clearing dates on a moved subtask prevents expansion from those dates; it does not shrink a stored parent window.
 
 ## Context
 

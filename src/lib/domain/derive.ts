@@ -4,7 +4,7 @@
  */
 import type { ISODate } from './date.ts';
 import { normalizeOwners } from './owners.ts';
-import type { Milestone, Task, TaskStatus } from './schema.ts';
+import type { Milestone, Plan, Task, TaskStatus } from './schema.ts';
 
 export interface TaskIndex {
 	byId: ReadonlyMap<string, Task>;
@@ -113,7 +113,7 @@ function maxDate(dates: (ISODate | null)[]): ISODate | null {
 	return result;
 }
 
-/** Returns the effective values of a task. A parent derives them from its subtasks. */
+/** Returns the effective values of a task. A parent includes its stored planned window. */
 export function effectiveValues(task: Task, children: readonly Task[] = []): EffectiveValues {
 	if (children.length === 0) {
 		return {
@@ -123,7 +123,7 @@ export function effectiveValues(task: Task, children: readonly Task[] = []): Eff
 			status: task.status
 		};
 	}
-	return squashSubtasks(children);
+	return mergeIntoParent(task, children);
 }
 
 /** Combines subtask dates, owners and status with the parent rule. */
@@ -148,13 +148,70 @@ export function squashSubtasks(children: readonly Task[]): EffectiveValues {
 }
 
 /** Merges subtask values with the own values of a parent. */
-export function mergeIntoParent(parent: Task, squashed: EffectiveValues): EffectiveValues {
+export function mergeIntoParent(parent: Task, children: readonly Task[]): EffectiveValues {
+	const squashed = squashSubtasks(children);
+	let start = minDate([parent.start, squashed.start]);
+	let end = maxDate([parent.end, squashed.end]);
+	if (start !== null && end !== null) {
+		const dates = [parent.start, parent.end, ...children.flatMap((c) => [c.start, c.end])];
+		start = minDate(dates);
+		end = maxDate(dates);
+	}
 	return {
-		start: minDate([parent.start, squashed.start]),
-		end: maxDate([parent.end, squashed.end]),
+		start,
+		end,
 		owners: normalizeOwners([...parent.owners, ...squashed.owners]),
 		status: squashed.status
 	};
+}
+
+export interface SubtaskFloor {
+	start: ISODate | null;
+	end: ISODate | null;
+	first: ISODate | null;
+	last: ISODate | null;
+}
+
+/** Returns the endpoint and all-date limits of the subtasks. */
+export function subtaskFloor(children: readonly Task[]): SubtaskFloor | undefined {
+	if (children.length === 0) return undefined;
+	const dates = children.flatMap((c) => [c.start, c.end]);
+	return {
+		start: minDate(children.map((c) => c.start)),
+		end: maxDate(children.map((c) => c.end)),
+		first: minDate(dates),
+		last: maxDate(dates)
+	};
+}
+
+/** Returns true when a range excludes a required subtask date. */
+export function breaksSubtaskFloor(
+	range: { start: ISODate | null; end: ISODate | null },
+	floor: SubtaskFloor
+): boolean {
+	return (
+		(floor.start !== null && (range.start === null || range.start > floor.start)) ||
+		(floor.end !== null && (range.end === null || range.end < floor.end)) ||
+		(range.start !== null &&
+			range.end !== null &&
+			((floor.first !== null && floor.first < range.start) ||
+				(floor.last !== null && floor.last > range.end)))
+	);
+}
+
+/** Expands stored parent windows to include their subtasks. Childless tasks stay unchanged. */
+export function expandParents(plan: Plan): void {
+	const children = new Map<string, Task[]>();
+	for (const task of plan.tasks) {
+		if (task.parentId === null) continue;
+		const list = children.get(task.parentId) ?? [];
+		list.push(task);
+		children.set(task.parentId, list);
+	}
+	for (const parent of plan.tasks) {
+		const subtasks = children.get(parent.id);
+		if (subtasks?.length) Object.assign(parent, mergeIntoParent(parent, subtasks));
+	}
 }
 
 /** Sort rule: by start, then by createdAt. Items without start go last. */

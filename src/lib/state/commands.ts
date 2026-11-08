@@ -4,13 +4,7 @@
  * Plan creation, switching, deletion, duplication, import, undo and redo stay on Workspace.
  * These plan lifecycle and history operations are the explicit exception in ADR 3.
  */
-import {
-	applyMove,
-	deleteTasks,
-	withParentSnapshots,
-	type MoveFix,
-	type MoveTarget
-} from '#lib/domain/dependencies.ts';
+import { applyMove, deleteTasks, type MoveFix, type MoveTarget } from '#lib/domain/dependencies.ts';
 import { createExamplePlan } from '#lib/domain/example.ts';
 import {
 	isPermutation,
@@ -80,7 +74,7 @@ export function updateTask(ws: Workspace, id: string, patch: TaskPatch): void {
 }
 
 export function removeTasks(ws: Workspace, ids: readonly string[]): void {
-	ws.commit((plan) => withParentSnapshots(plan, () => deleteTasks(plan, ids)));
+	ws.commit((plan) => deleteTasks(plan, ids));
 }
 
 export function moveTask(
@@ -88,9 +82,7 @@ export function moveTask(
 	id: string,
 	payload: { target: MoveTarget; fixes: readonly MoveFix[] }
 ): void {
-	ws.commit((plan) =>
-		withParentSnapshots(plan, () => applyMove(plan, id, payload.target, payload.fixes))
-	);
+	ws.commit((plan) => applyMove(plan, id, payload.target, payload.fixes));
 }
 
 /** Renames an owner in all tasks of the plan. */

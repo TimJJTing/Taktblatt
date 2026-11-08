@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveDependencies, inheritedDependencies, indexTasks } from './derive.ts';
+import {
+	expandParents,
+	effectiveDependencies,
+	inheritedDependencies,
+	indexTasks
+} from './derive.ts';
 import {
 	applyMove,
 	canDependOn,
@@ -9,8 +14,7 @@ import {
 	deleteTasks,
 	isValidMoveTarget,
 	moveConflicts,
-	stageDeleteImpact,
-	withParentSnapshots
+	stageDeleteImpact
 } from './dependencies.ts';
 import { mentionToken } from './mentions.ts';
 import { makePlan, makeTask } from './test-helpers.ts';
@@ -365,14 +369,14 @@ describe('deleteTasks', () => {
 });
 
 describe('moves', () => {
-	it('keeps a new parent date conflict when its key collides with a previous conflict', () => {
+	it('keeps a stored early start when the first subtask starts later', () => {
 		const plan = makePlan([
 			makeTask({ id: 'a→a', start: '2027-01-01', end: '2027-01-02', dependsOn: ['a'] }),
 			makeTask({ id: 'a', start: '2027-01-05', end: '2027-01-06', dependsOn: ['a→a'] }),
 			makeTask({ id: 't', start: '2027-01-09', end: '2027-01-10' })
 		]);
 		expect(moveConflicts(plan, 't', { stageId: 's1', parentId: 'a→a' })).toEqual({
-			fixes: [{ kind: 'clear-date', field: 'start', dependencyId: 'a→a', dependentId: 'a' }],
+			fixes: [],
 			warnings: []
 		});
 	});
@@ -482,7 +486,7 @@ describe('moves', () => {
 		]);
 	});
 
-	it('finds date conflicts when the first subtask replaces the fallback dates of the parent', () => {
+	it('keeps the parent start when a later first subtask is moved under it', () => {
 		// z depends on p. p has own dates. t (later dates) becomes the first subtask of p.
 		const plan = makePlan([
 			makeTask({ id: 'p', start: '2027-01-01', end: '2027-01-05' }),
@@ -490,27 +494,26 @@ describe('moves', () => {
 			makeTask({ id: 't', start: '2027-01-20', end: '2027-01-25' })
 		]);
 		const conflicts = moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' });
-		expect(conflicts.fixes).toEqual([
-			{ kind: 'clear-date', field: 'start', dependencyId: 'p', dependentId: 'z' }
-		]);
+		expect(conflicts.fixes).toEqual([]);
 		applyMove(plan, 't', { stageId: 's1', parentId: 'p' }, conflicts.fixes);
 		const index = indexTasks(plan.tasks);
 		expect(dependencyWarnings(index)).toEqual([]);
-		expect(index.byId.get('t')!.start).toBeNull();
+		expect(index.state.get('p')!.eff.start).toBe('2027-01-01');
 	});
 
-	it('reports date breaks on the old parent as warnings only', () => {
+	it('does not warn when moving out an early subtask leaves the planned start unchanged', () => {
 		// p has subtasks a (early) and b (late). z depends on p and ends before b starts.
-		// Moving a out of p makes p start late, so p.start > z.end.
+		// The stored start stays early when a moves out.
 		const plan = makePlan([
 			makeTask({ id: 'p' }),
 			makeTask({ id: 'a', parentId: 'p', start: '2027-01-01', end: '2027-01-02' }),
 			makeTask({ id: 'b', parentId: 'p', start: '2027-01-20', end: '2027-01-25' }),
 			makeTask({ id: 'z', end: '2027-01-10', dependsOn: ['p'] })
 		]);
+		expandParents(plan);
 		const conflicts = moveConflicts(plan, 'a', { stageId: 's1', parentId: null });
 		expect(conflicts.fixes).toEqual([]);
-		expect(conflicts.warnings).toEqual([{ taskId: 'z', dependencyId: 'p' }]);
+		expect(conflicts.warnings).toEqual([]);
 	});
 
 	it('moves the subtasks of a task with the task to the new stage', () => {
@@ -522,20 +525,18 @@ describe('moves', () => {
 		expect(plan.tasks.map((t) => t.stageId)).toEqual(['s2', 's2']);
 	});
 
-	it('clears the end date when the new parent depends on a task that starts after the moved task ends', () => {
+	it('keeps the stored parent end when the first subtask ends earlier', () => {
 		const plan = makePlan([
 			makeTask({ id: 'x', start: '2027-01-15', end: '2027-01-20' }),
 			makeTask({ id: 'p', start: '2027-01-16', end: '2027-01-25', dependsOn: ['x'] }),
 			makeTask({ id: 't', start: '2027-01-01', end: '2027-01-10' })
 		]);
 		const conflicts = moveConflicts(plan, 't', { stageId: 's1', parentId: 'p' });
-		expect(conflicts.fixes).toEqual([
-			{ kind: 'clear-date', field: 'end', dependencyId: 'x', dependentId: 'p' }
-		]);
+		expect(conflicts.fixes).toEqual([]);
 		applyMove(plan, 't', { stageId: 's1', parentId: 'p' }, conflicts.fixes);
 		const index = indexTasks(plan.tasks);
 		expect(dependencyWarnings(index)).toEqual([]);
-		expect(index.byId.get('t')!.end).toBeNull();
+		expect(index.state.get('p')!.eff.end).toBe('2027-01-25');
 	});
 
 	it('does not re-emit pre-existing broken date edges on the new or old parent', () => {
@@ -612,189 +613,116 @@ describe('stageDeleteImpact', () => {
 	});
 });
 
-describe('withParentSnapshots', () => {
-	const parent = () =>
-		makeTask({
-			id: 'p',
-			start: '2027-02-05',
-			end: '2027-02-10',
-			owners: [' Own '],
-			status: 'in_progress'
-		});
-	const child = () =>
-		makeTask({
-			id: 'c',
-			parentId: 'p',
-			start: '2027-02-01',
-			end: '2027-02-20',
-			owners: ['Child'],
-			status: 'done'
-		});
-	const snapshot = {
-		start: '2027-02-01',
-		end: '2027-02-20',
-		owners: ['Own', 'Child'],
-		status: 'done'
-	};
-
-	it('snapshots the last deleted subtask into the surviving parent', () => {
-		const plan = makePlan([parent(), child()]);
-		withParentSnapshots(plan, () => deleteTasks(plan, ['c']));
-		expect(plan.tasks).toHaveLength(1);
-		expect(plan.tasks[0]).toMatchObject(snapshot);
-	});
-
-	it('does not snapshot while a canceled subtask remains', () => {
-		const own = parent();
-		const plan = makePlan([
-			own,
-			child(),
-			makeTask({ id: 'remaining', parentId: 'p', status: 'canceled' })
-		]);
-		const before = structuredClone(own);
-		withParentSnapshots(plan, () => deleteTasks(plan, ['c']));
-		expect(plan.tasks.find((t) => t.id === 'p')).toEqual(before);
-	});
-
-	it('squashes all removed subtasks together, including canceled dates and owners', () => {
-		const plan = makePlan([
-			parent(),
-			makeTask({ id: 'a', parentId: 'p', status: 'done', owners: ['Ann'], start: '2027-02-03' }),
-			makeTask({
-				id: 'b',
-				parentId: 'p',
-				status: 'done',
-				owners: ['ann', 'Bo'],
-				end: '2027-02-15'
-			}),
-			makeTask({ id: 'c', parentId: 'p', status: 'done' }),
-			makeTask({
-				id: 'd',
-				parentId: 'p',
-				status: 'canceled',
-				owners: ['Cy'],
+describe('planned windows after subtask removal', () => {
+	it.each(['delete', 'move-to-task', 'move-to-parent'] as const)(
+		'keeps all parent values after %s of its last subtask',
+		(action) => {
+			const parent = makeTask({
+				id: 'p',
 				start: '2027-01-01',
-				end: '2027-03-01'
-			})
+				end: '2027-01-05',
+				owners: ['Own'],
+				status: 'todo'
+			});
+			const plan = makePlan([
+				parent,
+				makeTask({
+					id: 'c',
+					parentId: 'p',
+					start: '2027-03-01',
+					end: '2027-03-31',
+					owners: ['Child'],
+					status: 'done'
+				}),
+				makeTask({ id: 'q' })
+			]);
+			expandParents(plan);
+			const expected = {
+				start: '2027-01-01',
+				end: '2027-03-31',
+				owners: ['Own', 'Child'],
+				status: 'done'
+			};
+			expect(parent).toMatchObject(expected);
+			expect(indexTasks(plan.tasks).state.get('p')!.eff).toEqual(expected);
+			const before = structuredClone(parent);
+			if (action === 'delete') deleteTasks(plan, ['c']);
+			else
+				applyMove(
+					plan,
+					'c',
+					{ stageId: 's1', parentId: action === 'move-to-parent' ? 'q' : null },
+					[]
+				);
+			expandParents(plan);
+			expect(parent).toEqual(before);
+			expect(indexTasks(plan.tasks).state.get('p')!.eff).toEqual(expected);
+		}
+	);
+
+	it('keeps the expanded status and window when all subtasks are deleted together', () => {
+		const parent = makeTask({ id: 'p', owners: ['Own'] });
+		const plan = makePlan([
+			parent,
+			makeTask({ id: 'a', parentId: 'p', start: '2027-01-01', status: 'done' }),
+			makeTask({ id: 'b', parentId: 'p', end: '2027-03-31', status: 'canceled', owners: ['Child'] })
 		]);
-		withParentSnapshots(plan, () => deleteTasks(plan, ['a', 'b', 'c', 'd']));
-		expect(plan.tasks).toHaveLength(1);
-		expect(plan.tasks[0]).toMatchObject({
+		expandParents(plan);
+		expect(parent).toMatchObject({
 			start: '2027-01-01',
-			end: '2027-03-01',
-			owners: expect.arrayContaining(['Own', 'Ann', 'Bo', 'Cy']),
+			end: '2027-03-31',
+			owners: ['Own', 'Child'],
 			status: 'done'
 		});
-	});
-
-	it('does not change an already childless task or restore a deleted parent', () => {
-		const untouched = makeTask({
-			id: 'leaf',
-			owners: [' Untrimmed ', 'untrimmed'],
-			status: 'in_progress'
-		});
-		const plan = makePlan([parent(), child(), untouched]);
-		const before = structuredClone(untouched);
-		withParentSnapshots(plan, () => deleteTasks(plan, ['p']));
+		const before = structuredClone(parent);
+		deleteTasks(plan, ['a', 'b']);
+		expandParents(plan);
 		expect(plan.tasks).toEqual([before]);
 	});
 
-	it.each([null, 'q'])('snapshots the last subtask moved to parent %s', (parentId) => {
-		const plan = makePlan([parent(), child(), makeTask({ id: 'q' })]);
-		withParentSnapshots(plan, () => applyMove(plan, 'c', { stageId: 's1', parentId }, []));
-		expect(plan.tasks.find((t) => t.id === 'p')).toMatchObject(snapshot);
-		expect(plan.tasks.find((t) => t.id === 'c')?.parentId).toBe(parentId);
-	});
-
-	it('uses a moved subtask after the move fixes clear its date', () => {
+	it('keeps the old parent window when move fixes clear the last subtask end', () => {
+		const parent = makeTask({ id: 'p', start: '2027-02-05', end: '2027-02-10', owners: ['Own'] });
 		const plan = makePlan([
-			parent(),
-			child(),
-			makeTask({ id: 'q', dependsOn: ['dependency'] }),
-			makeTask({ id: 'dependency', start: '2027-03-01' })
+			parent,
+			makeTask({
+				id: 'c',
+				parentId: 'p',
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['Child'],
+				status: 'done'
+			}),
+			makeTask({ id: 'q', dependsOn: ['dep'] }),
+			makeTask({ id: 'dep', start: '2027-03-01' })
 		]);
+		expandParents(plan);
+		const before = structuredClone(parent);
 		const target = { stageId: 's1', parentId: 'q' };
 		const conflicts = moveConflicts(plan, 'c', target);
 		expect(conflicts.fixes).toContainEqual({
 			kind: 'clear-date',
 			field: 'end',
-			dependencyId: 'dependency',
+			dependencyId: 'dep',
 			dependentId: 'q'
 		});
-		withParentSnapshots(plan, () => applyMove(plan, 'c', target, conflicts.fixes));
-		expect(plan.tasks.find((t) => t.id === 'c')?.end).toBeNull();
-		expect(plan.tasks.find((t) => t.id === 'p')).toMatchObject({ ...snapshot, end: '2027-02-10' });
+		applyMove(plan, 'c', target, conflicts.fixes);
+		expandParents(plan);
+		expect(plan.tasks.find((task) => task.id === 'c')?.end).toBeNull();
+		expect(parent).toEqual(before);
 	});
 
-	it('gives the same snapshot when a composite move and delete run in either order', () => {
-		const original = makePlan([
-			parent(),
-			child(),
-			makeTask({
-				id: 'other',
-				parentId: 'p',
-				start: '2027-02-02',
-				end: '2027-03-01',
-				owners: ['Other'],
-				status: 'canceled'
-			})
-		]);
-		const results = [false, true].map((reverse) => {
-			const plan = structuredClone(original);
-			const move = () => applyMove(plan, 'c', { stageId: 's1', parentId: null }, []);
-			const remove = () => deleteTasks(plan, ['other']);
-			withParentSnapshots(plan, () => {
-				if (reverse) {
-					remove();
-					move();
-				} else {
-					move();
-					remove();
-				}
-			});
-			return plan;
-		});
-		expect(results[0]).toEqual(results[1]);
-		expect(results[0].tasks.find((t) => t.id === 'p')).toMatchObject({
-			start: '2027-02-01',
-			end: '2027-03-01',
-			owners: ['Own', 'Child', 'Other'],
-			status: 'done'
-		});
-	});
-});
-
-describe('moveConflicts parent snapshot simulation', () => {
-	it('uses snapshot dates instead of stale own dates for old-parent warnings', () => {
+	it('uses the stored window for old-parent warnings without mutating the plan', () => {
 		const plan = makePlan([
-			makeTask({ id: 'p', start: '2027-04-01' }),
-			makeTask({ id: 'c', parentId: 'p', start: '2027-01-01' }),
+			makeTask({ id: 'p', start: '2027-01-01', end: '2027-01-05' }),
+			makeTask({ id: 'c', parentId: 'p', start: '2027-03-01', end: '2027-03-31' }),
 			makeTask({ id: 'dependent', end: '2027-02-01', dependsOn: ['p'] })
 		]);
+		expandParents(plan);
 		const before = structuredClone(plan);
-		expect(moveConflicts(plan, 'c', { stageId: 's1', parentId: null }).warnings).toEqual([]);
-		expect(plan).toEqual(before);
-	});
-
-	it('applies fixes on copies before calculating old-parent warnings', () => {
-		const plan = makePlan([
-			makeTask({ id: 'p', end: '2027-01-01', dependsOn: ['dep'] }),
-			makeTask({ id: 'c', parentId: 'p', end: '2027-03-01', owners: ['Child'] }),
-			makeTask({ id: 'dep', start: '2027-02-01' }),
-			makeTask({ id: 'q', dependsOn: ['c', 'late'] }),
-			makeTask({ id: 'late', start: '2027-04-01' }),
-			makeTask({ id: 'incoming', dependsOn: ['q'], end: '2027-01-01' })
-		]);
-		const before = structuredClone(plan);
-		const conflicts = moveConflicts(plan, 'c', { stageId: 's1', parentId: 'q' });
-		expect(plan).toEqual(before);
-		expect(conflicts.fixes).toContainEqual({
-			kind: 'clear-date',
-			field: 'end',
-			dependencyId: 'late',
-			dependentId: 'q'
+		expect(moveConflicts(plan, 'c', { stageId: 's1', parentId: null })).toEqual({
+			fixes: [],
+			warnings: []
 		});
-		expect(conflicts.warnings).toEqual([{ taskId: 'p', dependencyId: 'dep' }]);
 		expect(plan).toEqual(before);
 	});
 });
