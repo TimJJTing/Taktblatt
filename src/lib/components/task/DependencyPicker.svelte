@@ -18,6 +18,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { updateTask } from '#lib/state/commands.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { cn } from '#lib/utils.ts';
 
 	let { task }: { task: Task } = $props();
@@ -66,6 +67,14 @@
 	}
 
 	const listOpen = $derived(focused && !suggestionsHidden);
+
+	/** The dialog scrolls. When the list opens, scroll it into the visible area of the dialog. */
+	function revealList(list: HTMLElement) {
+		list.scrollIntoView({
+			block: 'nearest',
+			behavior: motionDuration(1) === 0 ? 'instant' : 'smooth'
+		});
+	}
 	const activeIndex = $derived(Math.min(active, candidates.length - 1));
 
 	function add(id: string) {
@@ -187,6 +196,7 @@
 				id={`${id}-options`}
 				aria-label={m.dependency_search()}
 				role="listbox"
+				{@attach revealList}
 				class="absolute inset-x-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-md border bg-popover p-1 text-sm shadow-md"
 			>
 				{#each candidates as candidate, i (candidate.id)}

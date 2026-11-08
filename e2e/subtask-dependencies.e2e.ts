@@ -219,3 +219,21 @@ test('a move removes non-sibling dependencies in one undo step', async ({ page }
 	await expect.poll(moved).toMatchObject({ parentId: 'p', dependsOn: [] });
 	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeDisabled();
 });
+
+test('the dependency list scrolls into the dialog when it opens near the dialog bottom', async ({
+	page
+}) => {
+	await openExample(page);
+	const dialog = await openDetails(page, 'First harvest');
+	await dialog.getByTestId('dependency-input').focus();
+	const list = page.getByRole('listbox');
+	await expect(list).toBeVisible();
+	// The dialog scrolls. The full list must be inside its visible area.
+	await expect
+		.poll(async () => {
+			const listBox = (await list.boundingBox())!;
+			const dialogBox = (await dialog.boundingBox())!;
+			return listBox.y + listBox.height <= dialogBox.y + dialogBox.height;
+		})
+		.toBe(true);
+});
