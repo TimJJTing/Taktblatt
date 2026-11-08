@@ -135,19 +135,50 @@ test('the parent dialog edits its stored window and rejects dates inside the sub
 	// Click inside the dialog, outside the popover.
 	const box = (await dialog.boundingBox())!;
 	await page.mouse.click(box.x + 12, box.y + 12);
+	// Wait until the popover is closed. An Escape during its exit animation closes the dialog.
+	await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);
+	await expect(dialog).toBeVisible();
 	await expect.poll(() => parentValues(page)).toEqual(before);
-	if (await page.getByRole('textbox', { name: 'Start', exact: true }).isVisible()) {
-		await page.keyboard.press('Escape');
-	}
-	// Select a different range in the calendar. It must satisfy the same floor.
+	// The calendar marks the subtask range. A pick that breaks the floor shows the alert.
 	await openRange(page, range);
-	await page.getByRole('button', { name: /February 12, 2027/ }).click();
-	await page.getByRole('button', { name: /February 18, 2027/ }).click();
-	await expect(page.locator('[data-slot="popover-content"]').getByRole('alert')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeDisabled();
-	await expect.poll(() => parentValues(page)).toEqual(before);
+	const popover = page.locator('[data-slot="popover-content"]');
+	const alert = popover.getByRole('alert');
+	const done = page.getByRole('button', { name: 'Done', exact: true });
+	// Day names have the form "Wednesday, February 10, 2027".
+	const day = (date: number) =>
+		page.getByRole('button', { name: new RegExp(`, February ${date}, 2027$`) });
+	await expect(popover.getByTestId('date-subtask-span')).toHaveText(/Feb 10\b.*20/);
+	await expect(popover.locator('[data-subtask-span]')).toHaveCount(11);
+	await expect(popover.getByRole('application')).toHaveAccessibleDescription(/Feb 10\b.*20/);
+	// A start after the earliest subtask date shows the alert at once.
+	await day(12).click();
+	await expect(alert).toBeVisible();
+	await expect(done).toBeDisabled();
+	// An end that excludes subtask dates keeps the alert.
+	await day(18).click();
+	await expect(page.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('Feb 18, 2027');
+	await expect(alert).toBeVisible();
+	await expect(done).toBeDisabled();
+	// A valid start shows no alert. Done waits for the end.
+	await day(3).click();
+	await expect(alert).toHaveCount(0);
+	await expect(done).toBeDisabled();
+	await day(22).click();
+	await expect(page.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('Feb 22, 2027');
+	await expect(alert).toHaveCount(0);
+	await expect(done).toBeEnabled();
+	// After the End field is cleared, a pick of the same end date gives the range again.
+	await page.getByRole('textbox', { name: 'End', exact: true }).fill('');
+	await page.getByRole('textbox', { name: 'End', exact: true }).press('Enter');
+	await day(22).click();
+	await expect(page.getByRole('textbox', { name: 'Start', exact: true })).toHaveValue(
+		'Feb 3, 2027'
+	);
+	await expect(page.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('Feb 22, 2027');
+	await expect(alert).toHaveCount(0);
 	await page.keyboard.press('Escape');
 	await expect(range).toBeFocused();
+	await expect.poll(() => parentValues(page)).toEqual(before);
 	await dialog.getByRole('button', { name: 'OK', exact: true }).click();
 	const parent = row(page, 'Soil preparation');
 	await expect(parent.getByRole('button', { name: /^Target:/ })).toContainText('Feb 25');

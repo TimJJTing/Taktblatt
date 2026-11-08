@@ -286,5 +286,6 @@
 	"import_dependency_warnings": "警告のある依存関係：{count} 件。タスクを開くと警告が表示されます。",
 	"dependency_warning_subtask_scope": "サブタスクは同じ親を持つタスクにのみ依存できます。",
 	"dependency_subtask_help": "別のタスクに依存するには、このサブタスクをタスクにするか、同じ親の下に移動してください。",
-	"date_subtask_floor": "日付の範囲にはサブタスクの日付を含めてください：{range}。"
+	"date_subtask_floor": "日付の範囲にはサブタスクの日付を含めてください：{range}。",
+	"date_subtask_span": "サブタスク：{range}"
 }

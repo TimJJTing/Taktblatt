@@ -117,8 +117,9 @@
 			{@render trigger({ props: { ...props, 'aria-label': name } })}
 		{/snippet}
 	</Popover.Trigger>
-	<Popover.Content class="w-auto p-0" align="start" {onEscapeKeydown}>
-		<div class="flex flex-col gap-2 p-3 pb-0">
+	<Popover.Content class="w-auto gap-0 p-0" align="start" {onEscapeKeydown}>
+		<!-- w-0 min-w-full: the calendar sets the width; the field and texts follow it. -->
+		<div class="flex w-0 min-w-full flex-col gap-2 p-3 pb-0">
 			<label class="flex flex-col gap-1 text-xs text-muted-foreground">
 				{label}
 				<Input
@@ -140,6 +141,7 @@
 			bind:placeholder
 			locale={tag}
 			weekStartsOn={1}
+			class="[--cell-size:--spacing(9)]"
 		/>
 		<div class="flex justify-between gap-2 border-t p-2">
 			<span class="flex gap-1">
