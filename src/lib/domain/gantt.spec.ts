@@ -254,7 +254,7 @@ describe('dependencyLines', () => {
 		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
 	});
 
-	it('merges duplicate lines', () => {
+	it('draws separate legacy dependencies on a shared predecessor only when subtasks are visible', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'c')!.dependsOn = ['x'];
 		expect(lines(tasks, []).map((l) => l.key)).toEqual(['p->y']);

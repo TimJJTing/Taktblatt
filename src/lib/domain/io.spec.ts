@@ -421,11 +421,6 @@ describe('parseFile', () => {
 		],
 		[
 			makeTask({ id: 'parent' }),
-			makeTask({ id: 'child', parentId: 'parent', dependsOn: ['other'] }),
-			makeTask({ id: 'other', dependsOn: ['parent'] })
-		],
-		[
-			makeTask({ id: 'parent' }),
 			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b'] }),
 			makeTask({ id: 'b', parentId: 'parent', dependsOn: ['a'] })
 		]
@@ -455,8 +450,8 @@ describe('parseFile', () => {
 
 	it('reads valid inherited and sibling dependencies', () => {
 		const plan = makePlan([
-			makeTask({ id: 'parent' }),
-			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b', 'other'] }),
+			makeTask({ id: 'parent', dependsOn: ['other'] }),
+			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b'] }),
 			makeTask({ id: 'b', parentId: 'parent' }),
 			makeTask({ id: 'other' })
 		]);

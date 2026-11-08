@@ -59,6 +59,7 @@ test('a subtask dependency list exposes a read-only inherited row with a From pa
 		- listitem: Approve brief (From parent Prepare report.)
 	`);
 	await expect(inherited.getByRole('button')).toHaveCount(0);
+	await expect(inherited.getByRole('img')).toHaveCount(0);
 	await inherited.hover();
 	const hint = page.locator('[data-slot="tooltip-content"]');
 	await expect(hint).toBeVisible();
