@@ -351,7 +351,7 @@ describe('parseFile', () => {
 		});
 	});
 
-	it('finds a cycle and accepts a diamond (no false positive)', () => {
+	it('accepts a diamond dependency graph', () => {
 		const diamond = makePlan([
 			makeTask({ id: 'a' }),
 			makeTask({ id: 'b', dependsOn: ['a'] }),
@@ -370,7 +370,8 @@ describe('parseFile', () => {
 		expect(parseFile(text).ok).toBe(true);
 		expect(performance.now() - start).toBeLessThan(1000);
 		tasks[0].dependsOn = ['t9999'];
-		expect(parseFile(JSON.stringify(toPlanFile(makePlan(tasks)))).ok).toBe(false);
+		const cyclic = makePlan(tasks);
+		expect(parseFile(JSON.stringify(toPlanFile(cyclic))).ok).toBe(true);
 	});
 
 	it('rejects a dependency on the task itself', () => {
@@ -413,17 +414,28 @@ describe('parseFile', () => {
 			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b'] }),
 			makeTask({ id: 'b', parentId: 'parent', dependsOn: ['a'] })
 		]
-	])('rejects effective dependency cycles (case %#)', (...tasks) => {
+	])('accepts effective dependency cycles (case %#)', (...tasks) => {
 		const plan = makePlan(tasks);
-		for (const file of [toPlanFile(plan), toBackupFile([makePlan([]), plan])]) {
-			const result = parseFile(JSON.stringify(file));
-			expect(result.ok).toBe(false);
-			if (!result.ok) {
-				expect(result.errors).toEqual([
-					`${file.kind === 'plan' ? 'plan' : 'plans.1'}: Task dependencies must not form a cycle in the effective graph.`
-				]);
-			}
+		const other = makePlan([]);
+		for (const file of [toPlanFile(plan), toBackupFile([other, plan])]) {
+			expect(parseFile(JSON.stringify(file))).toEqual({
+				ok: true,
+				plans: file.kind === 'plan' ? [plan] : [other, plan]
+			});
 		}
+	});
+
+	it('imports and loads an existing plan whose inherited parent edge introduces a cycle', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 'x', dependsOn: ['s'] })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
 	});
 
 	it('reads valid inherited and sibling dependencies', () => {

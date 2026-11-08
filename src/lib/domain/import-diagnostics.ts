@@ -12,7 +12,6 @@ export const VALIDATION_MESSAGES = {
 	validation_remark_ids: 'Remark section ids must be unique.',
 	validation_dependency: 'Each dependency must point at a different task of the plan.',
 	validation_dependency_parent: 'A task must not depend on its own parent or subtask.',
-	validation_dependency_cycle: 'Task dependencies must not form a cycle in the effective graph.',
 	validation_backup_empty: 'A backup file must contain at least one plan.',
 	validation_plan_ids: 'Plan ids must be unique in a backup file.'
 } as const;

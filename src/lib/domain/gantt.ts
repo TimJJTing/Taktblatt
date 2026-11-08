@@ -196,9 +196,9 @@ function markEnd(mark: GanttMark): number {
 	return mark.kind === 'bar' ? mark.x1 : mark.kind === 'point' ? mark.x : 0;
 }
 
-/** The dependencies that a row draws. An expanded parent draws only its own dependencies. */
+/** Subtasks and expanded parents draw only their own stored dependencies. */
 function rowDependencies(index: TaskIndex, row: GanttRow): Iterable<string> {
-	if (!row.expanded) return effectiveDependencies(index, row.id);
+	if (row.level === 0 && !row.expanded) return effectiveDependencies(index, row.id);
 	const task = index.byId.get(row.id);
 	if (!task) return [];
 	const childIds = new Set((index.children.get(row.id) ?? []).map((c) => c.id));

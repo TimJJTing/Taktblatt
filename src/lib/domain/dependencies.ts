@@ -53,14 +53,17 @@ export function canDependOn(index: TaskIndex, dependentId: string, candidateId: 
 	if (!dependent || !index.byId.has(candidateId)) return false;
 	if (dependentId === candidateId) return false;
 	if (isParentAndChild(index, dependentId, candidateId)) return false;
-	if (dependent.dependsOn.includes(candidateId)) return false;
+	if (effectiveDependencies(index, dependentId).has(candidateId)) return false;
 	if (breaksDateRule(index, candidateId, dependentId)) return false;
-	// The new edge is dependent → candidate. Its parent also gets the edge, unless the candidate is a sibling.
-	const nodes = [dependentId];
+	// The parent gets the new edge unless the candidate is a sibling. Subtasks inherit the edge.
+	const nodes = [dependentId, ...(index.children.get(dependentId) ?? []).map((t) => t.id)];
 	if (dependent.parentId !== null && index.byId.get(candidateId)?.parentId !== dependent.parentId) {
 		nodes.push(dependent.parentId);
 	}
-	return nodes.every((node) => node !== candidateId && !reaches(index, candidateId, node));
+	// Check only the tasks that get a new edge. A task that has the edge already adds no cycle.
+	return nodes
+		.filter((node) => node === dependentId || !effectiveDependencies(index, node).has(candidateId))
+		.every((node) => node !== candidateId && !reaches(index, candidateId, node));
 }
 
 /** A stored dependency that breaks the date rule. The UI shows a warning on it. */
@@ -202,7 +205,8 @@ export function moveConflicts(plan: Plan, id: string, target: MoveTarget): MoveC
 
 	if (newParentId !== null) {
 		const newParent = after.byId.get(newParentId)!;
-		// Cycles: the only new edges are newParent → D, for each own dependency D of the moved task.
+		// Fix cycles through newParent → D for each own dependency D of the moved task.
+		// Cycles through the inherited edges of the moved task are permitted. Refer to ADR 13.
 		for (const dep of task.dependsOn) {
 			const sibling = after.byId.get(dep)?.parentId === newParentId;
 			if (!sibling && (dep === newParentId || reaches(after, dep, newParentId))) {

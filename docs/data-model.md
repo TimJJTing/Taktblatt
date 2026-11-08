@@ -124,15 +124,18 @@ The app rejects a file when one of these conditions is true:
 - A backup file has no plan, or two plans in it have the same id.
 - A task depends on itself.
 - A parent depends on one of its own subtasks, or a subtask depends on its own parent.
-- The effective dependency graph has a cycle.
 
-A subtask uses its own dependencies in the effective graph. A parent uses its own dependencies and the dependencies of its subtasks. Remove the parent's own subtasks from this set.
+A subtask uses its own dependencies and the own dependencies of its parent in the effective graph. A task without subtasks uses its own dependencies. The app excludes the task itself and unknown ids. A parent uses its own dependencies and the dependencies of its subtasks. Remove the parent's own subtasks from this set.
 
-The date rule uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
+Load and import accept cycles in the effective dependency graph. UI cycle warnings will come in PR 3. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
+
+The date rule checks stored dependencies only. It uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
 
 The app shows the path of each wrong field, for example `plan.range.start`. A missing field says that the field is required. A value outside a fixed set lists the allowed values. The error text uses the UI language. The app does not change data.
 
 ## Versions
+
+The ready-light change keeps `schemaVersion` at 1. The file shape does not change. Files valid before this change stay valid: cycle rejection is removed, and no validation rule is added. Older app builds can reject a file with a cycle.
 
 When the schema changes, the `schemaVersion` increases by 1. The app migrates old files when it reads them. It cannot read files from a newer app version.
 

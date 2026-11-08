@@ -21,7 +21,13 @@
 
 	let { readiness, still = false, reserve = false }: Props = $props();
 	const lightData = $derived(readyLight(readiness));
-	const label = $derived(m.ready_label({ count: lightData?.count ?? 0 }));
+	const label = $derived(
+		lightData?.via === 'subtasks'
+			? m.ready_label_subtasks({ count: lightData.count })
+			: lightData?.count
+				? m.ready_label({ count: lightData.count })
+				: m.ready_label_plain()
+	);
 </script>
 
 {#snippet light()}
