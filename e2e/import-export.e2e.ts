@@ -210,10 +210,19 @@ test('the header keeps the menu visible at 360 px', async ({ page }) => {
 	await expect(page.getByTestId('menu-export-all')).toBeInViewport();
 });
 
+/**
+ * Starts to wait for the file chooser. Call it some steps before the action.
+ * Playwright turns on the file chooser interception asynchronously. A fast action, such as one key
+ * press, can open the chooser before the interception is on. Then no event comes.
+ */
+function waitForFileChooser(page: Page) {
+	return page.waitForEvent('filechooser');
+}
+
 test('Import in the menu opens the file chooser', async ({ page }) => {
 	await openApp(page);
+	const chooser = waitForFileChooser(page);
 	const menu = await openMenu(page);
-	const chooser = page.waitForEvent('filechooser');
 	await menu.getByTestId('menu-import').click();
 	await chooser;
 	await expect(page.getByRole('menu')).toHaveCount(0);
@@ -221,9 +230,9 @@ test('Import in the menu opens the file chooser', async ({ page }) => {
 
 test('keyboard Import in the menu opens the file chooser', async ({ page }) => {
 	await openApp(page);
+	const chooser = waitForFileChooser(page);
 	const menu = await openMenu(page);
 	await menu.getByTestId('menu-import').focus();
-	const chooser = page.waitForEvent('filechooser');
 	await page.keyboard.press('Enter');
 	await chooser;
 });
