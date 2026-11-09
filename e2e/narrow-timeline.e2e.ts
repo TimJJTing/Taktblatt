@@ -312,3 +312,45 @@ test('narrowing to a saved collapsed Timeline moves focus from its content to th
 	await expectCollapsed(page);
 	await expect(expandButton(page)).toBeFocused();
 });
+
+test('the legends start collapsed with tabs and keep a state separate from split view', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await openExample(page);
+	const toggle = page.getByTestId('timeline-legends-toggle');
+	const legends = page.getByTestId('timeline-legends');
+	await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	await expect(legends).toHaveAttribute('inert', '');
+	await toggle.click();
+	await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+	await page.reload();
+	await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+	// Split view keeps its own state: expanded by default. A change there does not change tabs.
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+	await toggle.click();
+	await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+	const stored = await storedViewer(page);
+	expect(stored.narrowLegendsCollapsed).toBe(false);
+	expect(stored.timelineLegendsCollapsed).toBe(true);
+});
+
+test('narrowing moves focus from a legend entry that the tabs state hides to the Legends button', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await openExample(page);
+	const entry = page.getByTestId('milestone-legend').getByRole('button').first();
+	await entry.focus();
+	await expect(entry).toBeFocused();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	const toggle = page.getByTestId('timeline-legends-toggle');
+	await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	await expect(toggle).toBeFocused();
+});

@@ -169,6 +169,36 @@ describe('ViewerState', () => {
 		expect(viewer.isExpanded('p1', 't1')).toBe(true);
 	});
 
+	it('keeps a separate narrow legend state that starts collapsed', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		expect(viewer.narrowLegendsCollapsed).toBe(true);
+		expect(viewer.timelineLegendsCollapsed).toBe(false);
+		viewer.setNarrowLegendsCollapsed(false);
+		viewer.setTimelineLegendsCollapsed(true);
+		const again = new ViewerState(storage);
+		expect(again.narrowLegendsCollapsed).toBe(false);
+		expect(again.timelineLegendsCollapsed).toBe(true);
+	});
+
+	it.each(['yes', null, 1])('defaults only an invalid narrow legend state (%s)', (value) => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({
+				narrowLegendsCollapsed: value,
+				timelineLegendsCollapsed: true,
+				timelineCollapsed: true,
+				narrowTab: 'work-plan'
+			})
+		);
+		const viewer = new ViewerState(storage);
+		expect(viewer.narrowLegendsCollapsed).toBe(true);
+		expect(viewer.timelineLegendsCollapsed).toBe(true);
+		expect(viewer.timelineCollapsed).toBe(true);
+		expect(viewer.narrowTab).toBe('work-plan');
+	});
+
 	it('starts with collapsed legends when older viewer data is pinned', () => {
 		const storage = new MemoryStorage();
 		storage.setItem(

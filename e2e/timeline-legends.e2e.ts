@@ -125,6 +125,9 @@ for (const width of [1280, 390]) {
 	test(`legend rows have equal gaps and compact add buttons at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		await openExample(page);
+		// With tabs, the legends start collapsed.
+		if (width < 1024) await toggle(page).click();
+		await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
 		await expect
 			.poll(() =>
 				page.getByTestId('timeline-panel').evaluate((element) => {

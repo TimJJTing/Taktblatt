@@ -73,6 +73,22 @@
 		if (!heading?.contains(focused) && !body?.contains(focused)) return;
 		void tick().then(() => collapseButton?.focus({ preventScroll: true }));
 	});
+	// Split view and tabs keep separate legend states.
+	const legendsCollapsed = $derived(
+		workspaceLayout.split ? viewer.timelineLegendsCollapsed : viewer.narrowLegendsCollapsed
+	);
+	// A layout change can collapse the legends. Move focus from a hidden entry to the Legends button.
+	$effect.pre(() => {
+		if (!legendsCollapsed) return;
+		const focused = untrack(() => document.activeElement);
+		const list = document.getElementById('timeline-legends');
+		if (!focused || !list?.contains(focused)) return;
+		void tick().then(() => document.getElementById('timeline-legends-button')?.focus());
+	});
+	function setLegendsCollapsed(value: boolean) {
+		if (workspaceLayout.split) viewer.setTimelineLegendsCollapsed(value);
+		else viewer.setNarrowLegendsCollapsed(value);
+	}
 	const viewport = $derived(innerHeight.current ?? 800);
 	const limits = $derived(heightLimits(viewport, workspaceLayout.split));
 	const height = $derived(pinnedHeight(viewer.ganttHeight, viewport, workspaceLayout.split));
@@ -309,14 +325,15 @@
 					size="sm"
 					class="ml-auto"
 					style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
-					aria-expanded={!viewer.timelineLegendsCollapsed}
+					aria-expanded={!legendsCollapsed}
+					id="timeline-legends-button"
 					aria-controls="timeline-legends"
-					onclick={() => viewer.setTimelineLegendsCollapsed(!viewer.timelineLegendsCollapsed)}
+					onclick={() => setLegendsCollapsed(!legendsCollapsed)}
 					data-testid="timeline-legends-toggle"
 				>
 					<ChevronDownIcon
 						aria-hidden="true"
-						class={cn('transition-transform', viewer.timelineLegendsCollapsed && '-rotate-90')}
+						class={cn('transition-transform', legendsCollapsed && '-rotate-90')}
 						style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
 					/>
 					{m.timeline_legends()}
@@ -335,10 +352,10 @@
 				<div
 					id="timeline-legends"
 					class="grid shrink-0 transition-[grid-template-rows] ease-out"
-					style:grid-template-rows={viewer.timelineLegendsCollapsed ? '0fr' : '1fr'}
+					style:grid-template-rows={legendsCollapsed ? '0fr' : '1fr'}
 					style:transition-duration={`${motionDuration(TIMELINE_MOTION_MS)}ms`}
-					inert={viewer.timelineLegendsCollapsed}
-					aria-hidden={viewer.timelineLegendsCollapsed}
+					inert={legendsCollapsed}
+					aria-hidden={legendsCollapsed}
 					data-testid="timeline-legends"
 				>
 					<div class="min-h-0 overflow-hidden">

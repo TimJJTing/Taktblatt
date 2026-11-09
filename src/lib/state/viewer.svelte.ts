@@ -16,6 +16,7 @@ const ViewerSchema = v.object({
 	ganttPinned: v.optional(v.boolean(), false),
 	timelineCollapsed: v.fallback(v.boolean(), false),
 	timelineLegendsCollapsed: v.optional(v.boolean()),
+	narrowLegendsCollapsed: v.fallback(v.boolean(), true),
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
 		GANTT_HEIGHT.default
@@ -31,7 +32,10 @@ export class ViewerState {
 	splitRatio = $state(0.5);
 	narrowTab = $state<'plan' | 'work-plan'>('plan');
 	timelineCollapsed = $state(false);
+	/** The legend state in split view. */
 	timelineLegendsCollapsed = $state(false);
+	/** The legend state with tabs. The pinned Timeline is short there, so the legends start collapsed. */
+	narrowLegendsCollapsed = $state(true);
 	/** The pinned Timeline section height, as a fraction of the viewport height. */
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
 
@@ -51,6 +55,7 @@ export class ViewerState {
 		this.ganttPinned = data.ganttPinned;
 		this.timelineCollapsed = data.timelineCollapsed;
 		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed ?? data.ganttPinned;
+		this.narrowLegendsCollapsed = data.narrowLegendsCollapsed;
 		this.ganttHeight = data.ganttHeight;
 	}
 
@@ -62,6 +67,7 @@ export class ViewerState {
 			ganttPinned: this.ganttPinned,
 			timelineCollapsed: this.timelineCollapsed,
 			timelineLegendsCollapsed: this.timelineLegendsCollapsed,
+			narrowLegendsCollapsed: this.narrowLegendsCollapsed,
 			ganttHeight: this.ganttHeight
 		};
 		this.storage.setItem(KEYS.viewer, JSON.stringify(data));
@@ -109,6 +115,11 @@ export class ViewerState {
 
 	setTimelineLegendsCollapsed(value: boolean): void {
 		this.timelineLegendsCollapsed = value;
+		this.save();
+	}
+
+	setNarrowLegendsCollapsed(value: boolean): void {
+		this.narrowLegendsCollapsed = value;
 		this.save();
 	}
 

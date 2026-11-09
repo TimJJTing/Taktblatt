@@ -243,14 +243,14 @@ The viewer state is for one browser only. It is not in the plan file. The export
 - the screen theme (`light`, `dark` or `system`);
 - the expanded tasks, for each plan (shared by the Gantt and the table);
 - the pinned state and the height of the Timeline section;
-- whether the Timeline legends are collapsed;
+- whether the Timeline legends are collapsed, in split view and on narrow screens;
 - the width ratio of the split view;
 - the selected tab on narrow screens;
 - whether the Timeline section is collapsed on narrow screens.
 
-The app keeps the expanded tasks, the Timeline settings and the layout settings as `expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab` and `timelineCollapsed` under the key `taktblatt:ui`. `splitRatio` is the width of the left pane as a fraction of the split width, from 0 to 1. The default is 0.5. `narrowTab` is `plan` (the Overview tab) or `work-plan`. The default is `plan`. `timelineCollapsed` is a boolean. The default is `false`. An invalid or absent value of these three fields gives its default and does not reset the other fields. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`.
+The app keeps the expanded tasks, the Timeline settings and the layout settings as `expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab`, `timelineCollapsed` and `narrowLegendsCollapsed` under the key `taktblatt:ui`. `splitRatio` is the width of the left pane as a fraction of the split width, from 0 to 1. The default is 0.5. `narrowTab` is `plan` (the Overview tab) or `work-plan`. The default is `plan`. `timelineCollapsed` is a boolean. The default is `false`. `narrowLegendsCollapsed` is the legend state with tabs. It is a boolean. The default is `true`. An invalid or absent value of these four fields gives its default and does not reset the other fields. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`.
 
-An explicit stored boolean for `timelineLegendsCollapsed` takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the legends start expanded and the Timeline section starts unpinned. Unreadable or invalid viewer data gives these defaults.
+`timelineLegendsCollapsed` is the legend state in split view. An explicit stored boolean for it takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the legends start expanded and the Timeline section starts unpinned. Unreadable or invalid viewer data gives these defaults.
 
 ### 4.5 Undo
 
@@ -352,7 +352,8 @@ An explicit stored boolean for `timelineLegendsCollapsed` takes priority over th
 - **Milestone symbols:** diamond, flag, star, circle, triangle, square, hexagon, pentagon, map pin, bookmark and heart, in this order.
 - **Stage legend:** the stage colors and titles.
 - **Legend group:** one Legends button beside the Timeline heading shows or hides Stages, Milestones and Bands together. It works with the keyboard and announces its expanded state.
-  - The app keeps the collapsed state in this browser after a reload. An explicit stored value takes priority. Older viewer data without this setting starts with the legends collapsed only when the Timeline section is pinned. Refer to section 4.4. After this initial default, pin and unpin do not change the legend setting. It does not change plan data or undo history.
+  - Split view and tabs keep separate legend states. With tabs, the legends start collapsed, so the pinned chart gets the space. The Legends button with tabs changes only the tabs state, and the button in split view changes only the split state.
+  - The app keeps both collapsed states in this browser after a reload. An explicit stored value takes priority. Older viewer data without this setting starts with the legends collapsed only when the Timeline section is pinned. Refer to section 4.4. After this initial default, pin and unpin do not change the legend setting. It does not change plan data or undo history.
   - The three rows have the same 32 px minimum height and 12 px vertical gap. Long entries can wrap and increase the row height.
   - The Milestones and Bands add buttons use a 24 px target and a decorative 12 px plus icon. Their accessible names and actions stay the same.
   - Collapse and expansion animate the content and its spacing. Reduced motion uses immediate updates. Collapsed entries cannot receive focus. The chart gets the space that the legends used in the pinned section.

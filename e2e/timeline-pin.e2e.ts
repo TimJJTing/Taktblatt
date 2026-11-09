@@ -96,6 +96,8 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 				plan.bands.push({ ...plan.bands[0], id: `extra-band-${i}`, title: `Season ${i + 1}` });
 			}
 		});
+		// With tabs, the legends start collapsed. This test needs their overflow.
+		await page.getByTestId('timeline-legends-toggle').click();
 		const panel = page.getByTestId('timeline-panel');
 		const pin = page.getByRole('button', { name: 'Collapse timeline', exact: true });
 		await expectStickyBelowHeader(panel);
