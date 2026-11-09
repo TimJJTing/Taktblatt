@@ -163,19 +163,15 @@ test('bands can be added, edited and deleted through the legend', async ({ page 
 	expect((await storedPlan(page)).bands).toEqual([]);
 });
 
-test('section navigation scrolls below the sticky app header', async ({ page }) => {
+test('Remarks stays in the Plan pane below the app header when revealed', async ({ page }) => {
 	await openExample(page);
-	await page
-		.getByRole('navigation', { name: 'Plan sections' })
-		.getByRole('link', { name: 'Remarks', exact: true })
-		.click();
-	await expect(page).toHaveURL(/#remarks$/);
+	await page.locator('#remarks').scrollIntoViewIfNeeded();
 	await expect(page.locator('#remarks')).toBeInViewport();
 	await expect
 		.poll(() =>
 			page.locator('#remarks').evaluate((element) => {
-				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				return element.getBoundingClientRect().top >= header.bottom - 1;
+				const pane = document.querySelector('#plan-pane')!.getBoundingClientRect();
+				return element.getBoundingClientRect().top >= pane.top - 1;
 			})
 		)
 		.toBe(true);
@@ -253,26 +249,23 @@ test('the dates follow the UI language when it changes', async ({ page }) => {
 	);
 });
 
-test('section navigation stops below the pinned Timeline', async ({ page }) => {
+test('the pinned Timeline leaves the Work plan heading available in its pane', async ({ page }) => {
 	await openExample(page);
 	await page.getByTestId('gantt-pin').click();
-	await page
-		.getByRole('navigation', { name: 'Plan sections' })
-		.getByRole('link', { name: 'Work plan', exact: true })
-		.click();
-	await expect(page).toHaveURL(/#work-plan$/);
 	const heading = page.locator('#work-plan-title');
+	await expect(heading).toBeInViewport();
 	await expect
 		.poll(() =>
 			heading.evaluate((element) => {
-				const panel = document
+				const pane = document.querySelector('#work-pane')!.getBoundingClientRect();
+				const timeline = document
 					.querySelector('[data-testid="timeline-panel"]')!
 					.getBoundingClientRect();
-				return element.getBoundingClientRect().top >= panel.bottom - 1;
+				const bounds = element.getBoundingClientRect();
+				return bounds.top >= pane.top - 1 && bounds.left >= timeline.right;
 			})
 		)
 		.toBe(true);
-	await expect(heading).toBeInViewport();
 });
 
 test('Escape closes the band date picker before it cancels the dialog', async ({ page }) => {

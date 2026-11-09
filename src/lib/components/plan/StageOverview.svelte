@@ -16,7 +16,7 @@
 	const ws = getWorkspace();
 </script>
 
-<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+<div class="grid grid-cols-1 gap-4 @min-[480px]:grid-cols-2 @min-[720px]:grid-cols-3">
 	{#each ws.plan.stages as stage, i (stage.id)}
 		{@const span = stageSpan(ws.index, stage.id)}
 		{@const label = m.stage_label({ n: i + 1 })}

@@ -45,7 +45,7 @@
 </script>
 
 <div
-	class="grid grid-cols-1 gap-4 sm:grid-cols-2"
+	class="grid grid-cols-1 gap-4 @min-[640px]:grid-cols-2"
 	use:dragHandleZone={{ items, flipDurationMs: flipDuration, type: 'remark', dropTargetStyle: {} }}
 	onconsider={onConsider}
 	onfinalize={onFinalize}

@@ -1,19 +1,21 @@
 import { expect, test } from '@playwright/test';
 import { formatted, openApp, openPreview, storedPlan } from './helpers.ts';
 
-test.describe('footer', () => {
+test.describe('sheet footer fields in the Header', () => {
 	test('fields edit, the date picker has a Today button, and values persist', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2030-01-02T00:30:00Z'));
 		await openApp(page);
+		const footer = page.locator('#header').getByRole('group', { name: 'Sheet footer' });
+		await expect(footer).toBeVisible();
 		for (const [id, text] of [
 			['footer-note', 'Draft for review'],
 			['footer-version', 'v1.2'],
 			['footer-right', 'Confidential']
 		]) {
-			await page.getByTestId(id).click();
+			await footer.getByTestId(id).click();
 			await page.keyboard.type(text);
 			await page.keyboard.press('Enter');
-			await expect(page.getByTestId(id)).toHaveText(text);
+			await expect(footer.getByTestId(id)).toHaveText(text);
 		}
 
 		const iso = await page.evaluate(() => {
@@ -31,7 +33,8 @@ test.describe('footer', () => {
 		await expect(page.getByTestId('footer-version')).toHaveText('v1.2');
 		await expect(page.getByTestId('footer-right')).toHaveText('Confidential');
 		await expect(page.getByTestId('footer-date')).toHaveText(formatted(iso));
-		await expect(page.locator('[data-page-number]')).toBeEmpty();
+		await expect(page.locator('[data-workspace] [data-page-number]')).toHaveCount(0);
+		await expect(page.locator('[data-workspace] footer')).toHaveCount(0);
 	});
 
 	test('the date is empty until the user sets it', async ({ page }) => {

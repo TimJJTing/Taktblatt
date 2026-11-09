@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
+	addWorkspaceOverflow,
 	GANTT_HEIGHT,
 	defaultPanelHeight,
 	expectPanelHeight,
@@ -12,9 +13,14 @@ import {
 	openPreview,
 	previewSheetSnapshot,
 	row,
+	selectTab,
+	groupScroller,
+	planPane,
 	shorter,
 	startTimelineFrameMonitor,
 	taller,
+	waitForAnimations,
+	waitForFrames,
 	writeStoredPlan
 } from './helpers.ts';
 
@@ -39,20 +45,18 @@ test('the pin keeps the heading, chart and legends together and clears row jumps
 				const parts = element.querySelectorAll(
 					'#timeline-title, [data-testid="gantt"], [data-testid$="-legend"]'
 				);
-				const offset = parseFloat(
-					getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
-				);
+				const work = document.querySelector('#work-pane')!.getBoundingClientRect();
 				return {
 					parts: parts.length,
 					contained: [...parts].every((part) => {
 						const rect = part.getBoundingClientRect();
 						return rect.top >= bounds.top && rect.bottom <= bounds.bottom;
 					}),
-					offsetMatches: Math.abs(offset - bounds.height) <= 1
+					separatePanes: bounds.right <= work.left
 				};
 			})
 		)
-		.toEqual({ parts: 5, contained: true, offsetMatches: true });
+		.toEqual({ parts: 5, contained: true, separatePanes: true });
 
 	await page
 		.getByTestId('gantt-label')
@@ -75,19 +79,29 @@ test('the pin keeps the heading, chart and legends together and clears row jumps
 	await expectStickyBelowHeader(panel);
 	await pin.click();
 	await expect(pin).toHaveAttribute('aria-pressed', 'false');
-	await expect(panel).not.toHaveCSS('position', 'fixed');
+	await expect(panel).toHaveCSS('position', 'static');
 	await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
-	await expect
-		.poll(() =>
-			page.evaluate(() => document.documentElement.style.getPropertyValue('--gantt-pinned-h'))
-		)
-		.toBe('');
-	await page.evaluate(() => window.scrollTo(0, 0));
+	await planPane(page).evaluate((element) => (element.scrollTop = 0));
 	await expect(panel.getByRole('heading', { name: 'Timeline', exact: true })).toBeInViewport();
+	await addWorkspaceOverflow(page);
+	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'false');
+	await planPane(page).evaluate((element) => (element.scrollTop = 0));
+	await waitForFrames(page);
+	await waitForAnimations(planPane(page));
+	const before = (await panel.boundingBox())!;
+	const paneTop = (await planPane(page).boundingBox())!.y;
+	const scrollDistance = Math.ceil(before.y - paneTop + before.height + 100);
+	await planPane(page).evaluate((element, top) => (element.scrollTop = top), scrollDistance);
+	await expect
+		.poll(() => planPane(page).evaluate((element) => element.scrollTop))
+		.toBe(scrollDistance);
+	await waitForFrames(page);
+	await waitForAnimations(planPane(page));
+	expect((await panel.boundingBox())!.y).toBeCloseTo(before.y - scrollDistance, 0);
 });
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
-	test(`the mobile pin stays accessible during chart panning and legend overflow (${reducedMotion})`, async ({
+	test(`the mobile divider stays accessible during chart panning and legend overflow (${reducedMotion})`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -99,16 +113,18 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 				plan.bands.push({ ...plan.bands[0], id: `extra-band-${i}`, title: `Season ${i + 1}` });
 			}
 		});
+		// With tabs, the legends start collapsed. This test needs their overflow.
+		await page.getByTestId('timeline-legends-toggle').click();
 		const panel = page.getByTestId('timeline-panel');
-		const pin = page.getByTestId('gantt-pin');
-		await pin.click();
+		const chevron = page.getByRole('button', { name: 'Collapse timeline', exact: true });
 		await expectStickyBelowHeader(panel);
-		const pinBefore = (await pin.boundingBox())!;
+		await waitForAnimations(panel);
+		const chevronBefore = (await chevron.boundingBox())!;
 		await page.getByTestId('gantt-scroller').evaluate((element) => (element.scrollLeft = 200));
 		await expect
 			.poll(() => page.getByTestId('gantt-scroller').evaluate((element) => element.scrollLeft))
 			.toBeGreaterThan(0);
-		await expect.poll(async () => (await pin.boundingBox())!.x).toBeCloseTo(pinBefore.x, 0);
+		await expect.poll(async () => (await chevron.boundingBox())!.x).toBeCloseTo(chevronBefore.x, 0);
 		await page.getByTestId('gantt-resize').press('Home');
 		const body = page.getByTestId('timeline-body');
 		await expect
@@ -124,15 +140,17 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			.toEqual({ minimumHeight: true, overflow: true });
 		await body.evaluate((element) => (element.scrollTop = element.scrollHeight));
 		await expect(panel.getByRole('button', { name: 'Add band', exact: true })).toBeInViewport();
-		await expect(pin).toBeInViewport();
+		await expect(chevron).toBeInViewport();
 		await expect
 			.poll(async () => (await page.getByTestId('gantt').boundingBox())!.height)
 			.toBeGreaterThanOrEqual(83);
 
-		// Reveal the linked chart label inside both scrollers without moving the page.
+		// Reveal the linked chart label inside both scrollers without moving the group.
+		await selectTab(page, 'Work plan');
 		await row(page, 'First harvest').scrollIntoViewIfNeeded();
 		await body.evaluate((element) => (element.scrollTop = element.scrollHeight));
-		const scrollY = await page.evaluate(() => window.scrollY);
+		const outer = await groupScroller(page, 'work-plan');
+		const scrollTop = await outer.evaluate((element) => element.scrollTop);
 		const monitor = await startTimelineFrameMonitor(page);
 		await row(page, 'First harvest')
 			.getByTestId('task-status')
@@ -141,9 +159,9 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			});
 		const label = page.getByTestId('gantt-label').filter({ hasText: /^First harvest$/ });
 		await expect(label).toBeInViewport({ ratio: 1 });
-		await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+		await expect.poll(() => outer.evaluate((element) => element.scrollTop)).toBe(scrollTop);
 		const frames = await monitor.finish();
-		expect(frames.every((frame) => Math.abs(frame.scrollY - scrollY) <= 1)).toBe(true);
+		expect(frames.every((frame) => Math.abs(frame.paneScroll - scrollTop) <= 1)).toBe(true);
 		// Both scroll containers must reveal the row without an overshoot and return.
 		for (const key of ['bodyScroll', 'chartScroll'] as const) {
 			const first = frames[0][key];
@@ -172,9 +190,8 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 				})
 			)
 			.toBe(true);
-		await expect(pin).toBeInViewport();
-		await pin.click();
-		await expect(pin).toHaveAttribute('aria-pressed', 'false');
+		await expect(chevron).toBeInViewport();
+		await expect(page.getByTestId('gantt-pin')).toBeHidden();
 	});
 }
 
@@ -221,7 +238,7 @@ function expectHeightAnimation(frames: TimelineFrames) {
 		const previous = frames[i];
 		const panelChange = frame.panel - previous.panel;
 		expect(direction * panelChange).toBeGreaterThanOrEqual(-1);
-		// ResizeObserver can update the slot after this frame's geometry read.
+		// The section follows the animated panel height.
 		expect(frame.slot).toBeGreaterThanOrEqual(Math.min(previous.panel, frame.panel) - 1);
 		expect(frame.slot).toBeLessThanOrEqual(Math.max(previous.panel, frame.panel) + 1);
 		expect(Math.abs(frame.slotTop - first.slotTop)).toBeLessThanOrEqual(1);
@@ -245,10 +262,7 @@ function expectHeightAnimation(frames: TimelineFrames) {
 	expect(Math.abs(last.slot - last.panel)).toBeLessThanOrEqual(1);
 }
 
-/**
- * Clicks at the element position. Locator clicks scroll the target out of the root scroll padding first.
- * That scroll would move the slot below the header, so the section would not become fixed.
- */
+/** Clicks without changing the pane scroll position first. */
 async function clickInPlace(page: Page, target: Locator) {
 	const box = (await target.boundingBox())!;
 	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -259,22 +273,22 @@ async function checkPinAnimations(page: Page) {
 	const panel = page.getByTestId('timeline-panel');
 	// The chart rows animate in after load. Start from the final natural height.
 	await settledPanelHeight(page);
-	// Start at a scroll position where the panel becomes fixed when pinned.
+	// Start with the Timeline at the top of the Plan pane.
 	await panel.evaluate((element) => {
-		const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-		window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - header.bottom + 4);
+		const pane = document.querySelector<HTMLElement>('#plan-pane')!;
+		pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top;
 	});
 	const pinMonitor = await startTimelineFrameMonitor(page);
 	await clickInPlace(page, pin);
 	await expectPanelHeight(page, defaultPanelHeight(page));
 	const pinFrames = await pinMonitor.finish();
-	expect(pinFrames.some((frame) => frame.fixed)).toBe(true);
+	expect(pinFrames.some((frame) => frame.pinned)).toBe(true);
 	expectHeightAnimation(pinFrames);
 	const unpinMonitor = await startTimelineFrameMonitor(page);
 	await clickInPlace(page, pin);
 	await expect(pin).toHaveAttribute('aria-pressed', 'false');
 	const unpinFrames = await unpinMonitor.finish();
-	expect(unpinFrames.at(-1)!.fixed).toBe(false);
+	expect(unpinFrames.at(-1)!.pinned).toBe(false);
 	expectHeightAnimation(unpinFrames);
 }
 
@@ -348,7 +362,7 @@ test('pinning does not change Preview pagination or printed sheets', async ({ pa
 });
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
-	test(`keyboard focus below the pinned Timeline section stays visible (${reducedMotion})`, async ({
+	test(`keyboard focus in the Plan pane below the pinned Timeline stays visible (${reducedMotion})`, async ({
 		page
 	}) => {
 		await page.emulateMedia({ reducedMotion });
@@ -357,14 +371,15 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		await expectPanelHeight(page, defaultPanelHeight(page));
 		const panel = page.getByTestId('timeline-panel');
 		await expectStickyBelowHeader(panel);
-		const target = row(page, 'First harvest').getByTestId('task-status');
+		const target = page.getByTestId('overview-stage-title').first();
 		await target.evaluate((element) => {
 			const panel = document
 				.querySelector('[data-testid="timeline-panel"]')!
 				.getBoundingClientRect();
 			const bounds = element.getBoundingClientRect();
 			// Cover the target with the middle of the pinned section, away from its edges.
-			window.scrollBy(0, bounds.top - (panel.top + panel.height / 2));
+			const pane = document.querySelector<HTMLElement>('#plan-pane')!;
+			pane.scrollTop += bounds.top - (panel.top + panel.height / 2);
 		});
 		await expect
 			.poll(() =>
@@ -501,17 +516,21 @@ test('pinned resize buttons change height by ten percent and keep it after reloa
 });
 
 // 667 px: the stored fraction times the viewport is not exactly the minimum.
-for (const viewport of [900, 667, 220]) {
-	test(`pinned resize buttons stop and disable at both height limits (${viewport}px)`, async ({
+for (const { width, viewport, maxRatio } of [
+	{ width: 1280, viewport: 900, maxRatio: 0.5 },
+	{ width: 1280, viewport: 667, maxRatio: 0.5 },
+	{ width: 1280, viewport: 220, maxRatio: 0.5 }
+]) {
+	test(`pinned resize buttons stop and disable at both height limits (${width} × ${viewport}px)`, async ({
 		page
 	}) => {
-		await page.setViewportSize({ width: 1280, height: viewport });
+		await page.setViewportSize({ width, height: viewport });
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await openExample(page);
 		await page.getByTestId('gantt-pin').click();
 		await expect(shorter(page)).toBeVisible();
 		await expect(taller(page)).toBeVisible();
-		const max = viewport * GANTT_HEIGHT.max;
+		const max = viewport * maxRatio;
 		const min = Math.min(GANTT_HEIGHT.minPx, max);
 		const step = viewport * 0.1;
 		let current = Math.min(max, Math.max(min, defaultPanelHeight(page)));
@@ -572,7 +591,7 @@ test('pinned resize buttons support Enter and Space', async ({ page }) => {
 	}
 });
 
-for (const width of [1280, 390]) {
+for (const width of [1280]) {
 	for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		test(`resize buttons appear only while pinned and keep Legends in position (${width}px, ${reducedMotion})`, async ({
 			page
@@ -670,17 +689,19 @@ test('resize buttons use the keyboard height transition', async ({ page }) => {
 	expect(Math.abs(button.progress - key.progress)).toBeLessThanOrEqual(0.15);
 });
 
-test('a resize during the pin animation does not scroll the page', async ({ page }) => {
+test('a resize during the pin animation does not jump the Plan pane', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await page.emulateMedia({ reducedMotion: 'no-preference' });
 	await openExample(page);
+	// Content below the Timeline keeps the scroll position in range when the section gets shorter.
+	await addWorkspaceOverflow(page);
 	const naturalHeight = await settledPanelHeight(page);
 	const pin = page.getByTestId('gantt-pin');
 	const panel = page.getByTestId('timeline-panel');
-	// Start at a scroll position where the panel becomes fixed when pinned.
+	// Start with the Timeline at the top of the Plan pane.
 	await panel.evaluate((element) => {
-		const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-		window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - header.bottom + 4);
+		const pane = document.querySelector<HTMLElement>('#plan-pane')!;
+		pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top;
 	});
 	const monitor = await startTimelineFrameMonitor(page);
 	await clickInPlace(page, pin);
@@ -697,14 +718,19 @@ test('a resize during the pin animation does not scroll the page', async ({ page
 			}),
 		naturalHeight
 	);
+	// Focus without the browser scroll-into-view. It can move a sticky section by 1 px.
+	// This test checks the resize, not the focus scroll.
+	await page.getByTestId('gantt-resize').evaluate((e) => e.focus({ preventScroll: true }));
 	await page.getByTestId('gantt-resize').press('PageUp');
 	const viewport = page.viewportSize()!.height;
 	await expectPanelHeight(page, defaultPanelHeight(page) - viewport * 0.1);
 	const frames = await monitor.finish();
-	const after = frames.filter((frame) => frame.fixed);
+	const after = frames.filter((frame) => frame.pinned);
 	expect(after.length).toBeGreaterThan(0);
-	expect(frames.at(-1)!.fixed).toBe(true);
-	expect(Math.max(...frames.map((frame) => Math.abs(frame.scrollY - frames[0].scrollY)))).toBe(0);
+	expect(frames.at(-1)!.pinned).toBe(true);
+	expect(
+		Math.max(...frames.map((frame) => Math.abs(frame.paneScroll - frames[0].paneScroll)))
+	).toBe(0);
 });
 
 test('unpinning a scrolled chart scrolls it back with the animation', async ({ page }) => {

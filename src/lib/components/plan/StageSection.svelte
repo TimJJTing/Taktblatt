@@ -86,7 +86,7 @@
 	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate band sticks instead.
 	// In forced-colors mode shadows are removed, so borders take over.
 	const headCell =
-		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
+		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -102,7 +102,7 @@
 </script>
 
 <section
-	class="group/stage @container scroll-mt-anchor"
+	class="group/stage @container"
 	aria-labelledby="stage-{stage.id}-title"
 	data-testid="stage"
 	data-stage-id={stage.id}
@@ -111,7 +111,7 @@
 >
 	<header
 		bind:offsetHeight={headerHeight}
-		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-25 flex flex-wrap items-center gap-x-2 gap-y-1 bg-background pb-2"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px))] z-25 flex flex-wrap items-center gap-x-2 gap-y-1 bg-background pb-2"
 	>
 		<!-- Not a <button>: svelte-dnd-action ignores keyboard drag on elements with a "disabled" property. -->
 		<div
@@ -190,14 +190,18 @@
 	<div
 		aria-hidden="true"
 		data-testid="stage-band"
-		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px)+var(--stage-header-h))] z-20 h-0.5 @min-[640px]:hidden"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-0.5 @min-[640px]:hidden"
 		style="background: {stageColorVar(stage.color)}"
 	></div>
 	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
 		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
-		so the header cells can stick below the stage header. -->
-	<div class="relative @max-[640px]:overflow-x-auto">
+		so the header cells can stick below the stage header.
+		The wrapper scrolls only sideways. The bottom padding holds the "+" line, and the negative
+		margin keeps the layout. A vertical wheel or swipe on the table scrolls the group. -->
+	<div
+		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
+	>
 		<table
 			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:2px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
 			aria-label={stageName}
@@ -309,7 +313,7 @@
 />
 
 <style>
-	/* The root scroll padding clears the app header and pinned Timeline section. */
+	/* The scroller padding clears the pinned Timeline section. */
 	table :global(:is(button, input, textarea, [tabindex])) {
 		scroll-margin-top: calc(var(--stage-header-h) + var(--stage-sticky-columns-h));
 	}

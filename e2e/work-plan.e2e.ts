@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
 	GANTT_HEIGHT,
+	addWorkspaceOverflow,
 	defaultPanelHeight,
 	expectPanelHeight,
 	expectStickyStageStack,
@@ -13,6 +14,8 @@ import {
 	titles,
 	waitForAnimations,
 	setTaskStatus,
+	selectTab,
+	groupScroller,
 	writeStoredPlan
 } from './helpers.ts';
 
@@ -326,30 +329,33 @@ test.describe('work plan', () => {
 		await expect(page.getByTestId('stage')).toHaveCount(3);
 	});
 
-	test('the stage color picker does not scroll the page', async ({ page }) => {
+	test('the stage color picker does not scroll the Work plan region', async ({ page }) => {
 		await page.setViewportSize({ width: 1000, height: 500 });
 		await openExample(page);
+		await selectTab(page, 'Work plan');
 		for (let i = 0; i < 3; i++) await page.getByTestId('add-stage').click();
 		const swatch = stage(page, 5).getByTestId('stage-color');
 		await swatch.scrollIntoViewIfNeeded();
 		// Put the swatch near the bottom edge, so the popover opens below the fold.
-		await page.evaluate(() => window.scrollBy(0, 80));
-		const monitor = await page.evaluateHandle(() => {
-			const baseline = window.scrollY;
+		const scroller = await groupScroller(page, 'work-plan');
+		await scroller.evaluate((element) => (element.scrollTop += 80));
+		const monitor = await scroller.evaluateHandle((element) => {
+			const baseline = element.scrollTop;
 			const positions = [baseline];
-			const record = () => positions.push(window.scrollY);
+			const record = () => positions.push(element.scrollTop);
 			let frame: number;
 			const sample = () => {
 				record();
 				frame = requestAnimationFrame(sample);
 			};
-			window.addEventListener('scroll', record);
+			element.addEventListener('scroll', record);
 			frame = requestAnimationFrame(sample);
 			return {
 				baseline,
 				positions,
+				element,
 				stop() {
-					window.removeEventListener('scroll', record);
+					element.removeEventListener('scroll', record);
 					cancelAnimationFrame(frame);
 				}
 			};
@@ -361,10 +367,10 @@ test.describe('work plan', () => {
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
 					})
 			);
-			const state = await monitor.evaluate(({ baseline, positions }) => ({
+			const state = await monitor.evaluate(({ baseline, positions, element }) => ({
 				baseline,
 				positions,
-				current: window.scrollY
+				current: element.scrollTop
 			}));
 			expect(state.positions.filter((position) => position !== state.baseline)).toEqual([]);
 			expect(state.current).toBe(state.baseline);
@@ -390,17 +396,20 @@ test.describe('work plan', () => {
 		}
 	});
 
-	test('a stage keeps its title and colored column header below the app header while scrolling', async ({
+	test('a stage keeps its title and colored column header at the top of its region while scrolling', async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 1000, height: 400 });
 		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await selectTab(page, 'Work plan');
 		await expectStickyStageStack(stage(page, 0));
 	});
 
 	test('on a narrow screen the header cells stay in the table', async ({ page }) => {
 		await page.setViewportSize({ width: 600, height: 400 });
 		await openExample(page);
+		await selectTab(page, 'Work plan');
 		const section = stage(page, 0);
 		// Measure both in one call, so a layout change cannot fall between two measurements.
 		await expect
@@ -418,6 +427,8 @@ test.describe('work plan', () => {
 	}) => {
 		await page.setViewportSize({ width: 600, height: 400 });
 		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await selectTab(page, 'Work plan');
 		const section = stage(page, 0);
 		await expectStickyStageStack(section);
 		await section.locator('table').evaluate((table) => (table.parentElement!.scrollLeft = 100));
@@ -432,7 +443,8 @@ test.describe('work plan', () => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
-			await page.getByTestId('gantt-pin').click();
+			await addWorkspaceOverflow(page);
+			await selectTab(page, 'Work plan');
 			await page.getByTestId('gantt-resize').press('Home');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx);
 			await expectStickyStageStack(stage(page, 0));
@@ -447,25 +459,22 @@ test.describe('work plan', () => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
-			await page.getByTestId('gantt-pin').click();
+			await addWorkspaceOverflow(page);
+			await selectTab(page, 'Work plan');
 			await expectPanelHeight(page, defaultPanelHeight(page));
 			const first = stage(page, 0);
 			await expectStickyStageStack(first);
 			for (const remaining of [0.75, 0.5, 0.25]) {
 				await first.evaluate(async (element, fraction) => {
-					const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+					const scroller = document.querySelector<HTMLElement>(
+						'[data-testid="workspace-content"]'
+					)!;
 					const panel = document
 						.querySelector('[data-testid="timeline-panel"]')!
 						.getBoundingClientRect();
 					const header = element.querySelector(':scope > header')!.getBoundingClientRect();
-					window.scrollTo(
-						0,
-						window.scrollY +
-							element.getBoundingClientRect().bottom -
-							app.bottom -
-							panel.height -
-							header.height * fraction
-					);
+					scroller.scrollTop +=
+						element.getBoundingClientRect().bottom - panel.bottom - header.height * fraction;
 					await new Promise(requestAnimationFrame);
 				}, remaining);
 				// Read overlap and the painted target together while the stage header leaves its scope.
@@ -497,6 +506,8 @@ test.describe('work plan', () => {
 		await page.setViewportSize({ width: 1000, height: 700 });
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await selectTab(page, 'Work plan');
 		const first = stage(page, 0);
 		const header = first.locator(':scope > header');
 		const headerHeight = () => header.evaluate((element) => element.getBoundingClientRect().height);
@@ -543,6 +554,7 @@ test.describe('work plan', () => {
 			await page.setViewportSize({ width: 1280, height: 800 });
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
+			await addWorkspaceOverflow(page);
 			if (pinned) {
 				await page.getByTestId('gantt-pin').click();
 				await page.getByTestId('gantt-resize').press('Home');
@@ -551,18 +563,14 @@ test.describe('work plan', () => {
 			const first = stage(page, 0);
 			const checkbox = first.getByTestId('task-status').first();
 			await checkbox.evaluate(async (element) => {
-				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				const pinnedHeight =
-					parseFloat(
-						getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
-					) || 0;
+				const scroller = document.querySelector<HTMLElement>('#work-pane')!;
 				const header = element
 					.closest('[data-testid="stage"]')!
 					.querySelector(':scope > header')!
 					.getBoundingClientRect();
 				const bounds = element.getBoundingClientRect();
-				const center = app.bottom + pinnedHeight + header.height / 2;
-				window.scrollTo(0, window.scrollY + bounds.top + bounds.height / 2 - center);
+				const center = scroller.getBoundingClientRect().top + header.height / 2;
+				scroller.scrollTop += bounds.top + bounds.height / 2 - center;
 				await new Promise(requestAnimationFrame);
 			});
 			await focusPreviousControl(checkbox);

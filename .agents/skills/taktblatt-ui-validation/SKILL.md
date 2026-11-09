@@ -21,7 +21,7 @@ Before final E2E validation, stop the preview server you started and ensure port
 
 ## Workspace and interaction
 
-Reproduce the changed behavior with representative plan data. Check the affected layout at desktop and narrow widths. Include empty, long, or overflowing content when it exercises the change.
+Reproduce the changed behavior with representative plan data. Check the affected layout in split view (1024 px or wider) and with tabs (below 1024 px). With tabs, check both tabs and the collapsed Timeline. Include empty, long, or overflowing content when it exercises the change.
 
 For changed controls, check accessible names, keyboard activation, focus placement, and focus return after dismissal. For position changes, check normal motion and reduced motion. Check affected translated labels and theme variants when their length or colors can alter the result.
 
@@ -32,6 +32,8 @@ Use these rules when writing or running interaction checks:
 - Wait for focus and animation completion before asserting popover state.
 - Read related animated geometry in one snapshot and retry the assertions together.
 - In scroll tests, observe the full interaction, including temporary jumps.
+- The page does not scroll. Scroll the pane or group region (`workspace-content`, `plan-pane`, `work-pane`), not the window.
+- Read geometry after the animation of a resize or collapse ends, for example with `waitForAnimations`.
 
 ## App Preview dialog
 

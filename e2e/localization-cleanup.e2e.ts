@@ -120,7 +120,7 @@ for (const [locale, separator] of [
 		expect(amberName).toContain(separator);
 		if (locale === 'zh-TW') expect(amberName).not.toContain('・');
 		await page.keyboard.press('Escape');
-		await expect(page.locator('footer span[aria-hidden="true"]')).toHaveText([
+		await expect(page.locator('#header [role="group"] span[aria-hidden="true"]')).toHaveText([
 			separator,
 			separator
 		]);

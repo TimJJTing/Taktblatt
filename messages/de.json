@@ -1,4 +1,7 @@
 {
+	"workspace_overview": "Übersicht",
+	"timeline_collapse": "Zeitachse einklappen",
+	"timeline_expand": "Zeitachse ausklappen",
 	"dependency_candidate_cycle": "Erzeugt einen Abhängigkeitszyklus.",
 	"dependency_candidate_date": "Beginnt nach dem Ende dieser Aufgabe.",
 	"dependency_warning_cycle": "Diese Abhängigkeit ist Teil eines Zyklus.",
@@ -126,7 +129,6 @@
 	"section_timeline": "Zeitachse",
 	"section_stage_overview": "Phasenübersicht",
 	"section_remarks": "Anmerkungen",
-	"section_navigation": "Planabschnitte",
 	"field_heading": "Überschrift",
 	"field_subheading": "Unterüberschrift",
 	"field_plan_range": "Planzeitraum",
@@ -287,5 +289,10 @@
 	"dependency_warning_subtask_scope": "Eine Teilaufgabe kann nur von Aufgaben mit derselben übergeordneten Aufgabe abhängen.",
 	"dependency_subtask_help": "Um eine Abhängigkeit zu einer anderen Aufgabe hinzuzufügen, machen Sie diese Teilaufgabe zu einer Aufgabe oder verschieben Sie sie unter dieselbe übergeordnete Aufgabe.",
 	"date_subtask_floor": "Die Daten müssen die Daten der Teilaufgaben einschließen: {range}.",
-	"date_subtask_span": "Teilaufgaben: {range}"
+	"date_subtask_span": "Teilaufgaben: {range}",
+	"resize_panes": "Bereiche skalieren",
+	"workspace_view": "Arbeitsbereichansicht",
+	"workspace_plan": "Plan",
+	"sheet_footer": "Blattfußzeile",
+	"sheet_footer_hint": "Wird am Ende jedes Blatts gedruckt."
 }

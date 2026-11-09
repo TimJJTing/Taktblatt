@@ -1,4 +1,7 @@
 {
+	"workspace_overview": "總覽",
+	"timeline_collapse": "收合時間軸",
+	"timeline_expand": "展開時間軸",
 	"dependency_candidate_cycle": "會形成相依循環。",
 	"dependency_candidate_date": "開始日期晚於此任務的結束日期。",
 	"dependency_warning_cycle": "此相依關係是循環的一部分。",
@@ -126,7 +129,6 @@
 	"section_timeline": "時間軸",
 	"section_stage_overview": "階段總覽",
 	"section_remarks": "備註",
-	"section_navigation": "計畫區段",
 	"field_heading": "標題",
 	"field_subheading": "副標題",
 	"field_plan_range": "計畫日期範圍",
@@ -287,5 +289,10 @@
 	"dependency_warning_subtask_scope": "子任務只能依賴同一父任務下的任務。",
 	"dependency_subtask_help": "若要依賴其他任務，請將此子任務改為任務，或移至同一父任務下。",
 	"date_subtask_floor": "日期範圍必須包含子任務的日期：{range}。",
-	"date_subtask_span": "子任務：{range}"
+	"date_subtask_span": "子任務：{range}",
+	"resize_panes": "調整窗格大小",
+	"workspace_view": "工作區檢視",
+	"workspace_plan": "計畫",
+	"sheet_footer": "頁尾",
+	"sheet_footer_hint": "列印在每張紙的底部。"
 }

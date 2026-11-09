@@ -1,8 +1,9 @@
 <!--
-	The plan footer: note, version and date on the left. A note and the page number on the right.
+	The plan footer: note, version and date on the left. A note on the right.
 	The plan stores each field one time. The date comes from the user.
 -->
 <script lang="ts">
+	import Hint from '#lib/components/app/Hint.svelte';
 	import DateField from '#lib/components/edit/DateField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
@@ -17,8 +18,19 @@
 	const dateText = $derived(footer.date ? formatDate(footer.date, uiIntl()) : '');
 </script>
 
-<footer class="mx-auto max-w-6xl px-4 pl-8 text-xs text-muted-foreground">
-	<div class="flex items-baseline justify-between gap-4 border-t py-3">
+<div
+	role="group"
+	aria-label={m.sheet_footer()}
+	class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2 text-xs text-muted-foreground"
+>
+	<Hint text={m.sheet_footer_hint()}>
+		{#snippet child({ props })}
+			<span {...props} class="text-xs font-semibold tracking-wide uppercase"
+				>{m.sheet_footer()}</span
+			>
+		{/snippet}
+	</Hint>
+	<div class="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
 		<div class="flex min-w-0 flex-wrap items-baseline gap-x-1">
 			<InlineText
 				value={footer.note}
@@ -58,7 +70,7 @@
 				{/snippet}
 			</DateField>
 		</div>
-		<div class="flex min-w-0 items-baseline gap-2">
+		<div class="ml-auto flex min-w-0 items-baseline gap-2">
 			<InlineText
 				value={footer.right}
 				label={m.footer_right()}
@@ -67,8 +79,6 @@
 				onCommit={(right) => updateFooter(ws, { right })}
 				testId="footer-right"
 			/>
-			<!-- The page number "n / N" shows on the sheets only (spec section 7). The workspace slot stays empty. -->
-			<span data-page-number></span>
 		</div>
 	</div>
-</footer>
+</div>

@@ -1,9 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, openSettings } from './helpers.ts';
 
-test('the app shell shows the app name', async ({ page }) => {
+test('the split header shows the app name and actions without section navigation', async ({
+	page
+}) => {
 	await page.goto('/');
-	await expect(page.getByRole('banner')).toContainText('Taktblatt');
+	const header = page.getByRole('banner');
+	await expect(header).toContainText('Taktblatt');
+	await expect(header.getByRole('navigation', { name: 'Plan sections' })).toHaveCount(0);
+	await expect(
+		header.locator(
+			'a[href="#timeline"], a[href="#header"], a[href="#stage-overview"], a[href="#work-plan"], a[href="#remarks"]'
+		)
+	).toHaveCount(0);
+	await expect(header.getByRole('tablist', { name: 'Workspace view' })).toBeHidden();
+	await expect(page.getByTestId('preview-open')).toBeVisible();
+	await expect(page.getByTestId('plan-switcher')).toBeVisible();
 });
 
 test('one Settings menu contains the theme and language choices', async ({ page }) => {

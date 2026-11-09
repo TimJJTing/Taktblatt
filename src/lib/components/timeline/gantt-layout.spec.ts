@@ -42,4 +42,10 @@ describe('gantt-layout', () => {
 		expect(pinnedHeight(0.35, 1000)).toBe(350);
 		expect(pinnedHeight(0.8, 1000)).toBe(500);
 	});
+
+	it('limits the pinned Timeline to 40 percent of the viewport with tabs', () => {
+		expect(heightLimits(1000, false)).toEqual({ min: 120, max: 400 });
+		expect(heightLimits(200, false)).toEqual({ min: 80, max: 80 });
+		expect(pinnedHeight(0.5, 1000, false)).toBe(400);
+	});
 });

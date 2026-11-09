@@ -7,12 +7,16 @@ import { getContext, setContext } from 'svelte';
 import * as v from 'valibot';
 import { KEYS } from '#lib/state/storage.ts';
 
-export const GANTT_HEIGHT = { default: 0.35, max: 0.5, minPx: 120 } as const;
+export const GANTT_HEIGHT = { default: 0.35, max: 0.5, narrowMax: 0.4, minPx: 120 } as const;
 
 const ViewerSchema = v.object({
+	splitRatio: v.fallback(v.pipe(v.number(), v.minValue(0), v.maxValue(1)), 0.5),
+	narrowTab: v.fallback(v.picklist(['plan', 'work-plan']), 'plan'),
 	expanded: v.optional(v.record(v.string(), v.array(v.string())), {}),
 	ganttPinned: v.optional(v.boolean(), false),
+	timelineCollapsed: v.fallback(v.boolean(), false),
 	timelineLegendsCollapsed: v.optional(v.boolean()),
+	narrowLegendsCollapsed: v.fallback(v.boolean(), true),
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
 		GANTT_HEIGHT.default
@@ -25,7 +29,13 @@ export class ViewerState {
 	/** The expanded task ids, for each plan. The Gantt and the table share them. */
 	expanded = $state<Record<string, string[]>>({});
 	ganttPinned = $state(false);
+	splitRatio = $state(0.5);
+	narrowTab = $state<'plan' | 'work-plan'>('plan');
+	timelineCollapsed = $state(false);
+	/** The legend state in split view. */
 	timelineLegendsCollapsed = $state(false);
+	/** The legend state with tabs. The pinned Timeline is short there, so the legends start collapsed. */
+	narrowLegendsCollapsed = $state(true);
 	/** The pinned Timeline section height, as a fraction of the viewport height. */
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
 
@@ -40,16 +50,24 @@ export class ViewerState {
 			// Viewer state is not important. Use the defaults.
 		}
 		this.expanded = data.expanded;
+		this.splitRatio = data.splitRatio;
+		this.narrowTab = data.narrowTab;
 		this.ganttPinned = data.ganttPinned;
+		this.timelineCollapsed = data.timelineCollapsed;
 		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed ?? data.ganttPinned;
+		this.narrowLegendsCollapsed = data.narrowLegendsCollapsed;
 		this.ganttHeight = data.ganttHeight;
 	}
 
 	private save(): void {
 		const data: ViewerData = {
 			expanded: $state.snapshot(this.expanded),
+			splitRatio: this.splitRatio,
+			narrowTab: this.narrowTab,
 			ganttPinned: this.ganttPinned,
+			timelineCollapsed: this.timelineCollapsed,
 			timelineLegendsCollapsed: this.timelineLegendsCollapsed,
+			narrowLegendsCollapsed: this.narrowLegendsCollapsed,
 			ganttHeight: this.ganttHeight
 		};
 		this.storage.setItem(KEYS.viewer, JSON.stringify(data));
@@ -74,13 +92,34 @@ export class ViewerState {
 		this.setExpanded(planId, taskId, !this.isExpanded(planId, taskId));
 	}
 
+	setSplitRatio(value: number): void {
+		if (!Number.isFinite(value)) return;
+		this.splitRatio = Math.min(1, Math.max(0, value));
+		this.save();
+	}
+
+	setNarrowTab(value: 'plan' | 'work-plan'): void {
+		this.narrowTab = value;
+		this.save();
+	}
+
 	setGanttPinned(value: boolean): void {
 		this.ganttPinned = value;
 		this.save();
 	}
 
+	setTimelineCollapsed(value: boolean): void {
+		this.timelineCollapsed = value;
+		this.save();
+	}
+
 	setTimelineLegendsCollapsed(value: boolean): void {
 		this.timelineLegendsCollapsed = value;
+		this.save();
+	}
+
+	setNarrowLegendsCollapsed(value: boolean): void {
+		this.narrowLegendsCollapsed = value;
 		this.save();
 	}
 
