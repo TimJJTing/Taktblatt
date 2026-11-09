@@ -11,6 +11,7 @@
 	} from './app-layout.svelte.ts';
 	import AppHeader from './AppHeader.svelte';
 	import WorkspaceTabs from './WorkspaceTabs.svelte';
+	import { nextIslandScroll } from './island-scroll.ts';
 
 	let { plan, work }: { plan: Snippet; work: Snippet } = $props();
 	const viewer = getViewer();
@@ -85,20 +86,30 @@
 		};
 		const scroll = () => {
 			const max = content.scrollHeight - content.clientHeight;
-			// Clamp the overscroll offsets, so the rebound at an edge is not a scroll.
-			const top = Math.min(Math.max(content.scrollTop, 0), Math.max(max, 0));
-			const delta = top - last;
-			last = top;
-			if (motionDuration(1) === 0 || max <= 0) {
-				workspaceTabs.compact = 0;
-				return;
-			}
-			if (!(touching && touchMoved) && !scrollbar && performance.now() > inputUntil) return;
-			workspaceTabs.compact =
-				top <= 0 ? 0 : Math.min(1, Math.max(0, workspaceTabs.compact + delta / 48));
+			const input = (touching && touchMoved) || scrollbar || performance.now() <= inputUntil;
+			const next = nextIslandScroll(
+				{ last, compact: workspaceTabs.compact },
+				content.scrollTop,
+				max,
+				input
+			);
+			last = next.last;
+			workspaceTabs.compact = motionDuration(1) === 0 ? 0 : next.compact;
+		};
+		let observing = true;
+		const resetIfShort = () => {
+			if (content.scrollHeight <= content.clientHeight) workspaceTabs.compact = 0;
 		};
 		const resize = new ResizeObserver(() => {
-			if (content.scrollHeight <= content.clientHeight) workspaceTabs.compact = 0;
+			resetIfShort();
+			// A FLIP can keep overflow after the group's layout size has decreased.
+			const animations = content
+				.getAnimations({ subtree: true })
+				.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+			if (animations.length)
+				void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
+					if (observing) resetIfShort();
+				});
 		});
 		resize.observe(content);
 		for (const group of content.querySelectorAll('#work-pane, #remarks')) resize.observe(group);
@@ -113,6 +124,7 @@
 		window.addEventListener('pointerup', pointerUp);
 		window.addEventListener('pointercancel', pointerUp);
 		return () => {
+			observing = false;
 			resize.disconnect();
 			content.removeEventListener('scroll', scroll);
 			content.removeEventListener('wheel', wheel);

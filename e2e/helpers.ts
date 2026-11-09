@@ -386,6 +386,79 @@ export const stage = (page: Page, index: number) => page.getByTestId('stage').nt
 export const workspaceContent = (page: Page) => page.getByTestId('workspace-content');
 export const workspaceTabs = (page: Page) => page.getByTestId('workspace-tabs');
 
+/** Samples workspace motion before input. Each frame contains all related geometry. */
+export async function startWorkspaceFrameMonitor(page: Page) {
+	const monitor = await page.evaluateHandle(() => {
+		const read = () => {
+			const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+			const bounds = (selector: string) => {
+				const element = document.querySelector<HTMLElement>(selector)!;
+				const box = element.getBoundingClientRect();
+				return {
+					x: box.x,
+					y: box.y,
+					width: box.width,
+					opacity: Number(getComputedStyle(element).opacity),
+					visible: element.getClientRects().length > 0
+				};
+			};
+			return {
+				left: bounds('#plan-pane'),
+				right: bounds('#work-pane'),
+				divider: bounds('[data-testid="split-resize"]'),
+				indicator: bounds('[data-testid="workspace-tab-indicator"]'),
+				selected: bounds('[role="tab"][aria-selected="true"]'),
+				groups: ['#header', '#stage-overview', '#remarks', '#work-pane'].map(bounds),
+				tab: content.dataset.tab,
+				scroll: content.scrollTop,
+				max: content.scrollHeight - content.clientHeight
+			};
+		};
+		const state = { frames: [read()], stopped: false, done: false, until: Infinity };
+		const sample = () => {
+			state.frames.push(read());
+			if (!state.stopped || performance.now() < state.until) requestAnimationFrame(sample);
+			else state.done = true;
+		};
+		requestAnimationFrame(sample);
+		return state;
+	});
+	return {
+		async finish() {
+			const frames = await monitor.evaluate(async (state) => {
+				state.stopped = true;
+				state.until = performance.now() + 400;
+				while (!state.done) await new Promise(requestAnimationFrame);
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
+
+/** Changes the active plan in a second browser tab without remounting the first. */
+export async function changePlanInOtherTab(
+	page: Page,
+	change: (plan: StoredPlan) => void
+): Promise<void> {
+	const plan = await storedPlan(page);
+	change(plan);
+	const other = await page.context().newPage();
+	try {
+		await openApp(other);
+		await other.evaluate((next) => {
+			const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+			const key = `taktblatt:plan:${index.activeId}`;
+			const data = JSON.parse(localStorage.getItem(key)!);
+			data.plan = next;
+			localStorage.setItem(key, JSON.stringify(data));
+		}, plan);
+	} finally {
+		await other.close();
+	}
+}
+
 /** Waits for browser frames without changing focus or scroll position. */
 export async function waitForFrames(page: Page, count = 6): Promise<void> {
 	await page.evaluate(async (frames) => {
