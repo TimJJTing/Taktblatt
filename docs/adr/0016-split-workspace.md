@@ -28,3 +28,5 @@ The workspace copied the printed sheet: one long page, with the footer fields at
 - Code that used the window scroll (anchor offsets, label jumps, sticky offsets, focus offset) uses the scroll region of its group.
 - Stage overview and Remarks use container widths for their columns.
 - The pinned Timeline must not be created again when the layout or the pin changes, so the chart keeps its scroll position.
+- A pure function calculates the island size from user scroll distance. It clamps both offsets to the scroll range, so overscroll and rebound do not count as scroll distance. The workspace shell tracks user input and applies reduced motion.
+- The workspace checks the scroll range after a group resizes and after its finite animations finish. A FLIP can keep overflow until the animation ends, after the group's layout size has decreased.
