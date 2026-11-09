@@ -8,10 +8,10 @@ The workspace has limits that the schema does not have, for example the length o
 
 There are two kinds of file. Each file has a `schemaVersion` and a `kind`.
 
-| `kind`   | Content              | Menu command         |
-| -------- | -------------------- | -------------------- |
-| `plan`   | One plan in `plan`   | **Export this plan** |
-| `backup` | All plans in `plans` | **Export all plans** |
+| `kind`   | Content              | Menu command                         |
+| -------- | -------------------- | ------------------------------------ |
+| `plan`   | One plan in `plan`   | **Menu → Export → Export this plan** |
+| `backup` | All plans in `plans` | **Menu → Export → Export all plans** |
 
 The current `schemaVersion` is `1`.
 

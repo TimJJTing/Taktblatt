@@ -4,7 +4,7 @@ import {
 	formatted,
 	openApp,
 	openExample,
-	openSettings,
+	openMenu,
 	row,
 	stage,
 	storedPlan,
@@ -233,7 +233,7 @@ test('legend dates use the UI language, whatever an old file says', async ({ pag
 test('the dates follow the UI language when it changes', async ({ page }) => {
 	await openExample(page);
 	const milestone = (await storedPlan(page)).milestones[0];
-	await openSettings(page);
+	await openMenu(page);
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 	// The plan has history, so the app asks before it reloads.
 	await page.getByTestId('language-reload-confirm').click();

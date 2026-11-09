@@ -1,13 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
+	choosePrint,
 	dependencyArrowFades,
 	dependencyContrast,
 	formatted,
 	openApp,
 	openExample,
+	openMenu,
+	openMenuWithKeyboard,
 	openPreview,
-	openSettings,
 	row,
 	storedPlan,
 	writeStoredPlan,
@@ -22,7 +24,7 @@ declare global {
 }
 
 const sheets = (page: Page) => page.getByTestId('sheet');
-const previewButton = (page: Page) => page.getByTestId('preview-open');
+const menuButton = (page: Page) => page.getByTestId('app-menu');
 
 test('Preview and printed tables show four status icons and mute done and canceled rows', async ({
 	page
@@ -171,7 +173,7 @@ async function addManyTasks(page: Page, count: number) {
 	});
 }
 
-test('the preview opens as a dialog, Esc closes it, and the focus returns to the button', async ({
+test('the preview opens as a dialog, Esc closes it, and the focus returns to the menu button', async ({
 	page
 }) => {
 	await openExample(page);
@@ -180,7 +182,7 @@ test('the preview opens as a dialog, Esc closes it, and the focus returns to the
 	await expect(page.locator('[data-workspace]')).toHaveAttribute('inert', '');
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('preview')).toHaveCount(0);
-	await expect(previewButton(page)).toBeFocused();
+	await expect(menuButton(page)).toBeFocused();
 	await expect(page.locator('[data-workspace]')).not.toHaveAttribute('inert', '');
 });
 
@@ -516,7 +518,9 @@ for (const source of ['preview', 'direct'] as const) {
 	});
 }
 
-test('the Print button calls window.print', async ({ page }) => {
+test('Print in the menu opens the preview, and only the preview Print button calls window.print', async ({
+	page
+}) => {
 	await openExample(page);
 	await page.evaluate(() => {
 		window.__printed = 0;
@@ -525,10 +529,23 @@ test('the Print button calls window.print', async ({ page }) => {
 			window.__printed += 1;
 		};
 	});
-	await page.getByTestId('print').click();
-	await openPreview(page);
+	const preview = await openPreview(page);
+	await expect(preview).toBeFocused();
+	expect(await page.evaluate(() => window.__printed)).toBe(0);
 	await page.getByTestId('preview-print').click();
+	expect(await page.evaluate(() => window.__printed)).toBe(1);
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('ControlOrMeta+p');
 	expect(await page.evaluate(() => window.__printed)).toBe(2);
+});
+
+test('keyboard Print in the menu opens the preview', async ({ page }) => {
+	await openExample(page);
+	await openMenuWithKeyboard(page);
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(menuButton(page)).toBeFocused();
 });
 
 test('the print today line uses the footer date', async ({ page }) => {
@@ -569,12 +586,12 @@ test('the sheets of an English plan show German labels and dates in the German U
 }) => {
 	await openExample(page);
 	const plan = await storedPlan(page);
-	await openSettings(page);
+	await openMenu(page);
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 	// The plan has history, so the app asks before it reloads.
 	await page.getByTestId('language-reload-confirm').click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-	await previewButton(page).click();
+	await choosePrint(page);
 	await expect(sheets(page).first()).toBeVisible();
 	const first = sheets(page).first();
 	await expect(first).toContainText('Ziel:');
@@ -735,7 +752,7 @@ test('a print dialog that is cancelled leaves the plan on screen without an erro
 	page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
 	await openExample(page);
 	// No stub: the real print runs. Headless Chromium returns at once, like a cancel. The test sends `afterprint`.
-	await page.getByTestId('print').click();
+	await page.keyboard.press('ControlOrMeta+p');
 	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 	await expect(page.getByTestId('plan-heading')).toBeVisible();
 	await expect(page.getByRole('heading', { name: '500' })).toHaveCount(0);
@@ -752,15 +769,6 @@ async function recordSheetsAtPrint(page: Page) {
 		};
 	});
 }
-
-test('the sheets are in the page when the Print button opens the print dialog', async ({
-	page
-}) => {
-	await openExample(page);
-	await recordSheetsAtPrint(page);
-	await page.getByTestId('print').click();
-	expect((await page.evaluate(() => window.__printedSheets))[0]).toBeGreaterThan(0);
-});
 
 test('the sheets are in the page when Cmd/Ctrl+P opens the print dialog', async ({ page }) => {
 	await openExample(page);
@@ -791,11 +799,11 @@ test('the sheets go away at the next input when the print sends no end event', a
 	await page.evaluate(() => {
 		window.print = () => {};
 	});
-	await page.getByTestId('print').click();
+	await page.keyboard.press('ControlOrMeta+p');
 	await expect(sheets(page).first()).toBeAttached();
 	await page.getByTestId('plan-heading').click();
 	await expect(sheets(page)).toHaveCount(0);
-	await page.getByTestId('print').click();
+	await page.keyboard.press('ControlOrMeta+p');
 	await expect(sheets(page).first()).toBeAttached();
 	await page.keyboard.press('Shift');
 	await expect(sheets(page)).toHaveCount(0);

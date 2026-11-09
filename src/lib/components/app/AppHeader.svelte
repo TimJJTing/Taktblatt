@@ -1,20 +1,14 @@
 <script lang="ts">
-	import EyeIcon from '@lucide/svelte/icons/eye';
-	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { getPreview } from '#lib/state/preview.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
-	import ExportMenu from './ExportMenu.svelte';
+	import AppMenu from './AppMenu.svelte';
 	import Hint from './Hint.svelte';
-	import ImportButton from './ImportButton.svelte';
 	import PlanSwitcher from './PlanSwitcher.svelte';
-	import SettingsMenu from './SettingsMenu.svelte';
 
 	const ws = getWorkspace();
-	const preview = getPreview();
 	const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 	const mod = isMac ? '⌘' : 'Ctrl+';
 </script>
@@ -29,26 +23,6 @@
 		<PlanSwitcher />
 
 		<div class="ml-auto flex shrink-0 items-center gap-1">
-			<Button
-				variant="ghost"
-				size="sm"
-				class="max-sm:px-2"
-				onclick={(event) => preview.show(event.currentTarget)}
-				data-testid="preview-open"
-			>
-				<EyeIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_preview()}</span>
-			</Button>
-			<Button
-				variant="ghost"
-				size="sm"
-				class="max-sm:px-2"
-				onclick={() => preview.print()}
-				data-testid="print"
-			>
-				<PrinterIcon aria-hidden="true" /><span class="max-sm:sr-only">{m.action_print()}</span>
-			</Button>
-			<ImportButton />
-			<ExportMenu />
 			<Hint text={m.label_parenthetical({ name: m.action_undo(), qualifier: `${mod}Z` })}>
 				{#snippet child({ props })}
 					<Button
@@ -79,7 +53,7 @@
 					</Button>
 				{/snippet}
 			</Hint>
-			<SettingsMenu />
+			<AppMenu />
 		</div>
 	</div>
 </header>

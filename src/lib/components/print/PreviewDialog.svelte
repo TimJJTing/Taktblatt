@@ -1,6 +1,6 @@
 <!--
 	The preview: a read-only, full-screen view of the sheets. It has a paper size control and a Print button.
-	It is a modal dialog. Esc closes it. The focus goes back to the Preview button.
+	It is a modal dialog. Esc closes it. The focus goes back to the Menu button.
 	The preview has no motion. In print, only the sheets show.
 
 	This dialog is hand-made, not a bits-ui dialog. A bits-ui dialog is a portal with a focus trap.

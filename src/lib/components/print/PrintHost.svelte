@@ -1,7 +1,7 @@
 <!--
 	The print host. It owns the preview and prints the sheets.
-	Print (Cmd/Ctrl+P or the Print button) always prints the paginated sheets, never the workspace.
-	The Print button and Cmd/Ctrl+P render the sheets first (`PreviewState.print`). `beforeprint` is the
+	Print (Cmd/Ctrl+P or the Print button of the preview) always prints the paginated sheets, never the workspace.
+	The Print button of the preview and Cmd/Ctrl+P render the sheets first (`PreviewState.print`). `beforeprint` is the
 	fallback for other ways to print. The host removes the sheets on `afterprint`.
 	It sets the page size of the print: `@page { size: <paper>; margin: 0 }`.
 -->
