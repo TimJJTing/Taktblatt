@@ -8,6 +8,7 @@ import {
 	openApp,
 	openExample,
 	openMenu,
+	openMenuWithKeyboard,
 	openPreview,
 	row,
 	storedPlan,
@@ -540,8 +541,7 @@ test('Print in the menu opens the preview, and only the preview Print button cal
 
 test('keyboard Print in the menu opens the preview', async ({ page }) => {
 	await openExample(page);
-	await openMenu(page);
-	await page.getByTestId('menu-print').focus();
+	await openMenuWithKeyboard(page);
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeFocused();
 	await page.keyboard.press('Escape');

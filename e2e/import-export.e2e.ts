@@ -1,6 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { importJson, openApp, openExample, openMenu, planIds, row, storedPlan } from './helpers.ts';
+import {
+	importJson,
+	openApp,
+	openExample,
+	openMenu,
+	openMenuWithKeyboard,
+	planIds,
+	row,
+	storedPlan
+} from './helpers.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -228,19 +237,35 @@ test('Import in the menu opens the file chooser', async ({ page }) => {
 	await expect(page.getByRole('menu')).toHaveCount(0);
 });
 
-test('keyboard Import in the menu opens the file chooser', async ({ page }) => {
+test('keyboard Import opens the file chooser, and the focus returns to the menu button', async ({
+	page
+}) => {
 	await openApp(page);
 	const chooser = waitForFileChooser(page);
-	const menu = await openMenu(page);
-	await menu.getByTestId('menu-import').focus();
+	const menu = await openMenuWithKeyboard(page);
+	await page.keyboard.press('ArrowDown');
+	await expect(menu.getByTestId('menu-import')).toBeFocused();
 	await page.keyboard.press('Enter');
-	await chooser;
+	await (
+		await chooser
+	).setFiles({
+		name: 'plan.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from('this is not json')
+	});
+	const dialog = page.getByTestId('import-errors');
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await expect(page.getByTestId('app-menu')).toBeFocused();
 });
 
 test('keyboard Export opens the submenu and exports the plan', async ({ page }) => {
 	await openApp(page);
-	const menu = await openMenu(page);
-	await menu.getByTestId('menu-export').focus();
+	const menu = await openMenuWithKeyboard(page);
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await expect(menu.getByTestId('menu-export')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
 	await expect(page.getByTestId('menu-export-plan')).toBeFocused();
 	const pending = page.waitForEvent('download');

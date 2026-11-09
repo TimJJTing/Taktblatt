@@ -28,10 +28,10 @@ test('the header keeps Print, Import and Export in the menu', async ({ page }) =
 	await expect(trigger.locator('svg')).toHaveClass(/lucide-ellipsis/);
 	const menu = await openMenu(page);
 	await expect(menu.getByRole('menuitem')).toHaveText(['Print', 'Import', 'Export']);
+	await expect(menu.getByTestId('menu-print').locator('svg')).toHaveClass(/lucide-printer/);
 	await menu.getByTestId('menu-export').click();
 	await expect(page.getByTestId('menu-export-plan')).toHaveText('Export this plan');
 	await expect(page.getByTestId('menu-export-all')).toHaveText('Export all plans');
-	await expect(menu.getByTestId('menu-print').locator('svg')).toHaveClass(/lucide-printer/);
 });
 
 test('one menu contains the actions and the theme and language choices', async ({ page }) => {

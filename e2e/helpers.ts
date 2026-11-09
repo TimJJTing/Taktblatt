@@ -222,6 +222,21 @@ export async function openMenu(page: Page): Promise<Locator> {
 	return menu;
 }
 
+/**
+ * Opens the app menu with the keyboard and waits for its opening animation.
+ * The first item, Print, gets the focus.
+ */
+export async function openMenuWithKeyboard(page: Page): Promise<Locator> {
+	const trigger = page.getByTestId('app-menu');
+	await trigger.focus();
+	await page.keyboard.press('Enter');
+	const menu = page.getByRole('menu');
+	await expect(menu).toBeVisible();
+	await waitForAnimations(menu);
+	await expect(menu.getByTestId('menu-print')).toBeFocused();
+	return menu;
+}
+
 /** Waits until all finite animations of an element and its descendants finish. */
 export async function waitForAnimations(locator: Locator): Promise<void> {
 	await locator.evaluate(async (element) => {
