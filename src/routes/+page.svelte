@@ -42,7 +42,7 @@
 			return;
 		}
 		if (key === 'p' && !event.shiftKey) {
-			// The sheets render first. This follows the same path as the Print button.
+			// The sheets render first. This follows the same path as the Print button of the preview.
 			event.preventDefault();
 			if (!event.repeat) preview.print();
 			return;
