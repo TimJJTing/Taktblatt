@@ -7,7 +7,7 @@ import { getContext, setContext } from 'svelte';
 import * as v from 'valibot';
 import { KEYS } from '#lib/state/storage.ts';
 
-export const GANTT_HEIGHT = { default: 0.35, max: 0.5, minPx: 120 } as const;
+export const GANTT_HEIGHT = { default: 0.35, max: 0.5, narrowMax: 0.4, minPx: 120 } as const;
 
 const ViewerSchema = v.object({
 	splitRatio: v.fallback(v.pipe(v.number(), v.minValue(0), v.maxValue(1)), 0.5),

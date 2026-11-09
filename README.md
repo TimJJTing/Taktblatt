@@ -30,7 +30,7 @@ The **Sheet footer** row below the objective has a note, a version, a date and a
 - Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
-- Use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. With tabs, the section is always pinned. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
+- In split view, use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. With tabs, the section is always pinned: drag its divider to change the height, or tap the chevron to collapse it. Use the Legends button to show or hide Stages, Milestones and Bands together.
 
 ### Stage overview
 

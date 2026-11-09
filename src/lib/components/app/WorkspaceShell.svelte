@@ -130,11 +130,7 @@
 
 	function tabElements(tab: 'plan' | 'work-plan') {
 		return content.querySelectorAll<HTMLElement>(
-			tab === 'work-plan'
-				? '#work-pane'
-				: isTimelinePinned(viewer)
-					? '#header, #stage-overview, #remarks'
-					: '#header, #timeline, #stage-overview, #remarks'
+			tab === 'work-plan' ? '#work-pane' : '#header, #stage-overview, #remarks'
 		);
 	}
 
@@ -148,7 +144,8 @@
 		function update() {
 			const active = document.activeElement;
 			const focused = active && active !== document.body ? active : lastFocused;
-			if (workspaceLayout.split && !query.matches) {
+			const focusedTimeline = !!focused?.closest('#timeline');
+			if (workspaceLayout.split && !query.matches && !focusedTimeline) {
 				const group = focused?.closest('#work-pane, #plan-pane')?.id;
 				if (group) viewer.setNarrowTab(group === 'work-pane' ? 'work-plan' : 'plan');
 			}
@@ -158,8 +155,12 @@
 				if (focused instanceof HTMLElement && lost && !focused.checkVisibility()) {
 					if (focused.matches('.split-resize')) {
 						document.getElementById(`workspace-tab-${viewer.narrowTab}`)?.focus();
-					} else if (focused.matches('[data-testid="gantt-pin"]')) {
-						document.getElementById('timeline-collapse')?.focus();
+					} else if (focusedTimeline) {
+						content
+							.querySelector<HTMLElement>(
+								workspaceLayout.split ? '[data-testid="gantt-pin"]' : '#timeline-collapse'
+							)
+							?.focus();
 					} else if (focused.matches('#workspace-tab-plan, #workspace-tab-work-plan')) {
 						document.getElementById(focused.getAttribute('aria-controls')!)?.focus();
 					}
@@ -261,9 +262,7 @@
 	style:--split-columns="{ratio}fr 12px {1 - ratio}fr"
 	style:--split-duration="{duration}ms"
 	data-animate-split={duration > 0}
-	style:--gantt-pinned-h={!workspaceLayout.split && isTimelinePinned(viewer)
-		? `${pinnedTimeline.height}px`
-		: '0px'}
+	style:--gantt-pinned-h={!workspaceLayout.split ? `${pinnedTimeline.height}px` : '0px'}
 	style:--plan-pinned-h={isTimelinePinned(viewer) ? `${pinnedTimeline.height}px` : '0px'}
 	onfocusin={(event) => {
 		if (event.target instanceof HTMLElement) revealFocus(event.target);
@@ -378,9 +377,7 @@
 		@media (max-width: 1023.98px) {
 			.workspace-content[data-layout='tabs'] {
 				/* Full island: 40 px target and 4 px padding on each side. */
-				--tabs-bottom-space: calc(
-					var(--pane-padding) + 48px + 12px + env(safe-area-inset-bottom) + 16px
-				);
+				--tabs-bottom-space: calc(48px + 12px + env(safe-area-inset-bottom) + 16px);
 				padding-bottom: var(--tabs-bottom-space);
 				scroll-padding-bottom: var(--tabs-bottom-space);
 				display: flex;
@@ -434,12 +431,8 @@
 			.split-resize {
 				display: flex;
 			}
-			.workspace-content[data-tab='work-plan'] :global(#plan-pane > :not(#timeline)),
-			.workspace-content[data-tab='work-plan'][data-pinned='false'] :global(#timeline) {
+			.workspace-content[data-tab='work-plan'] :global(#plan-pane > :not(#timeline)) {
 				display: block;
-			}
-			.workspace-content[data-tab='work-plan'] :global(#timeline) {
-				margin-top: 40px;
 			}
 		}
 		@media (min-width: 1280px) {

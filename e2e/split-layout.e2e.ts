@@ -246,7 +246,10 @@ for (const viewport of [
 		await expect(page.locator('#header')).toBeHidden();
 		await expect(page.locator('#stage-overview')).toBeHidden();
 		await expect(page.locator('#remarks')).toBeHidden();
-		await expect(page.getByTestId('timeline-panel')).toBeVisible();
+		await expect(planPane(page)).not.toHaveRole('tabpanel');
+		await expect(page.getByTestId('timeline-panel')).toHaveAttribute('data-pinned', 'true');
+		await expect(page.getByRole('region', { name: 'Timeline', exact: true })).toBeVisible();
+		await expect(page.getByTestId('gantt-pin')).toBeHidden();
 		await expect(page.locator('#work-plan')).toBeVisible();
 		await page.reload();
 		await expect(work).toHaveAttribute('aria-selected', 'true');
@@ -344,15 +347,19 @@ for (const viewport of [
 			await workspaceContent(page).evaluate(
 				(content) => (content.scrollTop = content.scrollHeight)
 			);
+			await waitForFrames(page);
+			await waitForAnimations(workspaceContent(page));
+			await waitForAnimations(workspaceTabs(page));
 			await expect
 				.poll(() =>
 					workspaceContent(page).evaluate((content, tab) => {
 						const island = document.querySelector('[data-testid="workspace-tabs"]')!;
 						const last = content.querySelector(tab === 'Overview' ? '#remarks' : '#work-plan')!;
+						const gap = island.getBoundingClientRect().top - last.getBoundingClientRect().bottom;
 						return {
 							overflows: content.scrollHeight > content.clientHeight,
 							atEnd: Math.abs(content.scrollHeight - content.clientHeight - content.scrollTop) <= 1,
-							clear: last.getBoundingClientRect().bottom <= island.getBoundingClientRect().top - 16
+							clear: tab === 'Work plan' ? Math.abs(gap - 16) <= 1 : gap >= 16 - 1
 						};
 					}, name)
 				)
@@ -360,7 +367,7 @@ for (const viewport of [
 		}
 	});
 
-	test(`the bottom tab bar stays at the window edge while either group scrolls at ${viewport.width}px`, async ({
+	test(`the workspace island stays above the window edge while either group scrolls at ${viewport.width}px`, async ({
 		page
 	}) => {
 		await page.setViewportSize(viewport);
@@ -521,8 +528,13 @@ test.describe('workspace island scroll and selection', () => {
 		expect(await workspaceTabSize(page)).toEqual(full);
 	});
 
-	test('forced colors removes the glass effect or makes the island opaque', async ({ page }) => {
+	test('forced colors gives the island an opaque background and a solid outline without changing its height', async ({
+		page
+	}) => {
 		await page.emulateMedia({ forcedColors: 'active' });
+		await waitForFrames(page);
+		await waitForAnimations(workspaceTabs(page));
+		expect((await workspaceTabSize(page)).island).toBe(48);
 		await expect
 			.poll(() =>
 				workspaceTabs(page).evaluate((island) => {
@@ -531,10 +543,24 @@ test.describe('workspace island scroll and selection', () => {
 					const opaque =
 						color.startsWith('rgb(') ||
 						(color.startsWith('rgba(') && Number(color.slice(5, -1).split(',')[3]) === 1);
-					return style.backdropFilter === 'none' || opaque;
+					return {
+						opaque,
+						backdropFilter: style.backdropFilter,
+						outlineStyle: style.outlineStyle,
+						outlineWidth: style.outlineWidth,
+						outlineVisible:
+							style.outlineColor !== 'rgba(0, 0, 0, 0)' &&
+							style.outlineColor !== style.backgroundColor
+					};
 				})
 			)
-			.toBe(true);
+			.toEqual({
+				opaque: true,
+				backdropFilter: 'none',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+				outlineVisible: true
+			});
 	});
 
 	for (const reducedMotion of ['no-preference', 'reduce'] as const) {
@@ -579,6 +605,98 @@ test.describe('workspace island scroll and selection', () => {
 	}
 });
 
+test('focus reveals the last task control between the Timeline and workspace island', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	await addWorkspaceOverflow(page);
+	await selectTab(page, 'Work plan');
+	await scrollTo(workspaceContent(page), 0);
+	const lastRow = page.getByTestId('task-row').last();
+	const control = lastRow.getByTestId('task-title');
+	await control.focus();
+	await expect(control).toBeFocused();
+	await waitForFrames(page);
+	await waitForAnimations(workspaceContent(page));
+	await waitForAnimations(workspaceTabs(page));
+	await expect
+		.poll(() =>
+			control.evaluate((element) => {
+				const bounds = element.getBoundingClientRect();
+				const timeline = document.querySelector('#timeline')!.getBoundingClientRect();
+				const island = document
+					.querySelector('[data-testid="workspace-tabs"]')!
+					.getBoundingClientRect();
+				return bounds.top >= timeline.bottom && bounds.bottom <= island.top;
+			})
+		)
+		.toBe(true);
+});
+
+test('a focused Timeline height button transfers focus to the chevron when the layout narrows', async ({
+	page
+}) => {
+	await openExample(page);
+	await page.getByTestId('gantt-pin').click();
+	const taller = page.getByRole('button', { name: 'Make timeline taller', exact: true });
+	await taller.focus();
+	await expect(taller).toBeFocused();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	await expect(taller).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Collapse timeline', exact: true })).toBeFocused();
+});
+
+test('a focused Timeline chevron transfers focus to the pin when the layout widens', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	const chevron = page.getByRole('button', { name: 'Collapse timeline', exact: true });
+	await chevron.focus();
+	await expect(chevron).toBeFocused();
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	await expect(chevron).toBeHidden();
+	await expect(page.getByTestId('gantt-pin')).toBeFocused();
+});
+
+test('a focused Timeline divider transfers focus to the unpinned toggle when the layout widens', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	const divider = page.getByTestId('gantt-resize');
+	await divider.focus();
+	await expect(divider).toBeFocused();
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	await expect(divider).toHaveCount(0);
+	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByTestId('gantt-pin')).toBeFocused();
+});
+
+test('a focused Gantt label keeps focus and the selected Work plan tab when the layout narrows', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	await selectTab(page, 'Work plan');
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	const label = page.getByTestId('gantt-label').filter({ hasText: /^Site survey$/ });
+	await label.focus();
+	await expect(label).toBeFocused();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	await expect(page.getByRole('tab', { name: 'Work plan', exact: true })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await expect(label).toBeFocused();
+});
+
 test('a focused separator returns focus to the selected tab when the layout narrows', async ({
 	page
 }) => {
@@ -618,30 +736,6 @@ for (const [name, paneId] of [
 		await expect(page.locator('body')).not.toBeFocused();
 	});
 }
-
-test('only the selected group is a tabpanel while the pinned Timeline stays accessible', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 800, height: 900 });
-	await openExample(page);
-	await expect(page.getByTestId('timeline-panel')).toHaveAttribute('data-pinned', 'true');
-	await selectTab(page, 'Work plan');
-	await expect(page.getByRole('tabpanel')).toHaveCount(1);
-	await expect(page.getByRole('tabpanel', { name: 'Work plan', exact: true })).toHaveAttribute(
-		'id',
-		'work-pane'
-	);
-	await expect(planPane(page)).not.toHaveRole('tabpanel');
-	await expect(page.getByRole('region', { name: 'Timeline', exact: true })).toBeVisible();
-	await expect(page.getByTestId('gantt-pin')).toBeHidden();
-	await selectTab(page, 'Overview');
-	await expect(page.getByRole('tabpanel')).toHaveCount(1);
-	await expect(page.getByRole('tabpanel', { name: 'Overview', exact: true })).toHaveAttribute(
-		'id',
-		'plan-pane'
-	);
-	await expect(workPane(page)).not.toHaveRole('tabpanel');
-});
 
 test('each tab restores its own scroll position', async ({ page }) => {
 	await page.setViewportSize({ width: 800, height: 900 });

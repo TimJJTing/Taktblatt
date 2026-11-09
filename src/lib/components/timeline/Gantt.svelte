@@ -172,7 +172,7 @@
 			stage.getBoundingClientRect().width >= 640 ? 'thead th' : '[data-testid="stage-band"]'
 		);
 		const columnHeight = column?.getBoundingClientRect().height ?? 0;
-		const pinned = !workspaceLayout.split && isTimelinePinned(viewer) ? pinnedTimeline.height : 0;
+		const pinned = !workspaceLayout.split ? pinnedTimeline.height : 0;
 		const offset = pinned + stageHeight + columnHeight + 16;
 		scroller.scrollTo({
 			top:

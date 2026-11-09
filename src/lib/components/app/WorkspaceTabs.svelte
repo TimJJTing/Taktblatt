@@ -147,12 +147,14 @@
 			background: var(--background);
 			-webkit-backdrop-filter: none;
 			backdrop-filter: none;
-			border: 1px solid var(--foreground);
+			outline: 1px solid var(--foreground);
+			outline-offset: -1px;
 			box-shadow: none;
 		}
 		.indicator {
 			background: var(--background);
-			border: 1px solid var(--foreground);
+			outline: 1px solid var(--foreground);
+			outline-offset: -1px;
 			box-shadow: none;
 		}
 	}
@@ -160,7 +162,7 @@
 		.workspace-tabs,
 		:global(.dark) .workspace-tabs,
 		.indicator {
-			border-color: CanvasText;
+			outline-color: CanvasText;
 		}
 	}
 </style>

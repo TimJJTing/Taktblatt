@@ -19,6 +19,8 @@ import {
 	shorter,
 	startTimelineFrameMonitor,
 	taller,
+	waitForAnimations,
+	waitForFrames,
 	writeStoredPlan
 } from './helpers.ts';
 
@@ -77,10 +79,25 @@ test('the pin keeps the heading, chart and legends together and clears row jumps
 	await expectStickyBelowHeader(panel);
 	await pin.click();
 	await expect(pin).toHaveAttribute('aria-pressed', 'false');
-	await expect(panel).not.toHaveCSS('position', 'fixed');
+	await expect(panel).toHaveCSS('position', 'static');
 	await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
 	await planPane(page).evaluate((element) => (element.scrollTop = 0));
 	await expect(panel.getByRole('heading', { name: 'Timeline', exact: true })).toBeInViewport();
+	await addWorkspaceOverflow(page);
+	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'false');
+	await planPane(page).evaluate((element) => (element.scrollTop = 0));
+	await waitForFrames(page);
+	await waitForAnimations(planPane(page));
+	const before = (await panel.boundingBox())!;
+	const paneTop = (await planPane(page).boundingBox())!.y;
+	const scrollDistance = Math.ceil(before.y - paneTop + before.height + 100);
+	await planPane(page).evaluate((element, top) => (element.scrollTop = top), scrollDistance);
+	await expect
+		.poll(() => planPane(page).evaluate((element) => element.scrollTop))
+		.toBe(scrollDistance);
+	await waitForFrames(page);
+	await waitForAnimations(planPane(page));
+	expect((await panel.boundingBox())!.y).toBeCloseTo(before.y - scrollDistance, 0);
 });
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
@@ -99,14 +116,15 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		// With tabs, the legends start collapsed. This test needs their overflow.
 		await page.getByTestId('timeline-legends-toggle').click();
 		const panel = page.getByTestId('timeline-panel');
-		const pin = page.getByRole('button', { name: 'Collapse timeline', exact: true });
+		const chevron = page.getByRole('button', { name: 'Collapse timeline', exact: true });
 		await expectStickyBelowHeader(panel);
-		const pinBefore = (await pin.boundingBox())!;
+		await waitForAnimations(panel);
+		const chevronBefore = (await chevron.boundingBox())!;
 		await page.getByTestId('gantt-scroller').evaluate((element) => (element.scrollLeft = 200));
 		await expect
 			.poll(() => page.getByTestId('gantt-scroller').evaluate((element) => element.scrollLeft))
 			.toBeGreaterThan(0);
-		await expect.poll(async () => (await pin.boundingBox())!.x).toBeCloseTo(pinBefore.x, 0);
+		await expect.poll(async () => (await chevron.boundingBox())!.x).toBeCloseTo(chevronBefore.x, 0);
 		await page.getByTestId('gantt-resize').press('Home');
 		const body = page.getByTestId('timeline-body');
 		await expect
@@ -122,7 +140,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			.toEqual({ minimumHeight: true, overflow: true });
 		await body.evaluate((element) => (element.scrollTop = element.scrollHeight));
 		await expect(panel.getByRole('button', { name: 'Add band', exact: true })).toBeInViewport();
-		await expect(pin).toBeInViewport();
+		await expect(chevron).toBeInViewport();
 		await expect
 			.poll(async () => (await page.getByTestId('gantt').boundingBox())!.height)
 			.toBeGreaterThanOrEqual(83);
@@ -172,7 +190,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 				})
 			)
 			.toBe(true);
-		await expect(pin).toBeInViewport();
+		await expect(chevron).toBeInViewport();
 		await expect(page.getByTestId('gantt-pin')).toBeHidden();
 	});
 }

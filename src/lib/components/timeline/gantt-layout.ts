@@ -59,7 +59,7 @@ export function clipEdges(clipStart: boolean, clipEnd: boolean): string | undefi
 
 /** The limits of the pinned height in pixels, for a viewport height. */
 export function heightLimits(viewport: number, split = true): { min: number; max: number } {
-	const max = (split ? GANTT_HEIGHT.max : 0.4) * viewport;
+	const max = (split ? GANTT_HEIGHT.max : GANTT_HEIGHT.narrowMax) * viewport;
 	return { min: Math.min(GANTT_HEIGHT.minPx, max), max };
 }
 
