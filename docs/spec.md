@@ -280,7 +280,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 - The workspace has two groups. **Plan** has, in this order: Header (with the sheet footer fields), Timeline (Gantt), Stage overview and Remarks. **Work plan** has the work plan.
 - The workspace layout is for the screen only. It does not change the Preview, the sheets, pagination or print. The sheets keep the order of section 7.
 - The page does not scroll. The app header stays at the top. Each group scrolls in its own region below the app header.
-- The app header row contains: plan switcher, Preview, Print, Import, Export, Undo, Redo and Settings.
+- The app header row contains: plan switcher, Undo, Redo and Menu. The header has no Preview, Print, Import or Export button. These actions are in the Menu.
 - **Split view (viewport width 1024 px or more):** Plan is the left pane and Work plan is the right pane. The panes fill the width of the window. Each pane scrolls vertically on its own.
   - When the viewport becomes wider and hides the focused tab, focus moves to the group of that tab.
   - A vertical divider between the panes changes their widths. Its resize target is at least 12 px wide. It shows a grip on hover and focus.
@@ -303,13 +303,13 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
   - The app keeps the selected tab after a reload (section 4.4).
 - When the layout changes between split view and tabs, the app keeps the plan, the expand state, the pin state and the open dialogs. It does not create the Timeline section again.
 - All edit controls fit at widths of 768 px or more. On a phone, you can read the plan, edit text and dates, and set the task status. The Gantt and the table scroll horizontally.
-- The **Settings** menu has two labeled radio groups. **Theme** has three choices: **Light**, **Dark** and **System**. A separator comes before **Language**, which has **English**, **Deutsch**, **繁體中文** and **日本語**. Each group heading has a decorative icon: a sun and moon for **Theme** and a language icon for **Language**. Each group shows its selected choice with a check mark. The menu supports pointer and keyboard input. Its labels use the UI language. The header has one Settings button with a gear icon.
+- The **Menu** is the last button in the app header. Its icon is an ellipsis (**…**). The menu starts with four actions, each with a decorative icon: **Print** (printer), **Import** (download), **Export this plan** and **Export all plans** (upload). **Print** opens the preview (section 7). It does not open the print dialog. **Import** opens the file chooser (section 4.6). A separator comes before two labeled radio groups. **Theme** has three choices: **Light**, **Dark** and **System**. A separator comes before **Language**, which has **English**, **Deutsch**, **繁體中文** and **日本語**. Each group heading has a decorative icon: a sun and moon for **Theme** and a language icon for **Language**. Each group shows its selected choice with a check mark. The menu supports pointer and keyboard input. Its labels use the UI language. The header has one Menu button.
 - The default theme is **System**. It follows changes to the system theme while the app is open. **Light** and **Dark** override the system theme.
 - A theme change applies at once. It does not reload the page, change plan data or clear the undo history. The app saves the choice in this browser. It restores the choice after a reload, also offline. An import does not change it.
 - Preview sheets and printed sheets are always light. The Preview dialog controls use the screen theme.
 - The browser and PWA theme-color metadata follows the resolved screen theme, including an explicit light or dark choice.
 - A startup script in the page shell applies the saved theme and the theme-color metadata before the first paint. The app does not show the wrong theme while it starts. If the browser blocks storage, the script uses **System**.
-- The Settings button shows its name in a tooltip, as the other header buttons do.
+- The Menu button shows its name in a tooltip, as the other header buttons do.
 
 ### 5.2 Edit fields
 
@@ -469,7 +469,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
-- Choose the UI language under **Settings → Language**. The checked language is the language this tab shows. Choosing a language closes Settings before a reload or a confirmation dialog. Canceling the dialog returns focus to Settings.
+- Choose the UI language under **Menu → Language**. The checked language is the language this tab shows. Choosing a language closes the menu before a reload or a confirmation dialog. Canceling the dialog returns focus to the Menu button.
 - The first UI language comes from the browser language list. The app uses the first supported language in the list. A region variant matches its base language (`de-AT` gives `de`). `zh-Hant` and `zh-TW`, `zh-HK` and `zh-MO` give `zh-TW`. Simplified or unspecified Chinese and all other languages give English. The app saves the detected language on the first visit. A later change of the browser language has no effect.
 - There is one language: the UI language. It controls the texts, the date formats and the printed labels (for example "Objective:", "Timeline", the column titles). A plan has no language setting.
 - Plan files are language-neutral. Dates are stored as ISO `YYYY-MM-DD`. The app formats them with the UI language when it shows or prints them. The same file shows and prints in German for a German UI and in Japanese for a Japanese UI.
@@ -491,7 +491,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.
 - Print keeps the fills of task bars, task points, bands and legend swatches when background graphics are off in the print dialog. Dependency lines connect to the same visible task marks as in Preview.
 - The sheets use their own print blocks in `src/lib/components/print/`. The print blocks read the same store and the same domain helpers as the workspace. Refer to [ADR 8](adr/0008-print-blocks.md).
-- The **Preview** button in the app header opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the button. The workspace behind it is inert.
+- **Menu → Print** opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the Menu button. The workspace behind it is inert. No control in the app header or the menu opens the print dialog directly. The print dialog opens from the **Print** button of the preview or from **Cmd/Ctrl+P**.
 - The preview has a **paper size** control (A4 or US Letter) and a **Print** button. The paper size is a plan setting (`paper`). The default is A4. A change is one undo step.
 - The **paginator** measures blocks and puts them on fixed sheets. It works the same in all browsers.
   - Page 1 is the overview: header, objective, timeline, legends, stage overview.
@@ -503,7 +503,7 @@ Printed work tables use the Status header and the same four status icons in pape
   - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
 - The labels and dates on the sheets use the UI language.
 - A dependency line shows on a sheet only when both of its rows are on that sheet.
-- Print (**Cmd/Ctrl+P** or the **Print** button) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, the Print button and Cmd/Ctrl+P render the sheets first and then open the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
+- Print (**Cmd/Ctrl+P** or the **Print** button of the preview) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, Cmd/Ctrl+P renders the sheets first and then opens the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
 - Print has no animations and no controls.

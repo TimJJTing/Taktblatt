@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openExample, row, stage, waitForAnimations } from './helpers.ts';
+import { choosePrint, openExample, row, stage, waitForAnimations } from './helpers.ts';
 
 const tooltips = (page: Page) => page.locator('[data-slot="tooltip-content"]');
 const gantt = (page: Page) => page.getByTestId('gantt');
@@ -192,7 +192,7 @@ test.describe('hints show in a tooltip', () => {
 
 	test('print sheets show no hints', async ({ page }) => {
 		await openExample(page);
-		await page.getByTestId('preview-open').click();
+		await choosePrint(page);
 		await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
 		const sheets = page.getByTestId('sheet');
 		await expect(sheets.first()).toBeVisible();

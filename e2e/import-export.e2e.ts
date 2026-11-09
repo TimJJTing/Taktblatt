@@ -1,21 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import {
-	importJson,
-	openApp,
-	openExample,
-	openSettings,
-	planIds,
-	row,
-	storedPlan
-} from './helpers.ts';
+import { importJson, openApp, openExample, openMenu, planIds, row, storedPlan } from './helpers.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const isoDate = /\d{4}-\d{2}-\d{2}/;
 
 async function readDownload(page: Page, menuItem: string) {
-	await page.getByTestId('export-menu').click();
+	await openMenu(page);
 	const pending = page.waitForEvent('download');
 	await page.getByRole('menuitem', { name: menuItem }).click();
 	const download = await pending;
@@ -31,8 +23,10 @@ async function exportedExample(page: Page) {
 test.describe('icons', () => {
 	test('import points into the tray and export points out of it', async ({ page }) => {
 		await openApp(page);
-		await expect(page.getByTestId('import-open').locator('svg')).toHaveClass(/lucide-download/);
-		await expect(page.getByTestId('export-menu').locator('svg')).toHaveClass(/lucide-upload/);
+		const menu = await openMenu(page);
+		await expect(menu.getByTestId('menu-import').locator('svg')).toHaveClass(/lucide-download/);
+		await expect(menu.getByTestId('menu-export-plan').locator('svg')).toHaveClass(/lucide-upload/);
+		await expect(menu.getByTestId('menu-export-all').locator('svg')).toHaveClass(/lucide-upload/);
 	});
 });
 
@@ -68,7 +62,7 @@ test.describe('export', () => {
 test.describe('import', () => {
 	test('importing a plan in another language leaves the UI language alone', async ({ page }) => {
 		const file = await exportedExample(page);
-		await openSettings(page);
+		await openMenu(page);
 		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 		// The plan has history, so the app asks before it reloads.
 		await page.getByTestId('language-reload-confirm').click();
@@ -82,7 +76,7 @@ test.describe('import', () => {
 		// The old language key of the file is dropped.
 		expect((await storedPlan(page)).locale).toBeUndefined();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-		await expect(page.getByTestId('settings-menu')).toHaveAccessibleName('Einstellungen');
+		await expect(page.getByTestId('app-menu')).toHaveAccessibleName('Menü');
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
 		await page.reload();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -203,10 +197,21 @@ test.describe('import', () => {
 	});
 });
 
-test('the header keeps Import and Export visible at 768 px', async ({ page }) => {
-	await page.setViewportSize({ width: 768, height: 800 });
+test('the header keeps the menu visible at 360 px', async ({ page }) => {
+	await page.setViewportSize({ width: 360, height: 800 });
 	await openApp(page);
-	await expect(page.getByTestId('import-open')).toBeInViewport();
-	await expect(page.getByTestId('export-menu')).toBeInViewport();
+	await expect(page.getByTestId('app-menu')).toBeInViewport();
 	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeInViewport();
+	const menu = await openMenu(page);
+	await expect(menu.getByTestId('menu-import')).toBeInViewport();
+	await expect(menu.getByTestId('menu-export-all')).toBeInViewport();
+});
+
+test('Import in the menu opens the file chooser', async ({ page }) => {
+	await openApp(page);
+	const menu = await openMenu(page);
+	const chooser = page.waitForEvent('filechooser');
+	await menu.getByTestId('menu-import').click();
+	await chooser;
+	await expect(page.getByRole('menu')).toHaveCount(0);
 });

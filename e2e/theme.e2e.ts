@@ -1,19 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	choosePrint,
 	openApp,
 	openExample,
 	openPreview,
-	openSettings,
+	openMenu,
 	storedPlan,
 	waitForAnimations
 } from './helpers.ts';
 
-const settings = (page: Page) => page.getByTestId('settings-menu');
+const menuButton = (page: Page) => page.getByTestId('app-menu');
 const themeGroup = (page: Page) => page.getByRole('group', { name: 'Theme', exact: true });
 const preference = (page: Page) => page.evaluate(() => localStorage.getItem('taktblatt:theme'));
 
 async function chooseTheme(page: Page, name: 'Light' | 'Dark' | 'System') {
-	await openSettings(page);
+	await openMenu(page);
 	await themeGroup(page).getByRole('menuitemradio', { name, exact: true }).click();
 	await expect(page.getByRole('menu')).toHaveCount(0);
 }
@@ -28,14 +29,14 @@ async function expectTheme(page: Page, theme: 'light' | 'dark') {
 test('System is the default and follows system changes while open', async ({ page }) => {
 	await page.emulateMedia({ colorScheme: 'light' });
 	await openApp(page);
-	await openSettings(page);
+	await openMenu(page);
 	await expect(themeGroup(page).getByRole('menuitemradio')).toHaveCount(3);
 	await expect(themeGroup(page).getByRole('menuitemradio', { name: 'System' })).toBeChecked();
 	await page.keyboard.press('Escape');
 	await expectTheme(page, 'light');
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await expectTheme(page, 'dark');
-	await openSettings(page);
+	await openMenu(page);
 	await expect(themeGroup(page).getByRole('menuitemradio', { name: 'System' })).toBeChecked();
 	await page.keyboard.press('Escape');
 	await page.emulateMedia({ colorScheme: 'light' });
@@ -61,7 +62,7 @@ test('explicit themes override the system and all choices survive a reload', asy
 		await page.reload();
 		await expect(page.getByTestId('plan-heading')).toBeVisible();
 		await expectTheme(page, value === 'system' ? opposite : value);
-		await openSettings(page);
+		await openMenu(page);
 		await expect(
 			themeGroup(page).getByRole('menuitemradio', { name: label, exact: true })
 		).toBeChecked();
@@ -69,7 +70,7 @@ test('explicit themes override the system and all choices survive a reload', asy
 	}
 });
 
-test('the Settings theme choices support keyboard selection and preserve plan history', async ({
+test('the menu theme choices support keyboard selection and preserve plan history', async ({
 	page
 }) => {
 	await openApp(page);
@@ -83,12 +84,15 @@ test('the Settings theme choices support keyboard selection and preserve plan hi
 	await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
 	const plan = await storedPlan(page);
 	const origin = await page.evaluate(() => performance.timeOrigin);
-	await expect(settings(page)).toBeVisible();
-	await settings(page).focus();
+	await expect(menuButton(page)).toBeVisible();
+	await menuButton(page).focus();
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('menu')).toBeVisible();
 	await waitForAnimations(page.getByRole('menu'));
 	await page.keyboard.press('Home');
+	await expect(page.getByTestId('menu-print')).toBeFocused();
+	// The four actions come before the Theme group.
+	for (let step = 0; step < 4; step++) await page.keyboard.press('ArrowDown');
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
 	).toBeFocused();
@@ -98,7 +102,7 @@ test('the Settings theme choices support keyboard selection and preserve plan hi
 	).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('menu')).toHaveCount(0);
-	await expect(settings(page)).toBeFocused();
+	await expect(menuButton(page)).toBeFocused();
 	await expectTheme(page, 'dark');
 	expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
 	expect(await storedPlan(page)).toEqual(plan);
@@ -113,7 +117,7 @@ test('an invalid saved theme falls back to System', async ({ page }) => {
 	await page.addInitScript(() => localStorage.setItem('taktblatt:theme', 'invalid'));
 	await page.emulateMedia({ colorScheme: 'light' });
 	await openApp(page);
-	await openSettings(page);
+	await openMenu(page);
 	await expect(themeGroup(page).getByRole('menuitemradio', { name: 'System' })).toBeChecked();
 	await page.keyboard.press('Escape');
 	await expectTheme(page, 'light');
@@ -128,7 +132,7 @@ test('a theme change reaches another tab without reloading it', async ({ page, c
 	const origin = await other.evaluate(() => performance.timeOrigin);
 	await chooseTheme(page, 'Dark');
 	await expectTheme(other, 'dark');
-	await openSettings(other);
+	await openMenu(other);
 	await expect(
 		themeGroup(other).getByRole('menuitemradio', { name: 'Dark', exact: true })
 	).toBeChecked();
@@ -172,7 +176,7 @@ test('Preview and printed sheets stay light with the same pagination in dark mod
 	await testInfo.attach('dark-theme-print.pdf', { body: pdf, contentType: 'application/pdf' });
 });
 
-test('the Settings menu fits a phone header and works after an offline reload', async ({
+test('the app menu fits a phone header and works after an offline reload', async ({
 	page,
 	context
 }) => {
@@ -204,7 +208,7 @@ test('the Settings menu fits a phone header and works after an offline reload', 
 	await expect.poll(() => preference(page)).toBe('light');
 	await openPreview(page);
 	await page.keyboard.press('Escape');
-	await openSettings(page);
+	await openMenu(page);
 	await expect(
 		page
 			.getByRole('group', { name: 'Language', exact: true })
@@ -213,14 +217,14 @@ test('the Settings menu fits a phone header and works after an offline reload', 
 	await page.getByRole('menuitemradio', { name: 'Deutsch', exact: true }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	await expectTheme(page, 'light');
-	await openSettings(page);
+	await openMenu(page);
 	await expect(
 		page
 			.getByRole('group', { name: 'Sprache', exact: true })
 			.getByRole('menuitemradio', { name: 'Deutsch', exact: true })
 	).toBeChecked();
 	await page.keyboard.press('Escape');
-	await page.getByTestId('preview-open').click();
+	await choosePrint(page);
 	await expect(page.getByTestId('sheet').first()).toContainText('Zeitachse');
 	await context.setOffline(false);
 });
@@ -236,8 +240,8 @@ test('the saved theme applies before the app starts', async ({ page }) => {
 	expect(await preference(page)).toBe('dark');
 });
 
-test('the Settings button shows its name in a tooltip', async ({ page }) => {
+test('the Menu button shows its name in a tooltip', async ({ page }) => {
 	await openApp(page);
-	await settings(page).hover();
-	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Settings');
+	await menuButton(page).hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Menu');
 });

@@ -64,18 +64,18 @@ Remark sections hold lists of short bullets. They are at the end of the plan pan
 
 ![The preview with the first A4 sheet of the example plan](docs/screenshots/preview.png)
 
-Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print** to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
+Open **Menu** (**…**) in the app header and choose **Print**. The preview shows the paper sheets. Choose A4 or US Letter. Click **Print** in the preview to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
 
 ### Several plans, import, export and offline use
 
 - Create, rename, duplicate and delete plans with the plan switcher in the app header.
-- Export one plan or all plans as JSON files. Import them again on any device.
+- Export one plan or all plans as JSON files from **Menu**. Import them again on any device with **Menu → Import**.
 - Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
 
 ### Languages
 
-The app has four UI languages: English, German, Traditional Chinese and Japanese. Open **Settings → Language** to select one. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
+The app has four UI languages: English, German, Traditional Chinese and Japanese. Open **Menu → Language** to select one. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
 
 ### Privacy
 
@@ -85,7 +85,7 @@ The app has four UI languages: English, German, Traditional Chinese and Japanese
 
 ### Dark mode
 
-Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark** or **System**. The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
+Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light**, **Dark** or **System**. The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
 
 ![The workspace in dark mode](docs/screenshots/workspace-dark.png)
 
@@ -94,9 +94,9 @@ Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark**
 1. Open the app in a modern browser.
 2. Click **Load example** to see a complete example plan. Or start with the empty plan.
 3. Click a heading, a date or a task to edit it.
-4. Click **Preview** to see the sheets.
-5. Click **Print** to print the plan or to save it as a PDF.
-6. Click **Export → Export this plan** to save a copy of your plan as a JSON file.
+4. Click **Menu → Print** to see the sheets in the preview.
+5. Click **Print** in the preview to print the plan or to save it as a PDF.
+6. Click **Menu → Export this plan** to save a copy of your plan as a JSON file.
 
 ## Development
 

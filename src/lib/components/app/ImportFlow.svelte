@@ -1,11 +1,11 @@
 <!--
-	The import button: it opens a file chooser for a plan file or a backup file.
+	The import flow: `choose()` opens a file chooser for a plan file or a backup file.
+	The app menu calls it. This component has no visible trigger.
 	The app checks the file first. An invalid file shows a list of errors and changes nothing.
 	When a plan has the same id as a stored plan, a dialog asks Replace or Keep both.
 	If the browser cannot save, the import undoes its own writes and shows an error.
 -->
 <script lang="ts">
-	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { toast } from 'svelte-sonner';
 	import { formatImportDiagnostic } from '#lib/import-diagnostics.ts';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
@@ -18,7 +18,6 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { StorageWriteError } from '#lib/state/storage.ts';
 	import { getWorkspace, type ImportConflict } from '#lib/state/workspace.svelte.ts';
-	import Hint from './Hint.svelte';
 
 	type Choice = 'replace' | 'keep-both';
 
@@ -35,6 +34,11 @@
 	const errorList = $derived(errors ? limitErrors(errors) : null);
 
 	const nameOf = (heading: string) => heading.trim() || m.untitled_plan();
+
+	/** Opens the file chooser. Call it from a user action, or the browser blocks it. */
+	export function choose() {
+		input?.click();
+	}
 
 	/** Runs one step of the import. Any failure shows the error dialog. */
 	function guarded(step: () => void) {
@@ -116,21 +120,6 @@
 	data-testid="import-input"
 	onchange={onFile}
 />
-<Hint text={m.action_import()}>
-	{#snippet child({ props })}
-		<Button
-			{...props}
-			variant="ghost"
-			size="icon-sm"
-			aria-label={m.action_import()}
-			data-testid="import-open"
-			onclick={() => input?.click()}
-		>
-			<DownloadIcon aria-hidden="true" />
-		</Button>
-	{/snippet}
-</Hint>
-
 <Dialog.Root open={errors !== null} onOpenChange={(open) => !open && (errors = null)}>
 	<Dialog.Content data-testid="import-errors">
 		<Dialog.Header>

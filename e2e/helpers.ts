@@ -211,9 +211,9 @@ export async function importJson(page: Page, content: unknown, name = 'plan.json
 	});
 }
 
-/** Opens Settings and waits for its opening animation. */
-export async function openSettings(page: Page): Promise<Locator> {
-	const trigger = page.getByTestId('settings-menu');
+/** Opens the app menu and waits for its opening animation. */
+export async function openMenu(page: Page): Promise<Locator> {
+	const trigger = page.getByTestId('app-menu');
 	await expect(trigger).toBeVisible();
 	await trigger.click();
 	const menu = page.getByRole('menu');
@@ -232,9 +232,15 @@ export async function waitForAnimations(locator: Locator): Promise<void> {
 	});
 }
 
+/** Chooses Print in the app menu. This opens the print preview. */
+export async function choosePrint(page: Page): Promise<void> {
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-print').click();
+}
+
 /** Opens the print preview and waits until the first sheet is visible. */
 export async function openPreview(page: Page): Promise<Locator> {
-	await page.getByTestId('preview-open').click();
+	await choosePrint(page);
 	const preview = page.getByRole('dialog', { name: 'Print preview' });
 	await expect(preview).toBeVisible();
 	await expect(preview.getByTestId('sheet').first()).toBeVisible();
