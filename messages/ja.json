@@ -1,4 +1,7 @@
 {
+	"workspace_overview": "概要",
+	"timeline_collapse": "タイムラインを折りたたむ",
+	"timeline_expand": "タイムラインを展開",
 	"dependency_candidate_cycle": "依存関係の循環が発生します。",
 	"dependency_candidate_date": "このタスクの終了後に開始します。",
 	"dependency_warning_cycle": "この依存関係は循環の一部です。",

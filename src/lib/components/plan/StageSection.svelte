@@ -196,8 +196,12 @@
 	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
 		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
-		so the header cells can stick below the stage header. -->
-	<div class="relative @max-[640px]:overflow-x-auto">
+		so the header cells can stick below the stage header.
+		The wrapper scrolls only sideways. The bottom padding holds the "+" line, and the negative
+		margin keeps the layout. A vertical wheel or swipe on the table scrolls the group. -->
+	<div
+		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
+	>
 		<table
 			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:2px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
 			aria-label={stageName}

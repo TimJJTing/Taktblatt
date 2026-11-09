@@ -9,16 +9,18 @@ The workspace copied the printed sheet: one long page, with the footer fields at
 ## Decision
 
 - The workspace has two groups: **Plan** (header with sheet footer fields, Timeline, Stage overview, Remarks) and **Work plan**.
-- From a viewport width of 1024 px, the groups show side by side. A vertical separator changes the widths. Below 1024 px, two tabs show one group at a time.
+- From a viewport width of 1024 px, the groups show side by side. A vertical separator changes the widths. Below 1024 px, a tab bar at the bottom shows one group at a time. The tabs are **Overview** (the Plan group without the Timeline) and **Work plan**.
 - The page does not scroll. Each group scrolls in its own region below the app header. The app header has no section links.
-- A pinned Timeline is sticky in the Plan pane in split view. With tabs, it is in a region above both groups. It never covers the Work plan, so Work plan offsets use the top of their own scroll region.
-- The split ratio and the selected tab are viewer state (ADR 4). The plan file does not change.
+- A pinned Timeline is sticky in the Plan pane in split view. With tabs, the Timeline is always pinned at the top, above both groups, and a chevron on its divider collapses it. It never covers the Work plan, so Work plan offsets use the top of their own scroll region.
+- The split ratio, the selected tab and the collapsed Timeline are viewer state (ADR 4). The plan file does not change.
 - The Preview, the sheets, pagination and print do not change.
 
 ## Alternatives considered
 
 - **Two columns in one page scroll:** simpler, but a long Work plan moves the Plan column out of view.
 - **Stacked page below 1024 px:** keeps the old page, but the Work plan is far down on a phone, and the pin would cover it again.
+- **Optional pin with tabs:** an unpinned Timeline in the Plan tab hides the dates while the user edits the Work plan on a phone. A collapsible, always-pinned Timeline keeps the dates one tap away.
+- **Tabs in the header:** the bottom edge is easier to reach with a thumb, and the header stays one row.
 - **Section links in the header:** the split and the tabs show both groups directly. Links added a header row for little value.
 
 ## Consequences

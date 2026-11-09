@@ -10,8 +10,12 @@ import {
 	selectTab,
 	stage,
 	waitForAnimations,
+	waitForFrames,
+	wheelWorkspace,
 	workPane,
-	workspaceContent
+	workspaceContent,
+	workspaceTabs,
+	workspaceTabSize
 } from './helpers.ts';
 
 test.beforeEach(async ({ page }) => {
@@ -56,8 +60,15 @@ async function expectJumpTarget(page: Page, title: string) {
 						? document.querySelector('#work-pane')!
 						: content;
 				return (
-					bounds.top >= Math.max(header.bottom, band.bottom) - 1 &&
-					bounds.bottom <= scroller.getBoundingClientRect().bottom + 1
+					bounds.top >=
+						Math.max(
+							header.bottom,
+							band.bottom,
+							content.getAttribute('data-layout') === 'tabs'
+								? document.querySelector('#timeline')!.getBoundingClientRect().bottom
+								: 0
+						) -
+							1 && bounds.bottom <= scroller.getBoundingClientRect().bottom + 1
 				);
 			})
 		)
@@ -185,13 +196,28 @@ for (const viewport of [
 		await expect(page.getByTestId('split-resize')).toBeHidden();
 		const tabs = page.getByRole('tablist', { name: 'Workspace view' });
 		await expect(tabs).toBeVisible();
-		const plan = tabs.getByRole('tab', { name: 'Plan', exact: true });
+		await expect(page.locator('[data-app-header]').getByRole('tablist')).toHaveCount(0);
+		await expect(tabs.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute(
+			'id',
+			'workspace-tab-plan'
+		);
+		await expect(tabs.getByRole('tab', { name: 'Work plan', exact: true })).toHaveAttribute(
+			'id',
+			'workspace-tab-work-plan'
+		);
+		for (const tab of await tabs.getByRole('tab').all()) {
+			const bounds = (await tab.boundingBox())!;
+			expect(bounds.width).toBeGreaterThanOrEqual(44);
+			expect(bounds.height).toBeGreaterThanOrEqual(40);
+		}
+
+		const plan = tabs.getByRole('tab', { name: 'Overview', exact: true });
 		const work = tabs.getByRole('tab', { name: 'Work plan', exact: true });
 		await expect(plan).toHaveAttribute('aria-selected', 'true');
 		await expect(plan).toHaveAttribute('aria-controls', 'plan-pane');
 		await expect(work).toHaveAttribute('aria-controls', 'work-pane');
 		await expect(page.getByRole('tabpanel')).toHaveCount(1);
-		await expect(page.getByRole('tabpanel', { name: 'Plan', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('tabpanel', { name: 'Overview', exact: true })).toHaveAttribute(
 			'id',
 			'plan-pane'
 		);
@@ -210,7 +236,7 @@ for (const viewport of [
 			await expect(selected).toHaveAttribute('aria-selected', 'true');
 			await expect(page.getByRole('tabpanel')).toHaveCount(1);
 			const panel = page.getByRole('tabpanel', {
-				name: (await selected.textContent())!.trim(),
+				name: (await selected.getAttribute('aria-label'))!,
 				exact: true
 			});
 			await expect(panel).toHaveAttribute('id', (await selected.getAttribute('aria-controls'))!);
@@ -220,13 +246,338 @@ for (const viewport of [
 		await expect(page.locator('#header')).toBeHidden();
 		await expect(page.locator('#stage-overview')).toBeHidden();
 		await expect(page.locator('#remarks')).toBeHidden();
-		await expect(page.getByTestId('timeline-panel')).toBeHidden();
+		await expect(page.getByTestId('timeline-panel')).toBeVisible();
 		await expect(page.locator('#work-plan')).toBeVisible();
 		await page.reload();
 		await expect(work).toHaveAttribute('aria-selected', 'true');
 		await expect(page.locator('#work-plan')).toBeVisible();
 	});
 }
+
+test('icon-only workspace tabs keep their names and show hints on hover and keyboard focus', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	for (const name of ['Overview', 'Work plan'] as const) {
+		const hint = page
+			.locator('[data-slot="tooltip-content"]:visible')
+			// The hint text can end with a space from the tooltip arrow.
+			.filter({ hasText: new RegExp(`^${name}\\s*$`) });
+		const tab = page.getByRole('tab', { name, exact: true });
+		await expect(tab).toHaveAccessibleName(name);
+		await expect(tab).toHaveAttribute('aria-label', name);
+		expect(await tab.innerText()).toBe('');
+		const icon = tab.locator('svg');
+		await expect(icon).toHaveCount(1);
+		await expect(icon).toBeVisible();
+		await expect(icon).toHaveAttribute('aria-hidden', 'true');
+		await tab.hover();
+		await expect(hint).toHaveText(name);
+		await expect(hint).toBeVisible();
+		await page.mouse.move(0, 0);
+		await expect(hint).toBeHidden();
+
+		await selectTab(page, name);
+		await page.mouse.move(0, 0);
+		await tab.focus();
+		await page.keyboard.press('Shift+Tab');
+		await expect(tab).not.toBeFocused();
+		await expect(hint).toBeHidden();
+		await page.keyboard.press('Tab');
+		await expect(tab).toBeFocused();
+		await expect(hint).toHaveText(name);
+		await expect(hint).toBeVisible();
+		await page.keyboard.press('Shift+Tab');
+		await expect(hint).toBeHidden();
+	}
+});
+
+for (const viewport of [
+	{ width: 390, height: 844 },
+	{ width: 800, height: 900 }
+]) {
+	test(`the workspace island floats above the scroller at ${viewport.width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize(viewport);
+		await openExample(page);
+		await expect(workspaceTabs(page)).toBeVisible();
+		await expect
+			.poll(() =>
+				workspaceTabs(page).evaluate((island) => {
+					const bounds = island.getBoundingClientRect();
+					const style = getComputedStyle(island);
+					const content = document.querySelector('[data-testid="workspace-content"]')!;
+					return {
+						narrower: bounds.width < innerWidth,
+						centered: Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) <= 1,
+						bottomGap: Math.abs(innerHeight - bounds.bottom - 12) <= 1,
+						rounded: [
+							style.borderTopLeftRadius,
+							style.borderTopRightRadius,
+							style.borderBottomLeftRadius,
+							style.borderBottomRightRadius
+						].every((radius) => parseFloat(radius) >= bounds.height / 2),
+						frosted: style.backdropFilter !== 'none' && style.backdropFilter !== '',
+						overlays: Math.abs(content.getBoundingClientRect().bottom - innerHeight) <= 1
+					};
+				})
+			)
+			.toEqual({
+				narrower: true,
+				centered: true,
+				bottomGap: true,
+				rounded: true,
+				frosted: true,
+				overlays: true
+			});
+	});
+
+	test(`each group ends above the workspace island at ${viewport.width}px`, async ({ page }) => {
+		await page.setViewportSize(viewport);
+		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await expect(workspaceTabs(page)).toBeVisible();
+		for (const name of ['Overview', 'Work plan'] as const) {
+			await selectTab(page, name);
+			await workspaceContent(page).evaluate(
+				(content) => (content.scrollTop = content.scrollHeight)
+			);
+			await expect
+				.poll(() =>
+					workspaceContent(page).evaluate((content, tab) => {
+						const island = document.querySelector('[data-testid="workspace-tabs"]')!;
+						const last = content.querySelector(tab === 'Overview' ? '#remarks' : '#work-plan')!;
+						return {
+							overflows: content.scrollHeight > content.clientHeight,
+							atEnd: Math.abs(content.scrollHeight - content.clientHeight - content.scrollTop) <= 1,
+							clear: last.getBoundingClientRect().bottom <= island.getBoundingClientRect().top - 16
+						};
+					}, name)
+				)
+				.toEqual({ overflows: true, atEnd: true, clear: true });
+		}
+	});
+
+	test(`the bottom tab bar stays at the window edge while either group scrolls at ${viewport.width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize(viewport);
+		await openExample(page);
+		await addWorkspaceOverflow(page);
+		const tabs = workspaceTabs(page);
+		await expect(tabs).toBeVisible();
+		for (const name of ['Overview', 'Work plan'] as const) {
+			await selectTab(page, name);
+			const samples = await workspaceContent(page).evaluate(async (content) => {
+				const read = () => {
+					const tabs = document
+						.querySelector('[data-testid="workspace-tabs"]')!
+						.getBoundingClientRect();
+					const root = document.scrollingElement!;
+					return {
+						top: tabs.top,
+						bottom: tabs.bottom,
+						fits: root.scrollHeight <= root.clientHeight
+					};
+				};
+				const samples = [read()];
+				for (const top of [100, 250, 400]) {
+					content.scrollTop = top;
+					await new Promise(requestAnimationFrame);
+					samples.push(read());
+				}
+				return samples;
+			});
+			await expect.poll(() => workspaceContent(page).evaluate((e) => e.scrollTop)).toBe(400);
+			expect(
+				samples.every(
+					(sample) =>
+						Math.abs(sample.top - samples[0].top) <= 1 &&
+						Math.abs(sample.bottom - (viewport.height - 12)) <= 1 &&
+						sample.fits
+				)
+			).toBe(true);
+			await expect(tabs).toBeInViewport({ ratio: 1 });
+		}
+	});
+}
+
+test.describe('workspace island scroll and selection', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: 'no-preference' });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await expect(workspaceTabs(page)).toBeVisible();
+		await page.evaluate(() => document.fonts.ready.then(() => undefined));
+		await waitForAnimations(workspaceTabs(page));
+		await waitForAnimations(workspaceContent(page));
+	});
+
+	test('size follows scroll distance and stays at its last size when scrolling stops', async ({
+		page
+	}) => {
+		const full = await workspaceTabSize(page);
+		expect(full.tab).toBeGreaterThanOrEqual(40);
+		// App scroll sets the starting position without changing the full size.
+		await scrollTo(workspaceContent(page), 200);
+		await waitForFrames(page);
+		expect(await workspaceTabSize(page)).toEqual(full);
+		for (let step = 0; step < 2; step++) await wheelWorkspace(page, 12);
+		await expect
+			.poll(async () => {
+				const size = await workspaceTabSize(page);
+				return size.island < full.island && size.tab > 29 && size.tab < full.tab;
+			})
+			.toBe(true);
+		const downIntermediate = await workspaceTabSize(page);
+		for (let step = 0; step < 3; step++) await wheelWorkspace(page, 12);
+		await expect
+			.poll(async () => Math.abs((await workspaceTabSize(page)).tab - 28))
+			.toBeLessThanOrEqual(1);
+		const compact = await workspaceTabSize(page);
+		expect(compact.tab).toBeGreaterThanOrEqual(24);
+		expect(compact.island).toBeLessThan(full.island);
+		expect(compact.iconWidth).toBeGreaterThan(0);
+		expect(compact.iconHeight).toBeGreaterThan(0);
+		expect(compact.iconWidth).toBeLessThan(full.iconWidth);
+		expect(compact.iconHeight).toBeLessThan(full.iconHeight);
+		expect(downIntermediate.island).toBeGreaterThan(compact.island);
+		await waitForFrames(page, 12);
+		expect(await workspaceTabSize(page)).toEqual(compact);
+		for (let step = 0; step < 2; step++) await wheelWorkspace(page, -12);
+		await expect
+			.poll(async () => {
+				const size = await workspaceTabSize(page);
+				return (
+					size.island > compact.island &&
+					size.island < full.island &&
+					size.tab > compact.tab &&
+					size.tab < full.tab
+				);
+			})
+			.toBe(true);
+		const intermediate = await workspaceTabSize(page);
+		await waitForFrames(page, 12);
+		expect(await workspaceTabSize(page)).toEqual(intermediate);
+		const top = await workspaceContent(page).evaluate((content) => content.scrollTop);
+		await wheelWorkspace(page, -top);
+		await expect.poll(() => workspaceTabSize(page)).toEqual(full);
+	});
+
+	test('app scroll and tab restoration keep the size; keyboard Tab restores full size', async ({
+		page
+	}) => {
+		const full = await workspaceTabSize(page);
+		await selectTab(page, 'Work plan');
+		await scrollTo(workspaceContent(page), 320);
+		await selectTab(page, 'Overview');
+		await scrollTo(workspaceContent(page), 200);
+		await wheelWorkspace(page, 60);
+		await expect
+			.poll(async () => Math.abs((await workspaceTabSize(page)).tab - 28))
+			.toBeLessThanOrEqual(1);
+		const compact = await workspaceTabSize(page);
+		await scrollTo(workspaceContent(page), 400);
+		await waitForFrames(page);
+		expect(await workspaceTabSize(page)).toEqual(compact);
+		await selectTab(page, 'Work plan');
+		await expect
+			.poll(() => workspaceContent(page).evaluate((content) => content.scrollTop))
+			.toBe(320);
+		await waitForFrames(page);
+		expect(await workspaceTabSize(page)).toEqual(compact);
+		await selectTab(page, 'Overview');
+		await expect
+			.poll(() => workspaceContent(page).evaluate((content) => content.scrollTop))
+			.toBe(400);
+		await waitForFrames(page);
+		expect(await workspaceTabSize(page)).toEqual(compact);
+
+		// Start one keyboard stop before the selected tab, then shrink with pointer input.
+		const tab = page.getByRole('tab', { name: 'Overview', exact: true });
+		await tab.focus();
+		await page.keyboard.press('Shift+Tab');
+		await expect(tab).not.toBeFocused();
+		// The previous stop is the last control of the group, so the app scrolled to the end.
+		await scrollTo(workspaceContent(page), 200);
+		await wheelWorkspace(page, 60);
+		await expect
+			.poll(async () => Math.abs((await workspaceTabSize(page)).tab - 28))
+			.toBeLessThanOrEqual(1);
+		await page.keyboard.press('Tab');
+		await expect(tab).toBeFocused();
+		await expect.poll(() => workspaceTabSize(page)).toEqual(full);
+	});
+
+	test('reduced motion keeps the island full size during user scroll', async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		const full = await workspaceTabSize(page);
+		expect(full.tab).toBeGreaterThanOrEqual(40);
+		await wheelWorkspace(page, 200);
+		await waitForFrames(page, 12);
+		expect(await workspaceTabSize(page)).toEqual(full);
+	});
+
+	test('forced colors removes the glass effect or makes the island opaque', async ({ page }) => {
+		await page.emulateMedia({ forcedColors: 'active' });
+		await expect
+			.poll(() =>
+				workspaceTabs(page).evaluate((island) => {
+					const style = getComputedStyle(island);
+					const color = style.backgroundColor;
+					const opaque =
+						color.startsWith('rgb(') ||
+						(color.startsWith('rgba(') && Number(color.slice(5, -1).split(',')[3]) === 1);
+					return style.backdropFilter === 'none' || opaque;
+				})
+			)
+			.toBe(true);
+	});
+
+	for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+		test(`the selected pill follows the tab with ${reducedMotion} motion`, async ({ page }) => {
+			await page.emulateMedia({ reducedMotion });
+			const indicator = page.getByTestId('workspace-tab-indicator');
+			await expect(indicator).toBeVisible();
+			const read = () =>
+				workspaceTabs(page).evaluate((island) => {
+					const pill = island.querySelector('[data-testid="workspace-tab-indicator"]')!;
+					const tab = island.querySelector('[role="tab"][aria-selected="true"]')!;
+					return {
+						x: pill.getBoundingClientRect().x,
+						tabX: tab.getBoundingClientRect().x,
+						running: island
+							.getAnimations({ subtree: true })
+							.filter((animation) => animation.playState === 'running' || animation.pending).length
+					};
+				});
+			await expect
+				.poll(async () => {
+					const geometry = await read();
+					return Math.abs(geometry.x - geometry.tabX);
+				})
+				.toBeLessThanOrEqual(1);
+			const before = await read();
+			// Do not wait for transitions before checking reduced motion.
+			await page.getByRole('tab', { name: 'Work plan', exact: true }).click();
+			if (reducedMotion === 'reduce') {
+				const after = await read();
+				expect(after.running).toBe(0);
+				expect(Math.abs(after.x - after.tabX)).toBeLessThanOrEqual(1);
+			}
+			await waitForAnimations(workspaceTabs(page));
+			await expect
+				.poll(async () => {
+					const after = await read();
+					return after.x > before.x + 1 && Math.abs(after.x - after.tabX) <= 1;
+				})
+				.toBe(true);
+		});
+	}
+});
 
 test('a focused separator returns focus to the selected tab when the layout narrows', async ({
 	page
@@ -245,7 +596,7 @@ test('a focused separator returns focus to the selected tab when the layout narr
 
 for (const [name, paneId] of [
 	['Work plan', 'work-pane'],
-	['Plan', 'plan-pane']
+	['Overview', 'plan-pane']
 ] as const) {
 	test(`the focused ${name} tab transfers focus to its pane when the layout widens`, async ({
 		page
@@ -273,7 +624,6 @@ test('only the selected group is a tabpanel while the pinned Timeline stays acce
 }) => {
 	await page.setViewportSize({ width: 800, height: 900 });
 	await openExample(page);
-	await page.getByTestId('gantt-pin').click();
 	await expect(page.getByTestId('timeline-panel')).toHaveAttribute('data-pinned', 'true');
 	await selectTab(page, 'Work plan');
 	await expect(page.getByRole('tabpanel')).toHaveCount(1);
@@ -283,10 +633,10 @@ test('only the selected group is a tabpanel while the pinned Timeline stays acce
 	);
 	await expect(planPane(page)).not.toHaveRole('tabpanel');
 	await expect(page.getByRole('region', { name: 'Timeline', exact: true })).toBeVisible();
-	await expect(page.getByTestId('gantt-pin')).toBeEnabled();
-	await selectTab(page, 'Plan');
+	await expect(page.getByTestId('gantt-pin')).toBeHidden();
+	await selectTab(page, 'Overview');
 	await expect(page.getByRole('tabpanel')).toHaveCount(1);
-	await expect(page.getByRole('tabpanel', { name: 'Plan', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('tabpanel', { name: 'Overview', exact: true })).toHaveAttribute(
 		'id',
 		'plan-pane'
 	);
@@ -300,7 +650,7 @@ test('each tab restores its own scroll position', async ({ page }) => {
 	await scrollTo(workspaceContent(page), 180);
 	await selectTab(page, 'Work plan');
 	await scrollTo(workspaceContent(page), 300);
-	await selectTab(page, 'Plan');
+	await selectTab(page, 'Overview');
 	await expect
 		.poll(() => workspaceContent(page).evaluate((element) => element.scrollTop))
 		.toBe(180);
@@ -316,7 +666,6 @@ test('a narrow pinned Timeline stays above both panels and the sticky stage stac
 	await page.setViewportSize({ width: 800, height: 900 });
 	await openExample(page);
 	await addWorkspaceOverflow(page);
-	await page.getByTestId('gantt-pin').click();
 	await expectStickyBelowHeader(page.getByTestId('timeline-panel'));
 	await selectTab(page, 'Work plan');
 	await expectStickyStageStack(stage(page, 0));
@@ -333,9 +682,8 @@ test('a narrow pinned Timeline stays above both panels and the sticky stage stac
 			})
 		)
 		.toBe(true);
-	await page.getByTestId('gantt-pin').click();
-	await expect(page.getByTestId('timeline-panel')).toBeHidden();
-	await selectTab(page, 'Plan');
+	await expect(page.getByTestId('timeline-panel')).toBeVisible();
+	await selectTab(page, 'Overview');
 	await expect(page.getByTestId('timeline-panel')).toBeVisible();
 });
 
@@ -361,6 +709,8 @@ test('one Timeline keeps its node, horizontal offset and open milestone dialog a
 	await checkInstance();
 	await page.getByTestId('gantt-pin').click();
 	await checkInstance();
+	// With tabs the Timeline is pinned. A pointer over a table row then scrolls the chart to its bar.
+	await page.mouse.move(0, 0);
 	await page.setViewportSize({ width: 800, height: 900 });
 	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
 	await checkInstance();
@@ -414,10 +764,14 @@ test('a split label jump scrolls only the Work plan pane and flashes the reveale
 		.toBe(true);
 });
 
-test('an unpinned label jump selects the Work plan tab and reveals its row', async ({ page }) => {
+test('an Overview label jump selects the Work plan tab and reveals its row', async ({ page }) => {
 	await page.setViewportSize({ width: 800, height: 900 });
 	await openExample(page);
 	await addWorkspaceOverflow(page);
+	await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
 	await page
 		.getByTestId('gantt-label')
 		.filter({ hasText: /^First harvest$/ })
@@ -427,7 +781,7 @@ test('an unpinned label jump selects the Work plan tab and reveals its row', asy
 		'true'
 	);
 	await expectJumpTarget(page, 'First harvest');
-	await expect(page.getByTestId('timeline-panel')).toBeHidden();
+	await expect(page.getByTestId('timeline-panel')).toBeVisible();
 });
 
 test('crossing to tabs keeps focus on a Work plan control and selects its group', async ({
@@ -580,4 +934,34 @@ test('reduced motion applies separator steps, reset and tab changes in the next 
 			})
 	);
 	expect(state).toEqual({ planHidden: true, workVisible: true, workOpacity: '1', animations: 0 });
+});
+
+test('a label tap does not resize the island when its jump scrolls the group', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	await addWorkspaceOverflow(page);
+	await selectTab(page, 'Work plan');
+	await scrollTo(workspaceContent(page), 300);
+	// Make the island partly compact, so a scroll in either direction changes its size.
+	await wheelWorkspace(page, 24);
+	await waitForFrames(page);
+	const partial = await workspaceTabSize(page);
+	expect(partial.tab).toBeGreaterThan(28.5);
+	expect(partial.tab).toBeLessThan(39.5);
+	const before = await workspaceContent(page).evaluate((element) => element.scrollTop);
+	// A tap without movement, in the order of a touch screen: pointer down, touch start,
+	// pointer up, touch end, then the click that starts the jump.
+	const label = page.getByTestId('gantt-label').filter({ hasText: /^Site survey$/ });
+	await label.dispatchEvent('pointerdown', { pointerType: 'touch', isPrimary: true, button: 0 });
+	await label.dispatchEvent('touchstart');
+	await label.dispatchEvent('pointerup', { pointerType: 'touch', isPrimary: true, button: 0 });
+	await label.dispatchEvent('touchend');
+	await label.dispatchEvent('click');
+	await expect
+		.poll(() => workspaceContent(page).evaluate((element) => element.scrollTop))
+		.toBeLessThan(before - 48);
+	await expectJumpTarget(page, 'Site survey');
+	await waitForFrames(page);
+	expect(await workspaceTabSize(page)).toEqual(partial);
 });

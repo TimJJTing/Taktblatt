@@ -14,6 +14,7 @@ const ViewerSchema = v.object({
 	narrowTab: v.fallback(v.picklist(['plan', 'work-plan']), 'plan'),
 	expanded: v.optional(v.record(v.string(), v.array(v.string())), {}),
 	ganttPinned: v.optional(v.boolean(), false),
+	timelineCollapsed: v.fallback(v.boolean(), false),
 	timelineLegendsCollapsed: v.optional(v.boolean()),
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
@@ -29,6 +30,7 @@ export class ViewerState {
 	ganttPinned = $state(false);
 	splitRatio = $state(0.5);
 	narrowTab = $state<'plan' | 'work-plan'>('plan');
+	timelineCollapsed = $state(false);
 	timelineLegendsCollapsed = $state(false);
 	/** The pinned Timeline section height, as a fraction of the viewport height. */
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
@@ -47,6 +49,7 @@ export class ViewerState {
 		this.splitRatio = data.splitRatio;
 		this.narrowTab = data.narrowTab;
 		this.ganttPinned = data.ganttPinned;
+		this.timelineCollapsed = data.timelineCollapsed;
 		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed ?? data.ganttPinned;
 		this.ganttHeight = data.ganttHeight;
 	}
@@ -57,6 +60,7 @@ export class ViewerState {
 			splitRatio: this.splitRatio,
 			narrowTab: this.narrowTab,
 			ganttPinned: this.ganttPinned,
+			timelineCollapsed: this.timelineCollapsed,
 			timelineLegendsCollapsed: this.timelineLegendsCollapsed,
 			ganttHeight: this.ganttHeight
 		};
@@ -95,6 +99,11 @@ export class ViewerState {
 
 	setGanttPinned(value: boolean): void {
 		this.ganttPinned = value;
+		this.save();
+	}
+
+	setTimelineCollapsed(value: boolean): void {
+		this.timelineCollapsed = value;
 		this.save();
 	}
 

@@ -7,7 +7,6 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getPreview } from '#lib/state/preview.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
-	import WorkspaceTabs from './WorkspaceTabs.svelte';
 	import ExportMenu from './ExportMenu.svelte';
 	import Hint from './Hint.svelte';
 	import ImportButton from './ImportButton.svelte';
@@ -83,5 +82,4 @@
 			<SettingsMenu />
 		</div>
 	</div>
-	<WorkspaceTabs />
 </header>

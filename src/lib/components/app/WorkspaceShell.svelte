@@ -3,8 +3,14 @@
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { pinnedTimeline, workspaceLayout } from './app-layout.svelte.ts';
+	import {
+		isTimelinePinned,
+		pinnedTimeline,
+		workspaceLayout,
+		workspaceTabs
+	} from './app-layout.svelte.ts';
 	import AppHeader from './AppHeader.svelte';
+	import WorkspaceTabs from './WorkspaceTabs.svelte';
 
 	let { plan, work }: { plan: Snippet; work: Snippet } = $props();
 	const viewer = getViewer();
@@ -18,12 +24,115 @@
 	const percent = (value: number) => Math.round(value * 100);
 	const scrollPositions = { plan: 0, 'work-plan': 0 };
 	let previousTab = viewer.narrowTab;
+	let stopUserScroll = () => {};
+
+	$effect(() => {
+		if (motionDuration(1) === 0) workspaceTabs.compact = 0;
+	});
+
+	$effect(() => {
+		if (workspaceLayout.split || !content) return;
+		let last = content.scrollTop;
+		let inputUntil = 0;
+		let touching = false;
+		let touchMoved = false;
+		let scrollbar = false;
+		// Count scroll only after user input. App restores, jumps and focus reveals do not resize tabs.
+		const stop = () => {
+			inputUntil = 0;
+			last = content.scrollTop;
+		};
+		stopUserScroll = stop;
+		const activate = () => (inputUntil = performance.now() + 200);
+		const wheel = (event: WheelEvent) => {
+			if (!event.ctrlKey && event.deltaY !== 0) activate();
+		};
+		// A tap is not a scroll. Only a touch that moved keeps counting during the momentum scroll.
+		// A label tap then starts an app scroll (the jump) that must not resize the tabs.
+		const touchStart = () => {
+			touching = true;
+			touchMoved = false;
+		};
+		const touchMove = () => {
+			touchMoved = true;
+			activate();
+		};
+		const touchEnd = () => {
+			touching = false;
+			inputUntil = touchMoved ? performance.now() + 600 : 0;
+		};
+		const pointerDown = (event: PointerEvent) => {
+			stop();
+			const bounds = content.getBoundingClientRect();
+			scrollbar = event.target === content && event.clientX >= bounds.left + content.clientWidth;
+			if (scrollbar) activate();
+		};
+		const pointerUp = () => {
+			scrollbar = false;
+		};
+		const key = (event: KeyboardEvent) => {
+			stop();
+			if (
+				!event.defaultPrevented &&
+				!event.ctrlKey &&
+				!event.metaKey &&
+				!event.altKey &&
+				['PageDown', 'PageUp', ' ', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) &&
+				event.target instanceof HTMLElement &&
+				!event.target.closest('input, textarea, select, button, [contenteditable], [role="slider"]')
+			)
+				activate();
+		};
+		const scroll = () => {
+			const max = content.scrollHeight - content.clientHeight;
+			// Clamp the overscroll offsets, so the rebound at an edge is not a scroll.
+			const top = Math.min(Math.max(content.scrollTop, 0), Math.max(max, 0));
+			const delta = top - last;
+			last = top;
+			if (motionDuration(1) === 0 || max <= 0) {
+				workspaceTabs.compact = 0;
+				return;
+			}
+			if (!(touching && touchMoved) && !scrollbar && performance.now() > inputUntil) return;
+			workspaceTabs.compact =
+				top <= 0 ? 0 : Math.min(1, Math.max(0, workspaceTabs.compact + delta / 48));
+		};
+		const resize = new ResizeObserver(() => {
+			if (content.scrollHeight <= content.clientHeight) workspaceTabs.compact = 0;
+		});
+		resize.observe(content);
+		for (const group of content.querySelectorAll('#work-pane, #remarks')) resize.observe(group);
+		content.addEventListener('scroll', scroll, { passive: true });
+		content.addEventListener('wheel', wheel, { passive: true });
+		content.addEventListener('touchstart', touchStart, { passive: true });
+		content.addEventListener('touchmove', touchMove, { passive: true });
+		content.addEventListener('touchend', touchEnd, { passive: true });
+		content.addEventListener('touchcancel', touchEnd, { passive: true });
+		content.addEventListener('pointerdown', pointerDown, true);
+		content.addEventListener('keydown', key);
+		window.addEventListener('pointerup', pointerUp);
+		window.addEventListener('pointercancel', pointerUp);
+		return () => {
+			resize.disconnect();
+			content.removeEventListener('scroll', scroll);
+			content.removeEventListener('wheel', wheel);
+			content.removeEventListener('touchstart', touchStart);
+			content.removeEventListener('touchmove', touchMove);
+			content.removeEventListener('touchend', touchEnd);
+			content.removeEventListener('touchcancel', touchEnd);
+			content.removeEventListener('pointerdown', pointerDown, true);
+			content.removeEventListener('keydown', key);
+			window.removeEventListener('pointerup', pointerUp);
+			window.removeEventListener('pointercancel', pointerUp);
+			stopUserScroll = () => {};
+		};
+	});
 
 	function tabElements(tab: 'plan' | 'work-plan') {
 		return content.querySelectorAll<HTMLElement>(
 			tab === 'work-plan'
 				? '#work-pane'
-				: viewer.ganttPinned
+				: isTimelinePinned(viewer)
 					? '#header, #stage-overview, #remarks'
 					: '#header, #timeline, #stage-overview, #remarks'
 		);
@@ -49,6 +158,8 @@
 				if (focused instanceof HTMLElement && lost && !focused.checkVisibility()) {
 					if (focused.matches('.split-resize')) {
 						document.getElementById(`workspace-tab-${viewer.narrowTab}`)?.focus();
+					} else if (focused.matches('[data-testid="gantt-pin"]')) {
+						document.getElementById('timeline-collapse')?.focus();
 					} else if (focused.matches('#workspace-tab-plan, #workspace-tab-work-plan')) {
 						document.getElementById(focused.getAttribute('aria-controls')!)?.focus();
 					}
@@ -75,6 +186,7 @@
 			const ms = motionDuration(120);
 			void tick().then(() => {
 				if (workspaceLayout.split || !content) return;
+				stopUserScroll();
 				content.scrollTop = Math.min(
 					scrollPositions[tab],
 					Math.max(0, content.scrollHeight - content.clientHeight)
@@ -115,7 +227,9 @@
 		const bounds = target.getBoundingClientRect();
 		const view = scroller.getBoundingClientRect();
 		const pinned =
-			viewer.ganttPinned && (!split || scroller.id === 'plan-pane') ? pinnedTimeline.height : 0;
+			isTimelinePinned(viewer) && (!split || scroller.id === 'plan-pane')
+				? pinnedTimeline.height
+				: 0;
 		const stage = target.closest('[data-testid="stage"]');
 		const header = stage?.querySelector(':scope > header');
 		const columns = stage?.querySelector<HTMLElement>(
@@ -126,8 +240,11 @@
 				? header.getBoundingClientRect().height + (columns?.getBoundingClientRect().height ?? 0)
 				: 0;
 		const top = view.top + pinned + stack;
+		const bottom =
+			view.bottom - (split ? 0 : parseFloat(getComputedStyle(content).scrollPaddingBottom));
+		stopUserScroll();
 		if (bounds.top < top) scroller.scrollTop += bounds.top - top;
-		else if (bounds.bottom > view.bottom) scroller.scrollTop += bounds.bottom - view.bottom;
+		else if (bounds.bottom > bottom) scroller.scrollTop += bounds.bottom - bottom;
 	}
 </script>
 
@@ -140,14 +257,14 @@
 	data-testid="workspace-content"
 	data-layout={workspaceLayout.split ? 'split' : 'tabs'}
 	data-tab={viewer.narrowTab}
-	data-pinned={viewer.ganttPinned}
+	data-pinned={isTimelinePinned(viewer)}
 	style:--split-columns="{ratio}fr 12px {1 - ratio}fr"
 	style:--split-duration="{duration}ms"
 	data-animate-split={duration > 0}
-	style:--gantt-pinned-h={!workspaceLayout.split && viewer.ganttPinned
+	style:--gantt-pinned-h={!workspaceLayout.split && isTimelinePinned(viewer)
 		? `${pinnedTimeline.height}px`
 		: '0px'}
-	style:--plan-pinned-h={viewer.ganttPinned ? `${pinnedTimeline.height}px` : '0px'}
+	style:--plan-pinned-h={isTimelinePinned(viewer) ? `${pinnedTimeline.height}px` : '0px'}
 	onfocusin={(event) => {
 		if (event.target instanceof HTMLElement) revealFocus(event.target);
 	}}
@@ -219,6 +336,7 @@
 		{@render work()}
 	</div>
 </div>
+<WorkspaceTabs />
 
 <style>
 	@media screen {
@@ -250,18 +368,37 @@
 			:global(#plan-pane > :not(#timeline)) {
 			display: none;
 		}
-		.workspace-content[data-layout='tabs'][data-tab='work-plan'][data-pinned='false']
-			:global(#timeline) {
-			display: none;
-		}
 		/* A sticky element stops at the padding edge. Subtract the padding, so it touches the top. */
 		.workspace-content[data-pinned='true'] :global(#timeline) {
 			position: sticky;
 			top: calc(-1 * var(--pane-padding));
 			z-index: 30;
 		}
-		.workspace-content[data-tab='work-plan'] :global(#timeline) {
-			margin-top: 0;
+		/* Keep these rules below the split width. The layout attribute changes one frame after the media query. */
+		@media (max-width: 1023.98px) {
+			.workspace-content[data-layout='tabs'] {
+				/* Full island: 40 px target and 4 px padding on each side. */
+				--tabs-bottom-space: calc(
+					var(--pane-padding) + 48px + 12px + env(safe-area-inset-bottom) + 16px
+				);
+				padding-bottom: var(--tabs-bottom-space);
+				scroll-padding-bottom: var(--tabs-bottom-space);
+				display: flex;
+				flex-direction: column;
+			}
+			.workspace-content[data-layout='tabs'] > *,
+			.workspace-content[data-layout='tabs'] :global(#plan-pane > *) {
+				flex-shrink: 0;
+			}
+			.workspace-content[data-layout='tabs'] :global(#timeline) {
+				order: -1;
+				margin: calc(-1 * var(--pane-padding)) calc(-1 * var(--pane-padding)) var(--pane-padding);
+				padding-inline: var(--pane-padding);
+				background: var(--background);
+				box-shadow:
+					0 4px 6px -1px rgb(0 0 0 / 0.1),
+					0 2px 4px -2px rgb(0 0 0 / 0.1);
+			}
 		}
 		:global(#stage-overview),
 		:global(#remarks) {

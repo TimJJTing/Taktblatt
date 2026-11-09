@@ -166,9 +166,9 @@ for (const width of [390, 1280, 1920]) {
 		await page.setViewportSize({ width, height: 900 });
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await openExample(page);
-		await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
+		if (width >= 1024) await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
 		const chartWidth = (await page.getByTestId('gantt').boundingBox())!.width;
-		await page.getByTestId('gantt-pin').click();
+		if (width >= 1024) await page.getByTestId('gantt-pin').click();
 		const panel = page.getByTestId('timeline-panel');
 		await expectPanelHeight(page, defaultPanelHeight(page));
 		await expectRegionWidthDivider(page);
@@ -202,8 +202,10 @@ for (const width of [390, 1280, 1920]) {
 		await page.evaluate(() => document.documentElement.style.removeProperty('overflow-y'));
 		await page.setViewportSize({ width: width + 80, height: 900 });
 		await expectRegionWidthDivider(page);
-		await page.getByTestId('gantt-pin').click();
-		await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
+		if (width >= 1024) {
+			await page.getByTestId('gantt-pin').click();
+			await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
+		}
 	});
 }
 

@@ -8,7 +8,7 @@ Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows i
 
 On a wide screen (1024 px or more), the workspace has two panes. The left pane shows the plan: the header, the timeline, the stage overview and the remarks. The right pane shows the work plan. Each pane scrolls on its own. Drag the divider between the panes to change their widths, or select it and use the arrow keys. Double-click the divider to reset it to 50/50.
 
-On a narrower screen, two tabs, **Plan** and **Work plan**, show one group at a time. A pinned timeline stays visible with both tabs.
+On a narrower screen, a tab bar at the bottom has two tabs, **Overview** and **Work plan**. They show one group at a time. The timeline is always pinned at the top. Tap the chevron on its divider to collapse or expand it.
 
 The Preview and the printed sheets do not change with the screen layout.
 
@@ -30,7 +30,7 @@ The **Sheet footer** row below the objective has a note, a version, a date and a
 - Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
-- Use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. With tabs, it stays above the work plan too. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
+- Use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. With tabs, the section is always pinned. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
 
 ### Stage overview
 

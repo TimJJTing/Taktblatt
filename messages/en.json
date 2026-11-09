@@ -1,4 +1,7 @@
 {
+	"workspace_overview": "Overview",
+	"timeline_collapse": "Collapse timeline",
+	"timeline_expand": "Expand timeline",
 	"dependency_candidate_cycle": "Makes a dependency cycle.",
 	"dependency_candidate_date": "Starts after this task ends.",
 	"dependency_warning_cycle": "This dependency is part of a cycle.",

@@ -384,11 +384,51 @@ export async function addWorkspaceOverflow(page: Page): Promise<void> {
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
 
 export const workspaceContent = (page: Page) => page.getByTestId('workspace-content');
+export const workspaceTabs = (page: Page) => page.getByTestId('workspace-tabs');
+
+/** Waits for browser frames without changing focus or scroll position. */
+export async function waitForFrames(page: Page, count = 6): Promise<void> {
+	await page.evaluate(async (frames) => {
+		for (let frame = 0; frame < frames; frame++) {
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		}
+	}, count);
+}
+
+/** Sends a user scroll to the group, clear of the Timeline and floating tabs. */
+export async function wheelWorkspace(page: Page, delta: number): Promise<void> {
+	const content = workspaceContent(page);
+	const bounds = (await content.boundingBox())!;
+	const before = await content.evaluate((element) => element.scrollTop);
+	await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+	await page.mouse.wheel(0, delta);
+	await expect
+		.poll(() =>
+			content.evaluate((element, top) => Math.abs(element.scrollTop - top), before + delta)
+		)
+		.toBeLessThanOrEqual(1);
+	await waitForFrames(page, 2);
+}
+
+/** Reads island and selected-tab sizes in the same frame. */
+export async function workspaceTabSize(page: Page) {
+	return workspaceTabs(page).evaluate((island) => {
+		const tab = island.querySelector('[role="tab"][aria-selected="true"]')!;
+		const icon = tab.querySelector('svg')!.getBoundingClientRect();
+		return {
+			island: island.getBoundingClientRect().height,
+			tab: tab.getBoundingClientRect().height,
+			iconWidth: icon.width,
+			iconHeight: icon.height
+		};
+	});
+}
+
 export const planPane = (page: Page) => page.getByTestId('plan-pane');
 export const workPane = (page: Page) => page.getByTestId('work-pane');
 
 /** Selects a group when the workspace uses tabs. */
-export async function selectTab(page: Page, name: 'Plan' | 'Work plan'): Promise<void> {
+export async function selectTab(page: Page, name: 'Overview' | 'Work plan'): Promise<void> {
 	if ((await workspaceContent(page).getAttribute('data-layout')) === 'tabs') {
 		const tab = page.getByRole('tab', { name, exact: true });
 		if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
@@ -437,7 +477,7 @@ export async function expectStickyStageStack(section: Locator): Promise<void> {
 		const split = content.dataset.layout === 'split';
 		const scroller = split ? document.querySelector<HTMLElement>('#work-pane')! : content;
 		const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
-		const pinned = !split && panel.dataset.pinned ? panel.getBoundingClientRect().height : 0;
+		const pinned = !split ? panel.getBoundingClientRect().height : 0;
 		scroller.scrollTop +=
 			element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pinned + 60;
 	});
@@ -448,10 +488,9 @@ export async function expectStickyStageStack(section: Locator): Promise<void> {
 				const split = content.dataset.layout === 'split';
 				const scroller = split ? document.querySelector('#work-pane')! : content;
 				const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
-				const top =
-					!split && panel.dataset.pinned
-						? panel.getBoundingClientRect().bottom
-						: scroller.getBoundingClientRect().top;
+				const top = !split
+					? panel.getBoundingClientRect().bottom
+					: scroller.getBoundingClientRect().top;
 				const header = element.querySelector(':scope > header')!.getBoundingClientRect();
 				const narrow = element.getBoundingClientRect().width < 640;
 				const band = element

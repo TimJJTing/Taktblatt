@@ -444,8 +444,6 @@ test.describe('work plan', () => {
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
 			await addWorkspaceOverflow(page);
-			await selectTab(page, 'Plan');
-			await page.getByTestId('gantt-pin').click();
 			await selectTab(page, 'Work plan');
 			await page.getByTestId('gantt-resize').press('Home');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx);
@@ -462,8 +460,6 @@ test.describe('work plan', () => {
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
 			await addWorkspaceOverflow(page);
-			await selectTab(page, 'Plan');
-			await page.getByTestId('gantt-pin').click();
 			await selectTab(page, 'Work plan');
 			await expectPanelHeight(page, defaultPanelHeight(page));
 			const first = stage(page, 0);
@@ -561,7 +557,7 @@ test.describe('work plan', () => {
 			await addWorkspaceOverflow(page);
 			await selectTab(page, 'Work plan');
 			if (pinned) {
-				await selectTab(page, 'Plan');
+				await selectTab(page, 'Overview');
 				await page.getByTestId('gantt-pin').click();
 				await selectTab(page, 'Work plan');
 				await page.getByTestId('gantt-resize').press('Home');

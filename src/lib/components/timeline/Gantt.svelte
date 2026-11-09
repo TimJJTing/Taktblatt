@@ -9,7 +9,11 @@
 	import { tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { workspaceLayout, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
+	import {
+		isTimelinePinned,
+		workspaceLayout,
+		pinnedTimeline
+	} from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
 	import { isFinished } from '#lib/domain/derive.ts';
@@ -122,7 +126,7 @@
 
 	$effect(() => {
 		const id = editing.highlightId;
-		if (!viewer.ganttPinned || id === null || id === ownHighlight) return;
+		if (!isTimelinePinned(viewer) || id === null || id === ownHighlight) return;
 		untrack(() => showInChart(id));
 	});
 
@@ -168,7 +172,7 @@
 			stage.getBoundingClientRect().width >= 640 ? 'thead th' : '[data-testid="stage-band"]'
 		);
 		const columnHeight = column?.getBoundingClientRect().height ?? 0;
-		const pinned = !workspaceLayout.split && viewer.ganttPinned ? pinnedTimeline.height : 0;
+		const pinned = !workspaceLayout.split && isTimelinePinned(viewer) ? pinnedTimeline.height : 0;
 		const offset = pinned + stageHeight + columnHeight + 16;
 		scroller.scrollTo({
 			top:

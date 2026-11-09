@@ -84,7 +84,7 @@ test('the pin keeps the heading, chart and legends together and clears row jumps
 });
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
-	test(`the mobile pin stays accessible during chart panning and legend overflow (${reducedMotion})`, async ({
+	test(`the mobile divider stays accessible during chart panning and legend overflow (${reducedMotion})`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -97,8 +97,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			}
 		});
 		const panel = page.getByTestId('timeline-panel');
-		const pin = page.getByTestId('gantt-pin');
-		await pin.click();
+		const pin = page.getByRole('button', { name: 'Collapse timeline', exact: true });
 		await expectStickyBelowHeader(panel);
 		const pinBefore = (await pin.boundingBox())!;
 		await page.getByTestId('gantt-scroller').evaluate((element) => (element.scrollLeft = 200));
@@ -172,8 +171,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			)
 			.toBe(true);
 		await expect(pin).toBeInViewport();
-		await pin.click();
-		await expect(pin).toHaveAttribute('aria-pressed', 'false');
+		await expect(page.getByTestId('gantt-pin')).toBeHidden();
 	});
 }
 
@@ -501,9 +499,7 @@ test('pinned resize buttons change height by ten percent and keep it after reloa
 for (const { width, viewport, maxRatio } of [
 	{ width: 1280, viewport: 900, maxRatio: 0.5 },
 	{ width: 1280, viewport: 667, maxRatio: 0.5 },
-	{ width: 1280, viewport: 220, maxRatio: 0.5 },
-	{ width: 800, viewport: 900, maxRatio: 0.4 },
-	{ width: 800, viewport: 220, maxRatio: 0.4 }
+	{ width: 1280, viewport: 220, maxRatio: 0.5 }
 ]) {
 	test(`pinned resize buttons stop and disable at both height limits (${width} × ${viewport}px)`, async ({
 		page
@@ -575,7 +571,7 @@ test('pinned resize buttons support Enter and Space', async ({ page }) => {
 	}
 });
 
-for (const width of [1280, 390]) {
+for (const width of [1280]) {
 	for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		test(`resize buttons appear only while pinned and keep Legends in position (${width}px, ${reducedMotion})`, async ({
 			page

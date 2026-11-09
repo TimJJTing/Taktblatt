@@ -1,4 +1,7 @@
 {
+	"workspace_overview": "Übersicht",
+	"timeline_collapse": "Zeitachse einklappen",
+	"timeline_expand": "Zeitachse ausklappen",
 	"dependency_candidate_cycle": "Erzeugt einen Abhängigkeitszyklus.",
 	"dependency_candidate_date": "Beginnt nach dem Ende dieser Aufgabe.",
 	"dependency_warning_cycle": "Diese Abhängigkeit ist Teil eines Zyklus.",

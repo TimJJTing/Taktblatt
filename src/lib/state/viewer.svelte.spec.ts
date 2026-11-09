@@ -109,6 +109,66 @@ describe('ViewerState', () => {
 		expect(viewer.timelineLegendsCollapsed).toBe(false);
 	});
 
+	it('defaults timeline collapse for new and older viewer data', () => {
+		for (const data of [null, { ganttPinned: true, narrowTab: 'work-plan' }]) {
+			const storage = new MemoryStorage();
+			if (data) storage.setItem(KEYS.viewer, JSON.stringify(data));
+			const viewer = new ViewerState(storage);
+			expect(viewer.timelineCollapsed).toBe(false);
+			if (data) {
+				expect(viewer.ganttPinned).toBe(true);
+				expect(viewer.narrowTab).toBe('work-plan');
+			}
+		}
+	});
+
+	it('persists timeline collapse through other viewer updates and expansion', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		viewer.setTimelineCollapsed(true);
+		viewer.setSplitRatio(0.63);
+		viewer.setNarrowTab('work-plan');
+		viewer.setGanttPinned(true);
+		viewer.setGanttHeight(0.42);
+		viewer.setTimelineLegendsCollapsed(false);
+		viewer.setExpanded('p1', 't1', true);
+		const again = new ViewerState(storage);
+		expect(again.timelineCollapsed).toBe(true);
+		expect(again.splitRatio).toBe(0.63);
+		expect(again.narrowTab).toBe('work-plan');
+		expect(again.ganttPinned).toBe(true);
+		expect(again.ganttHeight).toBe(0.42);
+		expect(again.timelineLegendsCollapsed).toBe(false);
+		expect(again.isExpanded('p1', 't1')).toBe(true);
+		again.setTimelineCollapsed(false);
+		expect(new ViewerState(storage).timelineCollapsed).toBe(false);
+		expect(JSON.parse(storage.getItem(KEYS.viewer)!).timelineCollapsed).toBe(false);
+	});
+
+	it.each(['yes', null, 1])('defaults only invalid timeline collapse (%s)', (timelineCollapsed) => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({
+				timelineCollapsed,
+				splitRatio: 0.63,
+				narrowTab: 'work-plan',
+				ganttPinned: true,
+				ganttHeight: 0.42,
+				timelineLegendsCollapsed: false,
+				expanded: { p1: ['t1'] }
+			})
+		);
+		const viewer = new ViewerState(storage);
+		expect(viewer.timelineCollapsed).toBe(false);
+		expect(viewer.splitRatio).toBe(0.63);
+		expect(viewer.narrowTab).toBe('work-plan');
+		expect(viewer.ganttPinned).toBe(true);
+		expect(viewer.ganttHeight).toBe(0.42);
+		expect(viewer.timelineLegendsCollapsed).toBe(false);
+		expect(viewer.isExpanded('p1', 't1')).toBe(true);
+	});
+
 	it('starts with collapsed legends when older viewer data is pinned', () => {
 		const storage = new MemoryStorage();
 		storage.setItem(

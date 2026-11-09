@@ -131,6 +131,7 @@
 			height: 100dvh;
 			display: grid;
 			grid-template-rows: auto minmax(0, 1fr);
+			position: relative;
 			/* The column must not grow to the width of the Gantt or the table. */
 			grid-template-columns: minmax(0, 1fr);
 			overflow: hidden;

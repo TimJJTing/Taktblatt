@@ -1,4 +1,7 @@
 {
+	"workspace_overview": "總覽",
+	"timeline_collapse": "收合時間軸",
+	"timeline_expand": "展開時間軸",
 	"dependency_candidate_cycle": "會形成相依循環。",
 	"dependency_candidate_date": "開始日期晚於此任務的結束日期。",
 	"dependency_warning_cycle": "此相依關係是循環的一部分。",
