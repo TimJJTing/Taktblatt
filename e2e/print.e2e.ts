@@ -1,14 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
+	choosePrint,
 	dependencyArrowFades,
 	dependencyContrast,
 	formatted,
 	openApp,
-	choosePrint,
 	openExample,
-	openPreview,
 	openMenu,
+	openPreview,
 	row,
 	storedPlan,
 	writeStoredPlan,

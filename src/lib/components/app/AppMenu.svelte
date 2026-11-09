@@ -1,6 +1,6 @@
 <!--
 	The app menu: the last button in the app header. Its icon is an ellipsis.
-	It contains Print, Import and Export, then the Theme and Language choices.
+	It contains Print, Import and an Export submenu, then the Theme and Language choices.
 	Print opens the preview. The print dialog opens only from the Print button of the preview
 	or from Cmd/Ctrl+P.
 	Export writes the active plan or all plans to a JSON file. The file contains plan data only.
@@ -99,12 +99,19 @@
 		<DropdownMenu.Item onSelect={() => importer?.choose()} data-testid="menu-import">
 			<DownloadIcon aria-hidden="true" />{m.action_import()}
 		</DropdownMenu.Item>
-		<DropdownMenu.Item onSelect={exportPlan} data-testid="menu-export-plan">
-			<UploadIcon aria-hidden="true" />{m.export_plan()}
-		</DropdownMenu.Item>
-		<DropdownMenu.Item onSelect={exportAll} data-testid="menu-export-all">
-			<UploadIcon aria-hidden="true" />{m.export_all()}
-		</DropdownMenu.Item>
+		<DropdownMenu.Sub>
+			<DropdownMenu.SubTrigger data-testid="menu-export">
+				<UploadIcon aria-hidden="true" />{m.action_export()}
+			</DropdownMenu.SubTrigger>
+			<DropdownMenu.SubContent>
+				<DropdownMenu.Item onSelect={exportPlan} data-testid="menu-export-plan">
+					{m.export_plan()}
+				</DropdownMenu.Item>
+				<DropdownMenu.Item onSelect={exportAll} data-testid="menu-export-all">
+					{m.export_all()}
+				</DropdownMenu.Item>
+			</DropdownMenu.SubContent>
+		</DropdownMenu.Sub>
 		<DropdownMenu.Separator />
 		<DropdownMenu.Label class="flex items-center gap-1.5">
 			<SunMoonIcon class="size-3.5" aria-hidden="true" />

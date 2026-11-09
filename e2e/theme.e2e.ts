@@ -91,8 +91,8 @@ test('the menu theme choices support keyboard selection and preserve plan histor
 	await waitForAnimations(page.getByRole('menu'));
 	await page.keyboard.press('Home');
 	await expect(page.getByTestId('menu-print')).toBeFocused();
-	// The four actions come before the Theme group.
-	for (let step = 0; step < 4; step++) await page.keyboard.press('ArrowDown');
+	// The three actions come before the Theme group.
+	for (let step = 0; step < 3; step++) await page.keyboard.press('ArrowDown');
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
 	).toBeFocused();

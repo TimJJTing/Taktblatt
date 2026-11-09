@@ -69,7 +69,7 @@ Open **Menu** (**…**) in the app header and choose **Print**. The preview show
 ### Several plans, import, export and offline use
 
 - Create, rename, duplicate and delete plans with the plan switcher in the app header.
-- Export one plan or all plans as JSON files from **Menu**. Import them again on any device with **Menu → Import**.
+- Export one plan or all plans as JSON files with **Menu → Export**. Import them again on any device with **Menu → Import**.
 - Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
 
@@ -96,7 +96,7 @@ Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light**, **
 3. Click a heading, a date or a task to edit it.
 4. Click **Menu → Print** to see the sheets in the preview.
 5. Click **Print** in the preview to print the plan or to save it as a PDF.
-6. Click **Menu → Export this plan** to save a copy of your plan as a JSON file.
+6. Click **Menu → Export → Export this plan** to save a copy of your plan as a JSON file.
 
 ## Development
 

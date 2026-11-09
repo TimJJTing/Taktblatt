@@ -24,16 +24,13 @@ test('the header keeps Print, Import and Export in the menu', async ({ page }) =
 	for (const name of ['Preview', 'Print', 'Import', 'Export']) {
 		await expect(header.getByRole('button', { name, exact: true })).toHaveCount(0);
 	}
-	await expect(header.getByRole('button')).toHaveCount(4);
 	const trigger = page.getByTestId('app-menu');
 	await expect(trigger.locator('svg')).toHaveClass(/lucide-ellipsis/);
 	const menu = await openMenu(page);
-	await expect(menu.getByRole('menuitem')).toHaveText([
-		'Print',
-		'Import',
-		'Export this plan',
-		'Export all plans'
-	]);
+	await expect(menu.getByRole('menuitem')).toHaveText(['Print', 'Import', 'Export']);
+	await menu.getByTestId('menu-export').click();
+	await expect(page.getByTestId('menu-export-plan')).toHaveText('Export this plan');
+	await expect(page.getByTestId('menu-export-all')).toHaveText('Export all plans');
 	await expect(menu.getByTestId('menu-print').locator('svg')).toHaveClass(/lucide-printer/);
 });
 

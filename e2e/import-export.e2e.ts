@@ -7,7 +7,8 @@ type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 const isoDate = /\d{4}-\d{2}-\d{2}/;
 
 async function readDownload(page: Page, menuItem: string) {
-	await openMenu(page);
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-export').click();
 	const pending = page.waitForEvent('download');
 	await page.getByRole('menuitem', { name: menuItem }).click();
 	const download = await pending;
@@ -25,8 +26,9 @@ test.describe('icons', () => {
 		await openApp(page);
 		const menu = await openMenu(page);
 		await expect(menu.getByTestId('menu-import').locator('svg')).toHaveClass(/lucide-download/);
-		await expect(menu.getByTestId('menu-export-plan').locator('svg')).toHaveClass(/lucide-upload/);
-		await expect(menu.getByTestId('menu-export-all').locator('svg')).toHaveClass(/lucide-upload/);
+		await expect(menu.getByTestId('menu-export').locator('svg').first()).toHaveClass(
+			/lucide-upload/
+		);
 	});
 });
 
@@ -204,7 +206,8 @@ test('the header keeps the menu visible at 360 px', async ({ page }) => {
 	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeInViewport();
 	const menu = await openMenu(page);
 	await expect(menu.getByTestId('menu-import')).toBeInViewport();
-	await expect(menu.getByTestId('menu-export-all')).toBeInViewport();
+	await menu.getByTestId('menu-export').click();
+	await expect(page.getByTestId('menu-export-all')).toBeInViewport();
 });
 
 test('Import in the menu opens the file chooser', async ({ page }) => {
@@ -214,4 +217,24 @@ test('Import in the menu opens the file chooser', async ({ page }) => {
 	await menu.getByTestId('menu-import').click();
 	await chooser;
 	await expect(page.getByRole('menu')).toHaveCount(0);
+});
+
+test('keyboard Import in the menu opens the file chooser', async ({ page }) => {
+	await openApp(page);
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-import').focus();
+	const chooser = page.waitForEvent('filechooser');
+	await page.keyboard.press('Enter');
+	await chooser;
+});
+
+test('keyboard Export opens the submenu and exports the plan', async ({ page }) => {
+	await openApp(page);
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-export').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.getByTestId('menu-export-plan')).toBeFocused();
+	const pending = page.waitForEvent('download');
+	await page.keyboard.press('Enter');
+	expect((await pending).suggestedFilename()).toMatch(/\.json$/);
 });
