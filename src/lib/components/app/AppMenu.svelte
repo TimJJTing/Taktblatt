@@ -127,6 +127,15 @@
 		downloadText(exportFileName(plan.heading, todayISO()), serializeFile(toPlanFile(plan)));
 	}
 
+	// The theme choices form one switch: a track with one thumb that slides to the selected choice.
+	const themeTrack = 'relative grid grid-cols-3 rounded-lg bg-muted p-0.5';
+	const themeIndex = $derived(
+		Math.max(
+			0,
+			themes.findIndex((theme) => theme.value === userPrefersMode.current)
+		)
+	);
+
 	function chooseTheme(value: string) {
 		if (value === 'light' || value === 'dark' || value === 'system') setMode(value);
 	}
@@ -176,6 +185,16 @@
 	>
 		<EllipsisIcon aria-hidden="true" />
 	</Button>
+{/snippet}
+
+{#snippet themeThumb()}
+	<span
+		aria-hidden="true"
+		class="pointer-events-none absolute inset-y-0.5 left-0.5 w-[calc((100%-0.25rem)/3)] rounded-md bg-background shadow-sm ring-1 ring-foreground/10 ease-out"
+		style="transform: translateX({themeIndex * 100}%); transition: transform {motionDuration(
+			150
+		)}ms"
+	></span>
 {/snippet}
 
 {#if coarsePointer.current}
@@ -242,12 +261,13 @@
 					onValueChange={chooseTheme}
 					aria-label={m.theme()}
 					orientation="horizontal"
-					class="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+					class={themeTrack}
 				>
+					{@render themeThumb()}
 					{#each themes as theme (theme.value)}
 						<RadioGroup.Item
 							value={theme.value}
-							class="flex min-h-11 items-center justify-center gap-2 rounded-md text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=checked]:bg-background data-[state=checked]:shadow-sm"
+							class="relative flex min-h-11 items-center justify-center gap-2 rounded-md text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[state=checked]:text-foreground"
 						>
 							<theme.icon class="size-4" aria-hidden="true" />{theme.label()}
 						</RadioGroup.Item>
@@ -317,14 +337,15 @@
 				value={userPrefersMode.current}
 				onValueChange={chooseTheme}
 				aria-label={m.theme()}
-				class="mx-1.5 mt-1 mb-2 grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+				class={cn(themeTrack, 'mx-1.5 mt-1 mb-2')}
 			>
+				{@render themeThumb()}
 				{#each themes as theme (theme.value)}
 					<DropdownMenu.RadioItem
 						value={theme.value}
 						closeOnSelect
 						aria-label={theme.label()}
-						class="justify-center rounded-md py-1.5 pr-2 data-[state=checked]:bg-background data-[state=checked]:shadow-sm [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
+						class="relative justify-center rounded-md py-1.5 pr-2 text-muted-foreground focus:bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[state=checked]:text-foreground [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
 					>
 						<theme.icon aria-hidden="true" />
 					</DropdownMenu.RadioItem>
