@@ -21,6 +21,7 @@
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 	import { todayISO } from '#lib/domain/date.ts';
 	import { exportFileName, serializeFile, toPlanFile } from '#lib/domain/io.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -55,6 +56,7 @@
 	const reload = getLanguageReload();
 	const current = getLocale();
 	let menuOpen = $state(false);
+	let languageOpen = $state(false);
 	let trigger = $state<HTMLButtonElement | null>(null);
 	let handoff = $state(false);
 	let confirmOpen = $state(false);
@@ -274,22 +276,43 @@
 					{/each}
 				</RadioGroup.Root>
 			</div>
-			<label class="flex min-h-11 items-center justify-between gap-4 text-sm font-medium">
+			<div class="flex min-h-11 items-center justify-between gap-4 text-sm font-medium">
 				<span>{m.ui_language()}</span>
-				<select
-					aria-label={m.ui_language()}
+				<Select.Root
+					type="single"
+					bind:open={languageOpen}
 					value={current}
-					onchange={(event) => {
-						const value = event.currentTarget.value as Locale;
-						act(() => reload.choose(value));
+					allowDeselect
+					onValueChange={(value) => {
+						// An empty value means the user chose the current language again.
+						const locale = locales.find((locale) => locale === (value || current));
+						if (!locale) return;
+						languageOpen = false;
+						act(() => reload.choose(locale));
 					}}
-					class="min-h-11 min-w-0 rounded-md border bg-background px-3 text-sm font-normal"
 				>
-					{#each locales as locale (locale)}<option value={locale} lang={locale}
-							>{labels[locale]()}</option
-						>{/each}
-				</select>
-			</label>
+					<Select.Trigger
+						data-testid="menu-language"
+						aria-label={m.ui_language()}
+						class="min-h-11 min-w-0 font-normal"
+						style={`transition-duration: ${motionDuration(150)}ms`}
+					>
+						{labels[current]()}
+					</Select.Trigger>
+					<Select.Content
+						align="end"
+						collisionPadding={16}
+						class="z-[60]"
+						style={`animation-duration: ${motionDuration(100)}ms`}
+					>
+						{#each locales as locale (locale)}
+							<Select.Item value={locale} label={labels[locale]()} lang={locale} class="min-h-11">
+								{labels[locale]()}
+							</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
 		</div>
 	</BottomSheet>
 {:else}

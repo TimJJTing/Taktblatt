@@ -313,9 +313,18 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 - **Actions and closing.** In both presentations, an action closes the menu first. The action runs when the menu has closed. If the user opens the menu again before then, the pending action runs first, one time. **Import…** is different: it opens the file chooser at once, because the browser needs the user action.
   - In the dropdown menu, a Theme choice applies at once and closes the menu.
 - **Presentation.** When the primary pointer is coarse (`pointer: coarse`, as on phones and most tablets), each menu opens as a **bottom sheet**. Otherwise it opens as a dropdown menu. Both presentations have the same items, groups and order.
-  - A bottom sheet is a modal dialog at the bottom edge of the window. It has rounded top corners, a decorative grip and a visible title: "Plans" or "This plan".
+  - A bottom sheet is a modal dialog at the bottom edge of the window. It uses the vendored Sheet component (`side="bottom"`). It has rounded top corners, a grip and a visible title: "Plans" or "This plan". The grip is decorative for assistive technology.
   - The This plan bottom sheet shows the name of the open plan below its title.
   - A scrim covers the app. A tap on the scrim or Esc closes the bottom sheet.
+  - **Drag to close:** a drag down closes the bottom sheet.
+    - A drag can start on the grip, the title area or the content. On the content, a drag starts only when the content is scrolled to the top and the finger moves down. Otherwise the content scrolls.
+    - A drag starts after 4 px of movement. A movement that is more horizontal than vertical does not start a drag. A drag does not start in a text field or on a select. A drag cancels the tap on the control below the finger.
+    - During a drag, the bottom sheet follows the finger down. A drag up moves the bottom sheet only a little, with resistance: at most 12 px above its open position. On release, it moves back to the open position. The scrim fades in proportion to the distance.
+    - On release, the bottom sheet closes when the distance is 25 % of its height or more, or when the finger moves down fast (a flick, 0.4 px/ms or more). Otherwise it moves back to the open position.
+    - The bottom sheet has no intermediate stop positions.
+    - A close by drag is the same as a tap on the scrim: focus goes back to the button that opened the bottom sheet.
+    - The close and the return animate from the current position through `motionDuration(ms)`. Reduced motion makes them immediate. The drag itself follows the finger with no delay.
+    - A mouse or pen drag works the same way. Esc and the scrim stay available, so a drag is never the only way to close.
   - An action closes the bottom sheet before it runs. The actions are: a plan in the list, **New plan**, **Import…**, **Back up all plans**, **Print…**, **Export this plan**, **Rename plan…**, **Duplicate plan** and **Delete plan…**.
   - A Theme choice applies at once and keeps the bottom sheet open. A Language choice closes the bottom sheet before the reload or the confirmation dialog (section 6).
   - When the bottom sheet opens, focus moves to the bottom sheet. Focus stays inside it. When it closes, focus goes back to the button that opened it.
@@ -323,7 +332,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
   - The bottom sheet keeps clear of the device safe area. Its height is at most 85 % of the viewport height. Taller content scrolls inside the bottom sheet. The title stays visible.
   - The bottom sheet slides up and down through `motionDuration(ms)`. Reduced motion makes it immediate.
   - In the Plans bottom sheet, **New plan**, **Import…** and **Back up all plans** are one row of three equal buttons below the list. The visible label of the last button is **Back up**. Its accessible name is "Back up all plans".
-  - In the This plan bottom sheet, **Print…** and **Export this plan** are two large tiles in one row. Each tile has a short description: "Preview the sheets" and "This plan as a file". **Rename plan…**, **Duplicate plan** and **Delete plan…** are full-width rows below. **Theme** is a segmented control with the three choice names. **Language** is a native select.
+  - In the This plan bottom sheet, **Print…** and **Export this plan** are two large tiles in one row. Each tile has a short description: "Preview the sheets" and "This plan as a file". **Rename plan…**, **Duplicate plan** and **Delete plan…** are full-width rows below. **Theme** is a segmented control with the three choice names. **Language** uses the vendored Select component, like the other selects in the app.
   - Every target in a bottom sheet is at least 44 px high.
 - The default theme is **System**. It follows changes to the system theme while the app is open. **Light** and **Dark** override the system theme.
 - A theme change applies at once. It does not reload the page, change plan data or clear the undo history. The app saves the choice in this browser. It restores the choice after a reload, also offline. An import does not change it.

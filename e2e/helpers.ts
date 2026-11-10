@@ -279,10 +279,8 @@ export async function chooseLanguage(
 	name: 'English' | 'Deutsch' | '繁體中文' | '日本語'
 ) {
 	if (await isCoarse(page)) {
-		const sheet = await openMenu(page);
-		await sheet
-			.getByRole('combobox', { name: 'Language', exact: true })
-			.selectOption({ label: name });
+		await openMenu(page);
+		await chooseOption(page, 'menu-language', name);
 	} else {
 		const languages = await openLanguageMenu(page);
 		await languages.getByRole('menuitemradio', { name, exact: true }).click();
@@ -333,6 +331,38 @@ export async function userScroll(page: Page, pane: Locator, delta: number) {
 	});
 }
 
+/** Drags one finger with raw touch input. The callback runs before the finger lifts. */
+export async function touchDrag(
+	page: Page,
+	start: { x: number; y: number },
+	steps: { x: number; y: number }[],
+	stepWait: number | (() => Promise<unknown>),
+	beforeRelease?: () => Promise<void>
+) {
+	const session = await page.context().newCDPSession(page);
+	let released = false;
+	try {
+		await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+		for (const point of steps) {
+			if (typeof stepWait === 'number' && stepWait > 0) await page.waitForTimeout(stepWait);
+			await session.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [point]
+			});
+			if (typeof stepWait === 'function') await stepWait();
+		}
+		await beforeRelease?.();
+		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		released = true;
+	} finally {
+		if (!released)
+			await session
+				.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+				.catch(() => {});
+		await session.detach();
+	}
+}
+
 /**
  * Drags one finger upward over a pane with raw CDP touch events, so the pane scrolls down.
  * Chromium headless shell ignores touch input from Input.synthesizeScrollGesture.
@@ -341,20 +371,12 @@ export async function touchScroll(page: Page, pane: Locator, distance: number, s
 	const box = (await pane.boundingBox())!;
 	const x = box.x + box.width / 2;
 	const y = box.y + box.height - 100;
-	const session = await page.context().newCDPSession(page);
-	try {
-		await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-		for (let step = 1; step <= steps; step++) {
-			await session.send('Input.dispatchTouchEvent', {
-				type: 'touchMove',
-				touchPoints: [{ x, y: y - (distance * step) / steps }]
-			});
-			await pane.evaluate(() => new Promise(requestAnimationFrame));
-		}
-		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-	} finally {
-		await session.detach();
-	}
+	await touchDrag(
+		page,
+		{ x, y },
+		Array.from({ length: steps }, (_, index) => ({ x, y: y - (distance * (index + 1)) / steps })),
+		() => pane.evaluate(() => new Promise(requestAnimationFrame))
+	);
 }
 
 /**

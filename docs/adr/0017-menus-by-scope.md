@@ -22,6 +22,7 @@ On a phone, the pinned Timeline used about 40 % of the screen. Its collapse butt
 - **One menu, reordered:** fewer changes, but the scopes stay mixed.
 - **Settings at the end of Plans:** strict scopes, but users do not look for Theme under a plan name.
 - **Bottom sheets by viewport width:** a tablet with a mouse would get a sheet. The pointer type is a better signal for touch.
+- **shadcn-svelte Drawer (vaul-svelte) for the bottom sheets:** it gives drag to close and stop positions. But vaul-svelte is a prerelease (`1.0.0-next.7`) without updates since March 2025, and its own animations do not use `motionDuration`. The bottom sheets use the vendored Sheet component and a small drag-to-close of their own. They do not need stop positions.
 - **Timeline toggle in the floating island:** easy to reach, but it separates the control from the section it changes.
 - **Summary line in the collapsed strip:** more information, but taller and more text to localize.
 
