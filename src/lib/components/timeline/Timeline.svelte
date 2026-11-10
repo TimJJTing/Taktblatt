@@ -41,6 +41,7 @@
 		heightLimits,
 		pinnedHeight,
 		COLLAPSED_TIMELINE_HEIGHT,
+		TABS_TIMELINE_TOP_SPACE,
 		MIN_CHART_HEIGHT,
 		TIMELINE_MOTION_MS
 	} from './gantt-layout.ts';
@@ -166,6 +167,7 @@
 	const viewport = $derived(innerHeight.current ?? 800);
 	const limits = $derived(heightLimits(viewport, workspaceLayout.split));
 	const height = $derived(pinnedHeight(viewer.ganttHeight, viewport, workspaceLayout.split));
+	const expandedHeight = $derived(height + (workspaceLayout.split ? 0 : TABS_TIMELINE_TOP_SPACE));
 	const percent = (px: number) => Math.round((px / viewport) * 100);
 	// The stored fraction times the viewport can differ from a limit by a rounding error.
 	const atMin = $derived(height <= limits.min + 0.5);
@@ -184,7 +186,7 @@
 	let heightInitialized = false;
 	let viewportInitialized = false;
 	$effect.pre(() => {
-		void [pinned, collapsed, height, drag];
+		void [pinned, collapsed, expandedHeight, drag];
 		if (panel) previousHeight = panel.getBoundingClientRect().height;
 	});
 
@@ -218,7 +220,7 @@
 			}
 			settleFrame = requestAnimationFrame(release);
 		};
-		let target = collapsed ? COLLAPSED_TIMELINE_HEIGHT : height;
+		let target = collapsed ? COLLAPSED_TIMELINE_HEIGHT : expandedHeight;
 		untrack(() => {
 			element.style.transitionDuration = '0ms';
 			// The measurement expands the scrollers, and the browser resets their offsets.
@@ -270,7 +272,7 @@
 	// Share the animated height with pane scroll padding and narrow sticky headers.
 	$effect(() => {
 		// Reduced motion uses the final height without waiting for the resize measurement.
-		const target = collapsed ? COLLAPSED_TIMELINE_HEIGHT : height;
+		const target = collapsed ? COLLAPSED_TIMELINE_HEIGHT : expandedHeight;
 		pinnedTimeline.height = pinned ? (motionDuration(1) === 0 ? target : boxHeight || target) : 0;
 		return () => {
 			pinnedTimeline.height = 0;
@@ -383,6 +385,7 @@
 		<div
 			id="timeline-content"
 			class="flex min-h-0 flex-1 flex-col"
+			style:padding-top={workspaceLayout.split ? undefined : `${TABS_TIMELINE_TOP_SPACE}px`}
 			inert={collapsed}
 			style:visibility={collapsed ? 'hidden' : undefined}
 		>

@@ -773,7 +773,13 @@ test('a narrow pinned Timeline stays above both panels and the sticky stage stac
 					.querySelector('[data-testid="workspace-content"]')!
 					.getBoundingClientRect();
 				const bounds = panel.getBoundingClientRect();
-				return Math.abs(bounds.top - content.top) <= 1 && bounds.height <= innerHeight * 0.4 + 1;
+				// The tabs maximum applies to the height from ganttHeight, without the top space.
+				const space = parseFloat(
+					getComputedStyle(panel.querySelector('#timeline-content')!).paddingTop
+				);
+				return (
+					Math.abs(bounds.top - content.top) <= 1 && bounds.height - space <= innerHeight * 0.4 + 1
+				);
 			})
 		)
 		.toBe(true);

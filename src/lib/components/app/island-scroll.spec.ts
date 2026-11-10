@@ -89,7 +89,7 @@ describe('Timeline automatic collapse decision', () => {
 		expect(nextTimelineAutoCollapse(next, { ...input, top: 247, max: 1000 }).collapsed).toBe(false);
 		expect(nextTimelineAutoCollapse(next, { ...input, top: 248, max: 1000 }).collapsed).toBe(true);
 	});
-	it('does not collapse with Keep open, a manual collapse, or Timeline content focus', () => {
+	it('does not collapse with Keep open, a manual collapse, or keyboard focus in the Timeline content', () => {
 		for (const flag of ['keepOpen', 'userCollapsed', 'focusInside'] as const) {
 			expect(nextTimelineAutoCollapse(state, { ...input, [flag]: true }).collapsed).toBe(false);
 		}

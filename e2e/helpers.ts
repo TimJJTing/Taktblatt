@@ -39,7 +39,7 @@ export const CHART_BORDER_HEIGHT = layoutConstant('CHART_BORDER_HEIGHT');
 export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
 export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
-/** The default height of the whole pinned section, in pixels. */
+/** The section height that the default ganttHeight gives, in pixels. See storedPanelHeight. */
 export const defaultPanelHeight = (page: Page) =>
 	page.viewportSize()!.height * GANTT_HEIGHT.default;
 
@@ -62,15 +62,22 @@ export async function settledPanelHeight(page: Page): Promise<number> {
 	return height;
 }
 
-/** Retries the panel height check until the transition finishes. */
+/**
+ * Returns the section height that ganttHeight gives. The expanded tabs section adds a top space
+ * to this height. This value does not include that space. A collapsed section gives its collapsed
+ * height.
+ */
+export async function storedPanelHeight(page: Page): Promise<number> {
+	return page.getByTestId('timeline-panel').evaluate((element) => {
+		const content = element.querySelector<HTMLElement>('#timeline-content')!;
+		const space = content.inert ? 0 : parseFloat(getComputedStyle(content).paddingTop);
+		return element.getBoundingClientRect().height - space;
+	});
+}
+
+/** Retries the section height check until the transition finishes. See storedPanelHeight. */
 export async function expectPanelHeight(page: Page, height: number): Promise<void> {
-	await expect
-		.poll(() =>
-			page
-				.getByTestId('timeline-panel')
-				.evaluate((element) => element.getBoundingClientRect().height)
-		)
-		.toBeCloseTo(height, 0);
+	await expect.poll(() => storedPanelHeight(page)).toBeCloseTo(height, 0);
 }
 
 /** Reads the sheet count and content in the same browser snapshot. */

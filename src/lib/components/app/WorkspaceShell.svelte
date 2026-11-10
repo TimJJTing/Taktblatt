@@ -159,7 +159,9 @@
 					user: input,
 					keepOpen: viewer.timelineKeepOpen,
 					userCollapsed: viewer.timelineCollapsed,
-					focusInside: !!document.activeElement?.closest('#timeline-content')
+					focusInside:
+						!!document.activeElement?.closest('#timeline-content') &&
+						document.activeElement.matches(':focus-visible')
 				}
 			);
 			if (auto.collapsed !== timelineLayout.autoCollapsed) {

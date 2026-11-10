@@ -6,6 +6,7 @@ import {
 	collapseTimeline,
 	expandTimeline,
 	expectTimelineCollapsed,
+	focusPreviousControl,
 	openExample,
 	selectTab,
 	timelineHandle,
@@ -103,12 +104,31 @@ test('a manual collapse stays collapsed when the user scrolls to the top', async
 	expect((await storedViewer(page)).timelineCollapsed).toBe(true);
 });
 
-test('focus inside the Timeline prevents automatic collapse', async ({ page }) => {
+test('keyboard focus inside the Timeline prevents automatic collapse', async ({ page }) => {
 	const keep = page.getByTestId('timeline-keep-open');
-	await keep.focus();
+	await focusPreviousControl(keep);
+	await page.keyboard.press('Tab');
+	await expect(keep).toBeFocused();
+	await expect.poll(() => keep.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
 	await userScroll(page, workspaceContent(page), 100);
 	await expect(keep).toBeFocused();
 	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('pointer focus after turning Keep open on and off allows automatic collapse', async ({
+	page
+}) => {
+	const keep = page.getByTestId('timeline-keep-open');
+	await keep.click();
+	await expect(keep).toHaveAttribute('aria-pressed', 'true');
+	await keep.click();
+	await expect(keep).toHaveAttribute('aria-pressed', 'false');
+	await expect(keep).toBeFocused();
+	await expect
+		.poll(() => keep.evaluate((element) => element.matches(':focus-visible')))
+		.toBe(false);
+	await userScroll(page, workspaceContent(page), 100);
+	await expectTimelineCollapsed(page);
 });
 
 test('collapse requires 48 pixels of remaining scroll after the height change', async ({

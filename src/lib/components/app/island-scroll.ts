@@ -29,6 +29,7 @@ export type TimelineAutoCollapseInput = {
 	user: boolean;
 	keepOpen: boolean;
 	userCollapsed: boolean;
+	/** Keyboard focus is inside the Timeline content. */
 	focusInside: boolean;
 };
 

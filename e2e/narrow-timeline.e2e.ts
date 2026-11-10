@@ -4,6 +4,7 @@ import {
 	COLLAPSED_TIMELINE_HEIGHT,
 	storedViewer,
 	expectPanelHeight,
+	storedPanelHeight,
 	openExample,
 	selectTab,
 	shorter,
@@ -81,6 +82,23 @@ for (const viewport of [
 		await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'false');
 	});
 }
+
+test('the expanded Timeline heading has 16 pixels of space below the app header', async ({
+	page
+}) => {
+	await openExample(page);
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await waitForAnimations(page.locator('#timeline'));
+	await expect
+		.poll(() =>
+			page.getByTestId('timeline-keep-open').evaluate((toggle) => {
+				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+				return toggle.getBoundingClientRect().top - header.bottom;
+			})
+		)
+		.toBeCloseTo(16, 0);
+});
 
 test('the full-width handle toggles with a name, state, description and decorative stage edge', async ({
 	page
@@ -196,7 +214,7 @@ test('drag collapse transfers content focus and drag expansion respects the mini
 	await openExample(page);
 	await timelineHandle(page).press('PageUp');
 	const saved = await storedViewer(page);
-	const height = (await page.getByTestId('timeline-panel').boundingBox())!.height;
+	const height = await storedPanelHeight(page);
 	const contentControl = page.getByTestId('timeline-keep-open');
 	const controlHandle = await contentControl.elementHandle();
 	await contentControl.focus();
@@ -320,7 +338,7 @@ test('a drag starts at four pixels and a return to its origin does not toggle', 
 	const handle = timelineHandle(page);
 	await waitForAnimations(page.locator('#timeline'));
 	const box = (await handle.boundingBox())!;
-	const original = (await page.getByTestId('timeline-panel').boundingBox())!.height;
+	const original = await storedPanelHeight(page);
 	const x = box.x + 5,
 		y = box.y + box.height / 2;
 	await page.mouse.move(x, y);
@@ -338,7 +356,7 @@ test('a drag starts at four pixels and a return to its origin does not toggle', 
 test('pointer cancellation keeps the current drag height without toggling', async ({ page }) => {
 	await openExample(page);
 	const box = (await timelineHandle(page).boundingBox())!;
-	const height = (await page.getByTestId('timeline-panel').boundingBox())!.height;
+	const height = await storedPanelHeight(page);
 	await page.mouse.move(5, box.y + 10);
 	await page.mouse.down();
 	await page.mouse.move(5, box.y - 20);
@@ -399,7 +417,7 @@ test('lost pointer capture ends a drag at its current height', async ({ page }) 
 	await openExample(page);
 	const handle = timelineHandle(page);
 	const box = (await handle.boundingBox())!;
-	const height = (await page.getByTestId('timeline-panel').boundingBox())!.height;
+	const height = await storedPanelHeight(page);
 	await page.mouse.move(5, box.y + 10);
 	await page.mouse.down();
 	await page.mouse.move(5, box.y - 20);
@@ -417,8 +435,7 @@ test('a second Timeline pointer cannot replace or end the first drag', async ({ 
 	await waitForAnimations(page.getByTestId('timeline-panel'));
 	const handle = timelineHandle(page);
 	const box = (await handle.boundingBox())!;
-	const panel = page.getByTestId('timeline-panel');
-	const original = (await panel.boundingBox())!.height;
+	const original = await storedPanelHeight(page);
 	const cdp = await page.context().newCDPSession(page);
 	await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
 	const first = { id: 1, x: 30, y: box.y + box.height / 2 };
@@ -438,9 +455,7 @@ test('a second Timeline pointer cannot replace or end the first drag', async ({ 
 			type: 'touchMove',
 			touchPoints: [{ ...first, y: first.y + 20 }, second]
 		});
-		await expect.soft
-			.poll(async () => (await panel.boundingBox())!.height)
-			.toBeCloseTo(original + 20, 0);
+		await expect.soft.poll(() => storedPanelHeight(page)).toBeCloseTo(original + 20, 0);
 		await cdp.send('Input.dispatchTouchEvent', {
 			type: 'touchMove',
 			touchPoints: [
@@ -448,9 +463,7 @@ test('a second Timeline pointer cannot replace or end the first drag', async ({ 
 				{ ...second, y: second.y + 10 }
 			]
 		});
-		await expect.soft
-			.poll(async () => (await panel.boundingBox())!.height)
-			.toBeCloseTo(original + 20, 0);
+		await expect.soft.poll(() => storedPanelHeight(page)).toBeCloseTo(original + 20, 0);
 		// CDP releases a touch point that is absent from the next event. touchEnd releases all points.
 		await cdp.send('Input.dispatchTouchEvent', {
 			type: 'touchMove',
@@ -460,9 +473,7 @@ test('a second Timeline pointer cannot replace or end the first drag', async ({ 
 			type: 'touchMove',
 			touchPoints: [{ ...first, y: first.y + 30 }]
 		});
-		await expect.soft
-			.poll(async () => (await panel.boundingBox())!.height)
-			.toBeCloseTo(original + 30, 0);
+		await expect.soft.poll(() => storedPanelHeight(page)).toBeCloseTo(original + 30, 0);
 		await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 		await expect(handle).toHaveAttribute('aria-expanded', 'true');
 	} finally {
