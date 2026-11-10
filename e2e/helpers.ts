@@ -327,6 +327,30 @@ export async function userScroll(page: Page, pane: Locator, delta: number) {
 }
 
 /**
+ * Drags one finger upward over a pane with raw CDP touch events, so the pane scrolls down.
+ * Chromium headless shell ignores touch input from Input.synthesizeScrollGesture.
+ */
+export async function touchScroll(page: Page, pane: Locator, distance: number, steps = 12) {
+	const box = (await pane.boundingBox())!;
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height - 100;
+	const session = await page.context().newCDPSession(page);
+	try {
+		await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+		for (let step = 1; step <= steps; step++) {
+			await session.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [{ x, y: y - (distance * step) / steps }]
+			});
+			await pane.evaluate(() => new Promise(requestAnimationFrame));
+		}
+		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+	} finally {
+		await session.detach();
+	}
+}
+
+/**
  * Opens the app menu with the keyboard and waits for its opening animation.
  * The first item, Print, gets the focus.
  */

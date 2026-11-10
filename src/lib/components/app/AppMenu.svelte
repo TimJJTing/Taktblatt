@@ -293,7 +293,7 @@
 		</Hint>
 		<DropdownMenu.Content
 			align="end"
-			class="min-w-60"
+			class="min-w-64 p-1.5"
 			style="animation-duration: {motionDuration(100)}ms; transition-duration: {motionDuration(
 				100
 			)}ms"
@@ -301,36 +301,37 @@
 				if (handoff) event.preventDefault();
 			}}
 		>
-			<DropdownMenu.Label>{m.menu_this_plan()}</DropdownMenu.Label>
+			<DropdownMenu.Label class="px-2.5 pt-2">{m.menu_this_plan()}</DropdownMenu.Label>
 			{#each actions as action (action.testId)}
 				<DropdownMenu.Item
 					variant={action.destructive ? 'destructive' : 'default'}
+					class="gap-2.5 px-2.5 py-2"
 					onSelect={() => act(action.handler)}
 					data-testid={action.testId}
 					><action.icon aria-hidden="true" />{action.label()}</DropdownMenu.Item
 				>
 			{/each}
-			<DropdownMenu.Separator />
-			<DropdownMenu.Label>{m.theme()}</DropdownMenu.Label>
+			<DropdownMenu.Separator class="-mx-1.5 my-1.5" />
+			<DropdownMenu.Label class="px-2.5 pt-2">{m.theme()}</DropdownMenu.Label>
 			<DropdownMenu.RadioGroup
 				value={userPrefersMode.current}
 				onValueChange={chooseTheme}
 				aria-label={m.theme()}
-				class="flex gap-1"
+				class="mx-1.5 mt-1 mb-2 grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
 			>
 				{#each themes as theme (theme.value)}
 					<DropdownMenu.RadioItem
 						value={theme.value}
 						closeOnSelect
 						aria-label={theme.label()}
-						class="flex-1 justify-center bg-muted/50 py-2 pr-2 data-[state=checked]:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
+						class="justify-center rounded-md py-1.5 pr-2 data-[state=checked]:bg-background data-[state=checked]:shadow-sm [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
 					>
 						<theme.icon aria-hidden="true" />
 					</DropdownMenu.RadioItem>
 				{/each}
 			</DropdownMenu.RadioGroup>
 			<DropdownMenu.Sub>
-				<DropdownMenu.SubTrigger data-testid="menu-language"
+				<DropdownMenu.SubTrigger data-testid="menu-language" class="gap-2.5 px-2.5 py-2"
 					><LanguagesIcon aria-hidden="true" />{m.ui_language()}<span
 						class="ml-auto text-muted-foreground">{labels[current]()}</span
 					></DropdownMenu.SubTrigger

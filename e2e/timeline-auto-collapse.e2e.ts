@@ -9,6 +9,7 @@ import {
 	openExample,
 	selectTab,
 	timelineHandle,
+	touchScroll,
 	userScroll,
 	waitForAnimations,
 	workspaceContent,
@@ -270,9 +271,8 @@ test('a manual height change does not resize a partly compact island', async ({ 
 test.describe('touch Timeline automatic collapse', () => {
 	test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-	test('touch handle taps and momentum collapse once without a layout-scroll rebound', async ({
-		page,
-		context
+	test('touch handle taps and a touch scroll collapse once without a layout-scroll rebound', async ({
+		page
 	}) => {
 		await page.emulateMedia({ reducedMotion: 'no-preference' });
 		await waitForAnimations(page.locator('#timeline'));
@@ -281,13 +281,12 @@ test.describe('touch Timeline automatic collapse', () => {
 		await expectTimelineCollapsed(page);
 		await handle.tap();
 		await expect(handle).toHaveAttribute('aria-expanded', 'true');
+		await waitForAnimations(page.locator('#timeline'));
 		const pane = workspaceContent(page);
 		await pane.evaluate((e) => (e.scrollTop = e.scrollHeight - e.clientHeight - 500));
 		await expect
 			.poll(() => pane.evaluate((e) => e.scrollHeight - e.clientHeight - e.scrollTop))
 			.toBeCloseTo(500, 0);
-		const box = (await pane.boundingBox())!;
-		const session = await context.newCDPSession(page);
 		const monitor = await page.evaluateHandle(() => {
 			const state = { collapsed: [] as boolean[], stop: false };
 			const sample = () => {
@@ -300,13 +299,7 @@ test.describe('touch Timeline automatic collapse', () => {
 			return state;
 		});
 		try {
-			await session.send('Input.synthesizeScrollGesture', {
-				x: box.x + box.width / 2,
-				y: box.y + box.height - 100,
-				yDistance: -120,
-				speed: 400,
-				gestureSourceType: 'touch'
-			});
+			await touchScroll(page, pane, 120);
 			await expectTimelineCollapsed(page);
 			let previous = -1;
 			await expect
@@ -330,7 +323,6 @@ test.describe('touch Timeline automatic collapse', () => {
 		} finally {
 			await monitor.evaluate((state) => (state.stop = true));
 			await monitor.dispose();
-			await session.detach();
 		}
 	});
 });

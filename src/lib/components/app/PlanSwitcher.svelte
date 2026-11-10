@@ -168,7 +168,7 @@
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content
 			align="start"
-			class="w-72"
+			class="w-72 p-1.5"
 			style="animation-duration: {motionDuration(100)}ms; transition-duration: {motionDuration(
 				100
 			)}ms"
@@ -176,20 +176,24 @@
 				if (handoff) event.preventDefault();
 			}}
 		>
-			<DropdownMenu.Label>{m.plan_switcher_label()}</DropdownMenu.Label>
+			<DropdownMenu.Label class="px-2.5 pt-2">{m.plan_switcher_label()}</DropdownMenu.Label>
 			<DropdownMenu.RadioGroup value={ws.plan.id}>
 				{#each ws.plans as plan (plan.id)}
 					<DropdownMenu.RadioItem
 						value={plan.id}
+						class="py-2 pl-2.5"
 						closeOnSelect
 						onSelect={() => act(() => ws.switchTo(plan.id))}
 						><span class="truncate">{nameOf(plan.heading)}</span></DropdownMenu.RadioItem
 					>
 				{/each}
 			</DropdownMenu.RadioGroup>
-			<DropdownMenu.Separator />
+			<DropdownMenu.Separator class="-mx-1.5 my-1.5" />
 			{#each actions as action (action.testId)}
-				<DropdownMenu.Item data-testid={action.testId} onSelect={action.handler}
+				<DropdownMenu.Item
+					data-testid={action.testId}
+					class="gap-2.5 px-2.5 py-2"
+					onSelect={action.handler}
 					><action.icon aria-hidden="true" />{action.label()}</DropdownMenu.Item
 				>
 			{/each}
