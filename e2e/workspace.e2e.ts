@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp, openExample, row, storedPlan } from './helpers.ts';
+import { openApp, openMenu, openPlans, openExample, row, storedPlan } from './helpers.ts';
 
 test.describe('workspace', () => {
 	test('the example load supports undo and redo, and a reload keeps the plan', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('workspace', () => {
 
 	test('plans can be created, switched, deleted and restored', async ({ page }) => {
 		await openExample(page);
-		await page.getByTestId('plan-switcher').click();
+		await openPlans(page);
 		await page.getByRole('menuitem', { name: 'New plan' }).click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
 
@@ -56,7 +56,7 @@ test.describe('workspace', () => {
 		await row(page, 'Soil preparation').getByTestId('task-toggle').click();
 		await expect(row(page, 'Soil test')).toBeVisible();
 
-		await page.getByTestId('plan-switcher').click();
+		await openMenu(page);
 		await page.getByRole('menuitem', { name: 'Delete plan…' }).click();
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
@@ -76,7 +76,7 @@ test.describe('workspace', () => {
 		await expect(undo).toBeDisabled();
 		await expect(redo).toBeDisabled();
 		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
+		await openMenu(page);
 		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
 		await page.getByTestId('plan-rename-input').fill('Spring plan');
 		await page.getByTestId('plan-rename-input').press('Enter');
@@ -100,7 +100,7 @@ test.describe('workspace', () => {
 	test('an empty name keeps the previous name', async ({ page }) => {
 		await openExample(page);
 		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
+		await openMenu(page);
 		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
 		await page.getByTestId('plan-rename-input').fill('   ');
 		await page.getByTestId('plan-rename-ok').click();
@@ -110,7 +110,7 @@ test.describe('workspace', () => {
 	test('duplicate adds a copy suffix', async ({ page }) => {
 		await openExample(page);
 		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
+		await openMenu(page);
 		await page.getByRole('menuitem', { name: 'Duplicate plan' }).click();
 		await expect(page.getByTestId('plan-heading')).toHaveText(`${original} (copy)`);
 	});
@@ -118,7 +118,7 @@ test.describe('workspace', () => {
 	test('Escape closes the rename dialog without a change', async ({ page }) => {
 		await openExample(page);
 		const original = (await storedPlan(page)).heading;
-		await page.getByTestId('plan-switcher').click();
+		await openMenu(page);
 		await page.getByRole('menuitem', { name: 'Rename plan…' }).click();
 		await page.getByTestId('plan-rename-input').fill('Other');
 		await page.keyboard.press('Escape');

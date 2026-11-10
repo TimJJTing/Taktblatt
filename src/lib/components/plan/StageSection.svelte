@@ -105,6 +105,7 @@
 	class="group/stage @container"
 	aria-labelledby="stage-{stage.id}-title"
 	data-testid="stage"
+	data-motion={motionDuration(1) > 0}
 	data-stage-id={stage.id}
 	style:--stage-header-h="{headerHeight}px"
 	style:--stage-columns-h="{columnHeaderHeight}px"
@@ -313,6 +314,13 @@
 />
 
 <style>
+	/* Sticky offsets follow Timeline motion. The global 0.01 ms fallback must not delay them. */
+	section[data-motion='false'] > header,
+	section[data-motion='false'] thead th,
+	section[data-motion='false'] > [data-testid='stage-band'] {
+		transition: none;
+	}
+
 	/* The scroller padding clears the pinned Timeline section. */
 	table :global(:is(button, input, textarea, [tabindex])) {
 		scroll-margin-top: calc(var(--stage-header-h) + var(--stage-sticky-columns-h));

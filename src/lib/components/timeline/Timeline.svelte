@@ -1,6 +1,9 @@
 <!--
 	The timeline section: the heading, Gantt chart and three legends (stages, milestones, bands).
-	The pin keeps the full section at the top of its scroller.
+	Split view uses a pin and separator. Tabs use a tap and drag handle.
+	Tabs keep the legend rail below the chart and can collapse on user scroll.
+	One pointer owns a handle drag until release or cancellation.
+	The body scrolls when the chart and legends do not fit. The heading and handle stay visible.
 	A milestone or band in the chart or in a legend opens its dialog. The "+" buttons add a new one.
 	Dates use the UI language.
 -->
@@ -15,13 +18,18 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import {
 		isTimelinePinned,
+		beginTimelineLayoutChange,
+		endTimelineLayoutChange,
 		workspaceLayout,
-		pinnedTimeline
+		pinnedTimeline,
+		timelineLayout
 	} from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Toggle } from '#lib/components/ui/toggle/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.ts';
+	import { todayISO } from '#lib/domain/date.ts';
+	import { stageEdgeSegments } from '#lib/domain/stage-edge.ts';
 	import { orderedMilestones } from '#lib/domain/derive.ts';
 	import { formatDate, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
@@ -29,11 +37,18 @@
 	import { motionDuration } from '#lib/motion.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { cn } from '#lib/utils.ts';
-	import { heightLimits, pinnedHeight, TIMELINE_MOTION_MS } from './gantt-layout.ts';
+	import {
+		heightLimits,
+		pinnedHeight,
+		COLLAPSED_TIMELINE_HEIGHT,
+		MIN_CHART_HEIGHT,
+		TIMELINE_MOTION_MS
+	} from './gantt-layout.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import BandDialog from './BandDialog.svelte';
 	import Gantt from './Gantt.svelte';
+	import GanttTween from './GanttTween.svelte';
 	import MilestoneDialog from './MilestoneDialog.svelte';
 
 	const ws = getWorkspace();
@@ -42,52 +57,111 @@
 	let band = $state<Band | null | undefined>(undefined);
 	const milestones = $derived(orderedMilestones(ws.plan.milestones));
 	const locale = uiIntl();
-	const row = 'flex min-h-8 shrink-0 flex-wrap items-center gap-x-3 gap-y-2';
-	const legend = 'min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2';
+	const row = $derived(
+		cn(
+			'flex shrink-0 items-center gap-x-3 gap-y-2',
+			workspaceLayout.split ? 'min-h-8 flex-wrap' : 'min-h-6 flex-nowrap whitespace-nowrap'
+		)
+	);
+	const legend = $derived(
+		cn(
+			'min-w-0 flex items-center gap-x-4 gap-y-2',
+			workspaceLayout.split ? 'flex-wrap' : 'min-h-7 shrink-0 flex-nowrap whitespace-nowrap'
+		)
+	);
+	const legendItem = $derived(
+		cn(!workspaceLayout.split && 'min-h-6 shrink-0 flex-nowrap whitespace-nowrap')
+	);
 	const entryButton =
 		'flex min-w-0 items-center gap-2 rounded px-2 py-1 text-left [overflow-wrap:anywhere] hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring';
 
 	let panel = $state<HTMLDivElement | null>(null);
 	let body = $state<HTMLDivElement | null>(null);
 	let boxHeight = $state(0);
+	let rail = $state<HTMLDivElement>();
+	let chips = $state<HTMLDivElement>();
+	let railMore = $state(false);
+	$effect(() => {
+		if (!rail) return;
+		const element = rail;
+		const update = () => {
+			railMore = element.scrollLeft + element.clientWidth < element.scrollWidth - 1;
+		};
+		const observer = new ResizeObserver(update);
+		observer.observe(element);
+		if (chips) observer.observe(chips);
+		element.addEventListener('scroll', update, { passive: true });
+		update();
+		return () => {
+			observer.disconnect();
+			element.removeEventListener('scroll', update);
+		};
+	});
 	let heading: HTMLDivElement;
 	let collapseButton = $state<HTMLButtonElement>();
 	const pinned = $derived(isTimelinePinned(viewer));
-	const collapsed = $derived(!workspaceLayout.split && viewer.timelineCollapsed);
-	const dividerHeight = 28;
+	const collapsed = $derived(
+		!workspaceLayout.split && (viewer.timelineCollapsed || timelineLayout.autoCollapsed)
+	);
+	// Today changes at local midnight. A hidden tab can miss the timer, so check again when it shows.
+	let todayDate = $state(todayISO());
+	$effect(() => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const refresh = () => {
+			todayDate = todayISO();
+			clearTimeout(timer);
+			const now = new Date();
+			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+			timer = setTimeout(refresh, midnight.getTime() - now.getTime() + 1000);
+		};
+		const onVisibility = () => {
+			if (document.visibilityState === 'visible') refresh();
+		};
+		refresh();
+		document.addEventListener('visibilitychange', onVisibility);
+		return () => {
+			clearTimeout(timer);
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
+	});
+	const edge = $derived(stageEdgeSegments(ws.index, ws.plan.stages, ws.plan.range, todayDate));
 
 	function setCollapsed(value: boolean) {
+		if (viewer.timelineCollapsed === value && !timelineLayout.autoCollapsed) return;
 		if (
 			value &&
 			(heading?.contains(document.activeElement) || body?.contains(document.activeElement))
 		) {
 			collapseButton?.focus({ preventScroll: true });
 		}
+		timelineLayout.autoCollapsed = false;
+		timelineLayout.revision += 1;
 		viewer.setTimelineCollapsed(value);
 	}
 	// A layout change can collapse the section without setCollapsed. Keep focus out of hidden content.
-	// Read the focus before the update makes the content inert. The chevron exists after the update.
+	// Read focus before the update makes the content inert.
 	$effect.pre(() => {
 		if (!collapsed) return;
 		const focused = untrack(() => document.activeElement);
 		if (!heading?.contains(focused) && !body?.contains(focused)) return;
 		void tick().then(() => collapseButton?.focus({ preventScroll: true }));
 	});
-	// Split view and tabs keep separate legend states.
-	const legendsCollapsed = $derived(
-		workspaceLayout.split ? viewer.timelineLegendsCollapsed : viewer.narrowLegendsCollapsed
-	);
-	// A layout change can collapse the legends. Move focus from a hidden entry to the Legends button.
+	// Only split view can hide the legends.
+	const legendsCollapsed = $derived(workspaceLayout.split && viewer.timelineLegendsCollapsed);
+	// A split-view legend toggle moves focus out of the hidden list.
+	let previousSplit = workspaceLayout.split;
 	$effect.pre(() => {
-		if (!legendsCollapsed) return;
+		const split = workspaceLayout.split;
+		const layoutChanged = previousSplit !== split;
+		previousSplit = split;
+		if (!legendsCollapsed || layoutChanged) return;
 		const focused = untrack(() => document.activeElement);
 		const list = document.getElementById('timeline-legends');
 		if (!focused || !list?.contains(focused)) return;
 		void tick().then(() => document.getElementById('timeline-legends-button')?.focus());
 	});
 	function setLegendsCollapsed(value: boolean) {
-		if (workspaceLayout.split) viewer.setTimelineLegendsCollapsed(value);
-		else viewer.setNarrowLegendsCollapsed(value);
+		viewer.setTimelineLegendsCollapsed(value);
 	}
 	const viewport = $derived(innerHeight.current ?? 800);
 	const limits = $derived(heightLimits(viewport, workspaceLayout.split));
@@ -97,9 +171,18 @@
 	const atMin = $derived(height <= limits.min + 0.5);
 	const atMax = $derived(height >= limits.max - 0.5);
 
-	let drag = $state<{ y: number; height: number; saved: number; collapsed: boolean } | null>(null);
+	let drag = $state<{
+		pointerId: number;
+		y: number;
+		height: number;
+		saved: number;
+		collapsed: boolean;
+		moved: boolean;
+	} | null>(null);
+	let suppressClick = false;
 	let previousHeight = 0;
 	let heightInitialized = false;
+	let viewportInitialized = false;
 	$effect.pre(() => {
 		void [pinned, collapsed, height, drag];
 		if (panel) previousHeight = panel.getBoundingClientRect().height;
@@ -109,15 +192,33 @@
 	$effect(() => {
 		if (!panel) return;
 		const element = panel;
+		const owner = beginTimelineLayoutChange();
+		const release = () => endTimelineLayoutChange(owner);
 		const fixed = pinned;
 		// A hidden panel cannot measure its natural height or finish a transition.
 		if (!fixed && element.getClientRects().length === 0) {
 			element.style.height = 'auto';
 			heightInitialized = false;
+			release();
 			return;
 		}
-		const duration = motionDuration(drag ? 0 : TIMELINE_MOTION_MS);
-		let target = collapsed ? dividerHeight : height;
+		const measuredViewport = innerHeight.current !== undefined;
+		const firstViewport = measuredViewport && !viewportInitialized;
+		viewportInitialized ||= measuredViewport;
+		// The first measured viewport corrects the fallback height without a transition.
+		const duration = motionDuration(drag || firstViewport ? 0 : TIMELINE_MOTION_MS);
+		let settleFrame = 0;
+		let settleTimer: ReturnType<typeof setTimeout> | undefined;
+		let transitioning = false;
+		const finish = () => {
+			cancelAnimationFrame(settleFrame);
+			if (motionDuration(1) === 0) {
+				release();
+				return;
+			}
+			settleFrame = requestAnimationFrame(release);
+		};
+		let target = collapsed ? COLLAPSED_TIMELINE_HEIGHT : height;
 		untrack(() => {
 			element.style.transitionDuration = '0ms';
 			// The measurement expands the scrollers, and the browser resets their offsets.
@@ -142,23 +243,35 @@
 				for (const { scroller, top } of scrollers) scroller.scrollTop = top;
 				// Commit the start height before applying the target.
 				element.getBoundingClientRect();
+				transitioning = true;
 				element.style.transitionDuration = `${duration}ms`;
 				element.style.height = `${target}px`;
 			}
 			heightInitialized = true;
 		});
+		// Without a height transition, only the next layout frame needs scroll suppression.
+		if (transitioning) settleTimer = setTimeout(finish, duration + 32);
+		else finish();
 		function releaseHeight(event: TransitionEvent) {
+			if (event.target === element && event.propertyName === 'height') finish();
 			if (!fixed && event.target === element && event.propertyName === 'height') {
 				element.style.height = 'auto';
 			}
 		}
 		element.addEventListener('transitionend', releaseHeight);
-		return () => element.removeEventListener('transitionend', releaseHeight);
+		return () => {
+			clearTimeout(settleTimer);
+			cancelAnimationFrame(settleFrame);
+			element.removeEventListener('transitionend', releaseHeight);
+			release();
+		};
 	});
 
 	// Share the animated height with pane scroll padding and narrow sticky headers.
 	$effect(() => {
-		pinnedTimeline.height = pinned ? boxHeight || (collapsed ? dividerHeight : height) : 0;
+		// Reduced motion uses the final height without waiting for the resize measurement.
+		const target = collapsed ? COLLAPSED_TIMELINE_HEIGHT : height;
+		pinnedTimeline.height = pinned ? (motionDuration(1) === 0 ? target : boxHeight || target) : 0;
 		return () => {
 			pinnedTimeline.height = 0;
 		};
@@ -184,11 +297,6 @@
 	}
 
 	function onSeparatorKey(event: KeyboardEvent) {
-		if (!workspaceLayout.split && event.key === 'Enter') {
-			event.preventDefault();
-			setCollapsed(!collapsed);
-			return;
-		}
 		if (collapsed) {
 			if (['ArrowDown', 'PageDown', 'End', 'ArrowUp', 'PageUp', 'Home'].includes(event.key)) {
 				event.preventDefault();
@@ -212,19 +320,25 @@
 	}
 
 	function onSeparatorDown(event: PointerEvent) {
-		if (event.button !== 0) return;
+		if (event.button !== 0 || drag) return;
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 		drag = {
+			pointerId: event.pointerId,
 			y: event.clientY,
 			height: collapsed ? 0 : height,
 			saved: viewer.ganttHeight,
-			collapsed
+			collapsed,
+			moved: false
 		};
-		event.preventDefault();
+		suppressClick = false;
+		if (workspaceLayout.split) event.preventDefault();
 	}
 	function onSeparatorMove(event: PointerEvent) {
-		if (!drag) return;
+		if (!drag || event.pointerId !== drag.pointerId) return;
 		const delta = event.clientY - drag.y;
+		if (!workspaceLayout.split && !drag.moved && Math.abs(delta) < 4) return;
+		drag.moved = true;
+		suppressClick = true;
 		const next = drag.height + delta;
 		if (!workspaceLayout.split) {
 			// A drag down from the collapsed state expands. Other drags collapse below half the minimum.
@@ -237,8 +351,14 @@
 		}
 		setHeight(next);
 	}
-	function onSeparatorUp() {
+	function onSeparatorUp(event: PointerEvent) {
+		if (event.pointerId !== drag?.pointerId) return;
 		drag = null;
+	}
+	function onSeparatorCancel(event: PointerEvent) {
+		if (event.pointerId !== drag?.pointerId) return;
+		suppressClick = true;
+		onSeparatorUp(event);
 	}
 </script>
 
@@ -256,6 +376,7 @@
 			pinned && workspaceLayout.split && 'shadow-md',
 			collapsed && 'justify-end overflow-y-clip'
 		)}
+		style:transition-property={motionDuration(1) === 0 ? 'none' : undefined}
 		data-testid="timeline-panel"
 		data-pinned={pinned || undefined}
 	>
@@ -265,7 +386,10 @@
 			inert={collapsed}
 			style:visibility={collapsed ? 'hidden' : undefined}
 		>
-			<div bind:this={heading} class="mb-2 flex shrink-0 items-center gap-2">
+			<div
+				bind:this={heading}
+				class={cn('flex shrink-0 items-center gap-2', workspaceLayout.split && 'mb-2')}
+			>
 				<h2 id="timeline-title" class="text-sm font-semibold tracking-wide uppercase">
 					{m.section_timeline()}
 				</h2>
@@ -320,51 +444,110 @@
 						</Hint>
 					</div>
 				{/if}
-				<Button
-					variant="ghost"
-					size="sm"
-					class="ml-auto"
-					style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
-					aria-expanded={!legendsCollapsed}
-					id="timeline-legends-button"
-					aria-controls="timeline-legends"
-					onclick={() => setLegendsCollapsed(!legendsCollapsed)}
-					data-testid="timeline-legends-toggle"
-				>
-					<ChevronDownIcon
-						aria-hidden="true"
-						class={cn('transition-transform', legendsCollapsed && '-rotate-90')}
+				{#if workspaceLayout.split}
+					<Button
+						variant="ghost"
+						size="sm"
+						class="ml-auto"
 						style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
-					/>
-					{m.timeline_legends()}
-				</Button>
+						aria-expanded={!legendsCollapsed}
+						id="timeline-legends-button"
+						aria-controls="timeline-legends"
+						onclick={() => setLegendsCollapsed(!legendsCollapsed)}
+						data-testid="timeline-legends-toggle"
+					>
+						<ChevronDownIcon
+							aria-hidden="true"
+							class={cn('transition-transform', legendsCollapsed && '-rotate-90')}
+							style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
+						/>
+						{m.timeline_legends()}
+					</Button>
+				{:else}
+					<Hint text={m.timeline_keep_open()}>
+						{#snippet child({ props })}
+							<Toggle
+								{...props}
+								class="ml-auto size-6 p-0"
+								style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
+								aria-label={m.timeline_keep_open()}
+								pressed={viewer.timelineKeepOpen}
+								onPressedChange={(value) => viewer.setTimelineKeepOpen(value)}
+								data-testid="timeline-keep-open"
+							>
+								<PinIcon aria-hidden="true" class={cn(viewer.timelineKeepOpen && 'fill-current')} />
+							</Toggle>
+						{/snippet}
+					</Hint>
+				{/if}
 			</div>
 			<div
 				bind:this={body}
 				class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
+				style:--chart-min-height={`${MIN_CHART_HEIGHT}px`}
 				data-testid="timeline-body"
 			>
 				<Gantt
+					{todayDate}
+					class={cn(
+						!workspaceLayout.split &&
+							'min-h-(--chart-min-height) flex-[1_0_var(--chart-min-height)]'
+					)}
 					onBand={(item) => (band = item)}
 					onMilestone={(item) => (milestone = item)}
 					onReveal={revealRow}
 				/>
 				<div
 					id="timeline-legends"
-					class="grid shrink-0 transition-[grid-template-rows] ease-out"
+					bind:this={rail}
+					class={cn(
+						'grid shrink-0 transition-[grid-template-rows] ease-out',
+						!workspaceLayout.split && 'overflow-x-auto overflow-y-hidden',
+						!workspaceLayout.split &&
+							railMore &&
+							'mask-[linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
+					)}
+					onfocusin={(event) => {
+						if (!workspaceLayout.split && event.target instanceof HTMLElement) {
+							event.target.scrollIntoView({
+								block: 'nearest',
+								inline: 'nearest',
+								behavior: motionDuration(1) === 0 ? 'instant' : 'smooth'
+							});
+						}
+					}}
 					style:grid-template-rows={legendsCollapsed ? '0fr' : '1fr'}
 					style:transition-duration={`${motionDuration(TIMELINE_MOTION_MS)}ms`}
+					style:transition-property={motionDuration(1) === 0 ? 'none' : undefined}
 					inert={legendsCollapsed}
 					aria-hidden={legendsCollapsed}
 					data-testid="timeline-legends"
 				>
-					<div class="min-h-0 overflow-hidden">
-						<div class="flex flex-col gap-3 pt-3">
+					<div
+						class={cn('min-h-0', workspaceLayout.split ? 'overflow-hidden' : 'overflow-visible')}
+					>
+						<div
+							bind:this={chips}
+							class={cn(
+								'flex',
+								workspaceLayout.split
+									? 'flex-col gap-3 pt-3'
+									: 'w-max flex-row flex-nowrap gap-4 pt-1'
+							)}
+						>
 							<div class={row}>
-								<span class="font-medium" aria-hidden="true">{m.legend_stages()}</span>
+								<span
+									class={cn('font-medium', !workspaceLayout.split && 'hidden')}
+									aria-hidden="true">{m.legend_stages()}</span
+								>
 								<ul class={legend} aria-label={m.legend_stages()} data-testid="stage-legend">
 									{#each ws.plan.stages as stage, i (stage.id)}
-										<li class="flex min-w-0 items-center gap-2 [overflow-wrap:anywhere]">
+										<li
+											class={cn(
+												'flex min-w-0 items-center gap-2 [overflow-wrap:anywhere]',
+												legendItem
+											)}
+										>
 											{@render swatch(stageColorVar(stage.color))}{stage.title ||
 												m.stage_title_placeholder({ n: i + 1 })}
 										</li>
@@ -372,7 +555,10 @@
 								</ul>
 							</div>
 							<div class={row}>
-								<span class="font-medium" aria-hidden="true">{m.legend_milestones()}</span>
+								<span
+									class={cn('font-medium', !workspaceLayout.split && 'hidden')}
+									aria-hidden="true">{m.legend_milestones()}</span
+								>
 								<ul
 									class={legend}
 									aria-label={m.legend_milestones()}
@@ -384,7 +570,7 @@
 											title: item.milestone.title,
 											date: formatDate(item.milestone.date, locale)
 										})}
-										<li>
+										<li class={legendItem}>
 											<button
 												type="button"
 												class={entryButton}
@@ -392,7 +578,7 @@
 											>
 										</li>
 									{/each}
-									<li>
+									<li class={legendItem}>
 										<Button
 											size="icon-xs"
 											variant="outline"
@@ -404,20 +590,23 @@
 								</ul>
 							</div>
 							<div class={row}>
-								<span class="font-medium" aria-hidden="true">{m.legend_bands()}</span>
+								<span
+									class={cn('font-medium', !workspaceLayout.split && 'hidden')}
+									aria-hidden="true">{m.legend_bands()}</span
+								>
 								<ul class={legend} aria-label={m.legend_bands()} data-testid="band-legend">
 									{#each ws.plan.bands as item (item.id)}
 										{@const text = m.label_parenthetical({
 											name: item.title,
 											qualifier: formatRangeDisplay(item.start, item.end, locale)
 										})}
-										<li>
+										<li class={legendItem}>
 											<button type="button" class={entryButton} onclick={() => (band = item)}
 												>{@render swatch(bandTintVar(item.color))}{text}</button
 											>
 										</li>
 									{/each}
-									<li>
+									<li class={legendItem}>
 										<Button
 											size="icon-xs"
 											variant="outline"
@@ -435,55 +624,103 @@
 		</div>
 		{#if pinned}
 			<div
-				class={cn('timeline-divider relative shrink-0', workspaceLayout.split && 'mt-2')}
+				class={cn(
+					'timeline-divider relative shrink-0',
+					workspaceLayout.split ? 'mt-2' : !collapsed && 'pt-3'
+				)}
 				transition:slide={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
 			>
-				<!-- A focusable separator is a widget (WAI-ARIA window splitter). -->
-				<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-				<div
-					role="separator"
-					aria-orientation="horizontal"
-					aria-label={m.gantt_resize()}
-					aria-valuenow={collapsed ? 0 : percent(height)}
-					aria-valuemin={workspaceLayout.split ? percent(limits.min) : 0}
-					aria-valuemax={percent(limits.max)}
-					aria-valuetext="{collapsed ? 0 : percent(height)} %"
-					tabindex="0"
-					class={cn(
-						'relative flex cursor-row-resize touch-none items-center justify-center bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-						workspaceLayout.split ? 'h-3 border-t' : 'h-7'
-					)}
-					onkeydown={onSeparatorKey}
-					onpointerdown={onSeparatorDown}
-					onpointermove={onSeparatorMove}
-					onpointerup={onSeparatorUp}
-					onpointercancel={onSeparatorUp}
-					data-testid="gantt-resize"
-				>
-					{#if workspaceLayout.split}
+				{#if workspaceLayout.split}
+					<!-- A focusable separator is a widget (WAI-ARIA window splitter). -->
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+					<div
+						role="separator"
+						aria-orientation="horizontal"
+						aria-label={m.gantt_resize()}
+						aria-valuenow={percent(height)}
+						aria-valuemin={percent(limits.min)}
+						aria-valuemax={percent(limits.max)}
+						aria-valuetext="{percent(height)} %"
+						tabindex="0"
+						class={cn(
+							'relative flex cursor-row-resize touch-none items-center justify-center bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+							'h-3 border-t'
+						)}
+						onkeydown={onSeparatorKey}
+						onpointerdown={onSeparatorDown}
+						onpointermove={onSeparatorMove}
+						onpointerup={onSeparatorUp}
+						onpointercancel={onSeparatorUp}
+						data-testid="gantt-resize"
+					>
 						<span class="h-1 w-10 rounded-full bg-border" aria-hidden="true"></span>
-					{:else}
-						<span class="h-px w-full bg-border" aria-hidden="true"></span>
+					</div>
+				{:else}
+					{#if collapsed}
+						<div
+							class="stage-edge pointer-events-none relative h-1 bg-border"
+							aria-hidden="true"
+							data-testid="timeline-stage-edge"
+							transition:fade={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
+						>
+							{#each edge.segments as segment (segment.stageId)}
+								{@const stage = ws.plan.stages.find((stage) => stage.id === segment.stageId)!}
+								<GanttTween x0={segment.left} x1={segment.left + segment.width}>
+									{#snippet child({ x0, x1 })}
+										<span
+											class="absolute inset-y-0"
+											data-testid="timeline-stage-segment"
+											style:left={`${x0 * 100}%`}
+											style:width={`${(x1 - x0) * 100}%`}
+											style:background={stageColorVar(stage.color)}
+										></span>
+									{/snippet}
+								</GanttTween>
+							{/each}
+							{#if edge.today !== null}
+								<GanttTween x0={edge.today}>
+									{#snippet child({ x0 })}
+										<span
+											class="absolute top-0 z-10 h-2.5 w-0.5 bg-foreground"
+											data-testid="timeline-today-tick"
+											style:left={`${x0 * 100}%`}
+										></span>
+									{/snippet}
+								</GanttTween>
+							{/if}
+						</div>
 					{/if}
-				</div>
-				{#if !workspaceLayout.split}
+					<span id="timeline-handle-hint" class="sr-only">{m.timeline_handle_hint()}</span>
 					<Hint text={collapsed ? m.timeline_expand() : m.timeline_collapse()}>
 						{#snippet child({ props })}
 							<button
-								{...mergeProps(props, { onclick: () => setCollapsed(!collapsed) })}
+								{...mergeProps(props, {
+									onclick: (event: MouseEvent) => {
+										if (suppressClick && event.detail !== 0) {
+											suppressClick = false;
+											return;
+										}
+										suppressClick = false;
+										setCollapsed(!collapsed);
+									}
+								})}
 								bind:this={collapseButton}
 								id="timeline-collapse"
 								type="button"
-								class="absolute top-0 left-1/2 flex size-7 -translate-x-1/2 items-center justify-center rounded-full border bg-background hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+								class="timeline-handle relative flex h-5 w-full cursor-row-resize touch-none items-center justify-center bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+								class:collapsed
 								aria-label={collapsed ? m.timeline_expand() : m.timeline_collapse()}
 								aria-expanded={!collapsed}
 								aria-controls="timeline-content"
+								aria-describedby="timeline-handle-hint"
+								onkeydown={onSeparatorKey}
+								onpointerdown={onSeparatorDown}
+								onpointermove={onSeparatorMove}
+								onpointerup={onSeparatorUp}
+								onpointercancel={onSeparatorCancel}
+								onlostpointercapture={onSeparatorCancel}
 							>
-								<ChevronUpIcon
-									aria-hidden="true"
-									class={cn('size-4 transition-transform', collapsed && 'rotate-180')}
-									style={`transition-duration: ${motionDuration(TIMELINE_MOTION_MS)}ms`}
-								/>
+								<span class="h-1 w-9 rounded-full bg-border" aria-hidden="true"></span>
 							</button>
 						{/snippet}
 					</Hint>
@@ -505,5 +742,13 @@
 	.timeline-divider {
 		margin-left: calc(-1 * var(--pane-padding, 16px));
 		width: calc(100% + 2 * var(--pane-padding, 16px));
+	}
+	.timeline-handle::before {
+		content: '';
+		position: absolute;
+		inset: -12px 0 0;
+	}
+	.timeline-handle.collapsed::before {
+		top: -4px;
 	}
 </style>

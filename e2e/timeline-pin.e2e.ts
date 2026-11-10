@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	addWorkspaceOverflow,
+	timelineHandle,
 	GANTT_HEIGHT,
 	defaultPanelHeight,
 	expectPanelHeight,
@@ -101,7 +102,7 @@ test('the pin keeps the heading, chart and legends together and clears row jumps
 });
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
-	test(`the mobile divider stays accessible during chart panning and legend overflow (${reducedMotion})`, async ({
+	test(`the mobile handle stays accessible during chart panning and legend overflow (${reducedMotion})`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -113,37 +114,23 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 				plan.bands.push({ ...plan.bands[0], id: `extra-band-${i}`, title: `Season ${i + 1}` });
 			}
 		});
-		// With tabs, the legends start collapsed. This test needs their overflow.
-		await page.getByTestId('timeline-legends-toggle').click();
 		const panel = page.getByTestId('timeline-panel');
-		const chevron = page.getByRole('button', { name: 'Collapse timeline', exact: true });
+		const handle = page.getByRole('button', { name: 'Collapse timeline', exact: true });
 		await expectStickyBelowHeader(panel);
 		await waitForAnimations(panel);
-		const chevronBefore = (await chevron.boundingBox())!;
+		const handleBefore = (await handle.boundingBox())!;
 		await page.getByTestId('gantt-scroller').evaluate((element) => (element.scrollLeft = 200));
 		await expect
 			.poll(() => page.getByTestId('gantt-scroller').evaluate((element) => element.scrollLeft))
 			.toBeGreaterThan(0);
-		await expect.poll(async () => (await chevron.boundingBox())!.x).toBeCloseTo(chevronBefore.x, 0);
-		await page.getByTestId('gantt-resize').press('Home');
+		await expect.poll(async () => (await handle.boundingBox())!.x).toBeCloseTo(handleBefore.x, 0);
+		await timelineHandle(page).press('Home');
 		const body = page.getByTestId('timeline-body');
-		await expect
-			.poll(() =>
-				panel.evaluate((element) => {
-					const body = element.querySelector<HTMLElement>('[data-testid="timeline-body"]')!;
-					return {
-						minimumHeight: Math.abs(element.getBoundingClientRect().height - 120) <= 1,
-						overflow: body.scrollHeight > body.clientHeight
-					};
-				})
-			)
-			.toEqual({ minimumHeight: true, overflow: true });
-		await body.evaluate((element) => (element.scrollTop = element.scrollHeight));
-		await expect(panel.getByRole('button', { name: 'Add band', exact: true })).toBeInViewport();
-		await expect(chevron).toBeInViewport();
-		await expect
-			.poll(async () => (await page.getByTestId('gantt').boundingBox())!.height)
-			.toBeGreaterThanOrEqual(83);
+		await expectPanelHeight(page, 120);
+		const addBand = panel.getByRole('button', { name: 'Add band', exact: true });
+		await addBand.focus();
+		await expect(addBand).toBeInViewport();
+		await expect(handle).toBeInViewport();
 
 		// Reveal the linked chart label inside both scrollers without moving the group.
 		await selectTab(page, 'Work plan');
@@ -190,7 +177,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 				})
 			)
 			.toBe(true);
-		await expect(chevron).toBeInViewport();
+		await expect(handle).toBeInViewport();
 		await expect(page.getByTestId('gantt-pin')).toBeHidden();
 	});
 }

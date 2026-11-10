@@ -3,7 +3,6 @@
 	import { toast } from 'svelte-sonner';
 	import WorkspaceShell from '#lib/components/app/WorkspaceShell.svelte';
 	import DamagedNotice from '#lib/components/app/DamagedNotice.svelte';
-	import LanguageReloadDialog from '#lib/components/app/LanguageReloadDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import { isModKey, isTextEditing } from '#lib/browser/keyboard.ts';
 	import { localStorageKey } from '#lib/paraglide/runtime.js';
@@ -118,7 +117,6 @@
 			</section>
 		{/snippet}
 	</WorkspaceShell>
-	<LanguageReloadDialog />
 
 	<TaskDialog />
 </div>

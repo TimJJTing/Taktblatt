@@ -21,7 +21,7 @@ Before final E2E validation, stop the preview server you started and ensure port
 
 ## Workspace and interaction
 
-Reproduce the changed behavior with representative plan data. Check the affected layout in split view (1024 px or wider) and with tabs (below 1024 px). With tabs, check both tabs and the collapsed Timeline. Include empty, long, or overflowing content when it exercises the change.
+Reproduce the changed behavior with representative plan data. Check the affected layout in split view (1024 px or wider) and with tabs (below 1024 px). With tabs, check both tabs, the collapsed Timeline and the automatic collapse on scroll. For menu changes, also emulate a coarse pointer to check the bottom sheets. Include empty, long, or overflowing content when it exercises the change.
 
 For changed controls, check accessible names, keyboard activation, focus placement, and focus return after dismissal. For position changes, check normal motion and reduced motion. Check affected translated labels and theme variants when their length or colors can alter the result.
 

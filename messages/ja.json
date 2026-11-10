@@ -217,9 +217,7 @@
 	"plan_rename_title": "計画の名前を変更",
 	"plan_rename_label": "計画名",
 	"action_import": "インポート",
-	"action_export": "エクスポート",
 	"export_plan": "この計画をエクスポート",
-	"export_all": "すべての計画をエクスポート",
 	"import_error_title": "このファイルはインポートできません",
 	"import_error_body": "データは変更されていません。次のエラーを修正して、もう一度お試しください。",
 	"import_error_more": "その他のエラー：{count} 件",
@@ -293,5 +291,14 @@
 	"workspace_view": "ワークスペース表示",
 	"workspace_plan": "計画",
 	"sheet_footer": "シートのフッター",
-	"sheet_footer_hint": "各シートの下部に印刷されます。"
+	"sheet_footer_hint": "各シートの下部に印刷されます。",
+	"timeline_keep_open": "タイムラインを開いたままにする",
+	"timeline_handle_hint": "ドラッグするか矢印キーで高さを変更します。",
+	"menu_print": "印刷…",
+	"menu_import": "インポート…",
+	"plans_backup": "すべてのプランをバックアップ",
+	"plans_backup_short": "バックアップ",
+	"menu_this_plan": "このプラン",
+	"menu_print_hint": "シートをプレビュー",
+	"menu_export_hint": "このプランをファイルに保存"
 }

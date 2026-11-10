@@ -169,34 +169,52 @@ describe('ViewerState', () => {
 		expect(viewer.isExpanded('p1', 't1')).toBe(true);
 	});
 
-	it('keeps a separate narrow legend state that starts collapsed', () => {
-		const storage = new MemoryStorage();
-		const viewer = new ViewerState(storage);
-		expect(viewer.narrowLegendsCollapsed).toBe(true);
-		expect(viewer.timelineLegendsCollapsed).toBe(false);
-		viewer.setNarrowLegendsCollapsed(false);
-		viewer.setTimelineLegendsCollapsed(true);
-		const again = new ViewerState(storage);
-		expect(again.narrowLegendsCollapsed).toBe(false);
-		expect(again.timelineLegendsCollapsed).toBe(true);
+	it('defaults Keep open without dropping older viewer preferences', () => {
+		for (const timelineKeepOpen of [undefined, 'yes', null, 1]) {
+			const storage = new MemoryStorage();
+			storage.setItem(
+				KEYS.viewer,
+				JSON.stringify({
+					timelineKeepOpen,
+					ganttPinned: true,
+					timelineCollapsed: true,
+					narrowTab: 'work-plan'
+				})
+			);
+			const viewer = new ViewerState(storage);
+			expect(viewer.timelineKeepOpen).toBe(false);
+			expect(viewer.ganttPinned).toBe(true);
+			expect(viewer.timelineCollapsed).toBe(true);
+			expect(viewer.narrowTab).toBe('work-plan');
+		}
 	});
 
-	it.each(['yes', null, 1])('defaults only an invalid narrow legend state (%s)', (value) => {
+	it('persists Keep open independently of collapse and split pin changes', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage);
+		viewer.setTimelineKeepOpen(true);
+		viewer.setGanttPinned(true);
+		viewer.setTimelineCollapsed(true);
+		const again = new ViewerState(storage);
+		expect(again.timelineKeepOpen).toBe(true);
+		expect(again.ganttPinned).toBe(true);
+		expect(again.timelineCollapsed).toBe(true);
+		again.setTimelineKeepOpen(false);
+		expect(new ViewerState(storage).timelineKeepOpen).toBe(false);
+		expect(new ViewerState(storage).ganttPinned).toBe(true);
+	});
+
+	it('drops the obsolete narrow legend preference when saving viewer data', () => {
 		const storage = new MemoryStorage();
 		storage.setItem(
 			KEYS.viewer,
-			JSON.stringify({
-				narrowLegendsCollapsed: value,
-				timelineLegendsCollapsed: true,
-				timelineCollapsed: true,
-				narrowTab: 'work-plan'
-			})
+			JSON.stringify({ narrowLegendsCollapsed: false, timelineLegendsCollapsed: true })
 		);
 		const viewer = new ViewerState(storage);
-		expect(viewer.narrowLegendsCollapsed).toBe(true);
 		expect(viewer.timelineLegendsCollapsed).toBe(true);
-		expect(viewer.timelineCollapsed).toBe(true);
-		expect(viewer.narrowTab).toBe('work-plan');
+		viewer.setNarrowTab('work-plan');
+		expect(JSON.parse(storage.getItem(KEYS.viewer)!)).not.toHaveProperty('narrowLegendsCollapsed');
+		expect(new ViewerState(storage).timelineLegendsCollapsed).toBe(true);
 	});
 
 	it('starts with collapsed legends when older viewer data is pinned', () => {

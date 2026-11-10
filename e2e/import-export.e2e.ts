@@ -4,11 +4,14 @@ import {
 	importJson,
 	openApp,
 	openExample,
+	chooseLanguage,
 	openMenu,
 	openMenuWithKeyboard,
+	openPlans,
 	planIds,
 	row,
-	storedPlan
+	storedPlan,
+	waitForAnimations
 } from './helpers.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -16,8 +19,7 @@ type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 const isoDate = /\d{4}-\d{2}-\d{2}/;
 
 async function readDownload(page: Page, menuItem: string) {
-	const menu = await openMenu(page);
-	await menu.getByTestId('menu-export').click();
+	await (menuItem === 'Back up all plans' ? openPlans(page) : openMenu(page));
 	const pending = page.waitForEvent('download');
 	await page.getByRole('menuitem', { name: menuItem }).click();
 	const download = await pending;
@@ -33,9 +35,11 @@ async function exportedExample(page: Page) {
 test.describe('icons', () => {
 	test('import points into the tray and export points out of it', async ({ page }) => {
 		await openApp(page);
-		const menu = await openMenu(page);
-		await expect(menu.getByTestId('menu-import').locator('svg')).toHaveClass(/lucide-download/);
-		await expect(menu.getByTestId('menu-export').locator('svg').first()).toHaveClass(
+		const menu = await openPlans(page);
+		await expect(menu.getByTestId('plans-import').locator('svg')).toHaveClass(/lucide-download/);
+		await page.keyboard.press('Escape');
+		const current = await openMenu(page);
+		await expect(current.getByTestId('menu-export-plan').locator('svg').first()).toHaveClass(
 			/lucide-upload/
 		);
 	});
@@ -57,12 +61,12 @@ test.describe('export', () => {
 		expect(file.plan.id).toBe((await storedPlan(page)).id);
 	});
 
-	test('"Export all plans" writes a backup file with every plan', async ({ page }) => {
+	test('"Back up all plans" writes a backup file with every plan', async ({ page }) => {
 		await openExample(page);
 		await page.getByTestId('plan-switcher').click();
 		await page.getByRole('menuitem', { name: 'New plan' }).click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
-		const { name, file } = await readDownload(page, 'Export all plans');
+		const { name, file } = await readDownload(page, 'Back up all plans');
 		expect(name).toMatch(new RegExp(`^taktblatt-backup-${isoDate.source}\\.json$`));
 		expect(file.kind).toBe('backup');
 		expect(file.plans).toHaveLength(2);
@@ -73,8 +77,7 @@ test.describe('export', () => {
 test.describe('import', () => {
 	test('importing a plan in another language leaves the UI language alone', async ({ page }) => {
 		const file = await exportedExample(page);
-		await openMenu(page);
-		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+		await chooseLanguage(page, 'Deutsch');
 		// The plan has history, so the app asks before it reloads.
 		await page.getByTestId('language-reload-confirm').click();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -142,7 +145,7 @@ test.describe('import', () => {
 
 	test('a backup file asks about each plan that exists', async ({ page }) => {
 		await openExample(page);
-		const { file } = await readDownload(page, 'Export all plans');
+		const { file } = await readDownload(page, 'Back up all plans');
 		file.plans.push({ ...structuredClone(file.plans[0]), id: 'other', heading: 'Other plan' });
 		await importJson(page, file, 'backup.json');
 		const dialog = page.getByTestId('import-conflicts');
@@ -213,10 +216,9 @@ test('the header keeps the menu visible at 360 px', async ({ page }) => {
 	await openApp(page);
 	await expect(page.getByTestId('app-menu')).toBeInViewport();
 	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeInViewport();
-	const menu = await openMenu(page);
-	await expect(menu.getByTestId('menu-import')).toBeInViewport();
-	await menu.getByTestId('menu-export').click();
-	await expect(page.getByTestId('menu-export-all')).toBeInViewport();
+	const menu = await openPlans(page);
+	await expect(menu.getByTestId('plans-import')).toBeInViewport();
+	await expect(page.getByTestId('plans-backup')).toBeInViewport();
 });
 
 /**
@@ -228,11 +230,11 @@ function waitForFileChooser(page: Page) {
 	return page.waitForEvent('filechooser');
 }
 
-test('Import in the menu opens the file chooser', async ({ page }) => {
+test('Import in Plans opens the file chooser', async ({ page }) => {
 	await openApp(page);
 	const chooser = waitForFileChooser(page);
-	const menu = await openMenu(page);
-	await menu.getByTestId('menu-import').click();
+	const menu = await openPlans(page);
+	await menu.getByTestId('plans-import').click();
 	await chooser;
 	await expect(page.getByRole('menu')).toHaveCount(0);
 });
@@ -242,9 +244,13 @@ test('keyboard Import opens the file chooser, and the focus returns to the menu 
 }) => {
 	await openApp(page);
 	const chooser = waitForFileChooser(page);
-	const menu = await openMenuWithKeyboard(page);
-	await page.keyboard.press('ArrowDown');
-	await expect(menu.getByTestId('menu-import')).toBeFocused();
+	await page.getByTestId('plan-switcher').focus();
+	await page.keyboard.press('Enter');
+	const menu = page.getByRole('menu');
+	await waitForAnimations(menu);
+	await page.keyboard.press('End');
+	await page.keyboard.press('ArrowUp');
+	await expect(menu.getByTestId('plans-import')).toBeFocused();
 	await page.keyboard.press('Enter');
 	await (
 		await chooser
@@ -257,16 +263,13 @@ test('keyboard Import opens the file chooser, and the focus returns to the menu 
 	await expect(dialog).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(dialog).toHaveCount(0);
-	await expect(page.getByTestId('app-menu')).toBeFocused();
+	await expect(page.getByTestId('plan-switcher')).toBeFocused();
 });
 
-test('keyboard Export opens the submenu and exports the plan', async ({ page }) => {
+test('keyboard Export downloads the plan directly from This plan', async ({ page }) => {
 	await openApp(page);
-	const menu = await openMenuWithKeyboard(page);
+	await openMenuWithKeyboard(page);
 	await page.keyboard.press('ArrowDown');
-	await page.keyboard.press('ArrowDown');
-	await expect(menu.getByTestId('menu-export')).toBeFocused();
-	await page.keyboard.press('ArrowRight');
 	await expect(page.getByTestId('menu-export-plan')).toBeFocused();
 	const pending = page.waitForEvent('download');
 	await page.keyboard.press('Enter');

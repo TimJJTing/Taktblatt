@@ -16,7 +16,7 @@ const ViewerSchema = v.object({
 	ganttPinned: v.optional(v.boolean(), false),
 	timelineCollapsed: v.fallback(v.boolean(), false),
 	timelineLegendsCollapsed: v.optional(v.boolean()),
-	narrowLegendsCollapsed: v.fallback(v.boolean(), true),
+	timelineKeepOpen: v.fallback(v.boolean(), false),
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
 		GANTT_HEIGHT.default
@@ -34,8 +34,8 @@ export class ViewerState {
 	timelineCollapsed = $state(false);
 	/** The legend state in split view. */
 	timelineLegendsCollapsed = $state(false);
-	/** The legend state with tabs. The pinned Timeline is short there, so the legends start collapsed. */
-	narrowLegendsCollapsed = $state(true);
+	/** Keeps the Timeline open on user scroll with tabs. */
+	timelineKeepOpen = $state(false);
 	/** The pinned Timeline section height, as a fraction of the viewport height. */
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
 
@@ -55,7 +55,7 @@ export class ViewerState {
 		this.ganttPinned = data.ganttPinned;
 		this.timelineCollapsed = data.timelineCollapsed;
 		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed ?? data.ganttPinned;
-		this.narrowLegendsCollapsed = data.narrowLegendsCollapsed;
+		this.timelineKeepOpen = data.timelineKeepOpen;
 		this.ganttHeight = data.ganttHeight;
 	}
 
@@ -67,7 +67,7 @@ export class ViewerState {
 			ganttPinned: this.ganttPinned,
 			timelineCollapsed: this.timelineCollapsed,
 			timelineLegendsCollapsed: this.timelineLegendsCollapsed,
-			narrowLegendsCollapsed: this.narrowLegendsCollapsed,
+			timelineKeepOpen: this.timelineKeepOpen,
 			ganttHeight: this.ganttHeight
 		};
 		this.storage.setItem(KEYS.viewer, JSON.stringify(data));
@@ -118,8 +118,8 @@ export class ViewerState {
 		this.save();
 	}
 
-	setNarrowLegendsCollapsed(value: boolean): void {
-		this.narrowLegendsCollapsed = value;
+	setTimelineKeepOpen(value: boolean): void {
+		this.timelineKeepOpen = value;
 		this.save();
 	}
 

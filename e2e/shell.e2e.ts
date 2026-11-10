@@ -1,5 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
-import { choosePrint, openApp, openMenu } from './helpers.ts';
+import {
+	chooseLanguage,
+	chooseTheme,
+	choosePrint,
+	openApp,
+	openMenu,
+	openPlans,
+	openLanguageMenu,
+	openMenuWithKeyboard,
+	openExample,
+	storedPlan,
+	expectDuplicateOnceAfterReopen
+} from './helpers.ts';
 
 test('the split header shows the app name and actions without section navigation', async ({
 	page
@@ -18,39 +30,49 @@ test('the split header shows the app name and actions without section navigation
 	await expect(page.getByTestId('plan-switcher')).toBeVisible();
 });
 
-test('the header keeps Print, Import and Export in the menu', async ({ page }) => {
+test('the header menus group actions by plan scope', async ({ page }) => {
 	await openApp(page);
-	const header = page.getByRole('banner');
-	for (const name of ['Preview', 'Print', 'Import', 'Export']) {
-		await expect(header.getByRole('button', { name, exact: true })).toHaveCount(0);
-	}
-	const trigger = page.getByTestId('app-menu');
-	await expect(trigger.locator('svg')).toHaveClass(/lucide-ellipsis/);
+	const plans = await openPlans(page);
+	await expect(
+		plans.getByRole('menuitemradio', { name: 'Untitled plan', exact: true })
+	).toBeChecked();
+	await expect(plans.getByRole('menuitem')).toHaveText([
+		'New plan',
+		'Import…',
+		'Back up all plans'
+	]);
+	await page.keyboard.press('Escape');
 	const menu = await openMenu(page);
-	await expect(menu.getByRole('menuitem')).toHaveText(['Print', 'Import', 'Export']);
-	await expect(menu.getByTestId('menu-print').locator('svg')).toHaveClass(/lucide-printer/);
-	await menu.getByTestId('menu-export').click();
-	await expect(page.getByTestId('menu-export-plan')).toHaveText('Export this plan');
-	await expect(page.getByTestId('menu-export-all')).toHaveText('Export all plans');
+	await expect(menu.locator('[role="menuitem"]:not([data-testid="menu-language"])')).toHaveText([
+		'Print…',
+		'Export this plan',
+		'Rename plan…',
+		'Duplicate plan',
+		'Delete plan…'
+	]);
+	await expect(menu.getByTestId('menu-export')).toHaveCount(0);
+	await expect(menu.getByTestId('plans-import')).toHaveCount(0);
+	await expect(menu.getByRole('menuitemradio')).toHaveCount(3);
+	for (const name of ['Light', 'Dark', 'System'])
+		await expect(menu.getByRole('menuitemradio', { name, exact: true })).toBeVisible();
+	await expect(menu.getByTestId('menu-language')).toContainText('English');
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('app-menu')).toBeFocused();
 });
 
-test('one menu contains the actions and the theme and language choices', async ({ page }) => {
+test('Language opens a submenu with the current language checked', async ({ page }) => {
 	await openApp(page);
-	await expect(page.getByRole('button', { name: 'Menu', exact: true })).toHaveCount(1);
-	await expect(page.getByRole('button', { name: 'Language', exact: true })).toHaveCount(0);
-	const menu = await openMenu(page);
-	const theme = menu.getByRole('group', { name: 'Theme', exact: true });
-	const language = menu.getByRole('group', { name: 'Language', exact: true });
-	await expect(theme.getByRole('menuitemradio')).toHaveCount(3);
-	await expect(language.getByRole('menuitemradio')).toHaveText([
+	const languages = await openLanguageMenu(page);
+	await expect(languages.getByRole('menuitemradio')).toHaveText([
 		'English',
 		'Deutsch',
 		'繁體中文',
 		'日本語'
 	]);
-	await expect(theme.getByRole('menuitemradio', { name: 'System', exact: true })).toBeChecked();
-	await expect(language.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
-	await expect(menu.getByRole('separator')).toHaveCount(2);
+	await expect(
+		languages.getByRole('menuitemradio', { name: 'English', exact: true })
+	).toBeChecked();
+	await page.keyboard.press('Escape');
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('app-menu')).toBeFocused();
 });
@@ -59,13 +81,14 @@ test('keyboard language selection closes the menu and cancel returns focus witho
 	page
 }) => {
 	await openApp(page);
-	await openMenu(page);
-	await page
-		.getByRole('group', { name: 'Theme', exact: true })
-		.getByRole('menuitemradio', { name: 'Dark', exact: true })
-		.click();
+	await chooseTheme(page, 'Dark');
 	await editHeading(page, 'Garden');
-	await openMenu(page);
+	// Open the Language submenu with the keyboard. A pointer click keeps focus on its trigger.
+	await openMenuWithKeyboard(page);
+	await page.keyboard.press('End');
+	await expect(page.getByTestId('menu-language')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeFocused();
 	await page.keyboard.press('End');
 	await expect(page.getByRole('menuitemradio', { name: '日本語', exact: true })).toBeFocused();
 	await page.keyboard.press('ArrowUp');
@@ -80,12 +103,9 @@ test('keyboard language selection closes the menu and cancel returns focus witho
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
 	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
-	await openMenu(page);
-	await expect(
-		page
-			.getByRole('group', { name: 'Language', exact: true })
-			.getByRole('menuitemradio', { name: 'English', exact: true })
-	).toBeChecked();
+	await openLanguageMenu(page);
+	await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
+	await page.keyboard.press('Escape');
 	await page.keyboard.press('Escape');
 	await pickGerman(page);
 	await expect(dialog(page)).toBeVisible();
@@ -96,18 +116,13 @@ test('keyboard language selection closes the menu and cancel returns focus witho
 	expect(await page.evaluate(() => localStorage.getItem('taktblatt:theme'))).toBe('dark');
 	await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
 	await expect(page.getByTestId('app-menu')).toHaveAccessibleName('Menü');
-	await openMenu(page);
-	await expect(
-		page
-			.getByRole('group', { name: 'Sprache', exact: true })
-			.getByRole('menuitemradio', { name: 'Deutsch', exact: true })
-	).toBeChecked();
+	await openLanguageMenu(page);
+	await expect(page.getByRole('menuitemradio', { name: 'Deutsch', exact: true })).toBeChecked();
 });
 
 test('the UI language changes and stays after a reload', async ({ page }) => {
 	await page.goto('/');
-	await openMenu(page);
-	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await chooseLanguage(page, 'Deutsch');
 	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 	await page.reload();
 	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
@@ -177,8 +192,7 @@ test.describe('the first UI language comes from the browser', () => {
 
 test('a chosen language is saved under taktblatt:locale', async ({ page }) => {
 	await page.goto('/');
-	await openMenu(page);
-	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await chooseLanguage(page, 'Deutsch');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	expect(await stored(page)).toBe('de');
 	await page.reload();
@@ -197,8 +211,7 @@ async function editHeading(page: Page, text: string) {
 }
 
 async function pickGerman(page: Page) {
-	await openMenu(page);
-	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await chooseLanguage(page, 'Deutsch');
 }
 
 test.describe('a language change that would drop work', () => {
@@ -213,8 +226,9 @@ test.describe('a language change that would drop work', () => {
 		await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 		expect(await stored(page)).toBe('en');
 		// The menu still shows English as the chosen language.
-		await openMenu(page);
+		await openLanguageMenu(page);
 		await expect(page.getByRole('menuitemradio', { name: 'English' })).toBeChecked();
+		await page.keyboard.press('Escape');
 		await page.keyboard.press('Escape');
 		// The edit is still undoable.
 		await page.locator('body').press('ControlOrMeta+z');
@@ -254,7 +268,7 @@ test.describe('a language change in another tab', () => {
 		await expect(dialog(b)).toHaveCount(0);
 		await expect(b.locator('html')).toHaveAttribute('lang', 'en');
 		// A dialog that opens later still uses English.
-		await b.getByTestId('plan-switcher').click();
+		await openMenu(b);
 		await b.getByRole('menuitem', { name: 'Delete plan…' }).click();
 		await expect(b.getByRole('alertdialog')).toContainText('Delete this plan?');
 		await b.keyboard.press('Escape');
@@ -284,8 +298,7 @@ test.describe('a language change in another tab', () => {
 		await editHeading(b, 'Garden');
 		await pickGerman(a);
 		await expect(dialog(b)).toBeVisible();
-		await openMenu(a);
-		await a.getByRole('menuitemradio', { name: 'English' }).click();
+		await chooseLanguage(a, 'English');
 		await expect(a.locator('html')).toHaveAttribute('lang', 'en');
 		await expect(dialog(b)).toHaveCount(0);
 		// Tab B did not reload: its history is still there.
@@ -328,8 +341,50 @@ test('another open tab reloads in the new UI language', async ({ context }) => {
 	await first.goto('/');
 	await second.goto('/');
 	await expect(second.getByTestId('plan-switcher')).toHaveText('Untitled plan');
-	await openMenu(first);
-	await first.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await chooseLanguage(first, 'Deutsch');
 	await expect(second.locator('html')).toHaveAttribute('lang', 'de');
 	await expect(second.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
+});
+
+test('Plans dropdown keyboard selection opens the next plan and moves its check mark', async ({
+	page
+}) => {
+	await openExample(page);
+	const original = (await storedPlan(page)).heading;
+	let menu = await openPlans(page);
+	await menu.getByTestId('plans-new').click();
+	await expect(menu).toHaveCount(0);
+	menu = await openPlans(page);
+	await menu.getByRole('menuitemradio', { name: original, exact: true }).click();
+	await expect(menu).toHaveCount(0);
+	await expect(page.getByTestId('plan-heading')).toHaveText(original);
+	await page.getByTestId('plan-switcher').focus();
+	await page.keyboard.press('Enter');
+	menu = page.getByRole('menu');
+	await expect(menu).toBeVisible();
+	await menu.getByRole('menuitemradio', { name: original, exact: true }).focus();
+	await page.keyboard.press('ArrowDown');
+	await expect(
+		menu.getByRole('menuitemradio', { name: 'Untitled plan', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
+	await expect(menu).toHaveCount(0);
+	menu = await openPlans(page);
+	await expect(
+		menu.getByRole('menuitemradio', { name: 'Untitled plan', exact: true })
+	).toBeChecked();
+	await expect(
+		menu.getByRole('menuitemradio', { name: 'Untitled plan', exact: true }).locator('svg')
+	).toHaveCount(1);
+	await expect(
+		menu.getByRole('menuitemradio', { name: original, exact: true }).locator('svg')
+	).toHaveCount(0);
+});
+
+test('Duplicate plan runs once before a reopened This plan dropdown is dismissed', async ({
+	page
+}) => {
+	await openApp(page);
+	await expectDuplicateOnceAfterReopen(page);
 });

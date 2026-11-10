@@ -7,17 +7,26 @@
 		open = $bindable(false),
 		title,
 		body,
-		onConfirm
+		onConfirm,
+		returnFocus
 	}: {
 		open?: boolean;
 		title: string;
 		body: string;
 		onConfirm: () => void;
+		returnFocus?: HTMLButtonElement | null;
 	} = $props();
 </script>
 
 <AlertDialog.Root bind:open>
-	<AlertDialog.Content>
+	<AlertDialog.Content
+		onCloseAutoFocus={(event) => {
+			if (returnFocus) {
+				event.preventDefault();
+				returnFocus.focus();
+			}
+		}}
+	>
 		<AlertDialog.Header>
 			<AlertDialog.Title>{title}</AlertDialog.Title>
 			<AlertDialog.Description>{body}</AlertDialog.Description>

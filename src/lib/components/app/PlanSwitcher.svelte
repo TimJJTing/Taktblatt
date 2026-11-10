@@ -1,150 +1,200 @@
+<!-- Plans holds the plan list, creation, import and backup actions. Actions close the menu first. A reopen settles the pending action. -->
 <script lang="ts">
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
-	import CopyIcon from '@lucide/svelte/icons/copy';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import { toast } from 'svelte-sonner';
-	import { isComposing } from '#lib/browser/keyboard.ts';
-	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
+	import DownloadIcon from '@lucide/svelte/icons/download';
+	import UploadIcon from '@lucide/svelte/icons/upload';
+	import { RadioGroup } from 'bits-ui';
+	import { onDestroy, untrack } from 'svelte';
+	import { coarsePointer } from './app-layout.svelte.ts';
+	import { downloadText } from '#lib/browser/download.ts';
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.ts';
-	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
-	import { Input } from '#lib/components/ui/input/index.ts';
+	import { todayISO } from '#lib/domain/date.ts';
+	import { backupFileName, serializeFile, toBackupFile } from '#lib/domain/io.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { updatePlan } from '#lib/state/commands.ts';
-	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import BottomSheet from './BottomSheet.svelte';
+	import ImportFlow from './ImportFlow.svelte';
+	import { createMenuHandoff } from './menu-handoff.ts';
 
 	const ws = getWorkspace();
-	const viewer = getViewer();
 	let menuOpen = $state(false);
-	let confirmOpen = $state(false);
-	let renameOpen = $state(false);
-	let renameValue = $state('');
-
-	function startRename() {
-		renameValue = ws.plan.heading;
-		renameOpen = true;
-	}
-
-	/** An empty name keeps the previous name. */
-	function commitRename() {
-		renameOpen = false;
-		const heading = renameValue.trim();
-		if (heading && heading !== ws.plan.heading) updatePlan(ws, { heading });
-	}
-
-	function choose(id: string) {
-		// Close the menu first. The plan change re-renders the trigger.
-		menuOpen = false;
-		ws.switchTo(id);
-	}
-
+	let trigger = $state<HTMLButtonElement | null>(null);
+	let importer = $state<ImportFlow | null>(null);
+	let handoff = $state(false);
 	const nameOf = (heading: string) => heading.trim() || m.untitled_plan();
 
-	function deleteActive() {
-		confirmOpen = false;
-		const deleted = ws.deletePlan(ws.plan.id);
-		if (!deleted) return;
-		// Undo puts back the expanded rows too.
-		const expanded = viewer.expandedIds(deleted.plan.id);
-		viewer.forgetPlan(deleted.plan.id);
-		toast(m.plan_deleted(), {
-			description: nameOf(deleted.plan.heading),
-			duration: 10_000,
-			action: {
-				label: m.action_undo(),
-				onClick: () => {
-					ws.restorePlan(deleted);
-					viewer.restorePlan(deleted.plan.id, expanded);
-				}
-			}
-		});
+	const menuHandoff = createMenuHandoff({
+		close: () => (menuOpen = false),
+		focus: () => trigger?.focus(),
+		setActive: (active) => (handoff = active)
+	});
+	const act = menuHandoff.act;
+	onDestroy(menuHandoff.destroy);
+	let previousCoarse = coarsePointer.current;
+	$effect.pre(() => {
+		const coarse = coarsePointer.current;
+		if (coarse === previousCoarse) return;
+		previousCoarse = coarse;
+		// The old root cannot report close completion after its branch is removed.
+		untrack(() => menuHandoff.complete(false));
+	});
+
+	const actions = [
+		{
+			label: m.plan_new,
+			icon: PlusIcon,
+			testId: 'plans-new',
+			handler: () =>
+				act(() => {
+					ws.createPlan();
+				}),
+			destructive: false
+		},
+		{
+			label: m.menu_import,
+			icon: DownloadIcon,
+			testId: 'plans-import',
+			handler: importPlan,
+			destructive: false
+		},
+		{
+			label: m.plans_backup,
+			shortLabel: m.plans_backup_short,
+			icon: UploadIcon,
+			testId: 'plans-backup',
+			handler: () => act(backUpAll),
+			destructive: false
+		}
+	];
+
+	function importPlan() {
+		menuHandoff.actSync(() => importer?.choose());
+	}
+
+	function backUpAll() {
+		downloadText(backupFileName(todayISO()), serializeFile(toBackupFile(ws.allPlans())));
 	}
 </script>
 
-<DropdownMenu.Root bind:open={menuOpen}>
-	<DropdownMenu.Trigger
-		class={buttonVariants({
-			variant: 'ghost',
-			size: 'sm',
-			class: 'max-w-64 min-w-0 shrink justify-between gap-2'
-		})}
+{#snippet triggerLabel()}
+	<span class="truncate">{nameOf(ws.plan.heading)}</span>
+	<ChevronsUpDownIcon class="size-4 opacity-60" aria-hidden="true" />
+{/snippet}
+
+{#if coarsePointer.current}
+	<Button
+		bind:ref={trigger}
+		variant="ghost"
+		size="sm"
+		class="max-w-64 min-w-0 shrink justify-between gap-2"
+		style="transition-duration: {motionDuration(100)}ms"
 		aria-label={m.plan_switcher_label()}
+		aria-haspopup="dialog"
+		aria-expanded={menuOpen}
 		data-testid="plan-switcher"
-	>
-		<span class="truncate">{nameOf(ws.plan.heading)}</span>
-		<ChevronsUpDownIcon class="opacity-60" aria-hidden="true" />
-	</DropdownMenu.Trigger>
-	<DropdownMenu.Content align="start" class="w-72">
-		<DropdownMenu.Label>{m.plan_switcher_label()}</DropdownMenu.Label>
-		<DropdownMenu.RadioGroup value={ws.plan.id} onValueChange={choose}>
-			{#each ws.plans as plan (plan.id)}
-				<DropdownMenu.RadioItem value={plan.id}>
-					<span class="truncate">{nameOf(plan.heading)}</span>
-				</DropdownMenu.RadioItem>
-			{/each}
-		</DropdownMenu.RadioGroup>
-		<DropdownMenu.Separator />
-		<DropdownMenu.Item onSelect={() => ws.createPlan()}>
-			<PlusIcon aria-hidden="true" />{m.plan_new()}
-		</DropdownMenu.Item>
-		<DropdownMenu.Item onSelect={startRename}>
-			<PencilIcon aria-hidden="true" />{m.plan_rename()}
-		</DropdownMenu.Item>
-		<DropdownMenu.Item onSelect={() => ws.duplicatePlan(m.plan_copy_suffix())}>
-			<CopyIcon aria-hidden="true" />{m.plan_duplicate()}
-		</DropdownMenu.Item>
-		<DropdownMenu.Item variant="destructive" onSelect={() => (confirmOpen = true)}>
-			<Trash2Icon aria-hidden="true" />{m.plan_delete()}
-		</DropdownMenu.Item>
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
-
-<DeleteConfirm
-	bind:open={confirmOpen}
-	title={m.plan_delete_title()}
-	body={m.plan_delete_body({ name: nameOf(ws.plan.heading) })}
-	onConfirm={deleteActive}
-/>
-
-<Dialog.Root bind:open={renameOpen}>
-	<Dialog.Content
-		class="sm:max-w-sm"
-		data-testid="plan-rename-dialog"
-		onEscapeKeydown={(event) => {
-			event.preventDefault();
-			if (!isComposing(event)) renameOpen = false;
+		onclick={() => {
+			menuHandoff.reopen();
+			menuOpen = true;
 		}}
 	>
-		<form
-			class="flex flex-col gap-4"
-			onsubmit={(event) => {
-				event.preventDefault();
-				commitRename();
+		{@render triggerLabel()}
+	</Button>
+	<BottomSheet
+		bind:open={menuOpen}
+		{trigger}
+		{handoff}
+		onOpenChangeComplete={(open) => {
+			if (!menuOpen) menuHandoff.complete(open);
+		}}
+		title={m.plan_switcher_label()}
+		testId="plans-sheet"
+	>
+		<RadioGroup.Root
+			value={ws.plan.id}
+			onValueChange={(id) => act(() => ws.switchTo(id))}
+			aria-label={m.plan_switcher_label()}
+			class="mb-4 flex flex-col"
+		>
+			{#each ws.plans as plan (plan.id)}
+				<RadioGroup.Item
+					value={plan.id}
+					class="flex min-h-11 items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+				>
+					<span class="truncate">{nameOf(plan.heading)}</span>
+					{#if plan.id === ws.plan.id}<CheckIcon class="size-4 shrink-0" aria-hidden="true" />{/if}
+				</RadioGroup.Item>
+			{/each}
+		</RadioGroup.Root>
+		<div class="grid grid-cols-3 gap-2 border-t pt-4">
+			{#each actions as action (action.testId)}
+				<Button
+					variant="outline"
+					class="h-auto min-h-11 flex-col py-3 whitespace-normal"
+					style="transition-duration: {motionDuration(100)}ms"
+					data-testid={action.testId}
+					aria-label={action.label()}
+					onclick={action.handler}
+					><action.icon aria-hidden="true" />{(action.shortLabel ?? action.label)()}</Button
+				>
+			{/each}
+		</div>
+	</BottomSheet>
+{:else}
+	<DropdownMenu.Root
+		onOpenChangeComplete={(open) => {
+			if (!menuOpen) menuHandoff.complete(open);
+		}}
+		bind:open={menuOpen}
+		onOpenChange={(open) => {
+			if (open) menuHandoff.reopen();
+		}}
+	>
+		<DropdownMenu.Trigger
+			bind:ref={trigger}
+			class={buttonVariants({
+				variant: 'ghost',
+				size: 'sm',
+				class: 'max-w-64 min-w-0 shrink justify-between gap-2'
+			})}
+			style="transition-duration: {motionDuration(100)}ms"
+			aria-label={m.plan_switcher_label()}
+			data-testid="plan-switcher"
+		>
+			{@render triggerLabel()}
+		</DropdownMenu.Trigger>
+		<DropdownMenu.Content
+			align="start"
+			class="w-72"
+			style="animation-duration: {motionDuration(100)}ms; transition-duration: {motionDuration(
+				100
+			)}ms"
+			onCloseAutoFocus={(event) => {
+				if (handoff) event.preventDefault();
 			}}
 		>
-			<Dialog.Header>
-				<Dialog.Title>{m.plan_rename_title()}</Dialog.Title>
-				<Dialog.Description class="sr-only">{m.plan_rename_label()}</Dialog.Description>
-			</Dialog.Header>
-			<Input
-				bind:value={renameValue}
-				aria-label={m.plan_rename_label()}
-				placeholder={m.untitled_plan()}
-				data-testid="plan-rename-input"
-				onkeydown={(event) => {
-					// Enter in an IME composition confirms the text. It must not submit.
-					if (event.key === 'Enter' && isComposing(event)) event.preventDefault();
-				}}
-			/>
-			<Dialog.Footer>
-				<Button type="button" variant="outline" onclick={() => (renameOpen = false)}>
-					{m.action_cancel()}
-				</Button>
-				<Button type="submit" data-testid="plan-rename-ok">{m.action_rename()}</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+			<DropdownMenu.Label>{m.plan_switcher_label()}</DropdownMenu.Label>
+			<DropdownMenu.RadioGroup value={ws.plan.id}>
+				{#each ws.plans as plan (plan.id)}
+					<DropdownMenu.RadioItem
+						value={plan.id}
+						closeOnSelect
+						onSelect={() => act(() => ws.switchTo(plan.id))}
+						><span class="truncate">{nameOf(plan.heading)}</span></DropdownMenu.RadioItem
+					>
+				{/each}
+			</DropdownMenu.RadioGroup>
+			<DropdownMenu.Separator />
+			{#each actions as action (action.testId)}
+				<DropdownMenu.Item data-testid={action.testId} onSelect={action.handler}
+					><action.icon aria-hidden="true" />{action.label()}</DropdownMenu.Item
+				>
+			{/each}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
+{/if}
+
+<ImportFlow bind:this={importer} returnFocus={trigger} />

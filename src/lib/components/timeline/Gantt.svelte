@@ -17,7 +17,7 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
 	import { isFinished } from '#lib/domain/derive.ts';
-	import { todayISO } from '#lib/domain/date.ts';
+	import { cn } from '#lib/utils.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import {
@@ -48,12 +48,14 @@
 	import { MILESTONE_SYMBOLS } from './milestone-symbols.ts';
 
 	interface Props {
+		todayDate: string;
+		class?: string;
 		onBand: (band: Band) => void;
 		onMilestone: (milestone: Milestone) => void;
 		onReveal: (row: { top: number; bottom: number }) => void;
 	}
 
-	let { onBand, onMilestone, onReveal }: Props = $props();
+	let { todayDate, class: className, onBand, onMilestone, onReveal }: Props = $props();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -74,27 +76,6 @@
 	);
 	const lines = $derived(dependencyLines(ws.index, rows));
 	const ticks = $derived(monthTicks(win));
-	// Today changes at local midnight. A hidden tab can miss the timer, so check again when it shows.
-	let todayDate = $state(todayISO());
-	$effect(() => {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const refresh = () => {
-			todayDate = todayISO();
-			clearTimeout(timer);
-			const now = new Date();
-			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-			timer = setTimeout(refresh, midnight.getTime() - now.getTime() + 1000);
-		};
-		const onVisibility = () => {
-			if (document.visibilityState === 'visible') refresh();
-		};
-		refresh();
-		document.addEventListener('visibilitychange', onVisibility);
-		return () => {
-			clearTimeout(timer);
-			document.removeEventListener('visibilitychange', onVisibility);
-		};
-	});
 	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(visibleBands(win, ws.plan.bands));
 	const milestones = $derived(visibleMilestones(win, ws.plan.milestones));
@@ -189,7 +170,10 @@
 <div
 	role="group"
 	aria-label={m.gantt_label()}
-	class="flex min-h-21 min-w-0 flex-1 flex-col rounded-md border bg-background [--gantt-label-width:128px] sm:[--gantt-label-width:192px]"
+	class={cn(
+		'flex min-h-21 min-w-0 flex-1 flex-col rounded-md border bg-background [--gantt-label-width:128px] sm:[--gantt-label-width:192px]',
+		className
+	)}
 	data-testid="gantt"
 >
 	<div bind:this={scroller} class="min-h-0 flex-1 overflow-auto" data-testid="gantt-scroller">

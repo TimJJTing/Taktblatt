@@ -217,9 +217,7 @@
 	"plan_rename_title": "Plan umbenennen",
 	"plan_rename_label": "Name des Plans",
 	"action_import": "Importieren",
-	"action_export": "Exportieren",
 	"export_plan": "Diesen Plan exportieren",
-	"export_all": "Alle Pläne exportieren",
 	"import_error_title": "Diese Datei kann nicht importiert werden",
 	"import_error_body": "Die App hat keine Daten geändert. Beheben Sie diese Fehler und versuchen Sie es erneut.",
 	"import_error_more": "Weitere Fehler: {count}",
@@ -293,5 +291,14 @@
 	"workspace_view": "Arbeitsbereichansicht",
 	"workspace_plan": "Plan",
 	"sheet_footer": "Blattfußzeile",
-	"sheet_footer_hint": "Wird am Ende jedes Blatts gedruckt."
+	"sheet_footer_hint": "Wird am Ende jedes Blatts gedruckt.",
+	"timeline_keep_open": "Zeitleiste offen halten",
+	"timeline_handle_hint": "Ziehen oder die Pfeiltasten verwenden, um die Höhe zu ändern.",
+	"menu_print": "Drucken…",
+	"menu_import": "Importieren…",
+	"plans_backup": "Alle Pläne sichern",
+	"plans_backup_short": "Sichern",
+	"menu_this_plan": "Dieser Plan",
+	"menu_print_hint": "Blätter in der Vorschau",
+	"menu_export_hint": "Dieser Plan als Datei"
 }

@@ -5,13 +5,17 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import {
 		isTimelinePinned,
+		beginTimelineLayoutChange,
+		endTimelineLayoutChange,
 		pinnedTimeline,
 		workspaceLayout,
-		workspaceTabs
+		workspaceTabs,
+		timelineLayout
 	} from './app-layout.svelte.ts';
+	import { COLLAPSED_TIMELINE_HEIGHT } from '#lib/components/timeline/gantt-layout.ts';
 	import AppHeader from './AppHeader.svelte';
 	import WorkspaceTabs from './WorkspaceTabs.svelte';
-	import { nextIslandScroll } from './island-scroll.ts';
+	import { nextIslandScroll, nextTimelineAutoCollapse } from './island-scroll.ts';
 
 	let { plan, work }: { plan: Snippet; work: Snippet } = $props();
 	const viewer = getViewer();
@@ -26,6 +30,23 @@
 	const scrollPositions = { plan: 0, 'work-plan': 0 };
 	let previousTab = viewer.narrowTab;
 	let stopUserScroll = () => {};
+	let rebaseTimelineScroll = () => {};
+	let resetTimelineScroll = () => {};
+
+	$effect(() => {
+		void timelineLayout.revision;
+		untrack(() => resetTimelineScroll());
+	});
+	$effect(() => {
+		void pinnedTimeline.height;
+		const changing = timelineLayout.changing;
+		untrack(() => rebaseTimelineScroll());
+		if (!changing)
+			void tick().then(() => {
+				const active = document.activeElement;
+				if (active instanceof HTMLElement && content?.contains(active)) revealFocus(active);
+			});
+	});
 
 	$effect(() => {
 		if (motionDuration(1) === 0) workspaceTabs.compact = 0;
@@ -34,29 +55,53 @@
 	$effect(() => {
 		if (workspaceLayout.split || !content) return;
 		let last = content.scrollTop;
+		let auto = { last, down: 0, collapsed: untrack(() => timelineLayout.autoCollapsed) };
+		const rebase = () => {
+			last = content.scrollTop;
+			auto = { ...auto, last };
+		};
+		resetTimelineScroll = () => {
+			rebase();
+			auto = { ...auto, down: 0, collapsed: timelineLayout.autoCollapsed };
+		};
 		let inputUntil = 0;
+		let inputDirection = 0;
+		let touchY: number | undefined;
 		let touching = false;
 		let touchMoved = false;
 		let scrollbar = false;
 		// Count scroll only after user input. App restores, jumps and focus reveals do not resize tabs.
 		const stop = () => {
 			inputUntil = 0;
+			inputDirection = 0;
 			last = content.scrollTop;
+			auto = { ...auto, last };
 		};
-		stopUserScroll = stop;
-		const activate = () => (inputUntil = performance.now() + 200);
+		stopUserScroll = () => {
+			stop();
+			auto = { ...auto, down: 0 };
+		};
+		const activate = (direction: number) => {
+			if (direction !== 0) inputDirection = Math.sign(direction);
+			inputUntil = performance.now() + 200;
+		};
 		const wheel = (event: WheelEvent) => {
-			if (!event.ctrlKey && event.deltaY !== 0) activate();
+			if (!event.ctrlKey && event.deltaY !== 0) activate(event.deltaY);
 		};
 		// A tap is not a scroll. Only a touch that moved keeps counting during the momentum scroll.
 		// A label tap then starts an app scroll (the jump) that must not resize the tabs.
-		const touchStart = () => {
+		const touchStart = (event: TouchEvent) => {
+			touchY = event.touches[0]?.clientY;
+			inputDirection = 0;
 			touching = true;
 			touchMoved = false;
 		};
-		const touchMove = () => {
+		const touchMove = (event: TouchEvent) => {
+			const y = event.touches[0]?.clientY;
+			const delta = y !== undefined && touchY !== undefined ? touchY - y : 0;
+			touchY = y;
 			touchMoved = true;
-			activate();
+			activate(delta);
 		};
 		const touchEnd = () => {
 			touching = false;
@@ -66,7 +111,7 @@
 			stop();
 			const bounds = content.getBoundingClientRect();
 			scrollbar = event.target === content && event.clientX >= bounds.left + content.clientWidth;
-			if (scrollbar) activate();
+			if (scrollbar) activate(0);
 		};
 		const pointerUp = () => {
 			scrollbar = false;
@@ -82,20 +127,50 @@
 				event.target instanceof HTMLElement &&
 				!event.target.closest('input, textarea, select, button, [contenteditable], [role="slider"]')
 			)
-				activate();
+				activate(
+					['PageUp', 'ArrowUp', 'Home'].includes(event.key) || (event.key === ' ' && event.shiftKey)
+						? -1
+						: 1
+				);
 		};
-		const scroll = () => {
-			const max = content.scrollHeight - content.clientHeight;
+		const sampleScroll = (layoutSample: boolean) => {
+			const max = Math.max(0, content.scrollHeight - content.clientHeight);
+			const top = content.scrollTop;
 			const input = (touching && touchMoved) || scrollbar || performance.now() <= inputUntil;
-			const next = nextIslandScroll(
-				{ last, compact: workspaceTabs.compact },
-				content.scrollTop,
-				max,
-				input
-			);
+			const clamp = (value: number) => Math.min(max, Math.max(0, value));
+			const delta = clamp(top) - clamp(last);
+			// A smaller scroll range clamps the old offset. Only movement after that clamp counts.
+			const followsInput =
+				input && delta !== 0 && (scrollbar || Math.sign(delta) === inputDirection);
+			if (delta === 0 || ((timelineLayout.changing || layoutSample) && !followsInput)) {
+				rebase();
+				return;
+			}
+			// Count this user delta before a collapse changes the height and rebases both controllers.
+			const next = nextIslandScroll({ last, compact: workspaceTabs.compact }, top, max, input);
 			last = next.last;
 			workspaceTabs.compact = motionDuration(1) === 0 ? 0 : next.compact;
+			auto = nextTimelineAutoCollapse(
+				{ ...auto, collapsed: timelineLayout.autoCollapsed },
+				{
+					top,
+					max,
+					heightDelta: Math.max(0, pinnedTimeline.height - COLLAPSED_TIMELINE_HEIGHT),
+					user: input,
+					keepOpen: viewer.timelineKeepOpen,
+					userCollapsed: viewer.timelineCollapsed,
+					focusInside: !!document.activeElement?.closest('#timeline-content')
+				}
+			);
+			if (auto.collapsed !== timelineLayout.autoCollapsed) {
+				const token = beginTimelineLayoutChange();
+				void tick().then(() => endTimelineLayoutChange(token));
+				timelineLayout.autoCollapsed = auto.collapsed;
+			}
 		};
+		const scroll = () => sampleScroll(false);
+		// Height measurements can arrive before the scroll event. Consume user movement once.
+		rebaseTimelineScroll = () => sampleScroll(true);
 		let observing = true;
 		const resetIfShort = () => {
 			if (content.scrollHeight <= content.clientHeight) workspaceTabs.compact = 0;
@@ -137,6 +212,8 @@
 			window.removeEventListener('pointerup', pointerUp);
 			window.removeEventListener('pointercancel', pointerUp);
 			stopUserScroll = () => {};
+			rebaseTimelineScroll = () => {};
+			resetTimelineScroll = () => {};
 		};
 	});
 
@@ -164,7 +241,13 @@
 			workspaceLayout.split = query.matches;
 			void tick().then(() => {
 				const lost = document.activeElement === document.body || document.activeElement === focused;
-				if (focused instanceof HTMLElement && lost && !focused.checkVisibility()) {
+				if (
+					focused instanceof HTMLElement &&
+					lost &&
+					(!focused.isConnected ||
+						!focused.checkVisibility({ visibilityProperty: true }) ||
+						!!focused.closest('[inert]'))
+				) {
 					if (focused.matches('.split-resize')) {
 						document.getElementById(`workspace-tab-${viewer.narrowTab}`)?.focus();
 					} else if (focusedTimeline) {

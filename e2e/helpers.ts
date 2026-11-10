@@ -21,9 +21,23 @@ const layoutSource = readFileSync(
 	new URL('../src/lib/components/timeline/gantt-layout.ts', import.meta.url),
 	'utf8'
 );
-const rowMotion = layoutSource.match(/export const ROW_MOTION_MS\s*=\s*(\d+)/)?.[1];
-if (!rowMotion) throw new Error('Missing ROW_MOTION_MS');
-const ROW_MOTION_MS = Number(rowMotion);
+function layoutConstant(name: string): number {
+	const expression = layoutSource.match(new RegExp(`export const ${name}\\s*=\\s*([^;]+);`))?.[1];
+	if (!expression) throw new Error(`Missing ${name}`);
+	return expression.split('+').reduce(
+		(sum, term) =>
+			sum +
+			term.split('*').reduce((product, factor) => {
+				const value = factor.trim();
+				return product * (/^\d+$/.test(value) ? Number(value) : layoutConstant(value));
+			}, 1),
+		0
+	);
+}
+const ROW_MOTION_MS = layoutConstant('ROW_MOTION_MS');
+export const CHART_BORDER_HEIGHT = layoutConstant('CHART_BORDER_HEIGHT');
+export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
+export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
 /** The default height of the whole pinned section, in pixels. */
 export const defaultPanelHeight = (page: Page) =>
@@ -111,7 +125,12 @@ export async function startTimelineFrameMonitor(page: Page) {
 			const bounds = panel.getBoundingClientRect();
 			const slot = panel.closest('#timeline')!.getBoundingClientRect();
 			const toggle = panel
-				.querySelector('[data-testid="timeline-legends-toggle"]')!
+				.querySelector(
+					document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!.dataset
+						.layout === 'split'
+						? '[data-testid="timeline-legends-toggle"]'
+						: '[data-testid="timeline-keep-open"]'
+				)!
 				.getBoundingClientRect();
 			return {
 				time: performance.now(),
@@ -211,15 +230,100 @@ export async function importJson(page: Page, content: unknown, name = 'plan.json
 	});
 }
 
-/** Opens the app menu and waits for its opening animation. */
-export async function openMenu(page: Page): Promise<Locator> {
-	const trigger = page.getByTestId('app-menu');
-	await expect(trigger).toBeVisible();
-	await trigger.click();
-	const menu = page.getByRole('menu');
-	await expect(menu).toBeVisible();
-	await waitForAnimations(menu);
-	return menu;
+/** Reads the saved viewer preferences. */
+export const storedViewer = (page: Page) =>
+	page.evaluate(() => JSON.parse(localStorage.getItem('taktblatt:ui')!));
+
+/** Checks whether the primary pointer is coarse. */
+export const isCoarse = (page: Page) =>
+	page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+
+/** Opens a scope menu and waits for its presentation to settle. */
+async function openScope(page: Page, scope: 'plans' | 'menu'): Promise<Locator> {
+	await page.getByTestId(scope === 'plans' ? 'plan-switcher' : 'app-menu').click();
+	const coarse = await isCoarse(page);
+	const surface = coarse ? page.getByTestId(`${scope}-sheet`) : page.getByRole('menu');
+	await expect(surface).toBeVisible();
+	await waitForAnimations(surface);
+	return surface;
+}
+
+/** Opens the This plan menu or sheet. */
+export const openMenu = (page: Page) => openScope(page, 'menu');
+
+/** Opens the Plans menu or sheet. */
+export const openPlans = (page: Page) => openScope(page, 'plans');
+
+/** Opens the language submenu for the current UI language. */
+export async function openLanguageMenu(page: Page): Promise<Locator> {
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-language').click();
+	const languages = page.getByRole('menu').filter({
+		has: page.getByRole('menuitemradio', { name: 'English', exact: true })
+	});
+	await expect(languages).toBeVisible();
+	await waitForAnimations(languages);
+	return languages;
+}
+
+/** Chooses a UI language through the scope menu. */
+export async function chooseLanguage(
+	page: Page,
+	name: 'English' | 'Deutsch' | '繁體中文' | '日本語'
+) {
+	if (await isCoarse(page)) {
+		const sheet = await openMenu(page);
+		await sheet
+			.getByRole('combobox', { name: 'Language', exact: true })
+			.selectOption({ label: name });
+	} else {
+		const languages = await openLanguageMenu(page);
+		await languages.getByRole('menuitemradio', { name, exact: true }).click();
+	}
+}
+
+/** Chooses a theme. A sheet stays open after the choice. */
+export async function chooseTheme(page: Page, name: 'Light' | 'Dark' | 'System') {
+	const menu = await openMenu(page);
+	const coarse = await isCoarse(page);
+	await menu.getByRole(coarse ? 'radio' : 'menuitemradio', { name, exact: true }).click();
+	if (!coarse) await expect(menu).toHaveCount(0);
+}
+
+export const timelineHandle = (page: Page) => page.locator('button#timeline-collapse');
+
+export async function collapseTimeline(page: Page) {
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await timelineHandle(page).click();
+	await expectTimelineCollapsed(page);
+}
+
+export async function expandTimeline(page: Page) {
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'false');
+	await timelineHandle(page).click();
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await waitForAnimations(page.locator('#timeline'));
+}
+
+export async function expectTimelineCollapsed(page: Page) {
+	await expect(timelineHandle(page)).toHaveAccessibleName('Expand timeline');
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'false');
+	await waitForAnimations(page.locator('#timeline'));
+	await expect
+		.poll(async () => (await page.locator('#timeline').boundingBox())!.height)
+		.toBeCloseTo(COLLAPSED_TIMELINE_HEIGHT, 0);
+	await expect(page.getByTestId('gantt')).toBeHidden();
+}
+
+/** Scrolls a pane with real user input. It does not move the window. */
+export async function userScroll(page: Page, pane: Locator, delta: number) {
+	const box = (await pane.boundingBox())!;
+	await page.mouse.move(box.x + box.width - 12, box.y + box.height - 24);
+	await page.mouse.wheel(0, delta);
+	await pane.evaluate(async () => {
+		await new Promise(requestAnimationFrame);
+		await new Promise(requestAnimationFrame);
+	});
 }
 
 /**
@@ -243,7 +347,8 @@ export async function waitForAnimations(locator: Locator): Promise<void> {
 		const animations = element
 			.getAnimations({ subtree: true })
 			.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
-		await Promise.all(animations.map((animation) => animation.finished));
+		// A canceled or replaced transition rejects its promise. It is also complete.
+		await Promise.allSettled(animations.map((animation) => animation.finished));
 	});
 }
 
@@ -681,4 +786,32 @@ export async function setTaskStatus(
 	await page.getByRole('option', { name: labels[status], exact: true }).click();
 	await expect(listbox).toHaveCount(0);
 	await expect(trigger).toBeFocused();
+}
+
+/** Selects Duplicate and reopens the same surface during its exit animation. */
+export async function expectDuplicateOnceAfterReopen(page: Page): Promise<void> {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	const before = await planIds(page);
+	const menu = await openMenu(page);
+	await menu.evaluate(async (surface) => {
+		const action = surface.querySelector<HTMLButtonElement>('[data-testid="menu-duplicate"]')!;
+		action.click();
+		// Let Svelte commit the close, but reopen before the exit animation ends.
+		await new Promise(requestAnimationFrame);
+		if (!surface.isConnected || surface.getAttribute('data-state') !== 'closed') {
+			throw new Error('The menu must still be mounted in its closing state');
+		}
+		document.querySelector<HTMLButtonElement>('[data-testid="app-menu"]')!.click();
+	});
+	await expect(menu).toBeVisible();
+	await expect(menu).toHaveAttribute('data-state', 'open');
+	await waitForAnimations(menu);
+	// Keep the reopened menu open while checking that the first action has finished.
+	await expect.soft.poll(async () => (await planIds(page)).length).toBe(before.length + 1);
+	const beforeDismissal = await planIds(page);
+	await page.keyboard.press('Escape');
+	await expect(menu).toHaveCount(0);
+	await expect(page.getByTestId('app-menu')).toBeFocused();
+	await expect.poll(() => planIds(page)).toEqual(beforeDismissal);
+	expect(await planIds(page)).toHaveLength(before.length + 1);
 }

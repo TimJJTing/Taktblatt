@@ -7,7 +7,7 @@ import {
 	formatted,
 	openApp,
 	openExample,
-	openMenu,
+	chooseLanguage,
 	openMenuWithKeyboard,
 	openPreview,
 	row,
@@ -586,8 +586,7 @@ test('the sheets of an English plan show German labels and dates in the German U
 }) => {
 	await openExample(page);
 	const plan = await storedPlan(page);
-	await openMenu(page);
-	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+	await chooseLanguage(page, 'Deutsch');
 	// The plan has history, so the app asks before it reloads.
 	await page.getByTestId('language-reload-confirm').click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');

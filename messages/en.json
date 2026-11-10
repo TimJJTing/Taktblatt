@@ -217,9 +217,7 @@
 	"plan_rename_title": "Rename plan",
 	"plan_rename_label": "Plan name",
 	"action_import": "Import",
-	"action_export": "Export",
 	"export_plan": "Export this plan",
-	"export_all": "Export all plans",
 	"import_error_title": "This file cannot be imported",
 	"import_error_body": "The app did not change any data. Fix these errors and try again.",
 	"import_error_more": "Other errors: {count}",
@@ -293,5 +291,14 @@
 	"workspace_view": "Workspace view",
 	"workspace_plan": "Plan",
 	"sheet_footer": "Sheet footer",
-	"sheet_footer_hint": "Prints at the bottom of each sheet."
+	"sheet_footer_hint": "Prints at the bottom of each sheet.",
+	"timeline_keep_open": "Keep timeline open",
+	"timeline_handle_hint": "Drag or use the arrow keys to change the height.",
+	"menu_print": "Print…",
+	"menu_import": "Import…",
+	"plans_backup": "Back up all plans",
+	"plans_backup_short": "Back up",
+	"menu_this_plan": "This plan",
+	"menu_print_hint": "Preview the sheets",
+	"menu_export_hint": "This plan as a file"
 }

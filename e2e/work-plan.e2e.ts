@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
 	GANTT_HEIGHT,
 	addWorkspaceOverflow,
+	timelineHandle,
 	defaultPanelHeight,
 	expectPanelHeight,
 	expectStickyStageStack,
@@ -445,10 +446,10 @@ test.describe('work plan', () => {
 			await openExample(page);
 			await addWorkspaceOverflow(page);
 			await selectTab(page, 'Work plan');
-			await page.getByTestId('gantt-resize').press('Home');
+			await timelineHandle(page).press('Home');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx);
 			await expectStickyStageStack(stage(page, 0));
-			await page.getByTestId('gantt-resize').press('PageDown');
+			await timelineHandle(page).press('PageDown');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx + 90);
 			await expectStickyStageStack(stage(page, 0));
 		});

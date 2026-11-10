@@ -15,6 +15,11 @@ export const TIMELINE_MIN_WIDTH = 640;
 export const HEADER_HEIGHT = 28;
 export const MILESTONE_ROW_HEIGHT = 28;
 export const ROW_HEIGHT = 28;
+export const CHART_BORDER_HEIGHT = 2;
+export const MIN_CHART_HEIGHT =
+	HEADER_HEIGHT + MILESTONE_ROW_HEIGHT + 3 * ROW_HEIGHT + CHART_BORDER_HEIGHT;
+/** The stage edge is 4 px high. The handle is 20 px high. */
+export const COLLAPSED_TIMELINE_HEIGHT = 24;
 /** The duration of the row and line motion, before motionDuration. */
 export const ROW_MOTION_MS = 240;
 /** The duration of section height, control and legend motion, before motionDuration. */
