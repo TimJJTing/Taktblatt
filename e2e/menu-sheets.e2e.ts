@@ -11,14 +11,18 @@ import {
 	planIds,
 	waitForAnimations,
 	touchDrag,
+	dragSteps,
+	isCoarse,
 	expectDuplicateOnceAfterReopen
 } from './helpers.ts';
+
+type SheetReturnTrace = { tops: number[]; releasedTop: number; done: boolean };
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
 test.beforeEach(async ({ page }) => {
 	await openApp(page);
-	expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+	expect(await isCoarse(page)).toBe(true);
 });
 
 async function expectClosed(page: Page, sheet: Locator, trigger: string) {
@@ -29,14 +33,6 @@ async function expectClosed(page: Page, sheet: Locator, trigger: string) {
 async function dismissWithScrim(page: Page, sheet: Locator) {
 	const box = (await sheet.boundingBox())!;
 	await page.touchscreen.tap(10, box.y / 2);
-}
-
-/** Uses small steps so a slow drag cannot satisfy the flick threshold. */
-function dragSteps(start: { x: number; y: number }, distance: number, count = 12) {
-	return Array.from({ length: count }, (_, i) => ({
-		x: start.x,
-		y: start.y + (distance * (i + 1)) / count
-	}));
 }
 
 async function titleDragStart(sheet: Locator) {
@@ -68,29 +64,53 @@ test('a short slow drag follows the finger then returns to the open position', a
 	await expect.poll(async () => (await sheet.boundingBox())!.y).toBeCloseTo(box.y, 0);
 });
 
-test('Esc during the return slides the sheet out from its current position', async ({ page }) => {
+test('Esc during the return slides the bottom sheet out from its current position', async ({
+	page
+}) => {
 	const sheet = await openMenu(page);
 	const box = (await sheet.boundingBox())!;
 	const start = await titleDragStart(sheet);
-	await touchDrag(page, start, dragSteps(start, box.height * 0.15), 100);
-	// Press Esc and record the top in each frame in one call. A CDP round trip is as long as the exit.
-	const { tops, releasedTop } = await page.evaluate(async () => {
-		const releasedTop = document
-			.querySelector('[data-testid="menu-sheet"]')!
-			.getBoundingClientRect().top;
-		const values: number[] = [];
-		const options = { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true };
-		const target = document.activeElement ?? document.body;
-		target.dispatchEvent(new KeyboardEvent('keydown', options));
-		target.dispatchEvent(new KeyboardEvent('keyup', options));
-		for (let frame = 0; frame < 30; frame++) {
-			const element = document.querySelector('[data-testid="menu-sheet"]');
-			if (!element) break;
-			values.push(element.getBoundingClientRect().top);
-			await new Promise(requestAnimationFrame);
-		}
-		return { tops: values, releasedTop };
+	await touchDrag(page, start, dragSteps(start, box.height * 0.15), 100, async () => {
+		await page.evaluate(() => {
+			const state = window as Window & { sheetReturnTrace: SheetReturnTrace };
+			state.sheetReturnTrace = { tops: [], releasedTop: 0, done: false };
+			window.addEventListener(
+				'touchend',
+				async () => {
+					await new Promise(requestAnimationFrame);
+					const trace = state.sheetReturnTrace;
+					trace.releasedTop = document
+						.querySelector('[data-testid="menu-sheet"]')!
+						.getBoundingClientRect().top;
+					const options = { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true };
+					const target = document.activeElement ?? document.body;
+					target.dispatchEvent(new KeyboardEvent('keydown', options));
+					target.dispatchEvent(new KeyboardEvent('keyup', options));
+					function record() {
+						const element = document.querySelector('[data-testid="menu-sheet"]');
+						if (!element) {
+							trace.done = true;
+							return;
+						}
+						trace.tops.push(element.getBoundingClientRect().top);
+						requestAnimationFrame(record);
+					}
+					record();
+				},
+				{ capture: true, once: true }
+			);
+		});
 	});
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() => (window as Window & { sheetReturnTrace: SheetReturnTrace }).sheetReturnTrace.done
+			)
+		)
+		.toBe(true);
+	const { tops, releasedTop } = await page.evaluate(
+		() => (window as Window & { sheetReturnTrace: SheetReturnTrace }).sheetReturnTrace
+	);
 	expect(tops.length).toBeGreaterThan(1);
 	// The first top stays between the open position and the position before Esc.
 	expect(tops[0]).toBeGreaterThan(box.y);
@@ -104,14 +124,14 @@ test('Esc during the return slides the sheet out from its current position', asy
 test('a short fast downward flick closes This plan and restores focus', async ({ page }) => {
 	const sheet = await openMenu(page);
 	const box = (await sheet.boundingBox())!;
-	// CDP adds about 50 ms between touch events. 100 px in two steps is a flick, not a long drag.
+	// Explicit event times keep the flick velocity independent of CDP latency.
 	expect(100).toBeLessThan(box.height * 0.25);
 	const start = await titleDragStart(sheet);
-	await touchDrag(page, start, dragSteps(start, 100, 2), 0);
+	await touchDrag(page, start, dragSteps(start, 100, 2), 0, undefined, 20);
 	await expectClosed(page, sheet, 'app-menu');
 });
 
-test('an upward drag stays at the open top and keeps the sheet open', async ({ page }) => {
+test('an upward drag stays at the open top and keeps the bottom sheet open', async ({ page }) => {
 	const sheet = await openMenu(page);
 	const box = (await sheet.boundingBox())!;
 	const start = await titleDragStart(sheet);
@@ -132,7 +152,7 @@ test('an upward drag stays at the open top and keeps the sheet open', async ({ p
 	await expect.poll(async () => (await sheet.boundingBox())!.y).toBeCloseTo(box.y, 0);
 });
 
-test('dragging the Print tile closes the sheet without opening Preview or a dialog', async ({
+test('dragging the Print tile closes the bottom sheet without opening Preview or a dialog', async ({
 	page
 }) => {
 	const sheet = await openMenu(page);
@@ -171,13 +191,16 @@ test('reduced motion returns a short drag immediately without an active animatio
 	await expect(sheet).toBeVisible();
 });
 
-test('Plans and This plan open modal sheets with scope actions and return focus on dismissal', async ({
+test('Plans and This plan open modal bottom sheets with scope actions and return focus on dismissal', async ({
 	page
 }) => {
 	const plans = await openPlans(page);
 	await expect(plans).toHaveRole('dialog');
 	await expect(plans).toHaveAccessibleName('Plans');
-	await expect(plans.getByRole('radio', { name: 'Untitled plan', exact: true })).toBeChecked();
+	await expect(plans.getByRole('button', { name: 'Untitled plan', exact: true })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
 	for (const id of ['plans-new', 'plans-import', 'plans-backup']) {
 		await expect(plans.getByTestId(id)).toBeVisible();
 		expect((await plans.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -224,7 +247,6 @@ test('Plans and This plan open modal sheets with scope actions and return focus 
 	await expect(menu).toContainText('Preview the sheets');
 	await expect(menu).toContainText('This plan as a file');
 	const language = menu.getByRole('combobox', { name: 'Language', exact: true });
-	await expect(language).toHaveJSProperty('tagName', 'BUTTON');
 	await expect(language).toHaveText('English');
 	const listbox = await openSelect(page, 'menu-language');
 	const options = listbox.getByRole('option');
@@ -252,7 +274,7 @@ test('Plans and This plan open modal sheets with scope actions and return focus 
 	await expectClosed(page, menu, 'app-menu');
 });
 
-test('the current Language closes the sheet with Enter and Space and restores Menu focus', async ({
+test('the current Language closes the bottom sheet with Enter and Space and restores Menu focus', async ({
 	page
 }) => {
 	for (const key of ['Enter', 'Space']) {
@@ -263,7 +285,7 @@ test('the current Language closes the sheet with Enter and Space and restores Me
 	}
 });
 
-test('Theme applies immediately and keeps the sheet open; Language closes before confirmation', async ({
+test('Theme applies immediately and keeps the bottom sheet open; Language closes before confirmation', async ({
 	page
 }) => {
 	await page.getByTestId('plan-heading').click();
@@ -289,7 +311,7 @@ test('Theme applies immediately and keeps the sheet open; Language closes before
 	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
 });
 
-test('sheet focus stays contained and scrolled Plans content consumes a downward drag in landscape', async ({
+test('bottom sheet focus stays contained and scrolled Plans content consumes a downward drag in landscape', async ({
 	page
 }) => {
 	for (let i = 0; i < 12; i++) {
@@ -308,13 +330,13 @@ test('sheet focus stays contained and scrolled Plans content consumes a downward
 		await page.keyboard.press('Tab');
 		await expect.poll(() => sheet.evaluate((e) => e.contains(document.activeElement))).toBe(true);
 	}
-	await sheet.getByRole('radio').last().focus();
-	await expect(sheet.getByRole('radio').last()).toBeInViewport();
+	await sheet.getByRole('list').getByRole('button').last().focus();
+	await expect(sheet.getByRole('list').getByRole('button').last()).toBeInViewport();
 	expect((await heading.boundingBox())!.y).toBeCloseTo(titleTop, 0);
 	expect(
 		await sheet.evaluate((e) => [e, ...e.querySelectorAll('*')].some((node) => node.scrollTop > 0))
 	).toBe(true);
-	const content = sheet.getByRole('radiogroup', { name: 'Plans', exact: true }).locator('..');
+	const content = sheet.getByRole('list').locator('..');
 	const before = await content.evaluate((element) => ({
 		scroll: element.scrollTop,
 		overflow: element.scrollHeight - element.clientHeight
@@ -336,7 +358,7 @@ test('sheet focus stays contained and scrolled Plans content consumes a downward
 	await expect(sheet).toBeVisible();
 	expect((await sheet.boundingBox())!.y).toBeCloseTo(box.y, 0);
 	// At the top, the same content must hand the drag to the sheet.
-	await sheet.getByRole('radio').first().focus();
+	await sheet.getByRole('list').getByRole('button').first().focus();
 	await expect.poll(() => content.evaluate((element) => element.scrollTop)).toBe(0);
 	await touchDrag(page, start, dragSteps(start, box.height * 0.3), 100);
 	await expectClosed(page, sheet, 'plan-switcher');
@@ -428,7 +450,9 @@ test('file chooser cancellation and invalid import return focus to Plans', async
 	await expectClosed(page, sheet, 'plan-switcher');
 });
 
-test('import conflict survives sheet closure and cancel restores Plans focus', async ({ page }) => {
+test('import conflict survives bottom sheet closure and cancel restores Plans focus', async ({
+	page
+}) => {
 	await openExample(page);
 	const file = { schemaVersion: 1, kind: 'plan', plan: await storedPlan(page) };
 	const sheet = await openPlans(page);
@@ -450,7 +474,7 @@ test('import conflict survives sheet closure and cancel restores Plans focus', a
 	expect(await storedPlan(page)).toEqual(file.plan);
 });
 
-test('Plans imports a new file through the chooser and selects it after the sheet closes', async ({
+test('Plans imports a new file through the chooser and selects it after the bottom sheet closes', async ({
 	page
 }) => {
 	await openExample(page);
@@ -473,38 +497,76 @@ test('Plans imports a new file through the chooser and selects it after the shee
 	await expect(page.getByTestId('plan-switcher')).toBeFocused();
 });
 
-test('Plans sheet keyboard selection opens the next plan and moves its check mark', async ({
+test('Plans bottom sheet opens plans with Enter and Space and updates the current row', async ({
 	page
 }) => {
 	await openExample(page);
 	const original = (await storedPlan(page)).heading;
 	let sheet = await openPlans(page);
 	await sheet.getByTestId('plans-new').click();
-	await expect(sheet).toHaveCount(0);
-	await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
-	// Start on the first plan so ArrowDown selects the second plan without wrapping.
-	sheet = await openPlans(page);
-	await sheet.getByRole('radio', { name: original, exact: true }).click();
-	await expect(sheet).toHaveCount(0);
-	await expect(page.getByTestId('plan-heading')).toHaveText(original);
-	sheet = await openPlans(page);
-	await sheet.getByRole('radio', { name: original, exact: true }).focus();
-	await page.keyboard.press('ArrowDown');
-	await expect.soft(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
-	await expect.soft(sheet).toHaveCount(0);
-	// Inspect the rendered check mark as well as the radio state after reopening.
-	if (await sheet.count()) await page.keyboard.press('Escape');
-	sheet = await openPlans(page);
-	await expect(sheet.getByRole('radio', { name: 'Untitled plan', exact: true })).toBeChecked();
-	await expect(
-		sheet.getByRole('radio', { name: 'Untitled plan', exact: true }).locator('svg')
-	).toHaveCount(1);
-	await expect(
-		sheet.getByRole('radio', { name: original, exact: true }).locator('svg')
-	).toHaveCount(0);
+	await expectClosed(page, sheet, 'plan-switcher');
+	for (const key of ['Enter', 'Space']) {
+		sheet = await openPlans(page);
+		await sheet.getByRole('button', { name: original, exact: true }).click();
+		await expectClosed(page, sheet, 'plan-switcher');
+		await expect(page.getByTestId('plan-heading')).toHaveText(original);
+		sheet = await openPlans(page);
+		await sheet.getByRole('button', { name: 'Untitled plan', exact: true }).focus();
+		await page.keyboard.press(key);
+		await expectClosed(page, sheet, 'plan-switcher');
+		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
+		sheet = await openPlans(page);
+		await expect(sheet.getByRole('button', { name: 'Untitled plan', exact: true })).toHaveAttribute(
+			'aria-current',
+			'true'
+		);
+		await expect(sheet.getByRole('button', { name: original, exact: true })).not.toHaveAttribute(
+			'aria-current',
+			'true'
+		);
+		await expect(
+			sheet
+				.getByRole('button', { name: 'Untitled plan', exact: true })
+				.getByTestId('plan-current-mark')
+		).toHaveCount(1);
+		await expect(
+			sheet.getByRole('button', { name: original, exact: true }).getByTestId('plan-current-mark')
+		).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expectClosed(page, sheet, 'plan-switcher');
+	}
 });
 
-test('Duplicate plan runs once before a reopened This plan sheet is dismissed', async ({
+test('Plans bottom sheet ArrowDown moves focus without opening a plan until Enter', async ({
+	page
+}) => {
+	await openExample(page);
+	const original = (await storedPlan(page)).heading;
+	let sheet = await openPlans(page);
+	await sheet.getByTestId('plans-new').click();
+	await expectClosed(page, sheet, 'plan-switcher');
+	sheet = await openPlans(page);
+	await sheet.getByRole('button', { name: original, exact: true }).click();
+	await expectClosed(page, sheet, 'plan-switcher');
+	sheet = await openPlans(page);
+	const current = sheet.getByRole('button', { name: original, exact: true });
+	const next = sheet.getByRole('button', { name: 'Untitled plan', exact: true });
+	await expect(current).toHaveAttribute('aria-current', 'true');
+	await current.focus();
+	await page.keyboard.press('ArrowDown');
+	await expect(next).toBeFocused();
+	await expect(sheet).toBeVisible();
+	await expect(page.getByTestId('plan-heading')).toHaveText(original);
+	await expect(current).toHaveAttribute('aria-current', 'true');
+	await expect(next).not.toHaveAttribute('aria-current', 'true');
+	await expect(current.getByTestId('plan-current-mark')).toHaveCount(1);
+	await expect(next.getByTestId('plan-current-mark')).toHaveCount(0);
+	await page.keyboard.press('Enter');
+	await expectClosed(page, sheet, 'plan-switcher');
+	await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
+});
+
+test('Duplicate plan runs once before a reopened This plan bottom sheet is dismissed', async ({
 	page
 }) => {
 	await expectDuplicateOnceAfterReopen(page);

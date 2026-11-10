@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
 	import { mergeProps } from 'bits-ui';
+	import { DRAG_START_PX } from '#lib/browser/drag-click.ts';
 	import { tick, untrack } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
 	import { innerHeight } from 'svelte/reactivity/window';
@@ -41,6 +42,9 @@
 		heightLimits,
 		pinnedHeight,
 		COLLAPSED_TIMELINE_HEIGHT,
+		TIMELINE_HANDLE_RESERVE,
+		STAGE_EDGE_HEIGHT,
+		TIMELINE_HANDLE_HEIGHT,
 		TABS_TIMELINE_TOP_SPACE,
 		MIN_CHART_HEIGHT,
 		TIMELINE_MOTION_MS
@@ -99,7 +103,7 @@
 		};
 	});
 	let heading: HTMLDivElement;
-	let collapseButton = $state<HTMLButtonElement>();
+	let handleButton = $state<HTMLButtonElement>();
 	const pinned = $derived(isTimelinePinned(viewer));
 	const collapsed = $derived(
 		!workspaceLayout.split && (viewer.timelineCollapsed || timelineLayout.autoCollapsed)
@@ -133,7 +137,7 @@
 			value &&
 			(heading?.contains(document.activeElement) || body?.contains(document.activeElement))
 		) {
-			collapseButton?.focus({ preventScroll: true });
+			handleButton?.focus({ preventScroll: true });
 		}
 		timelineLayout.autoCollapsed = false;
 		timelineLayout.revision += 1;
@@ -145,7 +149,7 @@
 		if (!collapsed) return;
 		const focused = untrack(() => document.activeElement);
 		if (!heading?.contains(focused) && !body?.contains(focused)) return;
-		void tick().then(() => collapseButton?.focus({ preventScroll: true }));
+		void tick().then(() => handleButton?.focus({ preventScroll: true }));
 	});
 	// Only split view can hide the legends.
 	const legendsCollapsed = $derived(workspaceLayout.split && viewer.timelineLegendsCollapsed);
@@ -298,7 +302,7 @@
 		viewer.setGanttHeight(clamped / viewport);
 	}
 
-	function onSeparatorKey(event: KeyboardEvent) {
+	function onResizeKey(event: KeyboardEvent) {
 		if (collapsed) {
 			if (['ArrowDown', 'PageDown', 'End', 'ArrowUp', 'PageUp', 'Home'].includes(event.key)) {
 				event.preventDefault();
@@ -321,7 +325,7 @@
 		setHeight(next[event.key]);
 	}
 
-	function onSeparatorDown(event: PointerEvent) {
+	function onResizeDown(event: PointerEvent) {
 		if (event.button !== 0 || drag) return;
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 		drag = {
@@ -335,10 +339,10 @@
 		suppressClick = false;
 		if (workspaceLayout.split) event.preventDefault();
 	}
-	function onSeparatorMove(event: PointerEvent) {
+	function onResizeMove(event: PointerEvent) {
 		if (!drag || event.pointerId !== drag.pointerId) return;
 		const delta = event.clientY - drag.y;
-		if (!workspaceLayout.split && !drag.moved && Math.abs(delta) < 4) return;
+		if (!workspaceLayout.split && !drag.moved && Math.abs(delta) < DRAG_START_PX) return;
 		drag.moved = true;
 		suppressClick = true;
 		const next = drag.height + delta;
@@ -353,14 +357,14 @@
 		}
 		setHeight(next);
 	}
-	function onSeparatorUp(event: PointerEvent) {
+	function onResizeUp(event: PointerEvent) {
 		if (event.pointerId !== drag?.pointerId) return;
 		drag = null;
 	}
-	function onSeparatorCancel(event: PointerEvent) {
+	function onResizeCancel(event: PointerEvent) {
 		if (event.pointerId !== drag?.pointerId) return;
 		suppressClick = true;
-		onSeparatorUp(event);
+		onResizeUp(event);
 	}
 </script>
 
@@ -368,7 +372,12 @@
 	<span class="size-2.5 shrink-0 rounded-sm" style:background aria-hidden="true"></span>
 {/snippet}
 
-<div>
+<div
+	style:--timeline-handle-reserve={`${TIMELINE_HANDLE_RESERVE}px`}
+	style:--stage-edge-height={`${STAGE_EDGE_HEIGHT}px`}
+	style:--timeline-handle-height={`${TIMELINE_HANDLE_HEIGHT}px`}
+	style:--tabs-timeline-top-space={`${TABS_TIMELINE_TOP_SPACE}px`}
+>
 	<div
 		bind:this={panel}
 		bind:offsetHeight={boxHeight}
@@ -385,7 +394,7 @@
 		<div
 			id="timeline-content"
 			class="flex min-h-0 flex-1 flex-col"
-			style:padding-top={workspaceLayout.split ? undefined : `${TABS_TIMELINE_TOP_SPACE}px`}
+			style:padding-top={workspaceLayout.split ? undefined : 'var(--tabs-timeline-top-space)'}
 			inert={collapsed}
 			style:visibility={collapsed ? 'hidden' : undefined}
 		>
@@ -629,7 +638,7 @@
 			<div
 				class={cn(
 					'timeline-divider relative shrink-0',
-					workspaceLayout.split ? 'mt-2' : !collapsed && 'pt-3'
+					workspaceLayout.split ? 'mt-2' : !collapsed && 'pt-(--timeline-handle-reserve)'
 				)}
 				transition:slide={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
 			>
@@ -649,11 +658,11 @@
 							'relative flex cursor-row-resize touch-none items-center justify-center bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
 							'h-3 border-t'
 						)}
-						onkeydown={onSeparatorKey}
-						onpointerdown={onSeparatorDown}
-						onpointermove={onSeparatorMove}
-						onpointerup={onSeparatorUp}
-						onpointercancel={onSeparatorUp}
+						onkeydown={onResizeKey}
+						onpointerdown={onResizeDown}
+						onpointermove={onResizeMove}
+						onpointerup={onResizeUp}
+						onpointercancel={onResizeUp}
 						data-testid="gantt-resize"
 					>
 						<span class="h-1 w-10 rounded-full bg-border" aria-hidden="true"></span>
@@ -661,7 +670,7 @@
 				{:else}
 					{#if collapsed}
 						<div
-							class="stage-edge pointer-events-none relative h-1 bg-border"
+							class="stage-edge pointer-events-none relative h-(--stage-edge-height) bg-border"
 							aria-hidden="true"
 							data-testid="timeline-stage-edge"
 							transition:fade={{ duration: motionDuration(TIMELINE_MOTION_MS) }}
@@ -707,21 +716,21 @@
 										setCollapsed(!collapsed);
 									}
 								})}
-								bind:this={collapseButton}
+								bind:this={handleButton}
 								id="timeline-collapse"
 								type="button"
-								class="timeline-handle relative flex h-5 w-full cursor-row-resize touch-none items-center justify-center bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+								class="timeline-handle relative flex h-(--timeline-handle-height) w-full cursor-row-resize touch-none items-center justify-center bg-background hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 								class:collapsed
 								aria-label={collapsed ? m.timeline_expand() : m.timeline_collapse()}
 								aria-expanded={!collapsed}
 								aria-controls="timeline-content"
 								aria-describedby="timeline-handle-hint"
-								onkeydown={onSeparatorKey}
-								onpointerdown={onSeparatorDown}
-								onpointermove={onSeparatorMove}
-								onpointerup={onSeparatorUp}
-								onpointercancel={onSeparatorCancel}
-								onlostpointercapture={onSeparatorCancel}
+								onkeydown={onResizeKey}
+								onpointerdown={onResizeDown}
+								onpointermove={onResizeMove}
+								onpointerup={onResizeUp}
+								onpointercancel={onResizeCancel}
+								onlostpointercapture={onResizeCancel}
 							>
 								<span class="h-1 w-9 rounded-full bg-border" aria-hidden="true"></span>
 							</button>
@@ -743,15 +752,15 @@
 
 <style>
 	.timeline-divider {
-		margin-left: calc(-1 * var(--pane-padding, 16px));
-		width: calc(100% + 2 * var(--pane-padding, 16px));
+		margin-left: calc(-1 * var(--pane-padding, var(--tabs-timeline-top-space)));
+		width: calc(100% + 2 * var(--pane-padding, var(--tabs-timeline-top-space)));
 	}
 	.timeline-handle::before {
 		content: '';
 		position: absolute;
-		inset: -12px 0 0;
+		inset: calc(-1 * var(--timeline-handle-reserve)) 0 0;
 	}
 	.timeline-handle.collapsed::before {
-		top: -4px;
+		top: calc(-1 * var(--stage-edge-height));
 	}
 </style>

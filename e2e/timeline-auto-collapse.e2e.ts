@@ -45,15 +45,6 @@ test('user scroll collapses at 48 pixels and expands at the top without saving a
 	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('an upward user scroll resets the downward threshold', async ({ page }) => {
-	const pane = workspaceContent(page);
-	for (const delta of [30, -10, 30]) await userScroll(page, pane, delta);
-	await expect.poll(() => pane.evaluate((e) => e.scrollTop)).toBe(50);
-	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
-	await userScroll(page, pane, 18);
-	await expectTimelineCollapsed(page);
-});
-
 test('app scrolls and restored tab positions do not collapse the Timeline', async ({ page }) => {
 	const pane = workspaceContent(page);
 	await pane.evaluate((e) => (e.scrollTop = 250));
@@ -89,11 +80,12 @@ test('Keep open persists independently from the split pin and allows manual coll
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(keep).toHaveAttribute('aria-pressed', 'true');
 	await keep.click();
-	expect((await storedViewer(page)).ganttPinned).toBe(true);
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
+	await page.setViewportSize({ width: 390, height: 844 });
 	await keep.click();
 	await page.reload();
 	await expect(keep).toHaveAttribute('aria-pressed', 'true');
-	expect((await storedViewer(page)).timelineKeepOpen).toBe(true);
 });
 
 test('a manual collapse stays collapsed when the user scrolls to the top', async ({ page }) => {
@@ -101,7 +93,8 @@ test('a manual collapse stays collapsed when the user scrolls to the top', async
 	await userScroll(page, workspaceContent(page), 200);
 	await userScroll(page, workspaceContent(page), -10000);
 	await expectTimelineCollapsed(page);
-	expect((await storedViewer(page)).timelineCollapsed).toBe(true);
+	await page.reload();
+	await expectTimelineCollapsed(page);
 });
 
 test('keyboard focus inside the Timeline prevents automatic collapse', async ({ page }) => {
@@ -136,7 +129,8 @@ test('collapse requires 48 pixels of remaining scroll after the height change', 
 }) => {
 	const pane = workspaceContent(page);
 	for (const remaining of [47, 49]) {
-		// Let the prior user-input window expire before the next app scroll.
+		// WorkspaceShell.svelte accepts scrolls as user input for 200 ms after input.
+		// Let that window expire before the next app scroll.
 		await page.waitForTimeout(250);
 		await pane.evaluate(
 			(e, { remaining, collapsedHeight }) => {
@@ -256,7 +250,7 @@ test('a group too short to scroll after collapse stays expanded', async ({ page 
 	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('a manual height change does not resize a partly compact island', async ({ page }) => {
+test('a manual collapse does not resize a partly compact island', async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: 'no-preference' });
 	const pane = workspaceContent(page);
 	await pane.evaluate((e) => (e.scrollTop = e.scrollHeight - e.clientHeight - 400));

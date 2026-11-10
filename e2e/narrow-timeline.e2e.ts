@@ -18,13 +18,14 @@ import {
 	writeStoredPlan
 } from './helpers.ts';
 
-async function dragHandle(page: Page, delta: number) {
+async function dragHandle(page: Page, delta: number, afterStart?: () => Promise<void>) {
 	// A keyboard resize animates the height. Read the position after the animation.
 	await waitForAnimations(page.getByTestId('timeline-panel'));
 	const bounds = (await timelineHandle(page).boundingBox())!;
 	// Drag at the edge to check the full-width target.
 	await page.mouse.move(bounds.x + 4, bounds.y + bounds.height / 2);
 	await page.mouse.down();
+	await afterStart?.();
 	await page.mouse.move(bounds.x + 4, bounds.y + bounds.height / 2 + delta, { steps: 8 });
 	await page.mouse.up();
 }
@@ -176,7 +177,7 @@ test('collapse persists without changing height or the split pin preference', as
 	});
 });
 
-test('handle keys toggle collapse and restore the stored height', async ({ page }) => {
+test('handle keys resize, toggle collapse and restore the stored height', async ({ page }) => {
 	await openExample(page);
 	const handle = timelineHandle(page);
 	await handle.press('Home');
@@ -217,10 +218,11 @@ test('drag collapse transfers content focus and drag expansion respects the mini
 	const height = await storedPanelHeight(page);
 	const contentControl = page.getByTestId('timeline-keep-open');
 	const controlHandle = await contentControl.elementHandle();
-	await contentControl.focus();
-	await expect(contentControl).toBeFocused();
-	// Leave less than half the 120 px minimum.
-	await dragHandle(page, 40 - height);
+	// Refocus content after pointer-down focuses the handle. Leave less than half the minimum.
+	await dragHandle(page, 40 - height, async () => {
+		await contentControl.evaluate((element) => (element as HTMLElement).focus());
+		await expect(contentControl).toBeFocused();
+	});
 	await expectTimelineCollapsed(page);
 	await expect(timelineHandle(page)).toBeFocused();
 	expect((await storedViewer(page)).ganttHeight).toBe(saved.ganttHeight);
@@ -305,25 +307,20 @@ test('narrowing to a saved collapsed Timeline moves focus from its content to th
 	await expect(timelineHandle(page)).toBeFocused();
 });
 
-test('tabs always show the legend rail and ignore the removed narrow legend preference', async ({
-	page
-}) => {
-	await page.addInitScript(() =>
-		localStorage.setItem('taktblatt:ui', JSON.stringify({ narrowLegendsCollapsed: true }))
-	);
+test('tabs show the legend rail when split legends are collapsed', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
 	await openExample(page);
-	await expect(page.getByTestId('timeline-legends-toggle')).toHaveCount(0);
+	const toggle = page.getByTestId('timeline-legends-toggle');
+	await toggle.click();
+	await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	await page.setViewportSize({ width: 390, height: 844 });
 	for (const id of ['stage-legend', 'milestone-legend', 'band-legend'])
 		await expect(page.getByTestId(id)).toBeVisible();
 	await page.setViewportSize({ width: 1280, height: 900 });
-	const toggle = page.getByTestId('timeline-legends-toggle');
-	await toggle.click();
-	await page.setViewportSize({ width: 390, height: 844 });
-	await expect(page.getByTestId('milestone-legend')).toBeVisible();
-	expect((await storedViewer(page)).timelineLegendsCollapsed).toBe(true);
+	await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('narrowing moves focus from the removed Legends button to the handle', async ({ page }) => {
+test('narrowing moves focus from the split Legends button to the handle', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await openExample(page);
 	await page.getByTestId('timeline-legends-toggle').focus();
@@ -345,6 +342,8 @@ test('a drag starts at four pixels and a return to its origin does not toggle', 
 	await page.mouse.down();
 	await page.mouse.move(x, y + 3);
 	await expectPanelHeight(page, original);
+	await page.mouse.move(x, y - 4);
+	await expectPanelHeight(page, original - 4);
 	await page.mouse.move(x, y - 20);
 	await expectPanelHeight(page, original - 20);
 	await page.mouse.move(x, y);
@@ -367,7 +366,7 @@ test('pointer cancellation keeps the current drag height without toggling', asyn
 	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('handle hit regions include the upper reserve and the entire collapsed strip', async ({
+test('handle hit regions include the upper reserve and the entire collapsed strip and do not block adjacent controls', async ({
 	page
 }) => {
 	await openExample(page);
@@ -387,7 +386,7 @@ test('handle hit regions include the upper reserve and the entire collapsed stri
 	await expect(page.getByTestId('task-title-input').first()).toBeVisible();
 });
 
-test('stage edge omits undated stages and an out-of-range today', async ({ page }) => {
+test('stage edge maps clipped stage fractions to CSS position and width', async ({ page }) => {
 	await openExample(page);
 	await writeStoredPlan(page, (plan) => {
 		plan.range = { start: '2000-01-01', end: '2000-01-10' };
@@ -400,8 +399,6 @@ test('stage edge omits undated stages and an out-of-range today', async ({ page 
 		task.end = '2000-01-05';
 	});
 	await collapseTimeline(page);
-	await expect(page.getByTestId('timeline-stage-segment')).toHaveCount(1);
-	await expect(page.getByTestId('timeline-today-tick')).toHaveCount(0);
 	const geometry = await page.getByTestId('timeline-stage-segment').evaluate((segment) => {
 		const edge = document
 			.querySelector('[data-testid="timeline-stage-edge"]')!

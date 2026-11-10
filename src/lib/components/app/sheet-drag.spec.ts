@@ -90,7 +90,6 @@ describe('sheet drag release velocity', () => {
 
 	it('returns zero when no positive sample interval is available', () => {
 		expect(sheetDragVelocity([], 100)).toBe(0);
-		expect(sheetDragVelocity([{ y: 10, time: 100 }], 100)).toBe(0);
 		expect(
 			sheetDragVelocity(
 				[

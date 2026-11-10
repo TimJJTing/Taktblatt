@@ -15,6 +15,7 @@
 	import { indexTasks } from '#lib/domain/derive.ts';
 	import { limitErrors, parseFile } from '#lib/domain/io.ts';
 	import type { Plan } from '#lib/domain/schema.ts';
+	import { nameOf } from '#lib/plan-name.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { StorageWriteError } from '#lib/state/storage.ts';
 	import { getWorkspace, type ImportConflict } from '#lib/state/workspace.svelte.ts';
@@ -40,8 +41,6 @@
 	let choices = $state<Record<string, Choice>>({});
 
 	const errorList = $derived(errors ? limitErrors(errors) : null);
-
-	const nameOf = (heading: string) => heading.trim() || m.untitled_plan();
 
 	/** Opens the file chooser. Call it from a user action, or the browser blocks it. */
 	export function choose() {

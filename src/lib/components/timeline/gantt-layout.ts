@@ -18,8 +18,10 @@ export const ROW_HEIGHT = 28;
 export const CHART_BORDER_HEIGHT = 2;
 export const MIN_CHART_HEIGHT =
 	HEADER_HEIGHT + MILESTONE_ROW_HEIGHT + 3 * ROW_HEIGHT + CHART_BORDER_HEIGHT;
-/** The stage edge is 4 px high. The handle is 20 px high. */
-export const COLLAPSED_TIMELINE_HEIGHT = 24;
+export const TIMELINE_HANDLE_RESERVE = 12;
+export const STAGE_EDGE_HEIGHT = 4;
+export const TIMELINE_HANDLE_HEIGHT = 20;
+export const COLLAPSED_TIMELINE_HEIGHT = STAGE_EDGE_HEIGHT + TIMELINE_HANDLE_HEIGHT;
 /**
  * The space above the heading in the expanded tabs section. It is the same as --pane-padding with
  * tabs (WorkspaceShell.svelte). Change both together.

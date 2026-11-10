@@ -18,14 +18,14 @@ function edge(today = '2027-01-05') {
 }
 
 describe('collapsed Timeline stage edge', () => {
-	it('clips dated spans to the range and keeps later stages above overlapping stages', () => {
+	it('clips dated spans, omits undated stages and orders segments by stage', () => {
 		expect(edge().segments).toEqual([
 			{ stageId: 'early', left: 0, width: 0.6 },
 			{ stageId: 'later', left: 0.4, width: 0.6 }
 		]);
 	});
-	it('places today inside the range and omits it outside the range', () => {
-		expect(edge().today).toBeCloseTo(0.4);
+	it('places today at the center of its day and omits it outside the range', () => {
+		expect(edge().today).toBeCloseTo(0.45);
 		expect(edge('2026-12-31').today).toBeNull();
 		expect(edge('2027-01-11').today).toBeNull();
 	});

@@ -10,10 +10,8 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import MonitorIcon from '@lucide/svelte/icons/monitor';
-	import { mergeProps, RadioGroup } from 'bits-ui';
+	import { RadioGroup } from 'bits-ui';
 	import { setMode, userPrefersMode } from 'mode-watcher';
-	import { onDestroy, untrack } from 'svelte';
-	import { coarsePointer } from './app-layout.svelte.ts';
 	import { toast } from 'svelte-sonner';
 	import { downloadText } from '#lib/browser/download.ts';
 	import { isComposing } from '#lib/browser/keyboard.ts';
@@ -25,6 +23,7 @@
 	import { todayISO } from '#lib/domain/date.ts';
 	import { exportFileName, serializeFile, toPlanFile } from '#lib/domain/io.ts';
 	import { motionDuration } from '#lib/motion.ts';
+	import { nameOf } from '#lib/plan-name.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, locales, type Locale } from '#lib/paraglide/runtime.js';
 	import { updatePlan } from '#lib/state/commands.ts';
@@ -32,12 +31,11 @@
 	import { getPreview } from '#lib/state/preview.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
-	import BottomSheet from './BottomSheet.svelte';
+	import AdaptiveMenu from './AdaptiveMenu.svelte';
+	import type { MenuAction } from './menu-action.ts';
 	import DeleteConfirm from './DeleteConfirm.svelte';
-	import Hint from './Hint.svelte';
 	import LanguageReloadDialog from './LanguageReloadDialog.svelte';
 	import { cn } from '#lib/utils.ts';
-	import { createMenuHandoff } from './menu-handoff.ts';
 
 	const labels: Record<Locale, () => string> = {
 		en: m.ui_language_en,
@@ -55,38 +53,19 @@
 	const preview = getPreview();
 	const reload = getLanguageReload();
 	const current = getLocale();
-	let menuOpen = $state(false);
 	let languageOpen = $state(false);
 	let trigger = $state<HTMLButtonElement | null>(null);
-	let handoff = $state(false);
 	let confirmOpen = $state(false);
 	let renameOpen = $state(false);
 	let renameValue = $state('');
-	const nameOf = (heading: string) => heading.trim() || m.untitled_plan();
 
-	const menuHandoff = createMenuHandoff({
-		close: () => (menuOpen = false),
-		focus: () => trigger?.focus(),
-		setActive: (active) => (handoff = active)
-	});
-	const act = menuHandoff.act;
-	onDestroy(menuHandoff.destroy);
-	let previousCoarse = coarsePointer.current;
-	$effect.pre(() => {
-		const coarse = coarsePointer.current;
-		if (coarse === previousCoarse) return;
-		previousCoarse = coarse;
-		// The old root cannot report close completion after its branch is removed.
-		untrack(() => menuHandoff.complete(false));
-	});
-
-	const actions = [
+	const actions: MenuAction[] = [
 		{
 			label: m.menu_print,
 			icon: PrinterIcon,
 			testId: 'menu-print',
 			handler: () => preview.show(() => trigger),
-			destructive: false,
+			tile: true,
 			hint: m.menu_print_hint
 		},
 		{
@@ -94,15 +73,14 @@
 			icon: UploadIcon,
 			testId: 'menu-export-plan',
 			handler: exportPlan,
-			destructive: false,
+			tile: true,
 			hint: m.menu_export_hint
 		},
 		{
 			label: m.plan_rename,
 			icon: PencilIcon,
 			testId: 'menu-rename',
-			handler: startRename,
-			destructive: false
+			handler: startRename
 		},
 		{
 			label: m.plan_duplicate,
@@ -110,8 +88,7 @@
 			testId: 'menu-duplicate',
 			handler: () => {
 				ws.duplicatePlan(m.plan_copy_suffix());
-			},
-			destructive: false
+			}
 		},
 		{
 			label: m.plan_delete,
@@ -199,40 +176,23 @@
 	></span>
 {/snippet}
 
-{#if coarsePointer.current}
-	<Hint text={m.menu()}>
-		{#snippet child({ props })}
-			{@render menuButton(
-				mergeProps(props, {
-					'aria-haspopup': 'dialog',
-					'aria-expanded': menuOpen,
-					onclick: () => {
-						menuHandoff.reopen();
-						menuOpen = true;
-					}
-				})
-			)}
-		{/snippet}
-	</Hint>
-	<BottomSheet
-		bind:open={menuOpen}
-		{trigger}
-		{handoff}
-		onOpenChangeComplete={(open) => {
-			if (!menuOpen) menuHandoff.complete(open);
-		}}
-		title={m.menu_this_plan()}
-		subtitle={nameOf(ws.plan.heading)}
-		testId="menu-sheet"
-	>
+<AdaptiveMenu
+	{trigger}
+	title={m.menu_this_plan()}
+	subtitle={nameOf(ws.plan.heading)}
+	testId="menu-sheet"
+	hint={m.menu()}
+	triggerButton={menuButton}
+>
+	{#snippet sheet({ act, run })}
 		<div class="grid grid-cols-2 gap-3 pb-3">
-			{#each actions.filter((action) => action.hint) as action (action.testId)}
+			{#each actions.filter((action) => action.tile) as action (action.testId)}
 				<Button
 					variant="outline"
 					class="h-auto min-h-24 flex-col items-start p-3 text-left whitespace-normal"
 					style="transition-duration: {motionDuration(100)}ms"
 					data-testid={action.testId}
-					onclick={() => act(action.handler)}
+					onclick={() => run(action)}
 				>
 					<action.icon class="mb-1 size-5" aria-hidden="true" />
 					<span>{action.label()}</span>
@@ -241,7 +201,7 @@
 			{/each}
 		</div>
 		<div class="flex flex-col pb-3">
-			{#each actions.filter((action) => !action.hint) as action (action.testId)}
+			{#each actions.filter((action) => !action.tile) as action (action.testId)}
 				<Button
 					variant="ghost"
 					class={cn(
@@ -250,8 +210,7 @@
 					)}
 					style="transition-duration: {motionDuration(100)}ms"
 					data-testid={action.testId}
-					onclick={() => act(action.handler)}
-					><action.icon aria-hidden="true" />{action.label()}</Button
+					onclick={() => run(action)}><action.icon aria-hidden="true" />{action.label()}</Button
 				>
 			{/each}
 		</div>
@@ -314,93 +273,64 @@
 				</Select.Root>
 			</div>
 		</div>
-	</BottomSheet>
-{:else}
-	<DropdownMenu.Root
-		onOpenChangeComplete={(open) => {
-			if (!menuOpen) menuHandoff.complete(open);
-		}}
-		bind:open={menuOpen}
-		onOpenChange={(open) => {
-			if (open) menuHandoff.reopen();
-		}}
-	>
-		<Hint text={m.menu()}>
-			{#snippet child({ props: tooltipProps })}
-				<DropdownMenu.Trigger>
-					{#snippet child({ props: menuProps })}
-						{@render menuButton(mergeProps(tooltipProps, menuProps))}
-					{/snippet}
-				</DropdownMenu.Trigger>
-			{/snippet}
-		</Hint>
-		<DropdownMenu.Content
-			align="end"
-			class="min-w-64 p-1.5"
-			style="animation-duration: {motionDuration(100)}ms; transition-duration: {motionDuration(
-				100
-			)}ms"
-			onCloseAutoFocus={(event) => {
-				if (handoff) event.preventDefault();
-			}}
-		>
-			<DropdownMenu.Label class="px-2.5 pt-2">{m.menu_this_plan()}</DropdownMenu.Label>
-			{#each actions as action (action.testId)}
-				<DropdownMenu.Item
-					variant={action.destructive ? 'destructive' : 'default'}
-					class="gap-2.5 px-2.5 py-2"
-					onSelect={() => act(action.handler)}
-					data-testid={action.testId}
-					><action.icon aria-hidden="true" />{action.label()}</DropdownMenu.Item
-				>
-			{/each}
-			<DropdownMenu.Separator class="-mx-1.5 my-1.5" />
-			<DropdownMenu.Label class="px-2.5 pt-2">{m.theme()}</DropdownMenu.Label>
-			<DropdownMenu.RadioGroup
-				value={userPrefersMode.current}
-				onValueChange={chooseTheme}
-				aria-label={m.theme()}
-				class={cn(themeTrack, 'mx-1.5 mt-1 mb-2')}
+	{/snippet}
+	{#snippet dropdown({ act, run })}
+		<DropdownMenu.Label class="px-2.5 pt-2">{m.menu_this_plan()}</DropdownMenu.Label>
+		{#each actions as action (action.testId)}
+			<DropdownMenu.Item
+				variant={action.destructive ? 'destructive' : 'default'}
+				class="gap-2.5 px-2.5 py-2"
+				onSelect={() => run(action)}
+				data-testid={action.testId}
+				><action.icon aria-hidden="true" />{action.label()}</DropdownMenu.Item
 			>
-				{@render themeThumb()}
-				{#each themes as theme (theme.value)}
-					<DropdownMenu.RadioItem
-						value={theme.value}
-						closeOnSelect
-						aria-label={theme.label()}
-						class="relative justify-center rounded-md py-1.5 pr-2 text-muted-foreground focus:bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[state=checked]:text-foreground [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
-					>
-						<theme.icon aria-hidden="true" />
-					</DropdownMenu.RadioItem>
-				{/each}
-			</DropdownMenu.RadioGroup>
-			<DropdownMenu.Sub>
-				<DropdownMenu.SubTrigger data-testid="menu-language" class="gap-2.5 px-2.5 py-2"
-					><LanguagesIcon aria-hidden="true" />{m.ui_language()}<span
-						class="ml-auto text-muted-foreground">{labels[current]()}</span
-					></DropdownMenu.SubTrigger
+		{/each}
+		<DropdownMenu.Separator class="-mx-1.5 my-1.5" />
+		<DropdownMenu.Label class="px-2.5 pt-2">{m.theme()}</DropdownMenu.Label>
+		<DropdownMenu.RadioGroup
+			value={userPrefersMode.current}
+			onValueChange={chooseTheme}
+			aria-label={m.theme()}
+			class={cn(themeTrack, 'mx-1.5 mt-1 mb-2')}
+		>
+			{@render themeThumb()}
+			{#each themes as theme (theme.value)}
+				<DropdownMenu.RadioItem
+					value={theme.value}
+					closeOnSelect
+					aria-label={theme.label()}
+					class="relative justify-center rounded-md py-1.5 pr-2 text-muted-foreground focus:bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[state=checked]:text-foreground [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
 				>
-				<DropdownMenu.SubContent
-					style="animation-duration: {motionDuration(100)}ms; transition-duration: {motionDuration(
-						100
-					)}ms"
-				>
-					<DropdownMenu.RadioGroup value={current} aria-label={m.ui_language()}>
-						{#each locales as locale (locale)}
-							<DropdownMenu.RadioItem
-								value={locale}
-								lang={locale}
-								closeOnSelect
-								onSelect={() => act(() => reload.choose(locale))}
-								>{labels[locale]()}</DropdownMenu.RadioItem
-							>
-						{/each}
-					</DropdownMenu.RadioGroup>
-				</DropdownMenu.SubContent>
-			</DropdownMenu.Sub>
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
-{/if}
+					<theme.icon aria-hidden="true" />
+				</DropdownMenu.RadioItem>
+			{/each}
+		</DropdownMenu.RadioGroup>
+		<DropdownMenu.Sub>
+			<DropdownMenu.SubTrigger data-testid="menu-language" class="gap-2.5 px-2.5 py-2"
+				><LanguagesIcon aria-hidden="true" />{m.ui_language()}<span
+					class="ml-auto text-muted-foreground">{labels[current]()}</span
+				></DropdownMenu.SubTrigger
+			>
+			<DropdownMenu.SubContent
+				style="animation-duration: {motionDuration(100)}ms; transition-duration: {motionDuration(
+					100
+				)}ms"
+			>
+				<DropdownMenu.RadioGroup value={current} aria-label={m.ui_language()}>
+					{#each locales as locale (locale)}
+						<DropdownMenu.RadioItem
+							value={locale}
+							lang={locale}
+							closeOnSelect
+							onSelect={() => act(() => reload.choose(locale))}
+							>{labels[locale]()}</DropdownMenu.RadioItem
+						>
+					{/each}
+				</DropdownMenu.RadioGroup>
+			</DropdownMenu.SubContent>
+		</DropdownMenu.Sub>
+	{/snippet}
+</AdaptiveMenu>
 
 <DeleteConfirm
 	bind:open={confirmOpen}

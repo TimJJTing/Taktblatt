@@ -99,6 +99,7 @@ describe('Timeline automatic collapse decision', () => {
 		expect(nextTimelineAutoCollapse(collapsed, { ...input, top: 0, user: false }).collapsed).toBe(
 			true
 		);
+		expect(nextTimelineAutoCollapse(collapsed, { ...input, top: 50 }).collapsed).toBe(true);
 		expect(nextTimelineAutoCollapse(collapsed, { ...input, top: 0 }).collapsed).toBe(false);
 		expect(
 			nextTimelineAutoCollapse(collapsed, { ...input, top: 0, userCollapsed: true }).collapsed

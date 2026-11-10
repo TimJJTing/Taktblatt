@@ -295,10 +295,10 @@
 	"timeline_keep_open": "タイムラインを開いたままにする",
 	"timeline_handle_hint": "ドラッグするか矢印キーで高さを変更します。",
 	"menu_print": "印刷…",
-	"menu_import": "インポート…",
-	"plans_backup": "すべてのプランをバックアップ",
+	"plans_import": "インポート…",
+	"plans_backup": "すべての計画をバックアップ",
 	"plans_backup_short": "バックアップ",
-	"menu_this_plan": "このプラン",
+	"menu_this_plan": "この計画",
 	"menu_print_hint": "シートをプレビュー",
-	"menu_export_hint": "このプランをファイルに保存"
+	"menu_export_hint": "この計画をファイルに保存"
 }

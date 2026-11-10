@@ -15,7 +15,8 @@ import {
 	workPane,
 	workspaceContent,
 	workspaceTabs,
-	workspaceTabSize
+	workspaceTabSize,
+	storedPanelHeight
 } from './helpers.ts';
 
 test.beforeEach(async ({ page }) => {
@@ -417,6 +418,7 @@ test.describe('workspace island scroll and selection', () => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openExample(page);
 		await addWorkspaceOverflow(page);
+		// Keep the Timeline height fixed while testing island scroll and selection.
 		await page.getByTestId('timeline-keep-open').click();
 		await expect(workspaceTabs(page)).toBeVisible();
 		await page.evaluate(() => document.fonts.ready.then(() => undefined));
@@ -773,16 +775,12 @@ test('a narrow pinned Timeline stays above both panels and the sticky stage stac
 					.querySelector('[data-testid="workspace-content"]')!
 					.getBoundingClientRect();
 				const bounds = panel.getBoundingClientRect();
-				// The tabs maximum applies to the height from ganttHeight, without the top space.
-				const space = parseFloat(
-					getComputedStyle(panel.querySelector('#timeline-content')!).paddingTop
-				);
-				return (
-					Math.abs(bounds.top - content.top) <= 1 && bounds.height - space <= innerHeight * 0.4 + 1
-				);
+				return Math.abs(bounds.top - content.top) <= 1;
 			})
 		)
 		.toBe(true);
+	// The tabs maximum excludes the top space added to the stored panel height.
+	await expect.poll(() => storedPanelHeight(page)).toBeLessThanOrEqual(900 * 0.4 + 1);
 	await expect(page.getByTestId('timeline-panel')).toBeVisible();
 	await selectTab(page, 'Overview');
 	await expect(page.getByTestId('timeline-panel')).toBeVisible();

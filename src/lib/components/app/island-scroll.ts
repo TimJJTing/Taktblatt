@@ -1,4 +1,5 @@
-const SCROLL_THRESHOLD = 48;
+const ISLAND_COMPACT_DISTANCE = 48;
+const AUTO_COLLAPSE_DISTANCE = 48;
 
 export type IslandScrollState = { last: number; compact: number };
 
@@ -17,7 +18,8 @@ export function nextIslandScroll(
 	const delta = last - clamp(state.last);
 	return {
 		last,
-		compact: last === 0 ? 0 : Math.min(1, Math.max(0, state.compact + delta / SCROLL_THRESHOLD))
+		compact:
+			last === 0 ? 0 : Math.min(1, Math.max(0, state.compact + delta / ISLAND_COMPACT_DISTANCE))
 	};
 }
 
@@ -46,5 +48,9 @@ export function nextTimelineAutoCollapse(
 	if (input.keepOpen || input.focusInside) return { last, down: 0, collapsed: false };
 	const down = delta < 0 ? 0 : state.down + delta;
 	const room = Math.max(0, input.max - input.heightDelta) - last;
-	return { last, down, collapsed: down >= SCROLL_THRESHOLD && room >= SCROLL_THRESHOLD };
+	return {
+		last,
+		down,
+		collapsed: down >= AUTO_COLLAPSE_DISTANCE && room >= AUTO_COLLAPSE_DISTANCE
+	};
 }

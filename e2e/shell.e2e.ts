@@ -120,15 +120,6 @@ test('keyboard language selection closes the menu and cancel returns focus witho
 	await expect(page.getByRole('menuitemradio', { name: 'Deutsch', exact: true })).toBeChecked();
 });
 
-test('the UI language changes and stays after a reload', async ({ page }) => {
-	await page.goto('/');
-	await chooseLanguage(page, 'Deutsch');
-	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
-	await page.reload();
-	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
-	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-});
-
 const stored = (page: Page) => page.evaluate(() => localStorage.getItem('taktblatt:locale'));
 
 test.describe('the first UI language comes from the browser', () => {
@@ -190,12 +181,13 @@ test.describe('the first UI language comes from the browser', () => {
 	});
 });
 
-test('a chosen language is saved under taktblatt:locale', async ({ page }) => {
+test('the chosen UI language is saved and stays after a reload', async ({ page }) => {
 	await page.goto('/');
 	await chooseLanguage(page, 'Deutsch');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	expect(await stored(page)).toBe('de');
 	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	expect(await stored(page)).toBe('de');
 	await expect(page.getByTestId('plan-switcher')).toHaveText('Unbenannter Plan');
 });
@@ -358,10 +350,7 @@ test('Plans dropdown keyboard selection opens the next plan and moves its check 
 	await menu.getByRole('menuitemradio', { name: original, exact: true }).click();
 	await expect(menu).toHaveCount(0);
 	await expect(page.getByTestId('plan-heading')).toHaveText(original);
-	await page.getByTestId('plan-switcher').focus();
-	await page.keyboard.press('Enter');
-	menu = page.getByRole('menu');
-	await expect(menu).toBeVisible();
+	menu = await openMenuWithKeyboard(page, 'plan-switcher');
 	await menu.getByRole('menuitemradio', { name: original, exact: true }).focus();
 	await page.keyboard.press('ArrowDown');
 	await expect(

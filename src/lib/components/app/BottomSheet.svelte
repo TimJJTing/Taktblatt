@@ -1,10 +1,12 @@
 <!-- A modal scope menu. The heading stays visible above the scrollable actions. -->
 <script lang="ts">
 	import { onDestroy, untrack, type Snippet } from 'svelte';
+	import { DRAG_START_PX, suppressNextClick } from '#lib/browser/drag-click.ts';
 	import * as Sheet from '#lib/components/ui/sheet/index.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import {
 		SHEET_MAX_LIFT,
+		SHEET_VELOCITY_WINDOW_MS,
 		sheetDragOffset,
 		sheetDragVelocity,
 		shouldCloseSheet
@@ -80,28 +82,6 @@
 
 	let clearSuppression = () => {};
 	onDestroy(() => clearSuppression());
-	// Listen on the document because the click can go to any control in the sheet.
-	// Keep keyboard clicks: their detail is 0.
-	function suppressNextClick() {
-		clearSuppression();
-		const suppress = (event: MouseEvent) => {
-			if (event.detail !== 0) {
-				event.preventDefault();
-				event.stopImmediatePropagation();
-			}
-			clearSuppression();
-		};
-		document.addEventListener('click', suppress, { capture: true, once: true });
-		const nextPointer = () => clearSuppression();
-		document.addEventListener('pointerdown', nextPointer, { capture: true, once: true });
-		const timeout = window.setTimeout(() => clearSuppression(), 400);
-		clearSuppression = () => {
-			document.removeEventListener('click', suppress, true);
-			document.removeEventListener('pointerdown', nextPointer, true);
-			window.clearTimeout(timeout);
-		};
-	}
-
 	function pointerDown(event: PointerEvent) {
 		if (!open || candidate || !event.isPrimary || event.button !== 0) return;
 		const target = event.target;
@@ -133,7 +113,7 @@
 		const dx = x - candidate.x;
 		const dy = y - candidate.y;
 		if (!dragging) {
-			if (Math.max(Math.abs(dx), Math.abs(dy)) < 4) return;
+			if (Math.max(Math.abs(dx), Math.abs(dy)) < DRAG_START_PX) return;
 			if (
 				Math.abs(dy) <= Math.abs(dx) ||
 				(candidate.inContent && (dy <= 0 || (scrollArea?.scrollTop ?? 0) > 0))
@@ -149,7 +129,10 @@
 		offset = Math.max(-SHEET_MAX_LIFT, candidate.offset + sheetDragOffset(dy));
 		candidate.samples.push({ y, time });
 		// Keep one sample before the velocity window.
-		while (candidate.samples.length > 2 && candidate.samples[1].time < time - 100) {
+		while (
+			candidate.samples.length > 2 &&
+			candidate.samples[1].time < time - SHEET_VELOCITY_WINDOW_MS
+		) {
 			candidate.samples.shift();
 		}
 	}
@@ -169,7 +152,8 @@
 			offset = 0;
 			return;
 		}
-		suppressNextClick();
+		clearSuppression();
+		clearSuppression = suppressNextClick();
 		const close =
 			event.type === 'pointerup' &&
 			shouldCloseSheet(offset, sheetHeight, sheetDragVelocity(drag.samples, event.timeStamp));
@@ -234,10 +218,7 @@
 			}}
 		>
 			<header class="shrink-0 touch-none px-5 pt-3 pb-4">
-				<div
-					aria-hidden="true"
-					class="mx-auto mb-4 h-1 w-9 rounded-full bg-muted-foreground/30"
-				></div>
+				<div aria-hidden="true" class="mx-auto mb-4 h-1 w-9 rounded-full bg-border"></div>
 				<Sheet.Title class="text-lg font-semibold">{title}</Sheet.Title>
 				<Sheet.Description class={subtitle ? 'truncate text-sm text-muted-foreground' : 'sr-only'}>
 					{subtitle ?? title}

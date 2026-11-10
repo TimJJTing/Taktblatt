@@ -115,7 +115,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			}
 		});
 		const panel = page.getByTestId('timeline-panel');
-		const handle = page.getByRole('button', { name: 'Collapse timeline', exact: true });
+		const handle = timelineHandle(page);
 		await expectStickyBelowHeader(panel);
 		await waitForAnimations(panel);
 		const handleBefore = (await handle.boundingBox())!;
@@ -124,9 +124,12 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 			.poll(() => page.getByTestId('gantt-scroller').evaluate((element) => element.scrollLeft))
 			.toBeGreaterThan(0);
 		await expect.poll(async () => (await handle.boundingBox())!.x).toBeCloseTo(handleBefore.x, 0);
-		await timelineHandle(page).press('Home');
+		await handle.press('Home');
 		const body = page.getByTestId('timeline-body');
 		await expectPanelHeight(page, 120);
+		await expect
+			.poll(() => body.evaluate((element) => element.scrollHeight - element.clientHeight))
+			.toBeGreaterThan(0);
 		const addBand = panel.getByRole('button', { name: 'Add band', exact: true });
 		await addBand.focus();
 		await expect(addBand).toBeInViewport();

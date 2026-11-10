@@ -35,7 +35,6 @@ function layoutConstant(name: string): number {
 	);
 }
 const ROW_MOTION_MS = layoutConstant('ROW_MOTION_MS');
-export const CHART_BORDER_HEIGHT = layoutConstant('CHART_BORDER_HEIGHT');
 export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
 export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
@@ -331,28 +330,51 @@ export async function userScroll(page: Page, pane: Locator, delta: number) {
 	});
 }
 
+/** Returns evenly spaced points for a vertical drag. */
+export function dragSteps(start: { x: number; y: number }, distance: number, count = 12) {
+	return Array.from({ length: count }, (_, i) => ({
+		x: start.x,
+		y: start.y + (distance * (i + 1)) / count
+	}));
+}
+
 /** Drags one finger with raw touch input. The callback runs before the finger lifts. */
 export async function touchDrag(
 	page: Page,
 	start: { x: number; y: number },
 	steps: { x: number; y: number }[],
 	stepWait: number | (() => Promise<unknown>),
-	beforeRelease?: () => Promise<void>
+	beforeRelease?: () => Promise<void>,
+	timestampIntervalMs?: number
 ) {
 	const session = await page.context().newCDPSession(page);
 	let released = false;
+	// CDP timestamps use seconds since the Unix epoch. Keep the whole gesture in the past.
+	let timestamp = Date.now() / 1000 - ((steps.length + 1) * (timestampIntervalMs ?? 0)) / 1000;
+	const eventTimestamp = () => (timestampIntervalMs === undefined ? {} : { timestamp });
 	try {
-		await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+		await session.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [start],
+			...eventTimestamp()
+		});
 		for (const point of steps) {
 			if (typeof stepWait === 'number' && stepWait > 0) await page.waitForTimeout(stepWait);
+			timestamp += (timestampIntervalMs ?? 0) / 1000;
 			await session.send('Input.dispatchTouchEvent', {
 				type: 'touchMove',
-				touchPoints: [point]
+				touchPoints: [point],
+				...eventTimestamp()
 			});
 			if (typeof stepWait === 'function') await stepWait();
 		}
 		await beforeRelease?.();
-		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		timestamp += (timestampIntervalMs ?? 0) / 1000;
+		await session.send('Input.dispatchTouchEvent', {
+			type: 'touchEnd',
+			touchPoints: [],
+			...eventTimestamp()
+		});
 		released = true;
 	} finally {
 		if (!released)
@@ -371,26 +393,26 @@ export async function touchScroll(page: Page, pane: Locator, distance: number, s
 	const box = (await pane.boundingBox())!;
 	const x = box.x + box.width / 2;
 	const y = box.y + box.height - 100;
-	await touchDrag(
-		page,
-		{ x, y },
-		Array.from({ length: steps }, (_, index) => ({ x, y: y - (distance * (index + 1)) / steps })),
-		() => pane.evaluate(() => new Promise(requestAnimationFrame))
+	await touchDrag(page, { x, y }, dragSteps({ x, y }, -distance, steps), () =>
+		pane.evaluate(() => new Promise(requestAnimationFrame))
 	);
 }
 
 /**
- * Opens the app menu with the keyboard and waits for its opening animation.
- * The first item, Print, gets the focus.
+ * Opens a menu with the keyboard and waits for its opening animation.
+ * Checks initial Print focus for the app menu.
  */
-export async function openMenuWithKeyboard(page: Page): Promise<Locator> {
-	const trigger = page.getByTestId('app-menu');
+export async function openMenuWithKeyboard(
+	page: Page,
+	triggerId: 'app-menu' | 'plan-switcher' = 'app-menu'
+): Promise<Locator> {
+	const trigger = page.getByTestId(triggerId);
 	await trigger.focus();
 	await page.keyboard.press('Enter');
 	const menu = page.getByRole('menu');
 	await expect(menu).toBeVisible();
 	await waitForAnimations(menu);
-	await expect(menu.getByTestId('menu-print')).toBeFocused();
+	if (triggerId === 'app-menu') await expect(menu.getByTestId('menu-print')).toBeFocused();
 	return menu;
 }
 

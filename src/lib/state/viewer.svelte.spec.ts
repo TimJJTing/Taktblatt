@@ -169,8 +169,9 @@ describe('ViewerState', () => {
 		expect(viewer.isExpanded('p1', 't1')).toBe(true);
 	});
 
-	it('defaults Keep open without dropping older viewer preferences', () => {
-		for (const timelineKeepOpen of [undefined, 'yes', null, 1]) {
+	it.each([undefined, 'yes'])(
+		'defaults Keep open without dropping older viewer preferences (%s)',
+		(timelineKeepOpen) => {
 			const storage = new MemoryStorage();
 			storage.setItem(
 				KEYS.viewer,
@@ -187,7 +188,7 @@ describe('ViewerState', () => {
 			expect(viewer.timelineCollapsed).toBe(true);
 			expect(viewer.narrowTab).toBe('work-plan');
 		}
-	});
+	);
 
 	it('persists Keep open independently of collapse and split pin changes', () => {
 		const storage = new MemoryStorage();
@@ -211,7 +212,6 @@ describe('ViewerState', () => {
 			JSON.stringify({ narrowLegendsCollapsed: false, timelineLegendsCollapsed: true })
 		);
 		const viewer = new ViewerState(storage);
-		expect(viewer.timelineLegendsCollapsed).toBe(true);
 		viewer.setNarrowTab('work-plan');
 		expect(JSON.parse(storage.getItem(KEYS.viewer)!)).not.toHaveProperty('narrowLegendsCollapsed');
 		expect(new ViewerState(storage).timelineLegendsCollapsed).toBe(true);

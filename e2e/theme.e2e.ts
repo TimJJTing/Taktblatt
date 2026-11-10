@@ -8,7 +8,7 @@ import {
 	openPreview,
 	openMenu,
 	storedPlan,
-	waitForAnimations
+	openMenuWithKeyboard
 } from './helpers.ts';
 
 const menuButton = (page: Page) => page.getByTestId('app-menu');
@@ -80,13 +80,7 @@ test('the menu theme choices support keyboard selection and preserve plan histor
 	await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
 	const plan = await storedPlan(page);
 	const origin = await page.evaluate(() => performance.timeOrigin);
-	await expect(menuButton(page)).toBeVisible();
-	await menuButton(page).focus();
-	await page.keyboard.press('Enter');
-	await expect(page.getByRole('menu')).toBeVisible();
-	await waitForAnimations(page.getByRole('menu'));
-	await page.keyboard.press('Home');
-	await expect(page.getByTestId('menu-print')).toBeFocused();
+	await openMenuWithKeyboard(page);
 	// The five actions come before the Theme group.
 	for (let step = 0; step < 5; step++) await page.keyboard.press('ArrowDown');
 	await expect(

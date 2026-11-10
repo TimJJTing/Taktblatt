@@ -118,44 +118,42 @@ test('collapsing the pinned legends gives their space to the chart without an em
 		.toBeCloseTo(before.chart, 0);
 });
 
-for (const width of [1280]) {
-	test(`legend rows have equal gaps and compact add buttons at ${width}px`, async ({ page }) => {
-		await page.setViewportSize({ width, height: 900 });
-		await openExample(page);
-		await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
+test('legend rows have equal gaps and compact add buttons at 1280px', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await openExample(page);
+	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
+	await expect
+		.poll(() =>
+			page.getByTestId('timeline-panel').evaluate((element) => {
+				const rows = ['stage-legend', 'milestone-legend', 'band-legend'].map((id) =>
+					element.querySelector(`[data-testid="${id}"]`)!.parentElement!.getBoundingClientRect()
+				);
+				const gaps = rows.slice(1).map((row, i) => row.top - rows[i].bottom);
+				return {
+					minimumHeight: rows.every((row) => row.height >= 32),
+					equalGap: Math.abs(gaps[0] - gaps[1]) <= 1,
+					gap: Math.round(gaps[0])
+				};
+			})
+		)
+		.toEqual({ minimumHeight: true, equalGap: true, gap: 12 });
+	for (const name of ['Add milestone', 'Add band']) {
+		const button = page.getByRole('button', { name, exact: true });
+		await expect(button).toBeVisible();
+		const bounds = (await button.boundingBox())!;
+		expect(bounds.width).toBe(24);
+		expect(bounds.height).toBe(24);
+		await button.click();
+		const dialog = page.getByRole('dialog');
+		await expect(dialog).toBeVisible();
 		await expect
-			.poll(() =>
-				page.getByTestId('timeline-panel').evaluate((element) => {
-					const rows = ['stage-legend', 'milestone-legend', 'band-legend'].map((id) =>
-						element.querySelector(`[data-testid="${id}"]`)!.parentElement!.getBoundingClientRect()
-					);
-					const gaps = rows.slice(1).map((row, i) => row.top - rows[i].bottom);
-					return {
-						minimumHeight: rows.every((row) => row.height >= 32),
-						equalGap: Math.abs(gaps[0] - gaps[1]) <= 1,
-						gap: Math.round(gaps[0])
-					};
-				})
-			)
-			.toEqual({ minimumHeight: true, equalGap: true, gap: 12 });
-		for (const name of ['Add milestone', 'Add band']) {
-			const button = page.getByRole('button', { name, exact: true });
-			await expect(button).toBeVisible();
-			const bounds = (await button.boundingBox())!;
-			expect(bounds.width).toBe(24);
-			expect(bounds.height).toBe(24);
-			await button.click();
-			const dialog = page.getByRole('dialog');
-			await expect(dialog).toBeVisible();
-			await expect
-				.poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-				.toBe(true);
-			await waitForAnimations(dialog);
-			await page.keyboard.press('Escape');
-			await expect(dialog).toHaveCount(0);
-		}
-	});
-}
+			.poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+			.toBe(true);
+		await waitForAnimations(dialog);
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+	}
+});
 
 for (const width of [1280, 1920]) {
 	test(`the pinned divider spans its region and resizes from its edges at ${width}px`, async ({

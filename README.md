@@ -71,7 +71,7 @@ Open **Menu** (**…**) in the app header and choose **Print…**. The preview s
 - Open the plan switcher (**Plans**) in the app header to change plans, create a plan, import files and back up all plans.
 - Open **Menu** (**…**) to print, export, rename, duplicate or delete the open plan.
 - Export the open plan with **Menu → Export this plan**. Back up all plans in one file with **Plans → Back up all plans**. Import the files again on any device with **Plans → Import…**.
-- On a touch screen, both menus open as bottom sheets.
+- When the primary pointer is touch, as on phones and most tablets, both menus open as bottom sheets.
 - Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
 
@@ -87,7 +87,7 @@ The app has four UI languages: English, German, Traditional Chinese and Japanese
 
 ### Dark mode
 
-Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light**, **Dark** or **System**. The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
+Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light** (sun icon), **Dark** (moon icon) or **System** (monitor icon). The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
 
 ![The workspace in dark mode](docs/screenshots/workspace-dark.png)
 

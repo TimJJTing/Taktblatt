@@ -10,8 +10,7 @@ import {
 	openPlans,
 	planIds,
 	row,
-	storedPlan,
-	waitForAnimations
+	storedPlan
 } from './helpers.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -63,8 +62,8 @@ test.describe('export', () => {
 
 	test('"Back up all plans" writes a backup file with every plan', async ({ page }) => {
 		await openExample(page);
-		await page.getByTestId('plan-switcher').click();
-		await page.getByRole('menuitem', { name: 'New plan' }).click();
+		const plans = await openPlans(page);
+		await plans.getByRole('menuitem', { name: 'New plan' }).click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
 		const { name, file } = await readDownload(page, 'Back up all plans');
 		expect(name).toMatch(new RegExp(`^taktblatt-backup-${isoDate.source}\\.json$`));
@@ -239,15 +238,12 @@ test('Import in Plans opens the file chooser', async ({ page }) => {
 	await expect(page.getByRole('menu')).toHaveCount(0);
 });
 
-test('keyboard Import opens the file chooser, and the focus returns to the menu button', async ({
+test('keyboard Import opens the file chooser, and the focus returns to the plan switcher', async ({
 	page
 }) => {
 	await openApp(page);
 	const chooser = waitForFileChooser(page);
-	await page.getByTestId('plan-switcher').focus();
-	await page.keyboard.press('Enter');
-	const menu = page.getByRole('menu');
-	await waitForAnimations(menu);
+	const menu = await openMenuWithKeyboard(page, 'plan-switcher');
 	await page.keyboard.press('End');
 	await page.keyboard.press('ArrowUp');
 	await expect(menu.getByTestId('plans-import')).toBeFocused();

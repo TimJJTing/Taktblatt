@@ -7,6 +7,7 @@
 	import { isModKey, isTextEditing } from '#lib/browser/keyboard.ts';
 	import { localStorageKey } from '#lib/paraglide/runtime.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { nameOf } from '#lib/plan-name.ts';
 	import PlanHeader from '#lib/components/plan/PlanHeader.svelte';
 	import StageOverview from '#lib/components/plan/StageOverview.svelte';
 	import Timeline from '#lib/components/timeline/Timeline.svelte';
@@ -29,7 +30,7 @@
 	const preview = setPreview(new PreviewState());
 	const languageReload = setLanguageReload(new LanguageReload(ws, preview));
 
-	const title = $derived(ws.plan.heading.trim() || m.untitled_plan());
+	const title = $derived(nameOf(ws.plan.heading));
 
 	function onKeydown(event: KeyboardEvent) {
 		if (!isModKey(event) || event.altKey) return;
