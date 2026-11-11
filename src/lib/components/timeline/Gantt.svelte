@@ -5,6 +5,7 @@
 	Timeline owns the pin and section height. The pinned chart has its own vertical scroll.
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
 	import { tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
@@ -176,7 +177,12 @@
 	)}
 	data-testid="gantt"
 >
-	<div bind:this={scroller} class="min-h-0 flex-1 overflow-auto" data-testid="gantt-scroller">
+	<div
+		bind:this={scroller}
+		use:overlayScrollbar={{ axis: 'both' }}
+		class="min-h-0 flex-1 overflow-auto"
+		data-testid="gantt-scroller"
+	>
 		<div class="relative" style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)">
 			<div class="sticky top-0 z-20 flex border-b bg-background" style:height="{HEADER_HEIGHT}px">
 				<div

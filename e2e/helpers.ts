@@ -891,6 +891,54 @@ export async function expectDuplicateOnceAfterReopen(page: Page): Promise<void> 
 	expect(await planIds(page)).toHaveLength(before.length + 1);
 }
 
+/** Finds the layer by its scroller bounds. Split panes share one host. */
+export async function overlayLayer(page: Page, scroller: Locator): Promise<Locator> {
+	const layers = page.locator('[data-overlay-scrollbar]');
+	let index = -1;
+	await expect
+		.poll(async () => {
+			const bounds = (await scroller.boundingBox())!;
+			index = await layers.evaluateAll(
+				(elements, bounds) =>
+					elements.findIndex((element) => {
+						const box = element.getBoundingClientRect();
+						return (
+							Math.abs(box.x - bounds.x) <= 2 &&
+							Math.abs(box.y - bounds.y) <= 2 &&
+							Math.abs(box.width - bounds.width) <= 2 &&
+							Math.abs(box.height - bounds.height) <= 2
+						);
+					}),
+				bounds
+			);
+			return index;
+		})
+		.toBeGreaterThanOrEqual(0);
+	const layer = layers.nth(index);
+	await expect(layer).toHaveAttribute('aria-hidden', 'true');
+	return layer;
+}
+
+/** Drags a thumb with mouse input. The callback runs while the pointer is held. */
+export async function dragThumb(
+	page: Page,
+	thumb: Locator,
+	distance: number,
+	beforeRelease?: () => Promise<void>
+): Promise<void> {
+	const box = (await thumb.boundingBox())!;
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	try {
+		await page.mouse.move(x, y + distance, { steps: 12 });
+		await beforeRelease?.();
+	} finally {
+		await page.mouse.up();
+	}
+}
+
 /** The app font family. `document.fonts.check` also returns true for a family that no rule declares, so read the loaded faces. */
 export const APP_FONT_FAMILY = 'Source Sans 3 Variable';
 

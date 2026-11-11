@@ -4,6 +4,7 @@
 	The search shows only candidates that keep the rules. Refer to docs/spec.md, section 3.
 -->
 <script lang="ts">
+	import { overlayScrollbarInside } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -218,6 +219,7 @@
 				aria-label={m.dependency_search()}
 				role="listbox"
 				{@attach revealList}
+				{@attach overlayScrollbarInside}
 				class="absolute inset-x-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-md border bg-popover p-1 text-sm shadow-md"
 			>
 				{#each candidates as candidate, i (candidate.id)}
