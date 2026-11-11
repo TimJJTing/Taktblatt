@@ -28,6 +28,8 @@ export class EditingState {
 	detailsReturnFocus: HTMLElement | null = null;
 	/** The task that has hover or focus, for the linked highlight between Gantt and table. */
 	highlightId = $state<string | null>(null);
+	/** The task whose dependency route is lit across diagram views. */
+	routeId = $state<string | null>(null);
 	/** A task row that flashes one time, after a jump from the Gantt. */
 	flashId = $state<string | null>(null);
 

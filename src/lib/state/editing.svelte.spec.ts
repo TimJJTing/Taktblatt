@@ -13,6 +13,7 @@ describe('EditingState', () => {
 		expect(editing.newTaskId).toBeNull();
 		expect(editing.newRemarkSectionId).toBeNull();
 		expect(editing.highlightId).toBeNull();
+		expect(editing.routeId).toBeNull();
 		expect(editing.flashId).toBeNull();
 
 		editing.flash('t1');

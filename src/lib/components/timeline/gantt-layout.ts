@@ -27,8 +27,6 @@ export const COLLAPSED_TIMELINE_HEIGHT = STAGE_EDGE_HEIGHT + TIMELINE_HANDLE_HEI
  * tabs (WorkspaceShell.svelte). Change both together.
  */
 export const TABS_TIMELINE_TOP_SPACE = 16;
-/** The duration of the row and line motion, before motionDuration. */
-export const ROW_MOTION_MS = 240;
 /** The duration of section height, control and legend motion, before motionDuration. */
 export const TIMELINE_MOTION_MS = 180;
 

@@ -603,6 +603,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - The app uses `animate:flip` when the task order changes.
 - Numbers and geometry use `Tween` or `Spring`: progress counts, bar positions, the range rescale. When the range changes, the Gantt bars, points, milestones, bands, month ticks and today line move with the same tween as the rows.
 - Durations are 150 – 300 ms, ease-out. There are two exceptions: the row flash after a jump from the Gantt is 1200 ms, and the pulse of the ready light is 900 ms.
+- `src/lib/motion.ts` names two shared durations. `GEOMETRY_MOTION_MS` (240 ms) is for geometry changes in a diagram, such as rows that move on expand or collapse. `VIEW_MOTION_MS` (300 ms) is for a switch between diagrams. Durations stay within 150 – 300 ms, except the two exceptions above. Refer to ADR 19.
 - All durations go through `motionDuration(ms)`. This includes CSS transitions and animations. A CSS transition that uses the default duration of 150 ms also sets its duration through `motionDuration(150)`.
 - The overlay scrollbar thumbs fade and change thickness through `motionDuration(150)`. Refer to section 5.12.
 - When the viewer selects `prefers-reduced-motion`, the app disables motion.
@@ -616,6 +617,30 @@ Printed work tables use the Status header and the same four status icons in pape
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
 - Cycle lines and arrowheads use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token.
 - Stage palette: 8 colors. Each light value has a contrast of at least 4.5:1 against white. Each dark value has a contrast of at least 6:1 against the dark ground (`#13161A`). Stage badge text is white in light mode and `#13161A` in dark mode. Band palette: 4 light tints. Dark band tints use the dark stage values at 14% opacity. Gray uses white at 7% opacity.
+
+### 9.1 Shared diagram signs
+
+The Gantt, the route map and Kanban use the same signs for a task. Thus a task looks the same in each diagram, on the screen and on paper. The shared components are in `src/lib/components/diagram/`. Refer to ADR 19.
+
+- **Station dot:** its fill shows the effective status of the task.
+  - `todo`: a ring with the ground color inside.
+  - `in_progress`: half filled.
+  - `done`: solid.
+  - `canceled`: the fill at 40 % opacity.
+- **Stage badge:** the stage label (S1, S2, …) on the stage color. The text is white on the light fills and the ground color (`#13161A`) on the dark fills. The text has a contrast of 4.5:1 or more on its fill.
+- The signs do not use color alone. The fill shape gives the status, and the badge text gives the stage.
+
+Status: the shared components exist, but no diagram uses them yet. The Gantt adopts the signs in the Gantt lines change (slice 3). The route map and Kanban adopt them when they are added. Until then, the Gantt keeps the bars, the status opacity and the stage legend of section 5.4.
+
+The shared scene layer keeps task identity separate from view geometry. Its layered router returns six points per edge. Sources with identical complete target sets share a trunk. Width changes run the router again to preserve angles and clearances. Exact ports take precedence when a short segment or a clamped chart edge cannot meet the normal minimum segment length. A finish-to-start chain can enter vertically when its riser and start port align.
+
+Forward ports on the same row use a straight route. A hook at the left chart edge can omit its final stub to stay inside the chart.
+
+Riser slots keep their pitch spacing near the right chart edge. A riser can lie left of the out port inside the source bar. Its first segment runs backward under the bar because connectors are drawn below bars.
+
+The shared scene layer reserves horizontal runs at their physical y position across both target sides. It tries the near lane, then the boundary lane. Each candidate uses the route type that it will draw. Direct entries reserve no lane and report lane 0 without overflow. Hooks reserve the full run to the entry stub. A branch reserves the union of the runs of all its sources. If both lanes have conflicts, the branch reuses the near lane and reports overflow.
+
+The transient editing state reserves `routeId` for route focus. The pure dependency-route helpers follow effective dependencies, including inherited dependencies, and stop on cycles. They exclude the focus task from both result sets. An edge belongs to the route when both ends are upstream of the focus or both ends are downstream, including the focus on either side. The controls that set route focus are added in slice 4.
 
 ## Future: Kanban
 
