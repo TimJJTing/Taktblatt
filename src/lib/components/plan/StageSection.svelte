@@ -3,6 +3,7 @@
 	Tasks sort by start date. The reorder is animated (FLIP).
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import { flip } from 'svelte/animate';
@@ -201,6 +202,7 @@
 		The wrapper scrolls only sideways. The bottom padding holds the "+" line, and the negative
 		margin keeps the layout. A vertical wheel or swipe on the table scrolls the group. -->
 	<div
+		use:overlayScrollbar={{ axis: 'x' }}
 		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
 	>
 		<table

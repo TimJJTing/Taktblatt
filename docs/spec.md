@@ -280,7 +280,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 
 - The workspace has two groups. **Plan** has, in this order: Header (with the sheet footer fields), Timeline (Gantt), Stage overview and Remarks. **Work plan** has the work plan.
 - The workspace layout is for the screen only. It does not change the Preview, the sheets, pagination or print. The sheets keep the order of section 7.
-- The page does not scroll. The app header stays at the top. Each group scrolls in its own region below the app header.
+- The page does not scroll. The app header stays at the top. Each group scrolls in its own region below the app header. Each scroll region uses the overlay scrollbar (section 5.12).
 - The app header row contains: plan switcher, Undo, Redo and Menu. The header has no Preview, Print, Import or Export button. These actions are in the two menus below.
 - **Split view (viewport width 1024 px or more):** Plan is the left pane and Work plan is the right pane. The panes fill the width of the window. Each pane scrolls vertically on its own.
   - When the viewport becomes wider and hides the focused tab, focus moves to the group of that tab.
@@ -412,6 +412,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
     - An automatic collapse does not change `timelineCollapsed`. After a reload, the section starts expanded unless the user collapsed it.
     - A collapse by the user (the handle, a drag or the keyboard) stays until the user expands the section. A scroll to the top does not expand it.
     - When keyboard focus is in the section content, an automatic collapse does not happen. The app uses `:focus-visible` to identify keyboard focus. Focus that stays on a control after a pointer click, such as the Keep open toggle, does not prevent an automatic collapse.
+    - A thumb drag on the overlay scrollbar of the group is a user scroll (section 5.12).
     - A height change of the section can change the scroll position of the group. The app does not count this change as a user scroll, for the automatic collapse and for the size of the floating island.
     - After an automatic expansion, a focused element in the group stays visible below the section at its final height.
     - When the user prefers reduced motion, automatic collapse still happens, but the height changes at once.
@@ -518,6 +519,42 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - The dialog has **Cancel** and a destructive **Delete** button. Cancel and Esc close the confirmation without deletion. Focus stays in the dialog while it is open. Closing it keeps the existing focus return behavior of its caller.
 - Each body states the same deletion effects as before. Stage and remark section bodies include the name in the translated message. The English text starts with "The app deletes “{name}”." Counts, dependency cleanup and undo behavior stay unchanged.
 
+### 5.12 Scrollbars
+
+The app shows its own overlay scrollbars. They look and work the same in all browsers and on all operating systems. Refer to [ADR 18](adr/0018-overlay-scrollbar.md).
+
+- **Scroll areas:** these areas use the overlay scrollbar:
+  - In split view, the Plan pane and the Work plan pane.
+  - With tabs, the scroll region of the selected group.
+  - The Timeline section body and the Gantt chart.
+  - The legend rail (tabs).
+  - The narrow stage tables that scroll horizontally.
+  - The Preview dialog.
+  - Dialogs and bottom sheets that scroll, the task dialog, the dependency picker list, the import lists and the dropdown menus.
+- Text areas grow with their text and do not scroll. They have no overlay scrollbar. The list of a select keeps its scroll buttons and shows no thumb.
+- The app hides the native scrollbar in each of these areas. The native scrollbar takes no space. The content uses the full width and height of the area.
+- **Thumbs:** each area shows one thumb for each axis that overflows. An area with no overflow on an axis shows no thumb on that axis. The vertical thumb is at the right edge. The horizontal thumb is at the bottom edge. There is no visible track. When both axes overflow, the two thumbs do not overlap at the corner.
+  - The thumb length shows the visible part of the content. Its position shows the scroll position. The minimum length is 24 px. The thumb follows the scroll position at once.
+  - The thumb is 6 px thick, with fully round ends, and 2 px from the edge of the area. Its color is the foreground color of the screen theme at 25 % opacity.
+  - On pointer hover over an enabled thumb and during a thumb drag, the thumb is 10 px thick at 40 % opacity.
+  - In forced colors mode, the thumb uses the system text color.
+- **Visibility:** at rest, the thumbs are hidden. The thumbs of an area show when one of these occurs:
+  - The area scrolls, from any source: wheel, touch, keyboard, a thumb drag or a scroll by the app.
+  - A mouse pointer moves over the area.
+  - A thumb drag starts.
+- The thumbs stay visible during a thumb drag and while the pointer is over an enabled thumb. They fade out 800 ms after the last scroll, pointer movement or drag end. A new event in this time keeps them visible and starts the 800 ms again.
+- **Nested areas:** the Timeline section body contains the Gantt chart. A pointer movement shows only the thumbs of the innermost area below the pointer. A scroll shows only the thumbs of the area that scrolls.
+- **Layers:** the thumbs show above the content of their area, the sticky headers and the pinned Timeline section. The layer uses z-index 35. The thumbs show below the app header, the floating island (z-index 40), menus and dialogs. The island is at the bottom center. The thumbs are at the right and bottom edges. In a dialog or a bottom sheet, the thumbs are inside the dialog content.
+- **Drag:** only a visible thumb takes presses. A hidden thumb lets presses go to the content below it. The hit area matches the visible thumb. A pointer press on a visible thumb starts a drag. The thumb follows the pointer, and the area scrolls by the same proportion. The drag continues when the pointer leaves the area. It ends on release, on cancel or when the pointer capture is lost. The scroll position stays where the drag ended. A drag scrolls at once. Mouse, pen and touch can drag a thumb.
+- **Other input:** wheel, trackpad, touch, keyboard and focus scrolling keep their native behavior. Scroll by the app (a restored scroll position, a label jump, the reveal of a focused element) does not change.
+- **Accessibility:** the thumbs are hidden from assistive technology. They do not get keyboard focus and have no hint. Each scroll area keeps its native keyboard access and its role.
+- **Motion:** the fade and the thickness change use `motionDuration(150)`. When the user prefers reduced motion, the thumbs show, hide and change thickness at once.
+- **Outside presses:** a press on a thumb is not an outside press. It does not close or save a dialog, a popover, a menu or a bottom sheet.
+- **Bottom sheets:** a press or a drag on a thumb in a bottom sheet does not start a drag to close (section 5.1). It scrolls the bottom sheet content only.
+- **User scroll:** a thumb drag is a scroll by the user. The floating island size (section 5.1) and the automatic collapse of the Timeline section (section 5.4) use it in the same way as a wheel or touch scroll. During a thumb drag, a scroll in either direction counts.
+- **Print:** Preview sheets and printed sheets show no thumbs. The Preview dialog shows thumbs on its own scroll area, as other dialogs do.
+- **Parity:** the thumbs have the same look, sizes, timing and behavior in Chromium, Firefox and Safari (WebKit), on macOS, Windows, Linux, iOS and Android, in light and dark themes, and in the installed PWA, also offline. A system setting to always show native scrollbars does not show native scrollbars in these areas.
+
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
@@ -558,7 +595,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - Print (**Cmd/Ctrl+P** or the **Print** button of the preview) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, Cmd/Ctrl+P renders the sheets first and then opens the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
-- Print has no animations and no controls.
+- Print has no animations, no controls and no scrollbar thumbs.
 
 ## 8. Motion
 
@@ -568,6 +605,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - Durations are 150 – 300 ms, ease-out. There are two exceptions: the row flash after a jump from the Gantt is 1200 ms, and the pulse of the ready light is 900 ms.
 - `src/lib/motion.ts` names two shared durations. `GEOMETRY_MOTION_MS` (240 ms) is for geometry changes in a diagram, such as rows that move on expand or collapse. `VIEW_MOTION_MS` (300 ms) is for a switch between diagrams. Durations stay within 150 – 300 ms, except the two exceptions above. Refer to ADR 19.
 - All durations go through `motionDuration(ms)`. This includes CSS transitions and animations. A CSS transition that uses the default duration of 150 ms also sets its duration through `motionDuration(150)`.
+- The overlay scrollbar thumbs fade and change thickness through `motionDuration(150)`. Refer to section 5.12.
 - When the viewer selects `prefers-reduced-motion`, the app disables motion.
 - Preview and print have no motion.
 
@@ -609,6 +647,7 @@ Kanban cards are leaves only. Canceled items are not on the board. The column co
 - TypeScript strict mode. ESLint. Prettier.
 - Vitest unit tests in two projects. The `server` project runs the `*.spec.ts` files in Node. It covers the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import, pagination. The `client` project runs the `*.svelte.spec.ts` files in Chromium. It covers the store, commands and undo history.
 - Playwright end-to-end tests in `e2e/` for the main flows, the offline app (PWA) and the pagination of the sheets.
+- Headless Playwright hides native scrollbars, and CI runs Chromium only. The end-to-end tests check that the native scrollbar is hidden (`scrollbar-width: none`) and test the overlay thumbs. Overlay scrollbar parity in Firefox and Safari, and on macOS, Windows, Linux, iOS and Android, is a manual check (ADR 18).
 - GitHub Actions run `pnpm lint`, `pnpm check`, the unit tests and the end-to-end tests in separate jobs. They run on each pull request, on each merge queue entry and on each push to `main`. The `CI passed` job fails when one of these jobs does not succeed. If the end-to-end tests fail, the workflow keeps the Playwright results for 7 days.
 - The branch protection rule for `main` requires the `CI passed` check before a merge. Refer to ADR 11.
 - Dependabot updates `npm` and `github-actions` every week. Dependabot groups minor and patch updates. Major updates have separate pull requests.

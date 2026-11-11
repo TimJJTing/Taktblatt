@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -107,13 +108,16 @@
 			touching = false;
 			inputUntil = touchMoved ? performance.now() + 600 : 0;
 		};
-		const pointerDown = (event: PointerEvent) => {
-			stop();
-			const bounds = content.getBoundingClientRect();
-			scrollbar = event.target === content && event.clientX >= bounds.left + content.clientWidth;
-			if (scrollbar) activate(0);
+		const pointerDown = () => stop();
+		// Overlay controls report user scrolls without a native scrollbar gutter.
+		const overlayStart = (event: Event) => {
+			if (event.target !== content) return;
+			scrollbar = true;
+			activate(0);
 		};
-		const pointerUp = () => {
+		const overlayEnd = (event: Event) => {
+			if (event.target !== content) return;
+			sampleScroll(false);
 			scrollbar = false;
 		};
 		const key = (event: KeyboardEvent) => {
@@ -198,8 +202,8 @@
 		content.addEventListener('touchcancel', touchEnd, { passive: true });
 		content.addEventListener('pointerdown', pointerDown, true);
 		content.addEventListener('keydown', key);
-		window.addEventListener('pointerup', pointerUp);
-		window.addEventListener('pointercancel', pointerUp);
+		content.addEventListener('overlayscrollstart', overlayStart);
+		content.addEventListener('overlayscrollend', overlayEnd);
 		return () => {
 			observing = false;
 			resize.disconnect();
@@ -211,8 +215,8 @@
 			content.removeEventListener('touchcancel', touchEnd);
 			content.removeEventListener('pointerdown', pointerDown, true);
 			content.removeEventListener('keydown', key);
-			window.removeEventListener('pointerup', pointerUp);
-			window.removeEventListener('pointercancel', pointerUp);
+			content.removeEventListener('overlayscrollstart', overlayStart);
+			content.removeEventListener('overlayscrollend', overlayEnd);
 			stopUserScroll = () => {};
 			rebaseTimelineScroll = () => {};
 			resetTimelineScroll = () => {};
@@ -349,6 +353,7 @@
 <AppHeader />
 <div
 	bind:this={content}
+	use:overlayScrollbar={{ enabled: !workspaceLayout.split }}
 	bind:clientWidth={width}
 	role="main"
 	class="workspace-content"
@@ -366,6 +371,7 @@
 	}}
 >
 	<div
+		use:overlayScrollbar={{ enabled: workspaceLayout.split }}
 		id="plan-pane"
 		data-testid="plan-pane"
 		tabindex="-1"
@@ -415,6 +421,7 @@
 		></span>
 	</div>
 	<div
+		use:overlayScrollbar={{ enabled: workspaceLayout.split }}
 		id="work-pane"
 		data-testid="work-pane"
 		tabindex="-1"
