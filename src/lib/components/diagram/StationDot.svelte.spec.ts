@@ -3,7 +3,7 @@ import { render } from 'vitest-browser-svelte';
 import StationDot from './StationDot.svelte';
 
 /** Rasterize the rendered SVG with its computed paint, including theme and opacity. */
-async function paint(container: HTMLElement) {
+async function paint(container: HTMLElement, underlay = false) {
 	const svg = container.querySelector('svg');
 	expect(svg).not.toBeNull();
 	const copy = svg!.cloneNode(true) as SVGSVGElement;
@@ -29,6 +29,13 @@ async function paint(container: HTMLElement) {
 		opacity *= Number(getComputedStyle(parent).opacity);
 	}
 	copy.style.opacity = String(opacity);
+	if (underlay) {
+		const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		rect.setAttribute('width', '100%');
+		rect.setAttribute('height', '100%');
+		rect.setAttribute('fill', '#00ffff');
+		copy.prepend(rect);
+	}
 	copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 	copy.setAttribute('width', '80');
 	copy.setAttribute('height', '80');
@@ -56,10 +63,24 @@ async function paint(container: HTMLElement) {
 			return sum / (end - start) ** 2;
 		}
 		const center = (39 * 80 + 39) * 4;
+		const whiteAt = (x: number) => {
+			const i = (39 * 80 + x) * 4;
+			return (
+				pixels[i] === 255 && pixels[i + 1] === 255 && pixels[i + 2] === 255 && pixels[i + 3] === 255
+			);
+		};
+		let left = 39,
+			right = 39;
+		while (left > 0 && whiteAt(left - 1)) left--;
+		while (right < 79 && whiteAt(right + 1)) right++;
 		return {
 			interior: coverage(28, 52),
+			holePixels: whiteAt(39) ? right - left + 1 : 0,
 			whole: coverage(0, 80),
-			center: Array.from(pixels.slice(center, center + 4))
+			center: Array.from(pixels.slice(center, center + 4)),
+			left: Array.from(pixels.slice((39 * 80 + 25) * 4, (39 * 80 + 25) * 4 + 4)),
+			right: Array.from(pixels.slice((39 * 80 + 55) * 4, (39 * 80 + 55) * 4 + 4)),
+			edge: Array.from(pixels.slice((39 * 80 + 2) * 4, (39 * 80 + 2) * 4 + 4))
 		};
 	} finally {
 		URL.revokeObjectURL(url);
@@ -90,26 +111,71 @@ describe('StationDot status fill (D6)', () => {
 		expect(dot.element().getAnimations({ subtree: true })).toHaveLength(0);
 	});
 
-	it('renders a ring, half fill, solid fill, and a solid fill at 40% opacity', async () => {
+	it('uses the declared physical outer diameter and a 1 px inset, including a paper dot taller than its line [AC2,AC9]', async () => {
 		const screen = await render(StationDot, {
 			color: '#e02020',
 			status: 'todo',
-			still: true,
-			size: 40
+			size: 8,
+			still: true
 		});
-		const todo = await paint(screen.container);
-		await screen.rerender({ status: 'in_progress' });
-		const progress = await paint(screen.container);
-		await screen.rerender({ status: 'done' });
-		const done = await paint(screen.container);
-		await screen.rerender({ status: 'canceled' });
-		const canceled = await paint(screen.container);
+		const svg = screen.container.querySelector('svg')!;
+		expect(svg.getBoundingClientRect().width).toBe(8);
+		// At 80 px raster width the first opaque red pixel must reach the declared outer edge.
+		expect((await paint(screen.container)).edge[3]).toBeGreaterThan(200);
+		const circles = [...svg.querySelectorAll('circle')];
+		const scale = 8 / svg.viewBox.baseVal.width;
+		const outer = Math.max(
+			...circles.map(
+				(circle) =>
+					(2 * circle.r.baseVal.value +
+						(getComputedStyle(circle).stroke === 'none'
+							? 0
+							: parseFloat(getComputedStyle(circle).strokeWidth))) *
+					scale
+			)
+		);
+		expect(outer).toBeCloseTo(8, 2);
+		expect(((await paint(screen.container)).holePixels * 8) / 80).toBeCloseTo(6, 0);
+		await screen.rerender({ size: 6 });
+		expect(svg.getBoundingClientRect().height).toBe(6);
+		expect(((await paint(screen.container)).holePixels * 6) / 80).toBeCloseTo(4, 0);
+		expect((await paint(screen.container)).edge[3]).toBeGreaterThan(200);
+	});
 
-		expect(todo.whole).toBeGreaterThan(0.01);
-		expect(todo.interior).toBeLessThan(0.02);
-		expect(done.interior).toBeGreaterThan(0.5);
-		expect(progress.interior / done.interior).toBeCloseTo(0.5, 1);
-		expect(canceled.interior / done.interior).toBeCloseTo(0.4, 1);
-		expect(canceled.whole / done.whole).toBeCloseTo(0.4, 1);
+	it('paints canceled dots with an opaque 40 percent ground mix and leaves done dots full strength [AC4]', async () => {
+		const screen = await render(StationDot, { color: '#e02020', status: 'done', still: true });
+		expect((await paint(screen.container)).center).toEqual([224, 32, 32, 255]);
+		await screen.rerender({ status: 'canceled' });
+		const actual = await paint(screen.container);
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		const context = canvas.getContext('2d')!;
+		context.fillStyle = 'color-mix(in oklab, #e02020 40%, #ffffff)';
+		context.fillRect(0, 0, 1, 1);
+		const expected = [...context.getImageData(0, 0, 1, 1).data];
+		for (const [i, channel] of actual.center.entries())
+			expect(channel).toBeCloseTo(expected[i], -0.5);
+		for (const node of screen.container.querySelectorAll('svg, svg *'))
+			expect(Number(getComputedStyle(node).opacity)).toBe(1);
+	});
+
+	it('keeps the ring and half-fill opaque over contrasting connectors in both grounds [AC4]', async () => {
+		const screen = await render(StationDot, { color: '#e02020', status: 'todo', size: 8 });
+		for (const ground of ['#ffffff', '#13161a']) {
+			screen.container.style.setProperty('--background', ground);
+			for (const status of ['todo', 'in_progress', 'done', 'canceled'] as const) {
+				await screen.rerender({ status });
+				const plain = await paint(screen.container);
+				const crossing = await paint(screen.container, true);
+				expect(crossing.center).toEqual(plain.center);
+				expect(crossing.left).toEqual(plain.left);
+				expect(crossing.right).toEqual(plain.right);
+				// The outer station ring must cover the underlying connector too.
+				expect(crossing.edge).toEqual(plain.edge);
+				if (status === 'todo') expect(plain.interior).toBeLessThan(0.02);
+				if (status === 'in_progress')
+					expect(plain.right[0] - plain.right[1]).toBeGreaterThan(plain.left[0] - plain.left[1]);
+			}
+		}
 	});
 });

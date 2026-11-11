@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	expectCyclePaint,
 	importJson,
 	openExample,
 	openPreview,
@@ -162,21 +163,18 @@ test('an inherited From parent chip warns for the parent-stored edge and both Ga
 	const lines = page.getByTestId('gantt-dependency');
 	await expect(lines).toHaveCount(2);
 	for (const line of await lines.all()) {
-		await expect(line).toHaveAttribute('data-cycle', 'true');
-		await expect(line).toHaveCSS('opacity', '1');
+		await expectCyclePaint(line);
 	}
 	const preview = await openPreview(page);
 	await page.evaluate(() => document.fonts.ready);
 	const printed = preview.getByTestId('sheet-gantt-dependency');
 	await expect(printed).toHaveCount(2);
 	for (const line of await printed.all()) {
-		await expect(line).toHaveAttribute('data-cycle', 'true');
-		await expect(line).toHaveCSS('opacity', '1');
+		await expectCyclePaint(line, true);
 	}
 	await page.emulateMedia({ media: 'print' });
 	for (const line of await printed.all()) {
-		await expect(line).toHaveAttribute('data-cycle', 'true');
-		await expect(line).toHaveCSS('opacity', '1');
+		await expectCyclePaint(line, true);
 	}
 	await page.emulateMedia({ media: 'screen' });
 });

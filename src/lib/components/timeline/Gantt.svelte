@@ -7,7 +7,7 @@
 <script lang="ts">
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
-	import { tick, untrack } from 'svelte';
+	import { flushSync, tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import {
@@ -35,6 +35,9 @@
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { ganttScene } from '#lib/scene/gantt-scene.ts';
+	import { SCREEN_ROUTE_METRICS } from '#lib/scene/route-tracks.ts';
+	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
 	import TodayTag from './TodayTag.svelte';
@@ -61,8 +64,6 @@
 	const ws = getWorkspace();
 	const viewer = getViewer();
 	const editing = getEditing();
-
-	const MARKER_ID = 'gantt-arrow';
 
 	const win = $derived(ws.plan.range);
 	const locale = uiIntl();
@@ -124,6 +125,52 @@
 	});
 
 	let timelineWidth = $state(TIMELINE_MIN_WIDTH);
+	const scene = $derived(
+		ganttScene(rows, lines, {
+			...SCREEN_ROUTE_METRICS(timelineWidth, rows.length),
+			media: 'screen'
+		})
+	);
+	const marks = $derived(new Map(scene.marks.map((m) => [m.id, m])));
+	const sourceRows = $derived(new Map(rows.map((r) => [r.id, r])));
+	const sortedEdges = $derived(
+		[...scene.geometry.edges].sort(
+			(a, b) =>
+				Number(a.cycle) - Number(b.cycle) ||
+				Number(isFinished(sourceRows.get(b.from)!.status)) -
+					Number(isFinished(sourceRows.get(a.from)!.status)) ||
+				a.key.localeCompare(b.key)
+		)
+	);
+	function measureTimeline(element: HTMLElement) {
+		let frame = 0;
+		const observer = new ResizeObserver(() => {
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				timelineWidth = element.clientWidth;
+			});
+		});
+		// A viewport resize precedes the next paint. Element notifications stay coalesced.
+		const resize = () => {
+			cancelAnimationFrame(frame);
+			frame = 0;
+			const next = element.clientWidth;
+			if (next !== timelineWidth)
+				flushSync(() => {
+					timelineWidth = next;
+				});
+		};
+		window.addEventListener('resize', resize);
+		observer.observe(element);
+		return {
+			destroy() {
+				observer.disconnect();
+				window.removeEventListener('resize', resize);
+				cancelAnimationFrame(frame);
+			}
+		};
+	}
 	let scroller = $state<HTMLDivElement | null>(null);
 
 	const scrollBehavior = (): ScrollBehavior => (motionDuration(1) === 0 ? 'instant' : 'smooth');
@@ -283,6 +330,9 @@
 				{#each rows as row (row.id)}
 					<GanttRow
 						{row}
+						geom={marks.get(row.id)!}
+						width={timelineWidth}
+						taps={scene.geometry.junctions.filter((j) => j.kind === 'tap' && j.source === row.id)}
 						color={colors.get(row.stageId) ?? 'currentColor'}
 						highlighted={editing.highlightId === row.id}
 						onJump={jump}
@@ -294,7 +344,7 @@
 			<div
 				class="absolute right-0 bottom-0 left-(--gantt-label-width) z-0"
 				style:top="{HEADER_HEIGHT}px"
-				bind:clientWidth={timelineWidth}
+				use:measureTimeline
 			>
 				{#each ticks.slice(1) as t (t.month)}
 					<GanttTween x0={t.x0}>
@@ -346,37 +396,19 @@
 					class="pointer-events-none absolute inset-0 size-full overflow-visible text-muted-foreground"
 					aria-hidden="true"
 				>
-					<defs>
-						<marker
-							id={MARKER_ID}
-							viewBox="0 0 6 6"
-							refX="5"
-							refY="3"
-							markerWidth="6"
-							markerHeight="6"
-							orient="auto"
-						>
-							<path d="M 0 0 L 6 3 L 0 6 z" fill="currentColor" />
-						</marker>
-						<marker
-							id={`${MARKER_ID}-cycle`}
-							viewBox="0 0 6 6"
-							refX="5"
-							refY="3"
-							markerWidth="6"
-							markerHeight="6"
-							orient="auto"
-						>
-							<path d="M 0 0 L 6 3 L 0 6 z" class="text-destructive" fill="currentColor" />
-						</marker>
-					</defs>
-					{#each lines as line (line.key)}
+					{#each sortedEdges as line (line.key)}
 						<GanttLine
 							{line}
-							muted={isFinished(rows[line.row0].status)}
+							muted={isFinished(sourceRows.get(line.from)!.status)}
 							width={timelineWidth}
-							marker={line.cycle ? `${MARKER_ID}-cycle` : MARKER_ID}
+							strokeWidth={sourceRows.get(line.from)!.level === 1 &&
+							sourceRows.get(line.to)!.level === 1
+								? 1.5
+								: 2}
 						/>
+					{/each}
+					{#each scene.geometry.junctions.filter((j) => j.kind === 'junction') as junction (junction.key)}
+						<DiagramRing {junction} width={timelineWidth} />
 					{/each}
 				</svg>
 			</div>

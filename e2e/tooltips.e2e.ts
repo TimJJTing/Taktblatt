@@ -1,14 +1,17 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { choosePrint, openExample, row, stage, waitForAnimations } from './helpers.ts';
+import {
+	choosePrint,
+	openExample,
+	row,
+	stage,
+	waitForAnimations,
+	ganttRow,
+	openLinePlan,
+	openPreview
+} from './helpers.ts';
 
 const tooltips = (page: Page) => page.locator('[data-slot="tooltip-content"]');
 const gantt = (page: Page) => page.getByTestId('gantt');
-
-/** The Gantt row of a task, found by its label text. */
-const ganttRow = (page: Page, title: string) =>
-	gantt(page)
-		.getByTestId('gantt-row')
-		.filter({ has: page.getByTestId('gantt-label').and(page.getByText(title, { exact: true })) });
 
 /** Moves the pointer to an empty corner and removes focus, then waits until no tooltip is open. */
 async function closeHints(page: Page): Promise<void> {
@@ -201,4 +204,21 @@ test.describe('hints show in a tooltip', () => {
 		await expect(sheets.locator('[data-slot="tooltip-trigger"]')).toHaveCount(0);
 		await expect(sheets.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
 	});
+});
+
+test('3c point stations retain hover and keyboard hints while paper signs have none [AC2,AC11]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
+	await expect(point.locator('.station-dot')).toBeVisible();
+	await expectHint(page, point, /^Point:/);
+	await expect(row(page, 'Point')).toHaveClass(/bg-accent/);
+	await closeHints(page);
+	await openPreview(page);
+	const paper = page.getByTestId('sheets').getByTestId('sheet-gantt-point');
+	await expect(paper).toHaveAccessibleName(/^Point:/);
+	await expect(paper.locator('.station-dot')).toBeVisible();
+	await expect(paper.locator('[data-slot="tooltip-trigger"], [title]')).toHaveCount(0);
+	await expect(paper).not.toHaveAttribute('tabindex');
 });

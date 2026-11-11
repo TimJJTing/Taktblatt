@@ -367,7 +367,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 - A task needs a **valid range** (start and end set, start ≤ end) to show a line. A top-level line is 8 px thick. A subtask line is 6 px thick and uses the lighter subtask color. Unclipped ends are fully rounded.
 - The visible line extent equals the visible date extent. Station dots stay inside this horizontal extent. A dot can stand taller than its line.
 - **Station dots:** a bar has a dot at each visible, unclipped end. The ground-filled hole is 6 px across on a top-level screen line and 4 px across on a subtask screen line. A 1 px inset leaves the stage-colored line as the ring.
-- The ground is white in light mode and `#13161A` in dark mode. Paper uses white. The effective task status sets the fill: ring for `todo`, half filled for `in_progress`, full-strength solid for `done`, and a 40 % color mix for `canceled`.
+- The ground is white in light mode and `#13161A` in dark mode. Paper uses white. Station dots use the full stage color, including on subtasks. The lighter 55 % subtask mix applies to the task line. The effective task status sets the fill: ring for `todo`, half filled for `in_progress`, full-strength solid for `done`, and a 40 % color mix for `canceled`.
 - A bar shorter than two station dots keeps its date width and shows one centered dot. The dot can shrink to fit. Its incoming port is the left edge of the dot. Its outgoing port is the right edge.
 - A clipped side has no dot and takes priority over the single-dot form. Its dependency port is the window edge. The cut is flat, with no jagged mark.
 - A task with only one date shows one station dot at the center of that day. The screen dot has an outer diameter of 10 px. Its incoming and outgoing ports are its left and right edges.
@@ -612,6 +612,8 @@ Printed work tables use the Status header and the same four status icons in pape
   - Each page has the footer with "n / N".
   - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
 - The labels and dates on the sheets use the UI language.
+- Complete dependency paths route after each fragment filters its rows and edges. Rows start at zero in each fragment. Only the first fragment includes the 22 px milestone row. The route uses the measured paper date-area width. Empty fragments and an unmeasured width have no connector paths.
+- Delivery: slice 3c hides dependencies that cross a sheet break. Slice 3d adds the continuation signs described below.
 - A dependency with both rows on a sheet connects their local ports. A dependency that crosses a sheet break has paired exit and entry stubs at the Gantt fragment edges. Each stub is 4 px long with a 2 px cross tick. Both stubs use the predecessor riser's horizontal position. Fragments between the endpoints show a pass-through at that position. Stubs are solid with a cross tick; cycle paths stay dotted. The sheet break does not remove the dependency. Routes stay within the fragment body and clear of the repeated month header. Refer to section 9.1 for the paper sizes.
 - Print (**Cmd/Ctrl+P** or the **Print** button of the preview) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, Cmd/Ctrl+P renders the sheets first and then opens the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
@@ -623,7 +625,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - Elements that come in or go out use Svelte transitions.
 - The app uses `animate:flip` when the task order changes.
 - Numbers and geometry use `Tween` or `Spring`: progress counts, bar positions, the range rescale. When the range changes, the Gantt bars, points, milestones, bands, month ticks and today line move with the same tween as the rows.
-- Row and range changes move all six connector points together. A second change continues from the current position. Dots, rings and task lines stay attached. A width-only chart change applies the new routes at once, without an intermediate connector tween. This also applies during a running range or row animation.
+- Row and range changes move all six connector points together. A second change continues from the current position. Dots, rings and task lines stay attached. A width-only chart change applies the new routes at once, without an intermediate connector tween. This also applies during a running range or row animation. Task marks and rings use the same new geometry at once, so the ports stay attached. A status change with the same target geometry does not restart the animation.
 - Durations are 150 – 300 ms, ease-out. There are two exceptions: the row flash after a jump from the Gantt is 1200 ms, and the pulse of the ready light is 900 ms.
 - `src/lib/motion.ts` names two shared durations. `GEOMETRY_MOTION_MS` (240 ms) is for geometry changes in a diagram, such as rows that move on expand or collapse. `VIEW_MOTION_MS` (300 ms) is for a switch between diagrams. Durations stay within 150 – 300 ms, except the two exceptions above. Refer to ADR 19.
 - All durations go through `motionDuration(ms)`. This includes CSS transitions and animations. A CSS transition that uses the default duration of 150 ms also sets its duration through `motionDuration(150)`.
@@ -663,7 +665,7 @@ At rest, the screen shows every dependency. Secondary ink is `#505663` in light 
 
 Preview and print use light stage colors and white ground. They show all routes without hover or focus dimming. They keep the status treatment for done and canceled tasks and satisfied connectors.
 
-Paper Gantt rows are 18 px high. Top-level task lines are 5 px thick with 1 px connectors. Their station dots stand taller than the 5 px line. Subtask lines are 3.5 px thick with 0.75 px connectors. Subtask station dots and point dots have an outer diameter of 4 px. Junction rings have an outer diameter of 4 px.
+Paper Gantt rows are 18 px high. Top-level task lines are 5 px thick with 1 px connectors. Their station dots have a 6 px outer diameter, a 4 px ground hole and a 1 px inset. Subtask lines are 3.5 px thick with 0.75 px connectors. Subtask station dots and point dots have an outer diameter of 4 px. Junction rings have an outer diameter of 4 px.
 
 Cycle paths retain the warning style and ground casing of section 5.4. The default milestone is an ink interchange ring. Other milestone symbols keep their shapes in paper ink. Line weight, status fill and dotted cycle connectors keep the hierarchy clear in grayscale.
 

@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { STAGE_COLORS } from '#lib/domain/palette.ts';
 
 // Read constants without loading Svelte state or its browser-build aliases in Playwright.
 const viewerSource = readFileSync(
@@ -502,6 +503,518 @@ export const planIds = (page: Page) =>
 
 type StoredPlan = Awaited<ReturnType<typeof storedPlan>>;
 
+/** The task's diagram row, selected by its visible label. */
+export const ganttRow = (page: Page, title: string) =>
+	page.getByTestId('gantt-row').filter({
+		has: page.getByTestId('gantt-label').and(page.getByText(title, { exact: true }))
+	});
+
+export async function expectNoArrowheads(line: Locator): Promise<void> {
+	await expect(line).toHaveCSS('marker-start', 'none');
+	await expect(line).toHaveCSS('marker-end', 'none');
+	await expect(line.locator('xpath=ancestor::svg').locator('marker')).toHaveCount(0);
+}
+
+/** Check the rendered paint chain, including nested and inherited attenuation. */
+export async function expectOpaqueMark(mark: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			mark.evaluate((element) => {
+				const nodes = [element, ...element.querySelectorAll('*')];
+				for (
+					let p = element.parentElement;
+					p && !p.matches('[data-testid="gantt"], [data-testid="sheet"]');
+					p = p.parentElement
+				)
+					nodes.push(p);
+				return nodes.every((node) => Number(getComputedStyle(node).opacity) === 1);
+			})
+		)
+		.toBe(true);
+}
+
+/** Compare the final line color with its status mix, including an opaque subtask ground. */
+export async function expectLineStatus(
+	mark: Locator,
+	status: 'todo' | 'in_progress' | 'done' | 'canceled',
+	paper = false
+): Promise<void> {
+	await waitForAnimations(mark.locator('[data-gantt-line]'));
+	const paint = await mark.evaluate(
+		(mark, { status, paper, palette }) => {
+			const name = mark.getAttribute('aria-label')!;
+			const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+			const plan = JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
+			const task = plan.tasks.find((t: { title: string }) => name.startsWith(`${t.title}:`));
+			const stage = plan.stages.find((s: { id: string }) => s.id === task.stageId);
+			const scheme =
+				paper || getComputedStyle(document.documentElement).colorScheme !== 'dark'
+					? 'light'
+					: 'dark';
+			const base = palette[stage.color as keyof typeof palette][scheme];
+			const probe = document.createElement('span');
+			probe.style.color = paper ? '#ffffff' : 'var(--background)';
+			mark.append(probe);
+			const ground = getComputedStyle(probe).color;
+			probe.remove();
+			const stageColor = task.parentId ? `color-mix(in oklab, ${base} 55%, ${ground})` : base;
+			const expected =
+				status === 'done' || status === 'canceled'
+					? `color-mix(in oklab, ${stageColor} 40%, ${ground})`
+					: stageColor;
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			const sample = (paint: string) => {
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = paint;
+				context.fillRect(0, 0, 1, 1);
+				return [...context.getImageData(0, 0, 1, 1).data];
+			};
+			return {
+				actual: sample(getComputedStyle(mark.querySelector('[data-gantt-line]')!).backgroundColor),
+				expected: sample(expected)
+			};
+		},
+		{ status, paper, palette: STAGE_COLORS }
+	);
+	for (const [i, value] of paint.actual.entries())
+		expect(Math.abs(value - paint.expected[i])).toBeLessThanOrEqual(1);
+	await expectOpaqueMark(mark);
+}
+
+/** Read actual SVG pixels after computed paint, then compare the four status forms. */
+export async function expectStationStatus(
+	mark: Locator,
+	status: 'todo' | 'in_progress' | 'done' | 'canceled',
+	paper = false
+): Promise<void> {
+	const dot = mark.locator('.station-dot').first();
+	await expect(dot).toBeVisible();
+	await waitForAnimations(dot);
+	const paint = await dot.evaluate(
+		async (element, { onPaper, palette, status }) => {
+			const svg = element as SVGSVGElement;
+			const forcedColors = matchMedia('(forced-colors: active)').matches;
+			const copy = svg.cloneNode(true) as SVGSVGElement;
+			const originals = [svg, ...svg.querySelectorAll('*')];
+			const copies = [copy, ...copy.querySelectorAll('*')];
+			for (const [i, node] of originals.entries())
+				for (const property of [
+					'fill',
+					'stroke',
+					'stroke-width',
+					'opacity',
+					'fill-opacity',
+					'stroke-opacity',
+					'color'
+				])
+					(copies[i] as SVGElement).style.setProperty(
+						property,
+						getComputedStyle(node).getPropertyValue(property)
+					);
+			copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+			copy.setAttribute('width', '100');
+			copy.setAttribute('height', '100');
+			const url = URL.createObjectURL(
+				new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml' })
+			);
+			try {
+				const image = new Image();
+				image.src = url;
+				await image.decode();
+				const canvas = document.createElement('canvas');
+				canvas.width = canvas.height = 100;
+				const context = canvas.getContext('2d')!;
+				context.drawImage(image, 0, 0);
+				const sample = (x: number, y = 50) => [...context.getImageData(x, y, 1, 1).data];
+				const samples = [sample(35), sample(65), sample(50)];
+				context.clearRect(0, 0, 100, 100);
+				// Resolve custom properties in this element's own theme, not in the canvas.
+				const probe = document.createElement('span');
+				probe.style.color = onPaper ? '#ffffff' : forcedColors ? 'Canvas' : 'var(--background)';
+				svg.parentElement!.append(probe);
+				context.fillStyle = getComputedStyle(probe).color;
+				context.fillRect(0, 0, 1, 1);
+				probe.remove();
+				const ground = [...context.getImageData(0, 0, 1, 1).data];
+				const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+				const plan = JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
+				const name = svg.closest('[role="img"][aria-label]')!.getAttribute('aria-label')!;
+				const task = plan.tasks.find((t: { title: string }) => name.startsWith(`${t.title}:`));
+				const stage = plan.stages.find((s: { id: string }) => s.id === task.stageId);
+				const scheme =
+					onPaper || getComputedStyle(document.documentElement).colorScheme !== 'dark'
+						? 'light'
+						: 'dark';
+				const base = palette[stage.color as keyof typeof palette][scheme];
+				const probePaint = document.createElement('span');
+				svg.parentElement!.append(probePaint);
+				probePaint.style.color = onPaper ? '#ffffff' : 'var(--background)';
+				const groundColor = getComputedStyle(probePaint).color;
+				probePaint.remove();
+				context.clearRect(0, 0, 1, 1);
+				const stageColor = base;
+				context.fillStyle =
+					status === 'canceled'
+						? `color-mix(in oklab, ${stageColor} 40%, ${groundColor})`
+						: stageColor;
+				context.fillRect(0, 0, 1, 1);
+				const ink = [...context.getImageData(0, 0, 1, 1).data];
+				return {
+					samples,
+					ground,
+					ink,
+					forcedColors,
+					opaque: originals.every((node) => Number(getComputedStyle(node).opacity) === 1)
+				};
+			} finally {
+				URL.revokeObjectURL(url);
+			}
+		},
+		{ onPaper: paper, palette: STAGE_COLORS, status }
+	);
+	expect(paint.opaque).toBe(true);
+	const [left, right, center] = paint.samples;
+	for (const sample of paint.samples) expect(sample[3]).toBe(255);
+	if (status === 'todo') expect(center).toEqual(paint.ground);
+	else if (status === 'in_progress') {
+		expect(left).toEqual(paint.ground);
+		if (paint.forcedColors) expect(right).not.toEqual(paint.ground);
+		else
+			for (const [i, value] of right.entries())
+				expect(Math.abs(value - paint.ink[i])).toBeLessThanOrEqual(1);
+	} else {
+		if (paint.forcedColors) expect(center).not.toEqual(paint.ground);
+		else
+			for (const [i, value] of center.entries())
+				expect(Math.abs(value - paint.ink[i])).toBeLessThanOrEqual(1);
+		expect(left).toEqual(right);
+	}
+}
+
+/** Compare the base cycle paint and its non-counted casing in the same DOM snapshot. */
+export async function expectCyclePaint(line: Locator, paper = false): Promise<void> {
+	await expect(line).toHaveAttribute('data-cycle', 'true');
+	await expect(line).toHaveAttribute('data-from', /.+/);
+	await expect(line).toHaveAttribute('data-to', /.+/);
+	await expectTokenPaint(line, 'stroke', paper ? '--color-paper-warning' : '--destructive');
+	await expect(line).toHaveCSS('stroke-width', '2px');
+	await expect(line).toHaveCSS('stroke-linecap', 'round');
+	await expect(line).toHaveCSS('stroke-dasharray', '1px, 4px');
+	await expectNoArrowheads(line);
+	const casing = line.locator('xpath=preceding-sibling::*[1]');
+	const from = await line.getAttribute('data-from'),
+		to = await line.getAttribute('data-to');
+	await expect(casing).toHaveAttribute('data-overlay-for', `${from}->${to}`);
+	await expect(casing).toHaveAttribute('aria-hidden', 'true');
+	await expect(casing).not.toHaveAttribute('data-testid');
+	await expect(casing).toHaveCSS('stroke-width', '4px');
+	await expectTokenPaint(casing, 'stroke', paper ? '--color-paper' : '--background');
+	await expect
+		.poll(() =>
+			line.evaluate(
+				(base) => base.previousElementSibling?.getAttribute('d') === base.getAttribute('d')
+			)
+		)
+		.toBe(true);
+}
+
+/** Use a deterministic graph with a crossing, fan-out, points, tiny and clipped ranges. */
+export async function openLinePlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-04-10' };
+		plan.stages[0].color = 'blue';
+		plan.bands = [];
+		plan.milestones = [];
+		const base = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			status: 'todo',
+			dependsOn: [],
+			start: '2027-01-01',
+			end: '2027-01-20'
+		};
+		plan.tasks = [
+			{ ...base, id: 'source', title: 'Source' },
+			{
+				...base,
+				id: 'crossing',
+				title: 'Crossing',
+				start: '2027-01-05',
+				end: '2027-03-01',
+				status: 'done'
+			},
+			{
+				...base,
+				id: 'target',
+				title: 'Target',
+				start: '2027-03-10',
+				end: '2027-03-20',
+				dependsOn: ['source']
+			},
+			{
+				...base,
+				id: 'branch',
+				title: 'Branch',
+				start: '2027-03-15',
+				end: '2027-03-25',
+				dependsOn: ['source']
+			},
+			{ ...base, id: 'tap-source', title: 'Tap source', start: '2027-03-20', end: '2027-04-20' },
+			{
+				...base,
+				id: 'tap-target',
+				title: 'Tap target',
+				start: '2027-01-10',
+				end: '2027-01-20',
+				dependsOn: ['tap-source']
+			},
+			{
+				...base,
+				id: 'point',
+				title: 'Point',
+				start: '2027-02-10',
+				end: null,
+				dependsOn: ['source']
+			},
+			{
+				...base,
+				id: 'tiny',
+				title: 'Tiny',
+				start: '2027-02-12',
+				end: '2027-02-12',
+				dependsOn: ['point']
+			},
+			{
+				...base,
+				id: 'child-a',
+				title: 'Child A',
+				parentId: 'crossing',
+				start: '2027-01-05',
+				end: '2027-02-01',
+				status: 'done'
+			},
+			{
+				...base,
+				id: 'child-b',
+				title: 'Child B',
+				parentId: 'crossing',
+				start: '2027-02-05',
+				end: '2027-03-01',
+				status: 'done',
+				dependsOn: ['child-a']
+			}
+		];
+	});
+}
+
+/** Read ports and marks in one frame so animated geometry cannot skew the assertion. */
+export async function dependencyGeometry(line: Locator, paper = false) {
+	return line.evaluate((element, onPaper) => {
+		const path = element as SVGPathElement;
+		const root = path.closest(onPaper ? '[data-fragment]' : '[data-testid="gantt"]')!;
+		const markFor = (id: string | undefined) => {
+			if (!id) return null;
+			const row = root.querySelector(`[data-task-id="${CSS.escape(id)}"]`);
+			return (
+				row?.querySelector(
+					`[data-testid="${onPaper ? 'sheet-' : ''}gantt-bar"], [data-testid="${onPaper ? 'sheet-' : ''}gantt-point"]`
+				) ?? null
+			);
+		};
+		const port = (id: string | undefined, end: boolean) => {
+			const mark = markFor(id);
+			if (!mark) return null;
+			const box = mark.getBoundingClientRect();
+			const dots = [...mark.querySelectorAll('.station-dot')];
+			const dot = dots[end ? dots.length - 1 : 0]?.getBoundingClientRect();
+			const clipped = mark.getAttribute(end ? 'data-clip-end' : 'data-clip-start') === 'true';
+			const point = mark.getAttribute('data-testid')!.endsWith('point');
+			const oneClippedSide =
+				mark.getAttribute('data-clip-start') === 'true' ||
+				mark.getAttribute('data-clip-end') === 'true';
+			const edge = point || (dots.length === 1 && !oneClippedSide);
+			return {
+				x:
+					clipped || !dot
+						? end
+							? box.right
+							: box.left
+						: edge
+							? end
+								? dot.right
+								: dot.left
+							: dot.left + dot.width / 2,
+				y: box.top + box.height / 2
+			};
+		};
+		const matrix = path.getScreenCTM()!;
+		const first = path.getPointAtLength(0).matrixTransform(matrix),
+			last = path.getPointAtLength(path.getTotalLength()).matrixTransform(matrix);
+		return {
+			first: { x: first.x, y: first.y },
+			last: { x: last.x, y: last.y },
+			out: port(path.dataset.from, true),
+			in: port(path.dataset.to, false),
+			d: path.getAttribute('d')
+		};
+	}, paper);
+}
+
+/** Verify opaque coverage using actual screenshots with and without the crossing connectors. */
+export async function expectCoveredCrossing(mark: Locator, lines: Locator): Promise<void> {
+	const line = mark.locator('[data-gantt-line]');
+	await line.scrollIntoViewIfNeeded();
+	const box = await line.boundingBox();
+	expect(box).not.toBeNull();
+	// Taller dots need clear focus space. Compare only fully covered line pixels, away from caps.
+	const x = Math.ceil(box!.x + box!.height / 2);
+	const y = Math.ceil(box!.y + 1);
+	const clip = {
+		x,
+		y,
+		width: Math.floor(box!.x + box!.width - box!.height / 2) - x,
+		height: Math.floor(box!.y + box!.height - 1) - y
+	};
+	expect(clip.width).toBeGreaterThan(0);
+	expect(clip.height).toBeGreaterThan(0);
+	const page = mark.page();
+	const before = await page.screenshot({ clip, animations: 'disabled' });
+	const saved = await lines.evaluateAll((elements) =>
+		elements.map((e) => {
+			const node = e as SVGElement;
+			const visibility = node.style.visibility;
+			node.style.visibility = 'hidden';
+			return visibility;
+		})
+	);
+	try {
+		const without = await page.screenshot({ clip, animations: 'disabled' });
+		expect(before.equals(without), 'A crossing connector must not show through the task mark').toBe(
+			true
+		);
+	} finally {
+		await lines.evaluateAll(
+			(elements, values) =>
+				elements.forEach((e, i) => {
+					(e as SVGElement).style.visibility = values[i];
+				}),
+			saved
+		);
+	}
+}
+
+/** Check the row-local tap order and clipping in each renderer. */
+export async function expectLocalTap(mark: Locator, source: string, paper = false): Promise<void> {
+	const tap = mark.getByTestId(paper ? 'sheet-gantt-tap' : 'gantt-tap');
+	await expect(tap).toHaveAttribute('data-source', source);
+	await expect(tap).toHaveAttribute('aria-hidden', 'true');
+	const order = await mark.evaluate((element) => {
+		const line = element.querySelector('[data-gantt-line]')!;
+		const tap = element.querySelector('[data-source]')!;
+		const dot = element.querySelector('.station-dot')!;
+		let clipped = false;
+		for (
+			let p = tap.parentElement;
+			p && p !== element.parentElement?.parentElement;
+			p = p.parentElement
+		)
+			clipped ||=
+				['hidden', 'clip'].includes(getComputedStyle(p).overflowX) ||
+				getComputedStyle(p).clipPath !== 'none';
+		return {
+			lineThenTap: !!(line.compareDocumentPosition(tap) & Node.DOCUMENT_POSITION_FOLLOWING),
+			tapThenDot: !!(tap.compareDocumentPosition(dot) & Node.DOCUMENT_POSITION_FOLLOWING),
+			clipped
+		};
+	});
+	expect(order).toEqual({ lineThenTap: true, tapThenDot: true, clipped: true });
+}
+
+/** Put a gutter ring over a line to check the renderer's actual stacking. */
+export async function expectJunctionBehindMark(ring: Locator, mark: Locator): Promise<void> {
+	const center = await mark.evaluate((e) => {
+		const b = e.getBoundingClientRect();
+		return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+	});
+	const saved = await ring.evaluate((e, center) => {
+		const node = e as SVGElement,
+			b = e.getBoundingClientRect();
+		const saved = { transform: node.style.transform, visibility: node.style.visibility };
+		const transform = getComputedStyle(node).transform;
+		node.style.transform = `${transform === 'none' ? '' : transform} translate(${center.x - b.left - b.width / 2}px, ${center.y - b.top - b.height / 2}px)`;
+		return saved;
+	}, center);
+	try {
+		expect(
+			await ring.evaluate((e, center) => {
+				const b = e.getBoundingClientRect();
+				return (
+					b.width > 0 &&
+					b.height > 0 &&
+					b.left <= center.x &&
+					b.right >= center.x &&
+					b.top <= center.y &&
+					b.bottom >= center.y
+				);
+			}, center),
+			'The fixture ring must overlap the task line'
+		).toBe(true);
+		const visible = await mark.screenshot({ animations: 'disabled' });
+		await ring.evaluate((e) => {
+			(e as SVGElement).style.visibility = 'hidden';
+		});
+		const hidden = await mark.screenshot({ animations: 'disabled' });
+		expect(visible.equals(hidden), 'Ordinary junctions must paint below opaque task lines').toBe(
+			true
+		);
+	} finally {
+		await ring.evaluate((e, saved) => {
+			const node = e as SVGElement;
+			node.style.transform = saved.transform;
+			node.style.visibility = saved.visibility;
+		}, saved);
+	}
+}
+
+/** Record each frame, including intermediate jumps, while rows or dates change. */
+export async function startDependencyMonitor(line: Locator) {
+	const monitor = await line.evaluateHandle((element) => {
+		const path = element as SVGPathElement;
+		const state = {
+			stopped: false,
+			frames: [] as { d: string | null; casing: string | null; width: number; time: number }[]
+		};
+		const sample = () => {
+			state.frames.push({
+				d: path.getAttribute('d'),
+				casing: path.previousElementSibling?.getAttribute('data-overlay-for')
+					? path.previousElementSibling.getAttribute('d')
+					: null,
+				width: path.ownerSVGElement!.getBoundingClientRect().width,
+				time: performance.now()
+			});
+			if (!state.stopped) requestAnimationFrame(sample);
+		};
+		sample();
+		return state;
+	});
+	return {
+		async finish() {
+			await waitForFrames(line.page(), 20);
+			const frames = await monitor.evaluate((state) => {
+				state.stopped = true;
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
+
 /** Reads the contrast of a dependency stroke against its chart background. */
 export async function dependencyContrast(line: Locator, paper = false): Promise<number> {
 	return line.evaluate((element, onPaper) => {
@@ -519,30 +1032,14 @@ export async function dependencyContrast(line: Locator, paper = false): Promise<
 		context.fillStyle = style.getPropertyValue(onPaper ? '--color-paper' : '--background');
 		context.fillRect(0, 0, 1, 1);
 		const background = luminance();
-		context.globalAlpha = Number(style.opacity);
+		// D19 strokes must already contain their opaque ground mix.
+		context.clearRect(0, 0, 1, 1);
+		context.globalAlpha = 1;
 		context.fillStyle = style.stroke;
 		context.fillRect(0, 0, 1, 1);
 		const stroke = luminance();
 		return (Math.max(background, stroke) + 0.05) / (Math.min(background, stroke) + 0.05);
 	}, paper);
-}
-
-/**
- * Checks that a dependency arrow fades with its line.
- * The arrow must be the end marker of the line, so the line opacity applies to it.
- * The marker and its path must not set their own opacity.
- */
-export async function dependencyArrowFades(line: Locator): Promise<boolean> {
-	return line.evaluate((element) => {
-		const markerId = getComputedStyle(element).markerEnd.match(/#([^")]+)/)?.[1];
-		const marker = markerId ? document.getElementById(markerId) : null;
-		const arrow = marker?.querySelector('path');
-		if (!(marker instanceof SVGMarkerElement) || !arrow) return false;
-		return [marker, arrow].every((node) => {
-			const style = getComputedStyle(node);
-			return Number(style.opacity) === 1 && Number(style.fillOpacity) === 1;
-		});
-	});
 }
 
 /** Changes the stored plan in localStorage, then reloads the app. */

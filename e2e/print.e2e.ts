@@ -10,7 +10,10 @@ import {
 	expectTokenPaint,
 	todayTagGeometry,
 	choosePrint,
-	dependencyArrowFades,
+	expectNoArrowheads,
+	expectOpaqueMark,
+	expectLineStatus,
+	expectStationStatus,
 	dependencyContrast,
 	formatted,
 	openApp,
@@ -21,7 +24,13 @@ import {
 	row,
 	storedPlan,
 	writeStoredPlan,
-	setTaskStatus
+	setTaskStatus,
+	openLinePlan,
+	expectCoveredCrossing,
+	expectLocalTap,
+	expectJunctionBehindMark,
+	expectCyclePaint,
+	dependencyGeometry
 } from './helpers.ts';
 
 declare global {
@@ -33,6 +42,147 @@ declare global {
 
 const sheets = (page: Page) => page.getByTestId('sheet');
 const menuButton = (page: Page) => page.getByTestId('app-menu');
+
+test('3c paper marks use D27 sizes, opaque status paint and source-local taps on A4 and Letter [AC4,AC7,AC9]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	await row(page, 'Crossing').getByTestId('task-toggle').click();
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await openPreview(page);
+	for (const paper of ['a4', 'letter']) {
+		await page.getByTestId(`paper-${paper}`).click();
+		const first = sheets(page).first();
+		for (const [id, height, dotSize] of [
+			['source', 5, 6],
+			['child-a', 3.5, 4]
+		] as const) {
+			const task = first.locator(`[data-testid="sheet-gantt-row"][data-task-id="${id}"]`);
+			await expect(task).toHaveCSS('height', '18px');
+			await expect(task.locator('[data-gantt-line]')).toHaveCSS('height', `${height}px`);
+			const dot = task.locator('.station-dot').first();
+			await expect(dot).toHaveCSS('width', `${dotSize}px`);
+			const bounds = await task.evaluate((row) => {
+				const mark = row.querySelector('[data-testid="sheet-gantt-bar"]')!.getBoundingClientRect(),
+					dot = row.querySelector('.station-dot')!.getBoundingClientRect();
+				return { top: dot.top - mark.top, bottom: mark.bottom - dot.bottom };
+			});
+			expect(bounds.top).toBeGreaterThanOrEqual(-0.1);
+			expect(bounds.bottom).toBeGreaterThanOrEqual(-0.1);
+		}
+		const point = first.getByTestId('sheet-gantt-point');
+		await expect(point).toHaveAccessibleName(/^Point:/);
+		await expect(point.locator('.station-dot')).toHaveCSS('width', '4px');
+		await expect(point).not.toHaveAttribute('tabindex');
+		const lines = first.getByTestId('sheet-gantt-dependency');
+		await expect(lines.and(page.locator('[data-from="source"]')).first()).toHaveCSS(
+			'stroke-width',
+			'1px'
+		);
+		await expect(lines.and(page.locator('[data-from="child-a"][data-to="child-b"]'))).toHaveCSS(
+			'stroke-width',
+			'0.75px'
+		);
+		const tapMark = first.locator('[data-task-id="tap-source"]').getByTestId('sheet-gantt-bar');
+		const tap = tapMark.getByTestId('sheet-gantt-tap');
+		await expect(tap).toHaveAttribute('data-source', 'tap-source');
+		await expect(tap).toHaveAttribute('aria-hidden', 'true');
+		await expectLocalTap(tapMark, 'tap-source', true);
+		await expect(tap).toHaveCSS('width', '4px');
+		expect(await first.getByTestId('sheet-gantt-junction').count()).toBeGreaterThan(0);
+		await expect(first.getByTestId('sheet-gantt-junction').first()).toHaveCSS('width', '4px');
+		const crossed = first.locator('[data-task-id="crossing"]').getByTestId('sheet-gantt-bar');
+		await expectOpaqueMark(crossed);
+		await expectStationStatus(crossed, 'done', true);
+		await expectLineStatus(crossed, 'done', true);
+		await expectCoveredCrossing(crossed, lines);
+		const child = first.locator('[data-task-id="child-a"]').getByTestId('sheet-gantt-bar');
+		await expectStationStatus(child, 'done', true);
+		await expectLineStatus(child, 'done', true);
+		await expectCoveredCrossing(child, lines);
+		await expectJunctionBehindMark(first.getByTestId('sheet-gantt-junction').first(), crossed);
+		for (const line of await lines.all()) {
+			await expectNoArrowheads(line);
+			await expect(line).toHaveAttribute('data-from', /.+/);
+			await expect(line).toHaveAttribute('data-to', /.+/);
+		}
+		await page.emulateMedia({ media: 'print' });
+		await expectOpaqueMark(crossed);
+		await expectStationStatus(crossed, 'done', true);
+		await page.emulateMedia({ media: 'screen' });
+	}
+});
+
+test('3c paper routes only complete local edges below repeated headers [AC10]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	await addManyTasks(page, 100);
+	await writeStoredPlan(page, (plan) => {
+		// A chain puts complete edges on every fragment and crossing edges at each break.
+		for (let i = 0; i < 100; i++)
+			plan.tasks.find((t: { id: string }) => t.id === `bulk${i}`)!.dependsOn = i
+				? [`bulk${i - 1}`]
+				: [];
+	});
+	await openPreview(page);
+	const fragments = page
+		.getByTestId('sheets')
+		.locator('[data-fragment]')
+		.filter({ has: page.getByTestId('sheet-month-header') });
+	expect(await fragments.count()).toBeGreaterThan(1);
+	const plan = await storedPlan(page);
+	let total = 0;
+	for (const fragment of await fragments.all()) {
+		const ids = await fragment
+			.getByTestId('sheet-gantt-row')
+			.evaluateAll((rows) => rows.map((r) => r.getAttribute('data-task-id')));
+		const expected = plan.tasks.flatMap((task: { id: string; dependsOn: string[] }) =>
+			ids.includes(task.id)
+				? task.dependsOn
+						.filter((id: string) => ids.includes(id))
+						.map((id: string) => `${id}->${task.id}`)
+				: []
+		);
+		const lines = fragment.getByTestId('sheet-gantt-dependency');
+		const keys = await lines.evaluateAll((paths) =>
+			paths.map((p) => `${(p as SVGElement).dataset.from}->${(p as SVGElement).dataset.to}`)
+		);
+		expect(keys.sort()).toEqual(expected.sort());
+		total += keys.length;
+		for (const line of await lines.all()) {
+			const g = await dependencyGeometry(line, true);
+			expect(g.out).not.toBeNull();
+			expect(g.in).not.toBeNull();
+			expect(g.first.x).toBeCloseTo(g.out!.x, 0);
+			expect(g.first.y).toBeCloseTo(g.out!.y, 0);
+			expect(g.last.x).toBeCloseTo(g.in!.x, 0);
+			expect(g.last.y).toBeCloseTo(g.in!.y, 0);
+			const bounds = await line.evaluate((node) => {
+				const path = node as SVGPathElement,
+					box = path.getBBox(),
+					matrix = path.getScreenCTM()!;
+				const top = new DOMPoint(box.x, box.y).matrixTransform(matrix).y;
+				const bottom = new DOMPoint(box.x, box.y + box.height).matrixTransform(matrix).y;
+				const fragment = path.closest('[data-fragment]')!;
+				return {
+					top,
+					bottom,
+					headerBottom: fragment
+						.querySelector('[data-testid="sheet-month-header"]')!
+						.getBoundingClientRect().bottom,
+					lastRowBottom: [...fragment.querySelectorAll('[data-testid="sheet-gantt-row"]')]
+						.at(-1)!
+						.getBoundingClientRect().bottom
+				};
+			});
+			expect(bounds.top).toBeGreaterThanOrEqual(bounds.headerBottom);
+			expect(bounds.bottom).toBeLessThanOrEqual(bounds.lastRowBottom);
+		}
+		await expect(fragment.locator('[data-continuation]')).toHaveCount(0);
+	}
+	expect(total).toBeGreaterThan(90);
+});
 
 test('Preview and printed tables show four status icons and mute done and canceled rows', async ({
 	page
@@ -53,9 +203,16 @@ test('Preview and printed tables show four status icons and mute done and cancel
 		const point = page
 			.getByTestId('gantt-point')
 			.and(page.getByRole('img', { name: new RegExp(`^${title}:`) }));
-		await expect(point).toHaveCSS(
-			'opacity',
-			title === 'Status done' || title === 'Status canceled' ? '0.4' : '1'
+		await expectOpaqueMark(point);
+		await expectStationStatus(
+			point,
+			title === 'Status done'
+				? 'done'
+				: title === 'Status canceled'
+					? 'canceled'
+					: title === 'Status working'
+						? 'in_progress'
+						: 'todo'
 		);
 	}
 	await openPreview(page);
@@ -68,9 +225,17 @@ test('Preview and printed tables show four status icons and mute done and cancel
 			const point = sheets(page)
 				.getByTestId('sheet-gantt-point')
 				.and(page.getByRole('img', { name: new RegExp(`^${title}:`) }));
-			await expect(point).toHaveCSS(
-				'opacity',
-				title === 'Status done' || title === 'Status canceled' ? '0.4' : '1'
+			await expectOpaqueMark(point);
+			await expectStationStatus(
+				point,
+				title === 'Status done'
+					? 'done'
+					: title === 'Status canceled'
+						? 'canceled'
+						: title === 'Status working'
+							? 'in_progress'
+							: 'todo',
+				true
 			);
 			const statusCell = task.locator('td').first();
 			if (title === 'Status canceled') {
@@ -133,7 +298,8 @@ test('Preview and print mute dependency lines from done and canceled sources', a
 	await setTaskStatus(page, row(page, 'Site survey'), 'done');
 	await openPreview(page);
 	await expect.poll(() => dependencyContrast(line, true)).toBeLessThan(normal);
-	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	await expectNoArrowheads(line);
+	await expect(line).toHaveCSS('opacity', '1');
 	await expect(sheets(page)).toHaveCount(sheetCount);
 	const previewContrast = await dependencyContrast(line, true);
 	await page.emulateMedia({ media: 'print' });
@@ -146,11 +312,16 @@ test('Preview and print mute dependency lines from done and canceled sources', a
 	const canceledBar = sheets(page)
 		.getByTestId('sheet-gantt-bar')
 		.and(page.getByRole('img', { name: /^Site survey: .+, canceled$/ }));
-	await expect(canceledBar).toHaveCSS('opacity', '0.4');
+	await expectOpaqueMark(canceledBar);
+	await expectStationStatus(canceledBar, 'canceled', true);
+	await expectLineStatus(canceledBar, 'canceled', true);
 	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
-	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	await expectNoArrowheads(line);
+	await expect(line).toHaveCSS('opacity', '1');
 	await page.emulateMedia({ media: 'print' });
-	await expect(canceledBar).toHaveCSS('opacity', '0.4');
+	await expectOpaqueMark(canceledBar);
+	await expectStationStatus(canceledBar, 'canceled', true);
+	await expectLineStatus(canceledBar, 'canceled', true);
 	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
 });
 
@@ -480,6 +651,49 @@ function pdfPageContent(pdf: Buffer): string[] {
 		const sheet = commands.match(/(?:^|\n)(0 0 [\d.]+ [\d.]+ re\nW\* n\n[\s\S]*)/);
 		expect(sheet, `PDF sheet drawing commands ${id}`).not.toBeNull();
 		return sheet![1];
+	});
+}
+
+for (const source of ['preview', 'direct'] as const) {
+	test(`3c ${source} PDFs retain station, tap and cycle casing paint with backgrounds off [AC6,AC9]`, async ({
+		page
+	}, testInfo) => {
+		await openLinePlan(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((t: { id: string }) => t.id === 'source')!.dependsOn = ['target'];
+		});
+		if (source === 'preview') await openPreview(page);
+		else await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await page.emulateMedia({ media: 'print' });
+		const first = sheets(page).first();
+		const cycles = first
+			.getByTestId('sheet-gantt-dependency')
+			.and(page.locator('[data-cycle="true"]'));
+		await expect(cycles).toHaveCount(2);
+		for (const line of await cycles.all()) await expectCyclePaint(line, true);
+		await expect(first.getByTestId('sheet-gantt-tap')).toHaveCount(1);
+		await expect(first.getByTestId('sheet-gantt-point').locator('.station-dot')).toBeVisible();
+		const count = await sheets(page).count();
+		const withBackgrounds = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+		if (source === 'direct') {
+			await page.emulateMedia({ media: 'screen' });
+			await page.reload();
+			await expect(page.getByTestId('plan-heading')).toBeVisible();
+			await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+			await page.emulateMedia({ media: 'print' });
+		}
+		const withoutBackgrounds = await page.pdf({ preferCSSPageSize: true, printBackground: false });
+		await testInfo.attach(`3c-${source}-backgrounds-off.pdf`, {
+			body: withoutBackgrounds,
+			contentType: 'application/pdf'
+		});
+		const paint = pdfPageContent(withBackgrounds);
+		expect(paint).toHaveLength(count);
+		expect(pdfPageContent(withoutBackgrounds)).toEqual(paint);
+		// Chromium emits the warning red as vector paint. The dotted base and casing must print.
+		expect(paint.join('\n')).toMatch(
+			/(?:0)?\.784[\d]* (?:0)?\.207[\d]* (?:0)?\.176[\d]* (?:rg|RG)/
+		);
 	});
 }
 
