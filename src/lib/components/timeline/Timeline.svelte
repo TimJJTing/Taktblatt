@@ -588,7 +588,7 @@
 										<li class={legendItem}>
 											<button
 												type="button"
-												class={entryButton}
+												class={cn(entryButton, 'tabular-nums')}
 												onclick={() => (milestone = item.milestone)}>{text}</button
 											>
 										</li>
@@ -616,7 +616,10 @@
 											qualifier: formatRangeDisplay(item.start, item.end, locale)
 										})}
 										<li class={legendItem}>
-											<button type="button" class={entryButton} onclick={() => (band = item)}
+											<button
+												type="button"
+												class={cn(entryButton, 'tabular-nums')}
+												onclick={() => (band = item)}
 												>{@render swatch(bandTintVar(item.color))}{text}</button
 											>
 										</li>

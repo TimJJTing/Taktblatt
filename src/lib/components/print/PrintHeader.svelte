@@ -23,7 +23,7 @@
 	<h1 class="line-clamp-2 text-[24px] leading-tight font-semibold text-paper-ink">
 		{nameOf(plan.heading)}
 	</h1>
-	<p class="mt-1 text-[11px] text-paper-ink-2">{range}</p>
+	<p class="mt-1 text-[11px] text-paper-ink-2 tabular-nums">{range}</p>
 	{#if plan.objective}
 		<p class="mt-2 text-[11px] whitespace-pre-wrap text-paper-ink">
 			<span class="font-medium">{m.field_objective()}</span>

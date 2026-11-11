@@ -143,14 +143,14 @@
 			</span>
 			{#if months}
 				<span
-					class="shrink-0 font-normal text-muted-foreground"
+					class="shrink-0 font-normal text-muted-foreground tabular-nums"
 					transition:fade={{ duration: motionDuration(150) }}
 					>{m.parenthetical({ text: months })}</span
 				>
 			{/if}
 		</h3>
 		<span
-			class="ml-auto text-xs whitespace-nowrap text-muted-foreground"
+			class="ml-auto text-xs whitespace-nowrap text-muted-foreground tabular-nums"
 			data-testid="stage-progress"
 		>
 			<span aria-hidden="true">

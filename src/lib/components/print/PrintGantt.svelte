@@ -81,7 +81,7 @@
 					style:left="{tick.x0 * 100}%"
 					style:width="{(tick.x1 - tick.x0) * 100}%"
 				>
-					<span class="truncate">{formatMonth(tick.month, intl)}</span>
+					<span class="truncate tabular-nums">{formatMonth(tick.month, intl)}</span>
 				</div>
 			{/each}
 		</div>

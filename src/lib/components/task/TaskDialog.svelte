@@ -167,7 +167,7 @@
 							<button
 								{...props}
 								type="button"
-								class="rounded-sm px-1.5 py-0.5 text-left hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+								class="rounded-sm px-1.5 py-0.5 text-left tabular-nums hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
 								data-testid="dialog-range"
 							>
 								{#if task.start || task.end}

@@ -608,13 +608,14 @@ Printed work tables use the Status header and the same four status icons in pape
 - When the viewer selects `prefers-reduced-motion`, the app disables motion.
 - Preview and print have no motion.
 
-## 9. Visual language (print)
+## 9. Visual language (screen and print)
 
-- Font: IBM Plex Sans, self-hosted.
-- Ink `#1A1D23`. Secondary text `#3A3F4A` and `#5A6070`. Rules `#C9CDD4` and `#E1E4E8`. Neutral fill `#EEF0F3`.
+- Screen themes use a white ground and `#1A1D23` ink in light mode. Dark mode uses `#13161A` ground and `#E7E9EC` ink. Focus rings use the ink color. The shared theme colors are in `src/lib/theme-colors.ts`. `src/lib/theme.ts` exports the same values for browser use.
+- Font: Source Sans 3, self-hosted. Dates, counts, and targets use tabular figures.
+- Ink `#1A1D23`. Secondary text `#505663` and `#5A6070`. Rules `#C9CDD4` and `#DDE0E5`. Neutral fill `#EEF0F3`.
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
-- Cycle lines and arrowheads use `--color-paper-warning`, with value `#C2453A`. Its contrast against white paper is 4.99:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token.
-- Stage palette: 8 colors. Band palette: 4 light tints. All pass WCAG AA against their background. Each has a dark-mode variant for the screen.
+- Cycle lines and arrowheads use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token.
+- Stage palette: 8 colors. Each light value has a contrast of at least 4.5:1 against white. Each dark value has a contrast of at least 6:1 against the dark ground (`#13161A`). Stage badge text is white in light mode and `#13161A` in dark mode. Band palette: 4 light tints. Dark band tints use the dark stage values at 14% opacity. Gray uses white at 7% opacity.
 
 ## Future: Kanban
 

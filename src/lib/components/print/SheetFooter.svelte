@@ -27,7 +27,7 @@
 	class="flex items-baseline justify-between gap-4 border-t border-paper-rule pt-1.5 text-[9px] text-paper-ink-3"
 	data-testid="sheet-footer"
 >
-	<span class="min-w-0 break-words" data-testid="sheet-footer-left">{left}</span>
+	<span class="min-w-0 break-words tabular-nums" data-testid="sheet-footer-left">{left}</span>
 	<span class="flex shrink-0 items-baseline gap-2">
 		{#if footer.right}<span data-testid="sheet-footer-right">{footer.right}</span>{/if}
 		<span class="tabular-nums" data-testid="page-number">{m.sheet_page({ number, total })}</span>
