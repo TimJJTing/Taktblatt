@@ -32,6 +32,37 @@ function segments(ps: XY[]) {
 	return ps.slice(1).map((b, i) => ({ a: ps[i], b, dx: b.x - ps[i].x, dy: b.y - ps[i].y }));
 }
 
+function trunkOverlaps(edges: EdgeGeom[], m = metrics) {
+	const horizontal: string[][] = [];
+	const vertical: string[][] = [];
+	for (const [i, first] of edges.entries()) {
+		for (const second of edges.slice(i + 1)) {
+			if (first.trunk === second.trunk) continue;
+			const a = points(first, m);
+			const b = points(second, m);
+			for (const runA of segments(a).slice(1, 3)) {
+				for (const runB of segments(b).slice(1, 3)) {
+					if (
+						runA.dy === 0 &&
+						runB.dy === 0 &&
+						runA.a.y === runB.a.y &&
+						Math.max(Math.min(runA.a.x, runA.b.x), Math.min(runB.a.x, runB.b.x)) <
+							Math.min(Math.max(runA.a.x, runA.b.x), Math.max(runB.a.x, runB.b.x))
+					)
+						horizontal.push([first.key, second.key]);
+				}
+			}
+			if (
+				a[1].x === b[1].x &&
+				Math.max(Math.min(a[1].y, a[2].y), Math.min(b[1].y, b[2].y)) <
+					Math.min(Math.max(a[1].y, a[2].y), Math.max(b[1].y, b[2].y))
+			)
+				vertical.push([first.key, second.key]);
+		}
+	}
+	return { horizontal, vertical };
+}
+
 function validGeometry(e: EdgeGeom, m = metrics) {
 	expect(e.points).toHaveLength(6);
 	const nonzero = segments(points(e, m)).filter(({ dx, dy }) => dx !== 0 || dy !== 0);
@@ -63,6 +94,150 @@ function incoming(count: number) {
 }
 
 describe('routeTracks (Appendix A)', () => {
+	it('reserves a shared boundary by its physical y position from both directions', () => {
+		const tracks = [
+			track('a', 0, 20, 100),
+			track('b', 1, 80, 150),
+			track('c', 7, 20, 100),
+			track('d', 8, 80, 150),
+			track('lower-a', 4, 400, 470),
+			track('lower-b', 4, 400, 470),
+			track('upper-c', 3, 300, 370),
+			track('upper-d', 3, 300, 370)
+		];
+		const edges = [
+			edge('a', 'lower-a'),
+			edge('b', 'lower-b'),
+			edge('c', 'upper-c'),
+			edge('d', 'upper-d')
+		];
+		const result = routed(tracks, edges);
+		const collisions = trunkOverlaps(result.edges).horizontal;
+		expect(collisions.length).toBeGreaterThan(0);
+		for (const pair of collisions) {
+			expect(result.debug.some((d) => pair.includes(d.key) && d.overflow)).toBe(true);
+		}
+		expect(routed([...tracks].reverse(), [...edges].reverse())).toEqual(result);
+		for (const e of result.edges) expect(e.points).toHaveLength(6);
+	});
+
+	it('reserves a lane for a short same-row backward hook', () => {
+		const result = routed(
+			[
+				track('short', 4, 70, 103),
+				track('long', 6, 110, 143),
+				track('short-target', 4, 94, 160),
+				track('long-target', 4, 94, 160)
+			],
+			[edge('short', 'short-target'), edge('long', 'long-target')]
+		);
+		expect(trunkOverlaps(result.edges).horizontal).toEqual([]);
+		expect(result.debug.find((d) => d.key === 'short->short-target')).toMatchObject({
+			variant: 'hook',
+			lane: 1,
+			overflow: false
+		});
+	});
+
+	it('reserves the full drawn hook extent and the union of mixed-source branch runs', () => {
+		const full = routed(
+			[
+				track('right', 0, 150, 200),
+				track('left', 1, 40, 97),
+				track('right-target', 4, 100, 170),
+				track('left-target', 4, 77, 140)
+			],
+			[edge('right', 'right-target'), edge('left', 'left-target')]
+		);
+		expect.soft(trunkOverlaps(full.edges).horizontal).toEqual([]);
+		const mixed = routed(
+			[
+				track('same-row', 4, 70, 108),
+				track('below', 6, 70, 103),
+				track('other', 7, 50, 97),
+				track('mixed-target', 4, 100, 170),
+				track('other-target', 4, 80, 140)
+			],
+			[
+				edge('same-row', 'mixed-target'),
+				edge('below', 'mixed-target'),
+				edge('other', 'other-target')
+			]
+		);
+		expect(trunkOverlaps(mixed.edges).horizontal).toEqual([]);
+		expect(mixed.debug.find((d) => d.key === 'same-row->mixed-target')).toMatchObject({
+			variant: 'hook',
+			lane: 1,
+			overflow: false
+		});
+		expect(mixed.debug.find((d) => d.key === 'below->mixed-target')!.variant).toBe('direct');
+	});
+
+	it('does not reserve a gutter lane for a straight same-row forward edge', () => {
+		const result = routed(
+			[
+				track('straight', 4, 20, 100),
+				track('a', 6, 150, 200),
+				track('b', 7, 250, 300),
+				track('straight-target', 4, 400, 470),
+				track('a-target', 4, 400, 470),
+				track('b-target', 4, 400, 470)
+			],
+			[edge('straight', 'straight-target'), edge('a', 'a-target'), edge('b', 'b-target')]
+		);
+		expect(result.debug.filter((d) => d.overflow)).toEqual([]);
+		expect(trunkOverlaps(result.edges).horizontal).toEqual([]);
+		expect(result.debug.find((d) => d.key === 'straight->straight-target')).toMatchObject({
+			variant: 'direct',
+			lane: 0,
+			overflow: false
+		});
+	});
+
+	it('reports lane zero when a boundary candidate becomes a direct route', () => {
+		for (const delta of [18, -12]) {
+			const target = track('short-target', 4, 420, 490);
+			const tracks = [
+				track('long', 0, 20, delta > 0 ? 70 : 500),
+				track('short', 1, 350, 420 - delta),
+				target,
+				track('long-target', 4, 420, 490)
+			];
+			const edges = [edge('long', 'long-target'), edge('short', 'short-target')];
+			const result = routed(tracks, edges);
+			expect.soft(result.debug.find((d) => d.key === 'short->short-target')).toMatchObject({
+				variant: 'direct',
+				lane: 0,
+				overflow: false
+			});
+			const ps = points(result.edges.find((e) => e.from === 'short')!);
+			expect(ps).toHaveLength(6);
+			expect(ps[2]).toEqual({ x: target.inX - delta, y: target.center - Math.abs(delta) });
+			expect(ps.slice(2, 5)).toEqual([ps[2], ps[2], ps[2]]);
+			expect(routed([...tracks].reverse(), [...edges].reverse())).toEqual(result);
+		}
+	});
+
+	it('keeps different trunk risers apart when both source bars end at the right edge', () => {
+		const result = routed(
+			[
+				track('a', 0, 530, 600),
+				track('b', 1, 530, 600),
+				track('a-target', 5, 300, 370),
+				track('b-target', 6, 400, 470)
+			],
+			[edge('a', 'a-target'), edge('b', 'b-target')]
+		);
+		for (const e of result.edges) validGeometry(e);
+		expect(trunkOverlaps(result.edges).vertical).toEqual([]);
+		const xs = result.edges.map((e) => points(e)[1].x);
+		expect(Math.abs(xs[0] - xs[1])).toBeGreaterThanOrEqual(metrics.pitch);
+		for (const e of result.edges) {
+			expect(e.points).toHaveLength(6);
+			for (const p of points(e)) expect(p.x).toBeLessThanOrEqual(metrics.width);
+		}
+	});
+
 	it('keeps same-row routes inside the body with exact ports and legal bends', () => {
 		const m = SCREEN_ROUTE_METRICS(600, 2);
 		const tracks = [track('a', 0, 20, 103, m), track('b', 0, 118, 180, m)];

@@ -59,8 +59,10 @@ interface Branch {
 	key: string;
 	trunk: Trunk;
 	target: Track;
+	sources: Track[];
 	dir: number;
 	lane: number;
+	distance: number;
 	overflow: boolean;
 }
 
@@ -69,13 +71,44 @@ const point = (x: number, y: number): Pt => ({ x: { f: 0, px: x }, y: { f: 0, px
 const overlaps = (a: number, b: number, c: number, d: number) =>
 	Math.max(Math.min(a, b), Math.min(c, d)) < Math.min(Math.max(a, b), Math.max(c, d));
 
+function classify(
+	source: Track,
+	target: Track,
+	trunkX: number,
+	distance: number,
+	minSeg: number
+): RouteDebug['variant'] {
+	if (source.center === target.center && target.inX >= source.outX) return 'direct';
+	const delta = target.inX - trunkX;
+	if (source.center === target.center || delta < -distance) return 'hook';
+	return delta >= distance + minSeg ? 'forward' : 'direct';
+}
+
+function branchRun(branch: Branch, distance: number, m: RouteMetrics): [number, number] | null {
+	const { trunk, target } = branch;
+	let run: [number, number] | null = null;
+	for (const source of branch.sources) {
+		const variant = classify(source, target, trunk.x, distance, m.minSeg);
+		if (variant === 'direct') continue;
+		const end = variant === 'hook' ? Math.max(0, target.inX - m.stub) : target.inX - distance;
+		run = [
+			Math.min(run?.[0] ?? trunk.x, trunk.x, end),
+			Math.max(run?.[1] ?? trunk.x, trunk.x, end)
+		];
+	}
+	return run;
+}
+
 function chooseSlots(trunks: Trunk[], tracks: readonly Track[], m: RouteMetrics) {
 	const placed: Trunk[] = [];
 	for (const trunk of trunks) {
 		const out = Math.max(...trunk.sources.map((source) => source.outX));
 		let best = Infinity;
 		for (let slot = 0; slot < m.slots; slot++) {
-			const x = Math.min(m.width - 1, out + m.stub + slot * m.pitch);
+			const x = Math.max(
+				0,
+				Math.min(out + m.stub + slot * m.pitch, m.width - 1 - (m.slots - 1 - slot) * m.pitch)
+			);
 			const parallel = placed.filter(
 				(other) =>
 					Math.abs(x - other.x) < m.pitch &&
@@ -100,34 +133,41 @@ function chooseSlots(trunks: Trunk[], tracks: readonly Track[], m: RouteMetrics)
 }
 
 function chooseLanes(branches: Branch[], m: RouteMetrics) {
-	const gutters = new Map<string, Branch[]>();
+	const reservations = new Map<number, [number, number][]>();
+	const near = m.rowHeight / 2 - m.pitch;
+	branches.sort(
+		(a, b) =>
+			Math.abs(b.trunk.x - b.target.inX) - Math.abs(a.trunk.x - a.target.inX) ||
+			compare(a.key, b.key)
+	);
 	for (const branch of branches) {
-		const key = JSON.stringify([branch.target.center, branch.dir]);
-		const gutter = gutters.get(key) ?? [];
-		gutter.push(branch);
-		gutters.set(key, gutter);
-	}
-	for (const gutter of gutters.values()) {
-		gutter.sort(
-			(a, b) =>
-				Math.abs(b.trunk.x - b.target.inX) - Math.abs(a.trunk.x - a.target.inX) ||
-				compare(a.key, b.key)
-		);
-		const lanes: Branch[][] = [[], []];
-		for (const branch of gutter) {
+		const reserve = (distance: number, run: [number, number]) => {
+			const y = Math.round((branch.target.center - branch.dir * distance) * 1000);
+			const runs = reservations.get(y) ?? [];
+			runs.push(run);
+			reservations.set(y, runs);
+		};
+		let assigned = false;
+		for (let lane = 0; lane < 2; lane++) {
+			const distance = near + lane * m.pitch;
+			const run = branchRun(branch, distance, m);
 			// A direct entry has no horizontal gutter run to reserve.
-			const delta = branch.target.inX - branch.trunk.x;
-			const near = m.rowHeight / 2 - m.pitch;
-			if (delta >= -near && delta < near + m.minSeg) continue;
-			const free = lanes.findIndex((lane) =>
-				lane.every(
-					(other) => !overlaps(branch.trunk.x, branch.target.inX, other.trunk.x, other.target.inX)
-				)
-			);
-			branch.lane = free < 0 ? 0 : free;
-			branch.overflow = free < 0;
-			lanes[branch.lane].push(branch);
+			if (!run) {
+				branch.distance = distance;
+				assigned = true;
+				break;
+			}
+			const y = Math.round((branch.target.center - branch.dir * distance) * 1000);
+			if ((reservations.get(y) ?? []).some((other) => overlaps(...run, ...other))) continue;
+			branch.lane = lane;
+			branch.distance = distance;
+			reserve(distance, run);
+			assigned = true;
+			break;
 		}
+		if (assigned) continue;
+		branch.overflow = true;
+		reserve(near, branchRun(branch, near, m)!);
 	}
 }
 
@@ -189,9 +229,19 @@ export function routeTracks(
 			const key = JSON.stringify([trunk.key, target.id, dir]);
 			let branch = branches.get(key);
 			if (!branch) {
-				branch = { key, trunk, target, dir, lane: 0, overflow: false };
+				branch = {
+					key,
+					trunk,
+					target,
+					sources: [],
+					dir,
+					lane: 0,
+					distance: m.rowHeight / 2 - m.pitch,
+					overflow: false
+				};
 				branches.set(key, branch);
 			}
+			branch.sources.push(source);
 			edgeBranches.set(edge.key, branch);
 		}
 	}
@@ -203,18 +253,16 @@ export function routeTracks(
 		const branch = edgeBranches.get(edge.key)!;
 		const { trunk, target, dir } = branch;
 		const delta = target.inX - trunk.x;
-		const distance = m.rowHeight / 2 - m.pitch + branch.lane * m.pitch;
+		const distance = branch.distance;
 		const laneY = target.center - dir * distance;
-		let variant: RouteDebug['variant'];
+		const variant = classify(source, target, trunk.x, distance, m.minSeg);
 		let ps: Pt[];
 		const start = point(source.outX, source.center);
 		const riser = point(trunk.x, source.center);
 		const end = point(target.inX, target.center);
 		if (source.center === target.center && target.inX >= source.outX) {
-			variant = 'direct';
 			ps = [start, start, start, start, start, end];
-		} else if (source.center === target.center || delta < -distance) {
-			variant = 'hook';
+		} else if (variant === 'hook') {
 			const entryX = Math.max(0, target.inX - m.stub);
 			ps = [
 				start,
@@ -224,12 +272,10 @@ export function routeTracks(
 				point(entryX, target.center),
 				end
 			];
-		} else if (delta >= distance + m.minSeg) {
-			variant = 'forward';
+		} else if (variant === 'forward') {
 			const turn = point(target.inX - distance, laneY);
 			ps = [start, riser, point(trunk.x, laneY), turn, turn, end];
 		} else {
-			variant = 'direct';
 			const turn = point(trunk.x, target.center - dir * Math.abs(delta));
 			ps = [start, riser, turn, turn, turn, end];
 		}
@@ -238,8 +284,8 @@ export function routeTracks(
 			key: edge.key,
 			variant,
 			slot: trunk.slot,
-			lane: branch.lane,
-			overflow: branch.overflow
+			lane: variant === 'direct' ? 0 : branch.lane,
+			overflow: variant === 'direct' ? false : branch.overflow
 		});
 		const positions = riserPoints.get(trunk.key) ?? { joins: [], ends: [] };
 		positions.joins.push(source.center);

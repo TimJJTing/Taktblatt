@@ -636,6 +636,10 @@ The shared scene layer keeps task identity separate from view geometry. Its laye
 
 Forward ports on the same row use a straight route. A hook at the left chart edge can omit its final stub to stay inside the chart.
 
+Riser slots keep their pitch spacing near the right chart edge. A riser can lie left of the out port inside the source bar. Its first segment runs backward under the bar because connectors are drawn below bars.
+
+The shared scene layer reserves horizontal runs at their physical y position across both target sides. It tries the near lane, then the boundary lane. Each candidate uses the route type that it will draw. Direct entries reserve no lane and report lane 0 without overflow. Hooks reserve the full run to the entry stub. A branch reserves the union of the runs of all its sources. If both lanes have conflicts, the branch reuses the near lane and reports overflow.
+
 The transient editing state reserves `routeId` for route focus. The pure dependency-route helpers follow effective dependencies, including inherited dependencies, and stop on cycles. They exclude the focus task from both result sets. An edge belongs to the route when both ends are upstream of the focus or both ends are downstream, including the focus on either side. The controls that set route focus are added in slice 4.
 
 ## Future: Kanban

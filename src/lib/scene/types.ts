@@ -70,16 +70,22 @@ export interface Track {
 	outX: number;
 }
 
+/** The router reads width, rowHeight, stub, pitch, minSeg, endZone and slots. */
 export interface RouteMetrics {
 	width: number;
+	/** Adapter input: the number of body rows. */
 	rows: number;
+	/** Adapter input: the body offset in pixels. */
 	top: number;
 	rowHeight: number;
+	/** Adapter input: half the bar height in pixels. */
 	barHalf: number;
+	/** Adapter input: the port dot radius in pixels. */
 	dotR: number;
 	stub: number;
 	pitch: number;
 	minSeg: number;
+	/** Required bar clearance. Tests check this invariant. */
 	clearance: number;
 	endZone: number;
 	slots: number;

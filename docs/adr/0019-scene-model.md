@@ -28,8 +28,10 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
   - The variants are `forward`, `direct` and `hook`. Segments are horizontal, vertical or exactly 45°. A 45° segment occurs only as the last segment into a start dot.
   - A trunk is the set of sources with an identical target set. The members of a trunk share one riser. Edges that share only one target do not merge.
   - Each gutter has lanes. Each riser has a slot. A fixed cost function selects the slot and the lane.
+  - Reserve horizontal runs by their physical y position across both target sides. Try the near lane, then the boundary lane. Check each candidate with the same route classifier used to draw the edge. A direct entry reserves no lane and reports lane 0 without overflow. A hook reserves its full run to the entry stub. A branch reserves the union of the runs of all its sources. If both lanes have conflicts, reuse the near lane and report overflow.
   - The port rule shows the direction: a line leaves an end dot and arrives at a start dot.
 - Exact ports take precedence over the usual minimum segment length for short or chart-edge segments. Aligned ports can enter vertically. Forward ports on the same row use a straight route. A hook at the left chart edge can omit its final stub, so the route stays inside the chart.
+- Near the right chart edge, a riser can lie left of the out port inside the source bar; its first segment runs backward under the bar because connectors are drawn below bars.
 - Routing is pure and deterministic. Sort keys are intrinsic (span, row, id). The output does not depend on the input order or on an earlier result. There is no hysteresis. Thus undo and redo give the same picture, print equals the screen, and an unrelated edit does not move a line.
 - Fields that only tests need (`variant`, `slot`, `lane`, `overflow`) stay on a router result type. They are not part of `EdgeGeom`.
 
