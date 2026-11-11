@@ -338,7 +338,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
   - Every target in a bottom sheet is at least 44 px high.
 - The default theme is **System**. It follows changes to the system theme while the app is open. **Light** and **Dark** override the system theme.
 - A theme change applies at once. It does not reload the page, change plan data or clear the undo history. The app saves the choice in this browser. It restores the choice after a reload, also offline. An import does not change it.
-- Preview sheets and printed sheets are always light. The Preview dialog controls use the screen theme.
+- Preview sheets and printed sheets are always light. They use the same line, station dot, milestone and stage badge forms as the workspace. Refer to sections 5.4 and 9. The Preview dialog controls use the screen theme.
 - The browser and PWA theme-color metadata follows the resolved screen theme, including an explicit light or dark choice.
 - A startup script in the page shell applies the saved theme and the theme-color metadata before the first paint. The app does not show the wrong theme while it starts. If the browser blocks storage, the script uses **System**.
 - The Menu button shows its name in a tooltip, as the other header buttons do.
@@ -363,26 +363,46 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 ### 5.4 Timeline (Gantt)
 
 - One row for each task. The rows use the same data as the table.
-- A parent row has a chevron. Expanded rows show the subtasks as thinner, lighter bars.
-- A task needs a **valid range** (start and end set, start ≤ end) to show a bar.
-- A task with only one date shows a point marker at that date.
-- A task with no dates shows the title and a muted "No dates" cue.
-- A task with a start after its end shows a muted "Start is after end" cue. It has no bar.
-- The app clips a bar outside the window at the edge. The clipped edge has a mark.
-- A task fully outside the window has no bar. A chevron at the near edge shows the side.
-- Only tasks with effective status `done` or `canceled` have a muted bar and a struck-through label. Bars and points use 40% opacity. Tasks with status `todo` or `in_progress` keep their normal appearance. This rule also applies in Preview and print.
-- The accessible name of a bar or point adds "done", "in progress" or "canceled" for that status. It adds no status text for `todo`.
-- Bars are read-only. You edit dates in the table or in the task dialog.
-- **Labels:** click a label to scroll the Work plan to its table row. The row flashes one time. With tabs, a click first selects the Work plan tab when the Overview tab shows. You cannot edit a label in the Gantt.
-- **Linked highlight:** hover or focus on a table row highlights its bar. Hover or focus on a bar highlights its row. While the Timeline section is pinned (always with tabs), the app scrolls the chart to show the bar.
-- **Today line:** a dashed line with a "Today" label, behind the bars. It uses the local date of the viewer. The app hides it when the date is outside the range.
-- **Dependency lines:** thin lines behind the bars. No lines go to or from a task without a drawn range or point. Each visible row draws its own stored dependencies. A collapsed parent draws only its own dependencies. Hidden legacy subtask dependencies do not draw lines. A dependency on a hidden subtask connects to its parent bar. The app merges duplicate lines. The lines move with an animation when you expand or collapse. Lines from a done or canceled row use 40% opacity, the same as done and canceled bars. This also applies in Preview and print. For a parent row, the app uses its derived status. A line is red at full opacity when any effective edge of its stored dependencies is part of a cycle. This rule includes inherited edges and merged duplicate lines. The arrowhead has the same color. Red overrides the muted source style in the workspace, Preview and print. Lines are decorative. The dependency dialog gives the text alternative.
+- A parent row has a chevron. Expanded rows show the subtasks as thinner, lighter lines.
+- A task needs a **valid range** (start and end set, start ≤ end) to show a line. A top-level line is 8 px thick. A subtask line is 6 px thick and uses the lighter subtask color. Unclipped ends are fully rounded.
+- The visible line extent equals the visible date extent. Station dots stay inside this horizontal extent. A dot can stand taller than its line.
+- **Station dots:** a bar has a dot at each visible, unclipped end. The ground-filled hole is 6 px across on a top-level screen line and 4 px across on a subtask screen line. A 1 px inset leaves the stage-colored line as the ring.
+- The ground is white in light mode and `#13161A` in dark mode. Paper uses white. The effective task status sets the fill: ring for `todo`, half filled for `in_progress`, full-strength solid for `done`, and a 40 % color mix for `canceled`.
+- A bar shorter than two station dots keeps its date width and shows one centered dot. The dot can shrink to fit. Its incoming port is the left edge of the dot. Its outgoing port is the right edge.
+- A clipped side has no dot and takes priority over the single-dot form. Its dependency port is the window edge. The cut is flat, with no jagged mark.
+- A task with only one date shows one station dot at the center of that day. The screen dot has an outer diameter of 10 px. Its incoming and outgoing ports are its left and right edges.
+- A task with no dates shows the title and a muted "No dates" cue. A start after the end shows a muted "Start is after end" cue, with no line.
+- A task fully outside the window has no line. A chevron at the near edge shows the side.
+- **Finished tasks:** done and canceled lines mix 40 % of the line color with the ground. Their labels are struck through. A done dot stays solid at full strength. A canceled dot uses a 40 % mix with the ground.
+- All task marks stay opaque, so connectors do not show through them. Todo and in-progress tasks keep their normal appearance. The same status treatment applies in Preview and print.
+- The accessible name of a line or point adds "done", "in progress" or "canceled" for that status. It adds no status text for `todo`. Focus outlines enclose the complete mark, including any dot taller than its line.
+- Lines and points are read-only. Edit dates in the table or task dialog. Hover and keyboard focus show hints.
+- **Labels:** click a label to scroll the Work plan to its table row. The row flashes one time. With tabs, a click first selects Work plan if Overview shows. Labels cannot be edited in the Gantt.
+- **Linked highlight:** hover or focus on a table row highlights its line. Hover or focus on a line highlights its row. Keep the label highlight. The timeline area has no highlight wash. A pinned Timeline scrolls the chart to show the line.
+- **Today line:** a 1 px dashed line in ink at 60 % strength lies behind connectors. It is never dimmed. Its dark tag says "Today" in the UI language.
+- The tag stays in the milestone row. If a milestone is within the tag width to the right of the line, the tag flips left. Paper shows the milestone row and tag only on the first Gantt fragment.
+- The workspace Today line uses the viewer's local date. An out-of-range date hides the line and tag. Paper uses the footer date, or today when it is empty.
+- **Dependency connectors:** ordinary top-level connectors are 2 px thick in secondary ink. Connectors between subtasks are 1.5 px. There are no arrowheads. A connector leaves the predecessor end dot and enters the dependent start dot. Clipped and point ports follow the rules above.
+- No connector goes to or from a task without a drawn range or point. Each visible row draws its own stored dependencies. A collapsed parent draws only its own dependencies. Hidden legacy subtask dependencies do not draw lines.
+- A dependency on a hidden subtask connects to its parent line. Duplicate lines merge. Sources with the same complete target set share a trunk. Partial target overlap does not merge trunks.
+- Settled bends are 90° or 45°. Only the final entry to a start dot can be diagonal. Aligned ports can enter vertically. Backward routes use gutters and avoid horizontal runs through task lines.
+- Routes stay below the month header and milestone row. A third gutter lane can enter the neighboring row band if it keeps at least 5 px screen clearance or 3 px paper clearance from a line edge.
+- Three overlapping runs use distinct lanes before overflow. A fourth can overflow. Backward hooks try the boundary lane first. While it is free, their horizontal runs stay at least the line half-height plus 8 px from screen row centers, or plus 5 px on paper.
+- Place risers clear of another trunk's final diagonal when a free slot exists. Reserve the target approach area during placement.
+- **Junctions:** station dots mark task attachments. Separate ground-filled rings mark real trunk junctions. Their outer diameter is 6 px on screen and 4 px on paper. Ordinary junctions stay below task lines.
+- An ordinary junction stays at least the port radius plus junction radius plus 2 px from every port. A trunk with a source-row junction uses at least the second riser slot. Keep one ring per continuing branch when it meets this clearance.
+- A tap marks where a clamped riser leaves from under its source line. It is exempt from ordinary port clearance. The tap stays with the source row, above its line and below its dots. It is decorative and shows only inside the timeline area.
+- **Satisfied connectors:** a line from a done or canceled source uses a 40 % mix of secondary ink with the ground. A parent uses its derived status. Satisfied connectors paint before open connectors. Changing status keeps each connector's identity and position.
+- **Cycle connectors:** if any effective edge of a stored dependency is in a cycle, its connector uses the full warning color. This includes inherited edges and merged duplicate lines. Warning paint overrides the satisfied-source style on screen and paper.
+- A cycle connector is 2 px thick, with round caps, a 1 px dash and a 4 px gap. A 4 px ground-colored casing lies directly below it. The visible connector itself keeps the warning color and dotted form.
+- Row and range changes move lines, dots, connectors and rings together. A second change continues from their current positions. A width-only change applies the new connector routes at once. Undo and redo restore the same routes. A distant unrelated edit does not move an existing route.
+- Connectors and junctions are decorative. The dependency dialog gives their text alternative. In forced colors, task lines, dot fill forms, junctions and focus outlines remain visible.
 - **Bands:** any number. Each band has a title, a range and a tint. Bands have a transparent tint, so you can see each band where their ranges overlap. The legend shows "Title (start – end)". A "+" at the end of the legend opens a small dialog (title, range, tint). Click a band or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
-- **Milestones:** a symbol on the milestone row. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
+- **Milestones:** an ink symbol with its M1, M2, … label on the milestone row. The default is an ink interchange ring, 14 px across with a 2.5 px stroke. The default option is named "Default" in the UI language and shows the ring preview. Existing default milestones keep their identity. The other symbol choices keep their shapes and use ink. The legend shows "M1 Title (date)". A "+" after the legend opens a small dialog (title, description, date, symbol). Click a milestone or its legend entry to edit it. The dialog has **Delete…**, with a confirmation.
 - **Milestone and band dialogs:** an outside click saves an edit. Esc and **Cancel** discard the changes. An outside click on a new entry does not add it.
-- **Tint and symbol selects:** each option and the selected value show a preview before the name. The tint preview is a swatch with a border. It has the same fill as a band on the screen. The symbol preview is the filled symbol, as on the Gantt. The preview is decorative. Screen readers read only the name.
-- **Milestone symbols:** diamond, flag, star, circle, triangle, square, hexagon, pentagon, map pin, bookmark and heart, in this order.
-- **Stage legend:** the stage colors and titles.
+- **Tint and symbol selects:** each option and the selected value show a preview before the name. The tint preview is a swatch with a border. It has the same fill as a band on the screen. The symbol preview uses the same form as the Gantt: a ring for the default and the selected shape for another symbol. The preview is decorative. Screen readers read only the name.
+- **Milestone choices:** the default ring, then flag, star, circle, triangle, square, hexagon, pentagon, map pin, bookmark and heart, in this order. The stored default choice keeps its identity when its display changes.
+- **Stage legend:** stage badges S1, S2, … and stage titles. Each badge has the stage-color fill, a 4 px corner radius and the text color of section 9.1. The legends in split view, the tabs rail and the sheets use the same badge form.
 - **Legend group (split view):** one Legends button beside the Timeline heading shows or hides Stages, Milestones and Bands together. It works with the keyboard and announces its expanded state.
   - The app keeps the collapsed state in this browser after a reload. An explicit stored value takes priority. Older viewer data without this setting starts with the legends collapsed only when the Timeline section is pinned. Refer to section 4.4. After this initial default, pin and unpin do not change the legend setting. It does not change plan data or undo history.
   - The three rows have the same 32 px minimum height and 12 px vertical gap. Long entries can wrap and increase the row height.
@@ -441,14 +461,15 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 
 ### 5.6 Work plan
 
-- **Stage header:** a color swatch (a picker), "Stage N · Title (months)" and "x / y done · z in progress". Hide the in-progress part when z is 0. Animate both counts. Use the same text on printed sheets. Keep the word order and punctuation in translation messages. Click the title to edit it. When the header is too wide for the screen, the progress and the stage menu move to a second line.
+- **Stage header:** a stage badge S1, S2, …, the color picker, "Stage N · Title (months)" and "x / y done · z in progress". The badge uses the same form as the stage legend. A 4 px stage-color rule sits below the heading. At its start is a decorative ground-filled stage-color ring, with radius 3 px on screen and 2 px on paper. The ring has no task status and is hidden from assistive technology. The printed work plan uses the same badge and rule forms. Hide the in-progress part when z is 0. Animate both counts. Use the same text on printed sheets. Keep the word order and punctuation in translation messages. Click the title to edit it. When the header is too wide for the screen, the progress and the stage menu move to a second line.
 - **Sticky stage headers:** while a stage scrolls, its header stays at the top of the Work plan region: the top of the Work plan pane in split view, or below a pinned Timeline section with tabs. The header stays within its stage. It scrolls out when the stage ends.
   - The app header and a pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
-  - From a stage width of 640 px, the table column headers and their color band stay below the stage header. Their offset uses the current stage header height.
-  - Below a stage width of 640 px, the separate color band stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
+  - The 4 px stage rule replaces the old color band. From a stage width of 640 px, the table column headers and rule stay below the stage header. Their offset uses the current stage header height.
+  - Below a stage width of 640 px, the separate 4 px rule stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
   - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.
   - A jump from a pinned Timeline label shows the task below its stage header and any sticky table column headers.
   - Keyboard focus on a task control clears the stage header and any sticky table column headers.
+  - Sticky offsets, focus offsets and label jumps include the full 4 px stage rule. The rule and its start dot do not cover task controls.
   - Preview and printed sheets keep their existing headers, content and pagination. Sticky workspace headers do not appear on sheets.
 - **Color picker:** a curated palette of 8 colors. The picker shows a warning when two stages have similar colors. A new stage gets the next unused color.
 - **Stage order:** a drag handle (it also works with the keyboard), and **Move up** and **Move down** in the stage menu.
@@ -578,7 +599,7 @@ The app shows its own overlay scrollbars. They look and work the same in all bro
 Printed work tables use the Status header and the same four status icons in paper ink. Each icon has screen-reader text for its status. Only done and canceled rows are muted. Stage progress uses the same text as the workspace.
 
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.
-- Print keeps the fills of task bars, task points, bands and legend swatches when background graphics are off in the print dialog. Dependency lines connect to the same visible task marks as in Preview.
+- Print keeps the fills of task lines, station dots, bands and stage badges when background graphics are off in the print dialog. Dependency lines connect to the same visible task marks as in Preview.
 - The sheets use their own print blocks in `src/lib/components/print/`. The print blocks read the same store and the same domain helpers as the workspace. Refer to [ADR 8](adr/0008-print-blocks.md).
 - **Menu → Print…** opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the Menu button. The workspace behind it is inert. No control in the app header or in the menus opens the print dialog directly. The print dialog opens from the **Print** button of the preview or from **Cmd/Ctrl+P**.
 - The preview has a **paper size** control (A4 or US Letter) and a **Print** button. The paper size is a plan setting (`paper`). The default is A4. A change is one undo step.
@@ -591,7 +612,7 @@ Printed work tables use the Status header and the same four status icons in pape
   - Each page has the footer with "n / N".
   - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
 - The labels and dates on the sheets use the UI language.
-- A dependency line shows on a sheet only when both of its rows are on that sheet.
+- A dependency with both rows on a sheet connects their local ports. A dependency that crosses a sheet break has paired exit and entry stubs at the Gantt fragment edges. Each stub is 4 px long with a 2 px cross tick. Both stubs use the predecessor riser's horizontal position. Fragments between the endpoints show a pass-through at that position. Stubs are solid with a cross tick; cycle paths stay dotted. The sheet break does not remove the dependency. Routes stay within the fragment body and clear of the repeated month header. Refer to section 9.1 for the paper sizes.
 - Print (**Cmd/Ctrl+P** or the **Print** button of the preview) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, Cmd/Ctrl+P renders the sheets first and then opens the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
@@ -602,6 +623,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - Elements that come in or go out use Svelte transitions.
 - The app uses `animate:flip` when the task order changes.
 - Numbers and geometry use `Tween` or `Spring`: progress counts, bar positions, the range rescale. When the range changes, the Gantt bars, points, milestones, bands, month ticks and today line move with the same tween as the rows.
+- Row and range changes move all six connector points together. A second change continues from the current position. Dots, rings and task lines stay attached. A width-only chart change applies the new routes at once, without an intermediate connector tween. This also applies during a running range or row animation.
 - Durations are 150 – 300 ms, ease-out. There are two exceptions: the row flash after a jump from the Gantt is 1200 ms, and the pulse of the ready light is 900 ms.
 - `src/lib/motion.ts` names two shared durations. `GEOMETRY_MOTION_MS` (240 ms) is for geometry changes in a diagram, such as rows that move on expand or collapse. `VIEW_MOTION_MS` (300 ms) is for a switch between diagrams. Durations stay within 150 – 300 ms, except the two exceptions above. Refer to ADR 19.
 - All durations go through `motionDuration(ms)`. This includes CSS transitions and animations. A CSS transition that uses the default duration of 150 ms also sets its duration through `motionDuration(150)`.
@@ -615,32 +637,44 @@ Printed work tables use the Status header and the same four status icons in pape
 - Font: Source Sans 3, self-hosted. Dates, counts, and targets use tabular figures.
 - Ink `#1A1D23`. Secondary text `#505663` and `#5A6070`. Rules `#C9CDD4` and `#DDE0E5`. Neutral fill `#EEF0F3`.
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
-- Cycle lines and arrowheads use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token.
+- Dotted cycle connectors use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token. Dependency connectors have no arrowheads.
 - Stage palette: 8 colors. Each light value has a contrast of at least 4.5:1 against white. Each dark value has a contrast of at least 6:1 against the dark ground (`#13161A`). Stage badge text is white in light mode and `#13161A` in dark mode. Band palette: 4 light tints. Dark band tints use the dark stage values at 14% opacity. Gray uses white at 7% opacity.
 
 ### 9.1 Shared diagram signs
 
-The Gantt, the route map and Kanban use the same signs for a task. Thus a task looks the same in each diagram, on the screen and on paper. The shared components are in `src/lib/components/diagram/`. Refer to ADR 19.
+The Gantt, the route map and Kanban use the same signs for a task. Thus a task looks the same in each diagram, on the screen and on paper. Refer to ADR 19.
 
 - **Station dot:** its fill shows the effective status of the task.
   - `todo`: a ring with the ground color inside.
   - `in_progress`: half filled.
-  - `done`: solid.
-  - `canceled`: the fill at 40 % opacity.
-- **Stage badge:** the stage label (S1, S2, …) on the stage color. The text is white on the light fills and the ground color (`#13161A`) on the dark fills. The text has a contrast of 4.5:1 or more on its fill.
+  - `done`: solid at full strength, even when its task line is pale.
+  - `canceled`: a 40 % color mix with the ground.
+- **Stage badge:** the stage label (S1, S2, …) on the stage color, with a 4 px corner radius. The text is white on the light fills and the ground color (`#13161A`) on the dark fills. The text has a contrast of 4.5:1 or more on its fill.
 - The signs do not use color alone. The fill shape gives the status, and the badge text gives the stage.
 
-Status: the shared components exist, but no diagram uses them yet. The Gantt adopts the signs in the Gantt lines change (slice 3). The route map and Kanban adopt them when they are added. Until then, the Gantt keeps the bars, the status opacity and the stage legend of section 5.4.
+The Gantt uses these signs for task lines, points, stage headings and legends. The route map and Kanban adopt them when they are added.
 
-The shared scene layer keeps task identity separate from view geometry. Its layered router returns six points per edge. Sources with identical complete target sets share a trunk. Width changes run the router again to preserve angles and clearances. Exact ports take precedence when a short segment or a clamped chart edge cannot meet the normal minimum segment length. A finish-to-start chain can enter vertically when its riser and start port align.
+Diagram layers, from bottom to top: month rules, bands, Today line, base connectors, lit connectors, cycle connectors, ordinary junction rings, task marks, milestone rings and labels. Within each task mark, a tap stays above its source line and below its station dots. It is clipped to the timeline area. Each cycle casing sits directly below its warning-painted connector. A lit route has a 4 px ground casing below it. Base connectors stay in place when an overlay appears.
+
+Dim diagram marks by mixing their color with the ground. Do not reduce element opacity. Lines and dots stay opaque over connectors. Apply one dim level at a time. Route focus uses a single 30 % mix for off-route marks, including finished marks. It does not multiply 30 % by the status level. Preview and print never apply route dimming.
+
+At rest, the screen shows every dependency. Secondary ink is `#505663` in light mode and `#9BA3AF` in dark mode. Junction and interchange rings use the ground color inside. The ready light stays in the task label slot. It does not change a task line to green.
+
+Preview and print use light stage colors and white ground. They show all routes without hover or focus dimming. They keep the status treatment for done and canceled tasks and satisfied connectors.
+
+Paper Gantt rows are 18 px high. Top-level task lines are 5 px thick with 1 px connectors. Their station dots stand taller than the 5 px line. Subtask lines are 3.5 px thick with 0.75 px connectors. Subtask station dots and point dots have an outer diameter of 4 px. Junction rings have an outer diameter of 4 px.
+
+Cycle paths retain the warning style and ground casing of section 5.4. The default milestone is an ink interchange ring. Other milestone symbols keep their shapes in paper ink. Line weight, status fill and dotted cycle connectors keep the hierarchy clear in grayscale.
+
+Each task keeps its identity when its geometry changes. Each connector has six route points. Sources with identical complete target sets share a trunk. A width change applies new routes at once to preserve angles and clearances. Exact ports take priority when a short segment or chart edge cannot meet the normal minimum length. A finish-to-start chain can enter vertically when its riser and start port align.
 
 Forward ports on the same row use a straight route. A hook at the left chart edge can omit its final stub to stay inside the chart.
 
-Riser slots keep their pitch spacing near the right chart edge. A riser can lie left of the out port inside the source bar. Its first segment runs backward under the bar because connectors are drawn below bars.
+Riser slots keep their pitch spacing near the right chart edge. A riser can lie left of the out port inside the source bar. Its first segment runs backward under the bar because connectors are drawn below bars. A tap ring marks where that riser leaves from under the source bar. It stays with the source row, above the line and below the station dots, inside the timeline area. This tap is exempt from ordinary junction clearance.
 
-The shared scene layer reserves horizontal runs at their physical y position across both target sides. It tries the near lane, then the boundary lane. Each candidate uses the route type that it will draw. Direct entries reserve no lane and report lane 0 without overflow. Hooks reserve the full run to the entry stub. A branch reserves the union of the runs of all its sources. If both lanes have conflicts, the branch reuses the near lane and reports overflow.
+Horizontal runs reserve their actual vertical position across both target sides. A third lane is tried before overflow. Hooks try the boundary lane first. Direct entries need no gutter lane. Hooks reserve their full run to the entry stub. A branch reserves the combined runs of all its sources. If all three lanes have conflicts, the branch reuses the near lane.
 
-The transient editing state reserves `routeId` for route focus. The pure dependency-route helpers follow effective dependencies, including inherited dependencies, and stop on cycles. They exclude the focus task from both result sets. An edge belongs to the route when both ends are upstream of the focus or both ends are downstream, including the focus on either side. The controls that set route focus are added in slice 4.
+Route focus follows effective dependencies in both directions, including inherited dependencies. Cycles do not prevent the route from being shown. A connector belongs to the route when both ends are upstream of the focus or both ends are downstream, including the focused task on either side.
 
 ## Future: Kanban
 

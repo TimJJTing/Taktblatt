@@ -17,7 +17,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 - The pure folder `src/lib/scene/` holds the scene model. It has no Svelte, no DOM and no store imports. The rules for `src/lib/domain/` apply.
 - A `SceneNode` is the identity of a task in a diagram. Its `SceneId` is stable across views, undo, redo and tab sync. Identity does not contain positions.
 - Geometry is per view. `NodeGeom` gives the box of one node. `EdgeGeom` gives the points of one edge. A `Scene` holds the nodes, the edges and the geometry of one view at one size.
-- A length is `Len { f, px }`. It resolves as `f * extent + px`. A point is `Pt { x: Len, y: Len }`. A time axis can use `f` for the date fraction and `px` for fixed offsets, such as a port radius. Routing uses resolved ports and metrics at the current width. A width change requires new routes to keep the bend angles and clearances. Renderers tween between the old and new geometry by stable id.
+- A length is `Len { f, px }`. It resolves as `f * extent + px`. A point is `Pt { x: Len, y: Len }`. A time axis can use `f` for the date fraction and `px` for fixed offsets, such as a port radius. Routing uses resolved ports and metrics at the current width. A width change requires new routes to keep the bend angles and clearances. Within the Gantt, a width-only reroute applies at once, with duration 0, including during a running tween. Only row and range changes tween between old and new geometry by stable id. This follows decision D26 B3 of the design-system plan.
 
 ### Routing
 
@@ -38,7 +38,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 ### Rendering
 
 - Task nodes are HTML in every view. Only edges and guides are SVG. HTML nodes keep text layout, focus, accessible names and hints (`Hint.svelte`).
-- A transition tweens the geometry by stable id. This is the project's `Tween` pattern. A `Tween` retargets during a running tween, so a fast second change does not jump.
+- Row and range transitions tween the Gantt geometry by stable id. This is the project's `Tween` pattern. A `Tween` retargets during a running tween, so a fast second change does not jump. A width-only reroute is the exception: it applies the current-width geometry at once with duration 0. Coalesce width notifications to at most one reroute per animation frame. Do not interpolate resolved old-width points against a new-width chart. Diagram switches retain their separate view-transition duration.
 - A FLIP flight layer is used only when the source and the target position are in different scroll containers.
 - The app does not use the View Transitions API.
 - `src/lib/motion.ts` holds the motion constants. `GEOMETRY_MOTION_MS = 240` is for geometry changes in a view. It replaces `ROW_MOTION_MS` in `gantt-layout.ts`. `VIEW_MOTION_MS = 300` is for a switch between views. All durations still go through `motionDuration(ms)`. `TIMELINE_MOTION_MS` is section chrome, not diagram geometry, and stays where it is.
@@ -74,7 +74,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
   - `StationDot` and `StageBadge` in `src/lib/components/diagram/`, with screen and `still` variants;
   - `routeId` in `EditingState`.
 - Slice 2b does not change the Gantt on screen or on paper. No view uses the new router or the new signs yet.
-- Slice 3 (`feat/gantt-lines`) adds the `ganttScene(rows, lines, metrics)` adapter. It moves the Gantt routing behind `routeTracks` and `routePath` and removes `elbowPath`. The Gantt then uses `StationDot` and `StageBadge` on screen and on paper.
+- Decision D25 splits slice 3 into four working PRs. Slice 3a (`feat/gantt-router`) changes the unused neutral router and contracts. Slice 3b (`feat/gantt-signs`) independently adopts badges and chrome. Slice 3c (`feat/gantt-lines`) depends on both. It adds `ganttScene(rows, lines, metrics)`, adopts lines and station dots on screen and paper, and removes `elbowPath` and markers. Cross-break edges remain hidden until slice 3d (`feat/gantt-continuations`) adds their continuation signs.
 - Slice 4 (`feat/route-focus`) sets and reads `routeId`.
 - The route map PR adds the view switch, the `DiagramStage` container and the first switch between two scenes with `VIEW_MOTION_MS`. The print model gets a generic scene segment when the second diagram arrives. `GanttSegment` does not change before that.
 - The Kanban PR adds the FLIP flight layer when a task moves between scroll containers, for example from the Gantt body to a board column that scrolls on its own.
