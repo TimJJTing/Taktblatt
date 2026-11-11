@@ -3,7 +3,8 @@
 	It is static text. Entries have no buttons. Dates use the UI language.
 -->
 <script lang="ts">
-	import { bandPaperTint, bandFill, stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { bandPaperTint, bandFill } from '#lib/components/plan/colors.ts';
+	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
 	import { orderedMilestones } from '#lib/domain/derive.ts';
 	import { formatDate, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
@@ -33,11 +34,11 @@
 		{#if segment.which === 'stages'}
 			{#each ws.plan.stages as stage, i (stage.id)}
 				<li class="flex items-center gap-1.5">
-					<span
-						class="size-2 shrink-0 rounded-[1px]"
-						style:background={stagePaperColor(stage.color)}
-						aria-hidden="true"
-					></span>{stage.title || m.stage_title_placeholder({ n: i + 1 })}
+					<StageBadge
+						color={stage.color}
+						label={m.stage_badge({ n: i + 1 })}
+						still
+					/>{stage.title || m.stage_title_placeholder({ n: i + 1 })}
 				</li>
 			{/each}
 		{:else if segment.which === 'milestones'}

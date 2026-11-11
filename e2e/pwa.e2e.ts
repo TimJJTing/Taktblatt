@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 import {
 	appFontLoaded,
+	expectExampleSheetLegends,
+	expectMilestoneRing,
+	expectStageRule,
+	selectTab,
+	writeStoredPlan,
 	expectStickyBelowHeader,
 	expectStickyStageStack,
 	openApp,
@@ -9,8 +14,7 @@ import {
 	collapseTimeline,
 	expandTimeline,
 	expectTimelineCollapsed,
-	openPreview,
-	expectExampleSheetLegends
+	openPreview
 } from './helpers.ts';
 
 test.describe('PWA', () => {
@@ -82,6 +86,9 @@ test.describe('PWA', () => {
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.milestones[0].symbol = 'diamond';
+		});
 		const keep = page.getByTestId('timeline-keep-open');
 		await keep.click();
 		await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
@@ -99,6 +106,32 @@ test.describe('PWA', () => {
 			await expect(keep).toHaveAttribute('aria-pressed', 'true');
 			await openPreview(page);
 			await expectExampleSheetLegends(page);
+			await page.keyboard.press('Escape');
+			await expectMilestoneRing(page.getByTestId('gantt-milestone').first());
+			await selectTab(page, 'Work plan');
+			await expect(stage(page, 0).locator('header .stage-badge')).toHaveText('S1');
+			await expectStageRule(stage(page, 0));
+			await stage(page, 0).getByTestId('stage-title').click();
+			await page.keyboard.press('ControlOrMeta+a');
+			await page.keyboard.type('Offline stage');
+			await page.keyboard.press('Enter');
+			await page.reload();
+			await expect(stage(page, 0).getByTestId('stage-title')).toHaveText('Offline stage');
+			await expectStageRule(stage(page, 0));
+			await openPreview(page);
+			await expectMilestoneRing(
+				page
+					.getByTestId('sheet')
+					.first()
+					.getByRole('img', { name: /^Milestone M1:/ })
+			);
+			await expect(
+				page
+					.getByTestId('sheet')
+					.getByRole('list', { name: 'Stages', exact: true })
+					.locator('.stage-badge')
+					.first()
+			).toHaveText('S1');
 		} finally {
 			await context.setOffline(false);
 		}

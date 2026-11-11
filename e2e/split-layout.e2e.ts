@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	addWorkspaceOverflow,
+	expectJumpTarget,
 	expectStickyBelowHeader,
 	expectStickyStageStack,
 	openExample,
@@ -42,38 +43,6 @@ async function expectPaneWidths(page: Page, leftPercent: number) {
 			}, leftPercent)
 		)
 		.toEqual({ left: true, minimums: true });
-}
-
-async function expectJumpTarget(page: Page, title: string) {
-	await expect
-		.poll(() =>
-			row(page, title).evaluate((element) => {
-				const stage = element.closest('[data-testid="stage"]')!;
-				const header = stage.querySelector(':scope > header')!.getBoundingClientRect();
-				const narrow = stage.getBoundingClientRect().width < 640;
-				const band = stage
-					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
-					.getBoundingClientRect();
-				const bounds = element.getBoundingClientRect();
-				const content = document.querySelector('[data-testid="workspace-content"]')!;
-				const scroller =
-					content.getAttribute('data-layout') === 'split'
-						? document.querySelector('#work-pane')!
-						: content;
-				return (
-					bounds.top >=
-						Math.max(
-							header.bottom,
-							band.bottom,
-							content.getAttribute('data-layout') === 'tabs'
-								? document.querySelector('#timeline')!.getBoundingClientRect().bottom
-								: 0
-						) -
-							1 && bounds.bottom <= scroller.getBoundingClientRect().bottom + 1
-				);
-			})
-		)
-		.toBe(true);
 }
 
 test('split groups keep their order and scroll independently without document scrolling', async ({

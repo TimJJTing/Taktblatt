@@ -4,6 +4,8 @@
 	Rows are static. A parent row shows its planned window and derived status. Labels use the UI language.
 -->
 <script lang="ts">
+	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
+	import StageRuleRing from '#lib/components/diagram/StageRuleRing.svelte';
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { taskStatusLabel } from '#lib/components/task/task-status.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
@@ -42,7 +44,7 @@
 			</h2>
 		{/if}
 		<h3 class="flex items-baseline gap-1.5 pb-1.5 text-[12px] font-semibold text-paper-ink">
-			<span class="size-2.5 shrink-0 self-center rounded-[2px]" style:background={color}></span>
+			<StageBadge color={segment.stage.color} label={m.stage_badge({ n: segment.number })} still />
 			<span
 				>{m.label_qualifier({ name: m.stage_label({ n: segment.number }), qualifier: name })}</span
 			>
@@ -71,13 +73,15 @@
 	</colgroup>
 	<thead data-part="repeat" data-testid="sheet-table-head">
 		<tr>
-			<th class={th} style:border-top="2px solid {color}">{m.column_status()}</th>
-			<th class={th} style:border-top="2px solid {color}">{m.column_task()}</th>
-			<th class={th} style:border-top="2px solid {color}">
+			<th class={cn(th, 'relative')} style:border-top="4px solid {color}"
+				><StageRuleRing {color} still />{m.column_status()}</th
+			>
+			<th class={th} style:border-top="4px solid {color}">{m.column_task()}</th>
+			<th class={th} style:border-top="4px solid {color}">
 				{m.column_deliverable()}
 			</th>
-			<th class={th} style:border-top="2px solid {color}">{m.column_target()}</th>
-			<th class={th} style:border-top="2px solid {color}">{m.column_owner()}</th>
+			<th class={th} style:border-top="4px solid {color}">{m.column_target()}</th>
+			<th class={th} style:border-top="4px solid {color}">{m.column_owner()}</th>
 		</tr>
 	</thead>
 	<tbody>

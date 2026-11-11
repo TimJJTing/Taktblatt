@@ -5,6 +5,7 @@
 	A dependency line shows only when both of its rows are in the same fragment.
 -->
 <script lang="ts">
+	import TodayTag from '#lib/components/timeline/TodayTag.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import {
 		bandFill,
@@ -26,7 +27,8 @@
 		GANTT_LABEL_WIDTH,
 		GANTT_MILESTONE_HEIGHT,
 		GANTT_MONTH_HEIGHT,
-		GANTT_ROW_HEIGHT
+		GANTT_ROW_HEIGHT,
+		GANTT_TODAY_TAG_WIDTH
 	} from './print-layout.ts';
 
 	interface Props {
@@ -47,6 +49,7 @@
 	const rows = $derived(segment.rows.slice(from, to));
 	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, stagePaperColor(s.color)])));
 	const timelineWidth = $derived(Math.max(0, width - GANTT_LABEL_WIDTH));
+	const milestoneFractions = $derived(segment.milestones.map((item) => item.x));
 	const bodyTop = $derived(first ? GANTT_MILESTONE_HEIGHT : 0);
 	const lines = $derived(
 		segment.lines.filter((l) => l.row0 >= from && l.row0 < to && l.row1 >= from && l.row1 < to)
@@ -105,16 +108,27 @@
 						<span
 							role="img"
 							class="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 text-[9px] font-medium"
-							style:left="calc({item.x * 100}% - 6px)"
+							style:left="calc({item.x * 100}% - 7px)"
+							data-milestone-sign
 							aria-label={m.gantt_milestone({
 								label: item.label,
 								title: item.milestone.title,
 								date: formatDate(item.milestone.date, intl)
 							})}
 						>
-							<Symbol class="size-3 fill-current" />{item.label}
+							<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
 						</span>
 					{/each}
+					{#if segment.today !== null}
+						<TodayTag
+							x={segment.today}
+							today={segment.today}
+							milestones={milestoneFractions}
+							chartWidth={timelineWidth}
+							width={GANTT_TODAY_TAG_WIDTH}
+							still
+						/>
+					{/if}
 				</div>
 			</div>
 		{/if}
@@ -235,17 +249,10 @@
 			{/each}
 			{#if segment.today !== null}
 				<div
-					class="absolute inset-y-0 border-l border-dashed border-paper-ink-2"
+					class="absolute inset-y-0 border-l border-dashed border-paper-ink/60"
 					style:left="{segment.today * 100}%"
 					data-testid="sheet-gantt-today"
-				>
-					<!-- The label sits below the milestone row, so it does not cover a milestone. -->
-					<span
-						class="absolute left-1 bg-paper/80 px-0.5 text-[8px] leading-tight font-medium"
-						style:top="{bodyTop + 2}px"
-						data-testid="sheet-gantt-today-label">{m.gantt_today()}</span
-					>
-				</div>
+				></div>
 			{/if}
 			{#if timelineWidth > 0 && lines.length > 0}
 				<svg

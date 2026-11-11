@@ -29,6 +29,7 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Toggle } from '#lib/components/ui/toggle/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
+	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.ts';
 	import { todayISO } from '#lib/domain/date.ts';
 	import { stageEdgeSegments } from '#lib/domain/stage-edge.ts';
@@ -563,8 +564,10 @@
 												legendItem
 											)}
 										>
-											{@render swatch(stageColorVar(stage.color))}{stage.title ||
-												m.stage_title_placeholder({ n: i + 1 })}
+											<StageBadge
+												color={stage.color}
+												label={m.stage_badge({ n: i + 1 })}
+											/>{stage.title || m.stage_title_placeholder({ n: i + 1 })}
 										</li>
 									{/each}
 								</ul>

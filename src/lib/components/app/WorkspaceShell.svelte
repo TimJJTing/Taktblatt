@@ -326,7 +326,7 @@
 		const split = workspaceLayout.split;
 		const scroller = split ? target.closest<HTMLElement>('#plan-pane, #work-pane') : content;
 		if (!scroller) return;
-		const bounds = target.getBoundingClientRect();
+		const bounds = (target.closest('tr[data-task-id]') ?? target).getBoundingClientRect();
 		const view = scroller.getBoundingClientRect();
 		const pinned =
 			isTimelinePinned(viewer) && (!split || scroller.id === 'plan-pane')
@@ -339,11 +339,13 @@
 		);
 		const stack =
 			header && !header.contains(target)
-				? header.getBoundingClientRect().height + (columns?.getBoundingClientRect().height ?? 0)
+				? header.getBoundingClientRect().height +
+					(columns?.getBoundingClientRect().height ?? 0) +
+					(stage && stage.getBoundingClientRect().width < 640 ? 1 : 0)
 				: 0;
 		const top = view.top + pinned + stack;
 		const bottom =
-			view.bottom - (split ? 0 : parseFloat(getComputedStyle(content).scrollPaddingBottom));
+			view.bottom - (split ? 0 : parseFloat(getComputedStyle(content).scrollPaddingBottom)) - 1;
 		stopUserScroll();
 		if (bounds.top < top) scroller.scrollTop += bounds.top - top;
 		else if (bounds.bottom > bottom) scroller.scrollTop += bounds.bottom - bottom;
