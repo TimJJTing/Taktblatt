@@ -2,13 +2,13 @@
 	The Gantt chart on paper. A fragment shows the rows `from` to `to` of the segment.
 	The first fragment has the title and the milestone row. Each fragment has the month header.
 	Rows have a fixed height, so the paginator can split between rows. There are no controls and no motion.
-	A dependency line shows only when both of its rows are in the same fragment.
+	Complete dependencies use local routes. Crossing dependencies use boundary signs.
 -->
 <script lang="ts">
 	import TodayTag from '#lib/components/timeline/TodayTag.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { bandFill, bandPaperTint, stagePaperColor } from '#lib/components/plan/colors.ts';
-	import { ganttFragment } from '#lib/scene/gantt-fragment.ts';
+	import { ganttFragment, type GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
 	import { routePath } from '#lib/scene/route-path.ts';
 	import TaskMark from '#lib/components/diagram/TaskMark.svelte';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
@@ -38,19 +38,23 @@
 		width: number;
 		/** A key that identifies this rendered Gantt fragment. */
 		uid: string;
+		paper?: GanttPaperLayout;
 	}
 
-	let { segment, from, to, first, width, uid }: Props = $props();
+	let { segment, from, to, first, width, uid, paper }: Props = $props();
 
 	const ws = getWorkspace();
 	const intl = uiIntl();
-	const fragment = $derived(ganttFragment(segment.rows, segment.lines, { from, to, first, width }));
+	const fragment = $derived(
+		ganttFragment(segment.rows, segment.lines, { from, to, first, width, paper })
+	);
 	const rows = $derived(fragment.rows);
 	const scene = $derived(fragment.scene);
+	const continuations = $derived(new Map(fragment.continuations.map((edge) => [edge.key, edge])));
 	const marks = $derived(new Map(scene.marks.map((m) => [m.id, m])));
-	const sourceRows = $derived(new Map(rows.map((r) => [r.id, r])));
+	const sourceRows = $derived(new Map(segment.rows.map((r) => [r.id, r])));
 	const edges = $derived(
-		[...scene.geometry.edges].sort(
+		[...scene.geometry.edges, ...fragment.continuations].sort(
 			(a, b) =>
 				Number(a.cycle) - Number(b.cycle) ||
 				Number(isFinished(sourceRows.get(b.from)!.status)) -
@@ -266,11 +270,23 @@
 			{#if timelineWidth > 0 && edges.length > 0}
 				<svg
 					class="absolute inset-0 size-full overflow-visible text-paper-ink-3"
+					style:clip-path="inset({first ? GANTT_MILESTONE_HEIGHT : 0}px 0 0 0)"
 					aria-hidden="true"
 				>
 					{#each edges as line (line.key)}
 						{@const d = routePath(line.points, { w: timelineWidth, h: 0 })}
 						{@const muted = isFinished(sourceRows.get(line.from)!.status)}
+						{@const continuation = continuations.get(line.key)}
+						{@const stroke = line.cycle
+							? 'currentColor'
+							: muted
+								? 'color-mix(in oklab, currentColor 40%, #FFFFFF)'
+								: 'currentColor'}
+						{@const strokeWidth = line.cycle
+							? 2
+							: sourceRows.get(line.from)!.level === 1 && sourceRows.get(line.to)!.level === 1
+								? 0.75
+								: 1}
 						{#if line.cycle}<path
 								{d}
 								fill="none"
@@ -284,22 +300,44 @@
 							class={line.cycle ? 'text-paper-warning' : undefined}
 							data-cycle={line.cycle ? 'true' : undefined}
 							fill="none"
-							stroke={line.cycle
-								? 'currentColor'
-								: muted
-									? 'color-mix(in oklab, currentColor 40%, #FFFFFF)'
-									: 'currentColor'}
-							stroke-width={line.cycle
-								? 2
-								: sourceRows.get(line.from)!.level === 1 && sourceRows.get(line.to)!.level === 1
-									? 0.75
-									: 1}
+							{stroke}
+							stroke-width={strokeWidth}
 							stroke-dasharray={line.cycle ? '1 4' : undefined}
 							stroke-linecap={line.cycle ? 'round' : undefined}
 							data-testid="sheet-gantt-dependency"
 							data-from={line.from}
 							data-to={line.to}
+							data-continuation={continuation?.kind}
+							data-riser-x={continuation?.riserX}
 						/>
+						{#if continuation}
+							{#each continuation.stubs as points, i (i)}
+								<path
+									d={routePath(points, { w: timelineWidth, h: 0 })}
+									class={line.cycle ? 'text-paper-warning' : undefined}
+									fill="none"
+									{stroke}
+									stroke-width={strokeWidth}
+									stroke-dasharray="none"
+									aria-hidden="true"
+									data-overlay-for={line.key}
+									data-testid="sheet-gantt-continuation-stub"
+								/>
+							{/each}
+							{#each continuation.ticks as points, i (i)}
+								<path
+									d={routePath(points, { w: timelineWidth, h: 0 })}
+									class={line.cycle ? 'text-paper-warning' : undefined}
+									fill="none"
+									{stroke}
+									stroke-width={strokeWidth}
+									stroke-dasharray="none"
+									aria-hidden="true"
+									data-overlay-for={line.key}
+									data-testid="sheet-gantt-continuation-tick"
+								/>
+							{/each}
+						{/if}
 					{/each}
 					{#each scene.geometry.junctions.filter((j) => j.kind === 'junction') as junction (junction.key)}<DiagramRing
 							{junction}

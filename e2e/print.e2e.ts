@@ -26,6 +26,7 @@ import {
 	writeStoredPlan,
 	setTaskStatus,
 	openLinePlan,
+	openContinuationPlan,
 	expectCoveredCrossing,
 	expectLocalTap,
 	expectJunctionBehindMark,
@@ -113,7 +114,7 @@ test('3c paper marks use D27 sizes, opaque status paint and source-local taps on
 	}
 });
 
-test('3c paper routes only complete local edges below repeated headers [AC10]', async ({
+test('3d paper keeps complete local routes below repeated headers and adds crossing paths separately [AC2,AC5]', async ({
 	page
 }) => {
 	await openLinePlan(page);
@@ -144,7 +145,9 @@ test('3c paper routes only complete local edges below repeated headers [AC10]', 
 						.map((id: string) => `${id}->${task.id}`)
 				: []
 		);
-		const lines = fragment.getByTestId('sheet-gantt-dependency');
+		const lines = fragment
+			.getByTestId('sheet-gantt-dependency')
+			.and(page.locator(':not([data-continuation])'));
 		const keys = await lines.evaluateAll((paths) =>
 			paths.map((p) => `${(p as SVGElement).dataset.from}->${(p as SVGElement).dataset.to}`)
 		);
@@ -179,7 +182,12 @@ test('3c paper routes only complete local edges below repeated headers [AC10]', 
 			expect(bounds.top).toBeGreaterThanOrEqual(bounds.headerBottom);
 			expect(bounds.bottom).toBeLessThanOrEqual(bounds.lastRowBottom);
 		}
-		await expect(fragment.locator('[data-continuation]')).toHaveCount(0);
+		for (const continuation of await fragment
+			.locator('[data-testid="sheet-gantt-dependency"][data-continuation]')
+			.all()) {
+			await expect(continuation).toHaveAttribute('data-from', /.+/);
+			await expect(continuation).toHaveAttribute('data-to', /.+/);
+		}
 	}
 	expect(total).toBeGreaterThan(90);
 });
@@ -1241,5 +1249,265 @@ test('flipping the paper Today tag preserves fragment rows and pagination', asyn
 		await writeStoredPlan(page, (plan) => {
 			plan.milestones[0].date = addDays(plan.range.start, 40);
 		});
+	}
+});
+
+test('3d paired stubs, pass-throughs and metadata cover each represented dependency on A4 and Letter [AC3–6]', async ({
+	page
+}) => {
+	await openContinuationPlan(page);
+	const screenPaths = await page
+		.getByTestId('gantt-dependency')
+		.first()
+		.evaluateHandle((paths) => ({ first: paths, parent: paths.parentNode }));
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await openPreview(page);
+	const plan = await storedPlan(page);
+	const edges = plan.tasks.flatMap((task: { id: string; dependsOn: string[] }) =>
+		task.dependsOn.map((from: string) => ({ key: `${from}->${task.id}`, from, to: task.id }))
+	);
+	for (const paper of ['a4', 'letter']) {
+		await page.getByTestId(`paper-${paper}`).click();
+		const fragments = page
+			.getByTestId('sheets')
+			.locator('[data-fragment]')
+			.filter({ has: page.getByTestId('sheet-month-header') });
+		expect(await fragments.count()).toBeGreaterThanOrEqual(3);
+		const groups = await fragments.evaluateAll((fragments) =>
+			fragments.map((fragment) =>
+				[...fragment.querySelectorAll('[data-testid="sheet-gantt-row"]')].map((row) =>
+					row.getAttribute('data-task-id')!
+				)
+			)
+		);
+		const order = groups.flat();
+		const risers = new Map<string, number>();
+		for (const [index, fragment] of (await fragments.all()).entries()) {
+			const lo = order.indexOf(groups[index][0]),
+				hi = order.indexOf(groups[index].at(-1)!);
+			const represented = edges.filter(
+				(edge: { from: string; to: string }) =>
+					Math.min(order.indexOf(edge.from), order.indexOf(edge.to)) <= hi &&
+					Math.max(order.indexOf(edge.from), order.indexOf(edge.to)) >= lo
+			);
+			const base = fragment.getByTestId('sheet-gantt-dependency');
+			const keys = await base.evaluateAll((paths) =>
+				paths.map(
+					(path) => `${(path as SVGElement).dataset.from}->${(path as SVGElement).dataset.to}`
+				)
+			);
+			expect(keys.sort()).toEqual(represented.map((edge: { key: string }) => edge.key).sort());
+			for (const edge of represented) {
+				const path = base.and(page.locator(`[data-from="${edge.from}"][data-to="${edge.to}"]`));
+				const kind = groups[index].includes(edge.from)
+					? 'exit'
+					: groups[index].includes(edge.to)
+						? 'entry'
+						: 'pass-through';
+				await expect(path).toHaveAttribute('data-continuation', kind);
+				const x = Number(await path.getAttribute('data-riser-x'));
+				expect(Number.isFinite(x)).toBe(true);
+				if (risers.has(edge.key)) expect(x).toBe(risers.get(edge.key));
+				else risers.set(edge.key, x);
+				const stubs = fragment
+					.getByTestId('sheet-gantt-continuation-stub')
+					.and(page.locator(`[data-overlay-for="${edge.key}"]`));
+				const ticks = fragment
+					.getByTestId('sheet-gantt-continuation-tick')
+					.and(page.locator(`[data-overlay-for="${edge.key}"]`));
+				await expect(stubs).toHaveCount(kind === 'pass-through' ? 2 : 1);
+				await expect(ticks).toHaveCount(kind === 'pass-through' ? 2 : 1);
+				for (const [overlay, length] of [
+					[stubs, 4],
+					[ticks, 2]
+				] as const) {
+					for (const sign of await overlay.all()) {
+						await expect(sign).toHaveAttribute('aria-hidden', 'true');
+						await expect(sign).toHaveCSS('stroke-dasharray', 'none');
+						expect(
+							await sign.evaluate((node) => (node as SVGPathElement).getTotalLength())
+						).toBeCloseTo(length, 4);
+					}
+				}
+				const bounds = await path.evaluate((node) => {
+					const path = node as SVGPathElement,
+						box = path.getBBox(),
+						matrix = path.getScreenCTM()!;
+					const fragment = path.closest('[data-fragment]')!;
+					return {
+						top: new DOMPoint(box.x, box.y).matrixTransform(matrix).y,
+						bottom: new DOMPoint(box.x, box.y + box.height).matrixTransform(matrix).y,
+						header: fragment
+							.querySelector('[data-testid="sheet-month-header"]')!
+							.getBoundingClientRect().bottom,
+						body: [...fragment.querySelectorAll('[data-testid="sheet-gantt-row"]')]
+							.at(-1)!
+							.getBoundingClientRect().bottom
+					};
+				});
+				expect(bounds.top).toBeGreaterThanOrEqual(bounds.header);
+				expect(bounds.bottom).toBeLessThanOrEqual(bounds.body);
+				if (edge.from === 'up-source' || edge.from === 'up-target')
+					await expectCyclePaint(path, true);
+			}
+		}
+		const first = fragments.first(),
+			last = fragments.last();
+		await expect(first.getByTestId('sheet-gantt-today-label')).toHaveCount(1);
+		await expect(last.getByTestId('sheet-gantt-today-label')).toHaveCount(0);
+		const tap = last.locator('[data-task-id="up-source"] [data-testid="sheet-gantt-bar"]');
+		await expectLocalTap(tap, 'up-source', true);
+		const clamped = last.locator('[data-testid="sheet-gantt-dependency"][data-from="up-source"]');
+		const clamp = await clamped.evaluate((node) => ({
+			x: Number((node as SVGElement).dataset.riserX),
+			width: (node as SVGPathElement).ownerSVGElement!.getBoundingClientRect().width
+		}));
+		expect(clamp.x).toBeLessThan(clamp.width);
+		const satisfied = fragments
+			.nth(1)
+			.locator('[data-testid="sheet-gantt-dependency"][data-from="a"]');
+		const paint = await satisfied.evaluate((node) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			const sample = (value: string) => {
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = value;
+				context.fillRect(0, 0, 1, 1);
+				return [...context.getImageData(0, 0, 1, 1).data];
+			};
+			return {
+				actual: sample(getComputedStyle(node).stroke),
+				expected: sample(`color-mix(in oklab, ${getComputedStyle(node).color} 40%, #fff)`)
+			};
+		});
+		expect(paint.actual).toEqual(paint.expected);
+		await expect(sheets(page).first()).toHaveCSS('color-scheme', 'light');
+	}
+	expect(
+		await screenPaths.evaluate(
+			({ first, parent }) => first.isConnected && first.parentNode === parent
+		)
+	).toBe(true);
+	await screenPaths.dispose();
+});
+
+/** Ignore repeated opaque white page canvases. Preview can add one behind each sheet. */
+function pdfSheetPaint(pdf: Buffer): string[] {
+	const source = pdf.toString('latin1');
+	const resources = new Map<string, Set<string>>();
+	for (const [, name, id] of source.matchAll(/\/(G\d+)\s+(\d+) 0 R/g)) {
+		const ids = resources.get(name) ?? new Set<string>();
+		ids.add(id);
+		resources.set(name, ids);
+	}
+	const opaque = new Set<string>();
+	for (const [name, ids] of resources) {
+		if (ids.size !== 1) continue;
+		const [id] = ids;
+		const object = source.match(new RegExp(`(?:^|\\n)${id} 0 obj\\n([\\s\\S]*?)\\nendobj`));
+		if (!object) continue;
+		const state = object[1];
+		const masks = state.match(/\/SMask\b/g) ?? [];
+		const noSoftMask =
+			masks.length === 0 || (masks.length === 1 && /\/SMask\s*\/None\b/.test(state));
+		if (
+			(state.match(/\/ca\b/g) ?? []).length === 1 &&
+			/\/ca\s+1(?:\.0+)?(?=\s|\/|>>)/.test(state) &&
+			(state.match(/\/BM\b/g) ?? []).length === 1 &&
+			/\/BM\s*\/Normal\b/.test(state) &&
+			noSoftMask
+		)
+			opaque.add(name);
+	}
+	return pdfPageContent(pdf).map((commands) =>
+		commands.replace(
+			/(1 1 1 RG 1 1 1 rg\n\/(G\d+) gs\n)((?:0 -?[\d.]+ [\d.]+ [\d.]+ re\nf\n)+)/g,
+			(all, paint: string, state: string, rectangles: string) => {
+				if (!opaque.has(state)) return all;
+				const fills = rectangles.match(/0 -?[\d.]+ [\d.]+ [\d.]+ re\nf\n/g)!;
+				return (
+					paint +
+					fills
+						.filter((fill, i) => {
+							const [, , width, height] = fill.match(/-?[\d.]+/g)!.map(Number);
+							return i === 0 || fill !== fills[i - 1] || width < 700 || height < 1000;
+						})
+						.join('')
+				);
+			}
+		)
+	);
+}
+
+test('3d Preview and direct A4 and Letter PDFs keep solid break signs and cycle casing with backgrounds off [AC6]', async ({
+	page
+}, testInfo) => {
+	await openContinuationPlan(page);
+	for (const paper of ['a4', 'letter']) {
+		await openPreview(page);
+		await page.getByTestId(`paper-${paper}`).click();
+		const ticks = page.getByTestId('sheets').getByTestId('sheet-gantt-continuation-tick');
+		await expect(ticks.first()).toBeAttached();
+		const tick = await ticks.first().evaluate((node) => {
+			const path = node as SVGPathElement;
+			const style = getComputedStyle(path);
+			return {
+				width: path.getBBox().width,
+				length: path.getTotalLength(),
+				stroke: style.stroke,
+				dash: style.strokeDasharray,
+				strokeWidth: parseFloat(style.strokeWidth)
+			};
+		});
+		expect(tick.width).toBe(2);
+		expect(tick.length).toBe(2);
+		expect(tick.stroke).not.toBe('none');
+		expect(tick.strokeWidth).toBeGreaterThan(0);
+		expect(tick.dash).toBe('none');
+		await page.emulateMedia({ media: 'print' });
+		const preview = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+		// A horizontal tick has no box height. Its PDF paint must still be present.
+		const savedTicks = await ticks.evaluateAll((nodes) =>
+			nodes.map((node) => {
+				const path = node as SVGPathElement;
+				const visibility = path.style.visibility;
+				path.style.visibility = 'hidden';
+				return visibility;
+			})
+		);
+		try {
+			const hiddenTicks = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+			expect(pdfPageContent(hiddenTicks)).not.toEqual(pdfPageContent(preview));
+		} finally {
+			await ticks.evaluateAll(
+				(nodes, values) =>
+					nodes.forEach((node, i) => {
+						(node as SVGPathElement).style.visibility = values[i];
+					}),
+				savedTicks
+			);
+		}
+		const without = await page.pdf({ preferCSSPageSize: true, printBackground: false });
+		expect(pdfPageContent(without)).toEqual(pdfPageContent(preview));
+		await testInfo.attach(`3d-${paper}-preview-backgrounds-off.pdf`, {
+			body: without,
+			contentType: 'application/pdf'
+		});
+		await page.emulateMedia({ media: 'screen' });
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toBeVisible();
+		await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await expect(page.getByTestId('sheet-gantt-continuation-tick').first()).toBeAttached();
+		await page.emulateMedia({ media: 'print' });
+		const direct = await page.pdf({ preferCSSPageSize: true, printBackground: false });
+		expect(pdfSheetPaint(direct)).toEqual(pdfSheetPaint(preview));
+		await testInfo.attach(`3d-${paper}-direct-backgrounds-off.pdf`, {
+			body: direct,
+			contentType: 'application/pdf'
+		});
+		await page.emulateMedia({ media: 'screen' });
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toBeVisible();
 	}
 });
