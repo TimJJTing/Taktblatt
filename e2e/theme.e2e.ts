@@ -1,23 +1,19 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
 	choosePrint,
+	chooseTheme,
+	openLanguageMenu,
 	openApp,
 	openExample,
 	openPreview,
 	openMenu,
 	storedPlan,
-	waitForAnimations
+	openMenuWithKeyboard
 } from './helpers.ts';
 
 const menuButton = (page: Page) => page.getByTestId('app-menu');
 const themeGroup = (page: Page) => page.getByRole('group', { name: 'Theme', exact: true });
 const preference = (page: Page) => page.evaluate(() => localStorage.getItem('taktblatt:theme'));
-
-async function chooseTheme(page: Page, name: 'Light' | 'Dark' | 'System') {
-	await openMenu(page);
-	await themeGroup(page).getByRole('menuitemradio', { name, exact: true }).click();
-	await expect(page.getByRole('menu')).toHaveCount(0);
-}
 
 async function expectTheme(page: Page, theme: 'light' | 'dark') {
 	await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
@@ -84,15 +80,9 @@ test('the menu theme choices support keyboard selection and preserve plan histor
 	await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
 	const plan = await storedPlan(page);
 	const origin = await page.evaluate(() => performance.timeOrigin);
-	await expect(menuButton(page)).toBeVisible();
-	await menuButton(page).focus();
-	await page.keyboard.press('Enter');
-	await expect(page.getByRole('menu')).toBeVisible();
-	await waitForAnimations(page.getByRole('menu'));
-	await page.keyboard.press('Home');
-	await expect(page.getByTestId('menu-print')).toBeFocused();
-	// The three actions come before the Theme group.
-	for (let step = 0; step < 3; step++) await page.keyboard.press('ArrowDown');
+	await openMenuWithKeyboard(page);
+	// The five actions come before the Theme group.
+	for (let step = 0; step < 5; step++) await page.keyboard.press('ArrowDown');
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
 	).toBeFocused();
@@ -100,6 +90,19 @@ test('the menu theme choices support keyboard selection and preserve plan histor
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Dark', exact: true })
 	).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(
+		themeGroup(page).getByRole('menuitemradio', { name: 'System', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(
+		themeGroup(page).getByRole('menuitemradio', { name: 'Dark', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(
+		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('menu')).toHaveCount(0);
 	await expect(menuButton(page)).toBeFocused();
@@ -208,21 +211,14 @@ test('the app menu fits a phone header and works after an offline reload', async
 	await expect.poll(() => preference(page)).toBe('light');
 	await openPreview(page);
 	await page.keyboard.press('Escape');
-	await openMenu(page);
-	await expect(
-		page
-			.getByRole('group', { name: 'Language', exact: true })
-			.getByRole('menuitemradio', { name: 'English', exact: true })
-	).toBeChecked();
+	await openLanguageMenu(page);
+	await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
 	await page.getByRole('menuitemradio', { name: 'Deutsch', exact: true }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	await expectTheme(page, 'light');
-	await openMenu(page);
-	await expect(
-		page
-			.getByRole('group', { name: 'Sprache', exact: true })
-			.getByRole('menuitemradio', { name: 'Deutsch', exact: true })
-	).toBeChecked();
+	await openLanguageMenu(page);
+	await expect(page.getByRole('menuitemradio', { name: 'Deutsch', exact: true })).toBeChecked();
+	await page.keyboard.press('Escape');
 	await page.keyboard.press('Escape');
 	await choosePrint(page);
 	await expect(page.getByTestId('sheet').first()).toContainText('Zeitachse');

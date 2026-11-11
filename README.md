@@ -8,7 +8,7 @@ Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows i
 
 On a wide screen (1024 px or more), the workspace has two panes. The left pane shows the plan: the header, the timeline, the stage overview and the remarks. The right pane shows the work plan. Each pane scrolls on its own. Drag the divider between the panes to change their widths, or select it and use the arrow keys. Double-click the divider to reset it to 50/50.
 
-On a narrower screen, a tab bar at the bottom has two tabs, **Overview** and **Work plan**. They show one group at a time. The timeline is always pinned at the top. Tap the chevron on its divider to collapse or expand it.
+On a narrower screen, a tab bar at the bottom has two tabs, **Overview** and **Work plan**. They show one group at a time. The timeline is always pinned at the top. Tap the handle on its bottom edge to collapse or expand it, or drag the handle to change its height. When you scroll down, the timeline collapses to a thin stage edge. Scroll back to the top to expand it again. Turn on **Keep timeline open** to stop this.
 
 The Preview and the printed sheets do not change with the screen layout.
 
@@ -30,7 +30,7 @@ The **Sheet footer** row below the objective has a note, a version, a date and a
 - Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
-- In split view, use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. With tabs, the section is always pinned: drag its divider to change the height, or tap the chevron to collapse it. Use the Legends button to show or hide Stages, Milestones and Bands together.
+- In split view, use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. In split view, use the Legends button to show or hide Stages, Milestones and Bands together. With tabs, the section is always pinned, and the legends are one line of chips below the chart. Swipe the line to see more.
 
 ### Stage overview
 
@@ -64,12 +64,14 @@ Remark sections hold lists of short bullets. They are at the end of the plan pan
 
 ![The preview with the first A4 sheet of the example plan](docs/screenshots/preview.png)
 
-Open **Menu** (**…**) in the app header and choose **Print**. The preview shows the paper sheets. Choose A4 or US Letter. Click **Print** in the preview to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
+Open **Menu** (**…**) in the app header and choose **Print…**. The preview shows the paper sheets. Choose A4 or US Letter. Click **Print** in the preview to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
 
 ### Several plans, import, export and offline use
 
-- Create, rename, duplicate and delete plans with the plan switcher in the app header.
-- Export one plan or all plans as JSON files with **Menu → Export**. Import them again on any device with **Menu → Import**.
+- Open the plan switcher (**Plans**) in the app header to change plans, create a plan, import files and back up all plans.
+- Open **Menu** (**…**) to print, export, rename, duplicate or delete the open plan.
+- Export the open plan with **Menu → Export this plan**. Back up all plans in one file with **Plans → Back up all plans**. Import the files again on any device with **Plans → Import…**.
+- When the primary pointer is touch, as on phones and most tablets, both menus open as bottom sheets.
 - Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
 
@@ -85,7 +87,7 @@ The app has four UI languages: English, German, Traditional Chinese and Japanese
 
 ### Dark mode
 
-Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light**, **Dark** or **System**. The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
+Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light** (sun icon), **Dark** (moon icon) or **System** (monitor icon). The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
 
 ![The workspace in dark mode](docs/screenshots/workspace-dark.png)
 
@@ -94,9 +96,9 @@ Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light**, **
 1. Open the app in a modern browser.
 2. Click **Load example** to see a complete example plan. Or start with the empty plan.
 3. Click a heading, a date or a task to edit it.
-4. Click **Menu → Print** to see the sheets in the preview.
+4. Click **Menu → Print…** to see the sheets in the preview.
 5. Click **Print** in the preview to print the plan or to save it as a PDF.
-6. Click **Menu → Export → Export this plan** to save a copy of your plan as a JSON file.
+6. Click **Menu → Export this plan** to save a copy of your plan as a JSON file.
 
 ## Development
 

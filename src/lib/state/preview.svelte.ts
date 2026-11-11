@@ -10,10 +10,10 @@ export class PreviewState {
 	open = $state(false);
 	/** True while the app renders the sheets for a print without the preview. */
 	printing = $state(false);
-	/** The element that opened the preview. The focus goes back to it on close. */
-	private opener: HTMLElement | null = null;
+	/** The element that opened the preview. A getter resolves the current element on close. */
+	private opener: (() => HTMLElement | null) | null = null;
 
-	show(opener: HTMLElement | null): void {
+	show(opener: () => HTMLElement | null): void {
 		this.opener = opener;
 		this.open = true;
 	}
@@ -69,7 +69,7 @@ export class PreviewState {
 		const opener = this.opener;
 		this.opener = null;
 		// Wait for the page behind the preview to lose the inert state.
-		void tick().then(() => opener?.focus());
+		void tick().then(() => opener?.()?.focus());
 	}
 }
 

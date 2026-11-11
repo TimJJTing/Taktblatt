@@ -217,9 +217,7 @@
 	"plan_rename_title": "重新命名計畫",
 	"plan_rename_label": "計畫名稱",
 	"action_import": "匯入",
-	"action_export": "匯出",
 	"export_plan": "匯出此計畫",
-	"export_all": "匯出所有計畫",
 	"import_error_title": "無法匯入此檔案",
 	"import_error_body": "應用程式沒有變更任何資料。請修正以下錯誤後再試一次。",
 	"import_error_more": "其他錯誤：{count} 個",
@@ -293,5 +291,14 @@
 	"workspace_view": "工作區檢視",
 	"workspace_plan": "計畫",
 	"sheet_footer": "頁尾",
-	"sheet_footer_hint": "列印在每張紙的底部。"
+	"sheet_footer_hint": "列印在每張紙的底部。",
+	"timeline_keep_open": "保持時間軸展開",
+	"timeline_handle_hint": "拖曳或使用方向鍵來調整高度。",
+	"menu_print": "列印…",
+	"plans_import": "匯入…",
+	"plans_backup": "備份所有計畫",
+	"plans_backup_short": "備份",
+	"menu_this_plan": "此計畫",
+	"menu_print_hint": "預覽頁面",
+	"menu_export_hint": "將此計畫儲存為檔案"
 }

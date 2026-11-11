@@ -1,6 +1,6 @@
 <!--
 	The import flow: `choose()` opens a file chooser for a plan file or a backup file.
-	The app menu calls it. This component has no visible trigger.
+	The Plans menu calls it. This component has no visible trigger.
 	The app checks the file first. An invalid file shows a list of errors and changes nothing.
 	When a plan has the same id as a stored plan, a dialog asks Replace or Keep both.
 	If the browser cannot save, the import undoes its own writes and shows an error.
@@ -15,9 +15,18 @@
 	import { indexTasks } from '#lib/domain/derive.ts';
 	import { limitErrors, parseFile } from '#lib/domain/io.ts';
 	import type { Plan } from '#lib/domain/schema.ts';
+	import { nameOf } from '#lib/plan-name.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { StorageWriteError } from '#lib/state/storage.ts';
 	import { getWorkspace, type ImportConflict } from '#lib/state/workspace.svelte.ts';
+
+	let { returnFocus }: { returnFocus?: HTMLButtonElement | null } = $props();
+
+	function restoreFocus(event: Event) {
+		if (!returnFocus) return;
+		event.preventDefault();
+		returnFocus.focus();
+	}
 
 	type Choice = 'replace' | 'keep-both';
 
@@ -32,8 +41,6 @@
 	let choices = $state<Record<string, Choice>>({});
 
 	const errorList = $derived(errors ? limitErrors(errors) : null);
-
-	const nameOf = (heading: string) => heading.trim() || m.untitled_plan();
 
 	/** Opens the file chooser. Call it from a user action, or the browser blocks it. */
 	export function choose() {
@@ -121,7 +128,7 @@
 	onchange={onFile}
 />
 <Dialog.Root open={errors !== null} onOpenChange={(open) => !open && (errors = null)}>
-	<Dialog.Content data-testid="import-errors">
+	<Dialog.Content data-testid="import-errors" onCloseAutoFocus={restoreFocus}>
 		<Dialog.Header>
 			<Dialog.Title>{m.import_error_title()}</Dialog.Title>
 			<Dialog.Description>{m.import_error_body()}</Dialog.Description>
@@ -145,7 +152,7 @@
 </Dialog.Root>
 
 <AlertDialog.Root open={pending !== null} onOpenChange={(open) => !open && (pending = null)}>
-	<AlertDialog.Content data-testid="import-conflicts">
+	<AlertDialog.Content data-testid="import-conflicts" onCloseAutoFocus={restoreFocus}>
 		<AlertDialog.Header>
 			<AlertDialog.Title>{m.import_conflict_title()}</AlertDialog.Title>
 			<AlertDialog.Description>{m.import_conflict_body()}</AlertDialog.Description>

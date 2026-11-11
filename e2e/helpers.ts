@@ -21,11 +21,24 @@ const layoutSource = readFileSync(
 	new URL('../src/lib/components/timeline/gantt-layout.ts', import.meta.url),
 	'utf8'
 );
-const rowMotion = layoutSource.match(/export const ROW_MOTION_MS\s*=\s*(\d+)/)?.[1];
-if (!rowMotion) throw new Error('Missing ROW_MOTION_MS');
-const ROW_MOTION_MS = Number(rowMotion);
+function layoutConstant(name: string): number {
+	const expression = layoutSource.match(new RegExp(`export const ${name}\\s*=\\s*([^;]+);`))?.[1];
+	if (!expression) throw new Error(`Missing ${name}`);
+	return expression.split('+').reduce(
+		(sum, term) =>
+			sum +
+			term.split('*').reduce((product, factor) => {
+				const value = factor.trim();
+				return product * (/^\d+$/.test(value) ? Number(value) : layoutConstant(value));
+			}, 1),
+		0
+	);
+}
+const ROW_MOTION_MS = layoutConstant('ROW_MOTION_MS');
+export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
+export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
-/** The default height of the whole pinned section, in pixels. */
+/** The section height that the default ganttHeight gives, in pixels. See storedPanelHeight. */
 export const defaultPanelHeight = (page: Page) =>
 	page.viewportSize()!.height * GANTT_HEIGHT.default;
 
@@ -48,15 +61,22 @@ export async function settledPanelHeight(page: Page): Promise<number> {
 	return height;
 }
 
-/** Retries the panel height check until the transition finishes. */
+/**
+ * Returns the section height that ganttHeight gives. The expanded tabs section adds a top space
+ * to this height. This value does not include that space. A collapsed section gives its collapsed
+ * height.
+ */
+export async function storedPanelHeight(page: Page): Promise<number> {
+	return page.getByTestId('timeline-panel').evaluate((element) => {
+		const content = element.querySelector<HTMLElement>('#timeline-content')!;
+		const space = content.inert ? 0 : parseFloat(getComputedStyle(content).paddingTop);
+		return element.getBoundingClientRect().height - space;
+	});
+}
+
+/** Retries the section height check until the transition finishes. See storedPanelHeight. */
 export async function expectPanelHeight(page: Page, height: number): Promise<void> {
-	await expect
-		.poll(() =>
-			page
-				.getByTestId('timeline-panel')
-				.evaluate((element) => element.getBoundingClientRect().height)
-		)
-		.toBeCloseTo(height, 0);
+	await expect.poll(() => storedPanelHeight(page)).toBeCloseTo(height, 0);
 }
 
 /** Reads the sheet count and content in the same browser snapshot. */
@@ -111,7 +131,12 @@ export async function startTimelineFrameMonitor(page: Page) {
 			const bounds = panel.getBoundingClientRect();
 			const slot = panel.closest('#timeline')!.getBoundingClientRect();
 			const toggle = panel
-				.querySelector('[data-testid="timeline-legends-toggle"]')!
+				.querySelector(
+					document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!.dataset
+						.layout === 'split'
+						? '[data-testid="timeline-legends-toggle"]'
+						: '[data-testid="timeline-keep-open"]'
+				)!
 				.getBoundingClientRect();
 			return {
 				time: performance.now(),
@@ -211,29 +236,183 @@ export async function importJson(page: Page, content: unknown, name = 'plan.json
 	});
 }
 
-/** Opens the app menu and waits for its opening animation. */
-export async function openMenu(page: Page): Promise<Locator> {
-	const trigger = page.getByTestId('app-menu');
-	await expect(trigger).toBeVisible();
-	await trigger.click();
-	const menu = page.getByRole('menu');
-	await expect(menu).toBeVisible();
-	await waitForAnimations(menu);
-	return menu;
+/** Reads the saved viewer preferences. */
+export const storedViewer = (page: Page) =>
+	page.evaluate(() => JSON.parse(localStorage.getItem('taktblatt:ui')!));
+
+/** Checks whether the primary pointer is coarse. */
+export const isCoarse = (page: Page) =>
+	page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+
+/** Opens a scope menu and waits for its presentation to settle. */
+async function openScope(page: Page, scope: 'plans' | 'menu'): Promise<Locator> {
+	await page.getByTestId(scope === 'plans' ? 'plan-switcher' : 'app-menu').click();
+	const coarse = await isCoarse(page);
+	const surface = coarse ? page.getByTestId(`${scope}-sheet`) : page.getByRole('menu');
+	await expect(surface).toBeVisible();
+	await waitForAnimations(surface);
+	return surface;
+}
+
+/** Opens the This plan menu or sheet. */
+export const openMenu = (page: Page) => openScope(page, 'menu');
+
+/** Opens the Plans menu or sheet. */
+export const openPlans = (page: Page) => openScope(page, 'plans');
+
+/** Opens the language submenu for the current UI language. */
+export async function openLanguageMenu(page: Page): Promise<Locator> {
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-language').click();
+	const languages = page.getByRole('menu').filter({
+		has: page.getByRole('menuitemradio', { name: 'English', exact: true })
+	});
+	await expect(languages).toBeVisible();
+	await waitForAnimations(languages);
+	return languages;
+}
+
+/** Chooses a UI language through the scope menu. */
+export async function chooseLanguage(
+	page: Page,
+	name: 'English' | 'Deutsch' | '繁體中文' | '日本語'
+) {
+	if (await isCoarse(page)) {
+		await openMenu(page);
+		await chooseOption(page, 'menu-language', name);
+	} else {
+		const languages = await openLanguageMenu(page);
+		await languages.getByRole('menuitemradio', { name, exact: true }).click();
+	}
+}
+
+/** Chooses a theme. A sheet stays open after the choice. */
+export async function chooseTheme(page: Page, name: 'Light' | 'Dark' | 'System') {
+	const menu = await openMenu(page);
+	const coarse = await isCoarse(page);
+	await menu.getByRole(coarse ? 'radio' : 'menuitemradio', { name, exact: true }).click();
+	if (!coarse) await expect(menu).toHaveCount(0);
+}
+
+export const timelineHandle = (page: Page) => page.locator('button#timeline-collapse');
+
+export async function collapseTimeline(page: Page) {
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await timelineHandle(page).click();
+	await expectTimelineCollapsed(page);
+}
+
+export async function expandTimeline(page: Page) {
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'false');
+	await timelineHandle(page).click();
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await waitForAnimations(page.locator('#timeline'));
+}
+
+export async function expectTimelineCollapsed(page: Page) {
+	await expect(timelineHandle(page)).toHaveAccessibleName('Expand timeline');
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'false');
+	await waitForAnimations(page.locator('#timeline'));
+	await expect
+		.poll(async () => (await page.locator('#timeline').boundingBox())!.height)
+		.toBeCloseTo(COLLAPSED_TIMELINE_HEIGHT, 0);
+	await expect(page.getByTestId('gantt')).toBeHidden();
+}
+
+/** Scrolls a pane with real user input. It does not move the window. */
+export async function userScroll(page: Page, pane: Locator, delta: number) {
+	const box = (await pane.boundingBox())!;
+	await page.mouse.move(box.x + box.width - 12, box.y + box.height - 24);
+	await page.mouse.wheel(0, delta);
+	await pane.evaluate(async () => {
+		await new Promise(requestAnimationFrame);
+		await new Promise(requestAnimationFrame);
+	});
+}
+
+/** Returns evenly spaced points for a vertical drag. */
+export function dragSteps(start: { x: number; y: number }, distance: number, count = 12) {
+	return Array.from({ length: count }, (_, i) => ({
+		x: start.x,
+		y: start.y + (distance * (i + 1)) / count
+	}));
+}
+
+/** Drags one finger with raw touch input. The callback runs before the finger lifts. */
+export async function touchDrag(
+	page: Page,
+	start: { x: number; y: number },
+	steps: { x: number; y: number }[],
+	stepWait: number | (() => Promise<unknown>),
+	beforeRelease?: () => Promise<void>,
+	timestampIntervalMs?: number
+) {
+	const session = await page.context().newCDPSession(page);
+	let released = false;
+	// CDP timestamps use seconds since the Unix epoch. Keep the whole gesture in the past.
+	let timestamp = Date.now() / 1000 - ((steps.length + 1) * (timestampIntervalMs ?? 0)) / 1000;
+	const eventTimestamp = () => (timestampIntervalMs === undefined ? {} : { timestamp });
+	try {
+		await session.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [start],
+			...eventTimestamp()
+		});
+		for (const point of steps) {
+			if (typeof stepWait === 'number' && stepWait > 0) await page.waitForTimeout(stepWait);
+			timestamp += (timestampIntervalMs ?? 0) / 1000;
+			await session.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [point],
+				...eventTimestamp()
+			});
+			if (typeof stepWait === 'function') await stepWait();
+		}
+		await beforeRelease?.();
+		timestamp += (timestampIntervalMs ?? 0) / 1000;
+		await session.send('Input.dispatchTouchEvent', {
+			type: 'touchEnd',
+			touchPoints: [],
+			...eventTimestamp()
+		});
+		released = true;
+	} finally {
+		if (!released)
+			await session
+				.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+				.catch(() => {});
+		await session.detach();
+	}
 }
 
 /**
- * Opens the app menu with the keyboard and waits for its opening animation.
- * The first item, Print, gets the focus.
+ * Drags one finger upward over a pane with raw CDP touch events, so the pane scrolls down.
+ * Chromium headless shell ignores touch input from Input.synthesizeScrollGesture.
  */
-export async function openMenuWithKeyboard(page: Page): Promise<Locator> {
-	const trigger = page.getByTestId('app-menu');
+export async function touchScroll(page: Page, pane: Locator, distance: number, steps = 12) {
+	const box = (await pane.boundingBox())!;
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height - 100;
+	await touchDrag(page, { x, y }, dragSteps({ x, y }, -distance, steps), () =>
+		pane.evaluate(() => new Promise(requestAnimationFrame))
+	);
+}
+
+/**
+ * Opens a menu with the keyboard and waits for its opening animation.
+ * Checks initial Print focus for the app menu.
+ */
+export async function openMenuWithKeyboard(
+	page: Page,
+	triggerId: 'app-menu' | 'plan-switcher' = 'app-menu'
+): Promise<Locator> {
+	const trigger = page.getByTestId(triggerId);
 	await trigger.focus();
 	await page.keyboard.press('Enter');
 	const menu = page.getByRole('menu');
 	await expect(menu).toBeVisible();
 	await waitForAnimations(menu);
-	await expect(menu.getByTestId('menu-print')).toBeFocused();
+	if (triggerId === 'app-menu') await expect(menu.getByTestId('menu-print')).toBeFocused();
 	return menu;
 }
 
@@ -243,7 +422,8 @@ export async function waitForAnimations(locator: Locator): Promise<void> {
 		const animations = element
 			.getAnimations({ subtree: true })
 			.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
-		await Promise.all(animations.map((animation) => animation.finished));
+		// A canceled or replaced transition rejects its promise. It is also complete.
+		await Promise.allSettled(animations.map((animation) => animation.finished));
 	});
 }
 
@@ -681,4 +861,32 @@ export async function setTaskStatus(
 	await page.getByRole('option', { name: labels[status], exact: true }).click();
 	await expect(listbox).toHaveCount(0);
 	await expect(trigger).toBeFocused();
+}
+
+/** Selects Duplicate and reopens the same surface during its exit animation. */
+export async function expectDuplicateOnceAfterReopen(page: Page): Promise<void> {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	const before = await planIds(page);
+	const menu = await openMenu(page);
+	await menu.evaluate(async (surface) => {
+		const action = surface.querySelector<HTMLButtonElement>('[data-testid="menu-duplicate"]')!;
+		action.click();
+		// Let Svelte commit the close, but reopen before the exit animation ends.
+		await new Promise(requestAnimationFrame);
+		if (!surface.isConnected || surface.getAttribute('data-state') !== 'closed') {
+			throw new Error('The menu must still be mounted in its closing state');
+		}
+		document.querySelector<HTMLButtonElement>('[data-testid="app-menu"]')!.click();
+	});
+	await expect(menu).toBeVisible();
+	await expect(menu).toHaveAttribute('data-state', 'open');
+	await waitForAnimations(menu);
+	// Keep the reopened menu open while checking that the first action has finished.
+	await expect.soft.poll(async () => (await planIds(page)).length).toBe(before.length + 1);
+	const beforeDismissal = await planIds(page);
+	await page.keyboard.press('Escape');
+	await expect(menu).toHaveCount(0);
+	await expect(page.getByTestId('app-menu')).toBeFocused();
+	await expect.poll(() => planIds(page)).toEqual(beforeDismissal);
+	expect(await planIds(page)).toHaveLength(before.length + 1);
 }

@@ -6,6 +6,7 @@
 	import { formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { m } from '#lib/paraglide/messages.js';
+	import { nameOf } from '#lib/plan-name.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = getWorkspace();
@@ -20,7 +21,7 @@
 		</p>
 	{/if}
 	<h1 class="line-clamp-2 text-[24px] leading-tight font-semibold text-paper-ink">
-		{plan.heading || m.untitled_plan()}
+		{nameOf(plan.heading)}
 	</h1>
 	<p class="mt-1 text-[11px] text-paper-ink-2">{range}</p>
 	{#if plan.objective}

@@ -4,7 +4,12 @@ import {
 	expectStickyStageStack,
 	openApp,
 	openExample,
-	stage
+	stage,
+	collapseTimeline,
+	expandTimeline,
+	expectTimelineCollapsed,
+	openPreview,
+	expectExampleSheetLegends
 } from './helpers.ts';
 
 test.describe('PWA', () => {
@@ -67,5 +72,33 @@ test.describe('PWA', () => {
 		await expect(bands).toContainText('Frost risk');
 		await expectStickyStageStack(stage(page, 0));
 		await context.setOffline(false);
+	});
+
+	test('tabs Keep open, handle collapse and Preview work after an offline reload', async ({
+		page,
+		context
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openExample(page);
+		const keep = page.getByTestId('timeline-keep-open');
+		await keep.click();
+		await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+		await expect
+			.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
+			.toBe(true);
+		try {
+			await context.setOffline(true);
+			await page.reload();
+			await expect(keep).toHaveAttribute('aria-pressed', 'true');
+			await collapseTimeline(page);
+			await page.reload();
+			await expectTimelineCollapsed(page);
+			await expandTimeline(page);
+			await expect(keep).toHaveAttribute('aria-pressed', 'true');
+			await openPreview(page);
+			await expectExampleSheetLegends(page);
+		} finally {
+			await context.setOffline(false);
+		}
 	});
 });

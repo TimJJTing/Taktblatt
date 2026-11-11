@@ -15,7 +15,8 @@ import {
 	workPane,
 	workspaceContent,
 	workspaceTabs,
-	workspaceTabSize
+	workspaceTabSize,
+	storedPanelHeight
 } from './helpers.ts';
 
 test.beforeEach(async ({ page }) => {
@@ -417,6 +418,8 @@ test.describe('workspace island scroll and selection', () => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openExample(page);
 		await addWorkspaceOverflow(page);
+		// Keep the Timeline height fixed while testing island scroll and selection.
+		await page.getByTestId('timeline-keep-open').click();
 		await expect(workspaceTabs(page)).toBeVisible();
 		await page.evaluate(() => document.fonts.ready.then(() => undefined));
 		await waitForAnimations(workspaceTabs(page));
@@ -634,7 +637,7 @@ test('focus reveals the last task control between the Timeline and workspace isl
 		.toBe(true);
 });
 
-test('a focused Timeline height button transfers focus to the chevron when the layout narrows', async ({
+test('a focused Timeline height button transfers focus to the handle when the layout narrows', async ({
 	page
 }) => {
 	await openExample(page);
@@ -648,31 +651,31 @@ test('a focused Timeline height button transfers focus to the chevron when the l
 	await expect(page.getByRole('button', { name: 'Collapse timeline', exact: true })).toBeFocused();
 });
 
-test('a focused Timeline chevron transfers focus to the pin when the layout widens', async ({
+test('a focused Timeline handle transfers focus to the pin when the layout widens', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await openExample(page);
-	const chevron = page.getByRole('button', { name: 'Collapse timeline', exact: true });
-	await chevron.focus();
-	await expect(chevron).toBeFocused();
+	const handle = page.getByRole('button', { name: 'Collapse timeline', exact: true });
+	await handle.focus();
+	await expect(handle).toBeFocused();
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
-	await expect(chevron).toBeHidden();
+	await expect(handle).toBeHidden();
 	await expect(page.getByTestId('gantt-pin')).toBeFocused();
 });
 
-test('a focused Timeline divider transfers focus to the unpinned toggle when the layout widens', async ({
+test('a focused Keep open toggle transfers focus to the unpinned toggle when the layout widens', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await openExample(page);
-	const divider = page.getByTestId('gantt-resize');
-	await divider.focus();
-	await expect(divider).toBeFocused();
+	const keepOpen = page.getByTestId('timeline-keep-open');
+	await keepOpen.focus();
+	await expect(keepOpen).toBeFocused();
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
-	await expect(divider).toHaveCount(0);
+	await expect(keepOpen).toHaveCount(0);
 	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'false');
 	await expect(page.getByTestId('gantt-pin')).toBeFocused();
 });
@@ -772,10 +775,12 @@ test('a narrow pinned Timeline stays above both panels and the sticky stage stac
 					.querySelector('[data-testid="workspace-content"]')!
 					.getBoundingClientRect();
 				const bounds = panel.getBoundingClientRect();
-				return Math.abs(bounds.top - content.top) <= 1 && bounds.height <= innerHeight * 0.4 + 1;
+				return Math.abs(bounds.top - content.top) <= 1;
 			})
 		)
 		.toBe(true);
+	// The tabs maximum excludes the top space added to the stored panel height.
+	await expect.poll(() => storedPanelHeight(page)).toBeLessThanOrEqual(900 * 0.4 + 1);
 	await expect(page.getByTestId('timeline-panel')).toBeVisible();
 	await selectTab(page, 'Overview');
 	await expect(page.getByTestId('timeline-panel')).toBeVisible();

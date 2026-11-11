@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextIslandScroll } from './island-scroll.ts';
+import { nextIslandScroll, nextTimelineAutoCollapse } from './island-scroll.ts';
 
 describe('island scroll size', () => {
 	it('uses valid user distance and bounds the compact fraction', () => {
@@ -56,5 +56,62 @@ describe('island scroll size', () => {
 			last: 0,
 			compact: 0
 		});
+	});
+});
+
+const state = { last: 0, down: 0, collapsed: false };
+const input = {
+	top: 48,
+	max: 500,
+	heightDelta: 270,
+	user: true,
+	keepOpen: false,
+	userCollapsed: false,
+	focusInside: false
+};
+
+describe('Timeline automatic collapse decision', () => {
+	it('accumulates 48 user pixels and resets the count after upward movement', () => {
+		let next = nextTimelineAutoCollapse(state, { ...input, top: 30 });
+		expect(next).toEqual({ last: 30, down: 30, collapsed: false });
+		next = nextTimelineAutoCollapse(next, { ...input, top: 20 });
+		next = nextTimelineAutoCollapse(next, { ...input, top: 67 });
+		expect(next.collapsed).toBe(false);
+		expect(nextTimelineAutoCollapse(next, { ...input, top: 68 }).collapsed).toBe(true);
+	});
+	it('requires 48 pixels of remaining range after the collapse', () => {
+		expect(nextTimelineAutoCollapse(state, { ...input, max: 365 }).collapsed).toBe(false);
+		expect(nextTimelineAutoCollapse(state, { ...input, max: 366 }).collapsed).toBe(true);
+	});
+	it('rebases app and layout scrolls without counting their distance', () => {
+		const next = nextTimelineAutoCollapse(state, { ...input, top: 200, user: false });
+		expect(next).toEqual({ last: 200, down: 0, collapsed: false });
+		expect(nextTimelineAutoCollapse(next, { ...input, top: 247, max: 1000 }).collapsed).toBe(false);
+		expect(nextTimelineAutoCollapse(next, { ...input, top: 248, max: 1000 }).collapsed).toBe(true);
+	});
+	it('does not collapse with Keep open, a manual collapse, or keyboard focus in the Timeline content', () => {
+		for (const flag of ['keepOpen', 'userCollapsed', 'focusInside'] as const) {
+			expect(nextTimelineAutoCollapse(state, { ...input, [flag]: true }).collapsed).toBe(false);
+		}
+	});
+	it('expands an automatic collapse only on user input at the top', () => {
+		const collapsed = { last: 100, down: 48, collapsed: true };
+		expect(nextTimelineAutoCollapse(collapsed, { ...input, top: 0, user: false }).collapsed).toBe(
+			true
+		);
+		expect(nextTimelineAutoCollapse(collapsed, { ...input, top: 50 }).collapsed).toBe(true);
+		expect(nextTimelineAutoCollapse(collapsed, { ...input, top: 0 }).collapsed).toBe(false);
+		expect(
+			nextTimelineAutoCollapse(collapsed, { ...input, top: 0, userCollapsed: true }).collapsed
+		).toBe(true);
+	});
+	it('ignores overscroll and its rebound at either edge', () => {
+		let next = state;
+		for (const top of [-30, -60, -20, 0]) next = nextTimelineAutoCollapse(next, { ...input, top });
+		expect(next).toEqual(state);
+		let bottom = { last: 500, down: 0, collapsed: false };
+		for (const top of [530, 560, 520, 500])
+			bottom = nextTimelineAutoCollapse(bottom, { ...input, top });
+		expect(bottom).toEqual({ last: 500, down: 0, collapsed: false });
 	});
 });

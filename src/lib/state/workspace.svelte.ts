@@ -325,7 +325,7 @@ export class Workspace {
 		return $state.snapshot(this.plan) as Plan;
 	}
 
-	/** Returns all plans, for "Export all plans". */
+	/** Returns all plans, for "Back up all plans". */
 	allPlans(): Plan[] {
 		return this.plans.flatMap((summary) => {
 			if (summary.id === this.plan.id) return [this.activePlan()];
