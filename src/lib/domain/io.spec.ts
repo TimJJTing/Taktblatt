@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createExamplePlan } from './example.ts';
-import { createEmptyPlan } from './factory.ts';
+import { createEmptyPlan, createMilestone } from './factory.ts';
 import {
 	backupFileName,
 	exportFileName,
@@ -34,6 +34,21 @@ describe('milestone symbol contract', () => {
 	const planWithSymbol = (symbol: string) => ({
 		...makePlan([]),
 		milestones: [{ id: 'm1', title: 'Review', description: '', date: '2027-01-10', symbol }]
+	});
+
+	it('round-trips the Default ring as diamond through export, backup and stored data', () => {
+		const plan = makePlan([]);
+		plan.milestones = [
+			{ ...createMilestone('2027-01-10'), title: 'Default review', description: 'Keep identity' },
+			{ ...createMilestone('2027-01-11'), title: 'Flag review', symbol: 'flag' }
+		];
+		for (const file of [toPlanFile(plan), toBackupFile([plan])]) {
+			expect(parseFile(serializeFile(file))).toEqual({ ok: true, plans: [plan] });
+		}
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
 	});
 
 	it('lists exactly eleven symbols in the specified order', () => {

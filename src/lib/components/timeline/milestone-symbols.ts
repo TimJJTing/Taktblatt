@@ -1,6 +1,6 @@
 /** The icon of each milestone symbol. The Gantt and the printed Gantt share this map. */
 import CircleIcon from '@lucide/svelte/icons/circle';
-import DiamondIcon from '@lucide/svelte/icons/diamond';
+import DefaultMilestone from './DefaultMilestone.svelte';
 import FlagIcon from '@lucide/svelte/icons/flag';
 import StarIcon from '@lucide/svelte/icons/star';
 import TriangleIcon from '@lucide/svelte/icons/triangle';
@@ -17,7 +17,7 @@ import FilledMapPin from './FilledMapPin.svelte';
 type MilestoneIconProps = Pick<SVGAttributes<SVGSVGElement>, 'class' | 'aria-hidden'>;
 
 export const MILESTONE_SYMBOLS: Record<MilestoneSymbol, Component<MilestoneIconProps>> = {
-	diamond: DiamondIcon,
+	diamond: DefaultMilestone,
 	flag: FlagIcon,
 	star: StarIcon,
 	circle: CircleIcon,

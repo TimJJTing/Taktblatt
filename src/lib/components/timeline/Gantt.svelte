@@ -37,6 +37,7 @@
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
+	import TodayTag from './TodayTag.svelte';
 	import GanttTween from './GanttTween.svelte';
 	import {
 		HEADER_HEIGHT,
@@ -79,6 +80,40 @@
 	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(visibleBands(win, ws.plan.bands));
 	const milestones = $derived(visibleMilestones(win, ws.plan.milestones));
+	let milestoneTweens = $state.raw(new Map<string, Tween<number>>());
+	const milestoneFractions = $derived(
+		milestones.map((item) => milestoneTweens.get(item.milestone.id)?.current ?? item.x)
+	);
+	$effect(() => {
+		const targets = milestones;
+		const duration = motionDuration(GEOMETRY_MOTION_MS);
+		// Only destination changes start tweens. Current positions drive drawing and tag placement.
+		untrack(() => {
+			milestoneTweens = new Map(
+				targets.map((item) => {
+					const tween = milestoneTweens.get(item.milestone.id) ?? new Tween(item.x);
+					tween.set(item.x, { duration, easing: cubicOut });
+					return [item.milestone.id, tween];
+				})
+			);
+		});
+	});
+
+	const todayPosition = new Tween(untrack(() => today ?? 0));
+	let previousToday = untrack(() => today);
+	$effect(() => {
+		const target = today;
+		const duration = motionDuration(GEOMETRY_MOTION_MS);
+		untrack(() => {
+			if (target !== null) {
+				todayPosition.set(target, {
+					duration: previousToday === null ? 0 : duration,
+					easing: cubicOut
+				});
+			}
+			previousToday = target;
+		});
+	});
 
 	const bodyHeight = new Tween(untrack(() => rows.length * ROW_HEIGHT));
 	$effect(() => {
@@ -211,31 +246,36 @@
 					{m.legend_milestones()}
 				</div>
 				<div class="relative flex-1">
-					{#each milestones as item (item.milestone.id)}
+					{#each milestones as item, index (item.milestone.id)}
 						{@const Symbol = MILESTONE_SYMBOLS[item.milestone.symbol]}
-						<GanttTween x0={item.x}>
-							{#snippet child(x)}
-								<Hint text="{item.label} {item.milestone.title}">
-									{#snippet child({ props })}
-										<button
-											{...mergeProps(props, { onclick: () => onMilestone(item.milestone) })}
-											type="button"
-											class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-											style:left="calc({x.x0 * 100}% - 7px)"
-											aria-label={m.gantt_milestone({
-												label: item.label,
-												title: item.milestone.title,
-												date: formatDate(item.milestone.date, locale)
-											})}
-											data-testid="gantt-milestone"
-										>
-											<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
-										</button>
-									{/snippet}
-								</Hint>
+						<Hint text="{item.label} {item.milestone.title}">
+							{#snippet child({ props })}
+								<button
+									{...mergeProps(props, { onclick: () => onMilestone(item.milestone) })}
+									type="button"
+									class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+									style:left="calc({milestoneFractions[index] * 100}% - 7px)"
+									aria-label={m.gantt_milestone({
+										label: item.label,
+										title: item.milestone.title,
+										date: formatDate(item.milestone.date, locale)
+									})}
+									data-testid="gantt-milestone"
+									data-milestone-sign
+								>
+									<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
+								</button>
 							{/snippet}
-						</GanttTween>
+						</Hint>
 					{/each}
+					{#if today !== null}
+						<TodayTag
+							x={todayPosition.current}
+							today={todayPosition.current}
+							milestones={milestoneFractions}
+							chartWidth={timelineWidth}
+						/>
+					{/if}
 				</div>
 			</div>
 
@@ -296,20 +336,11 @@
 					</GanttTween>
 				{/each}
 				{#if today !== null}
-					<GanttTween x0={today}>
-						{#snippet child(x)}
-							<div
-								class="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/60"
-								style:left="{x.x0 * 100}%"
-								data-testid="gantt-today"
-							>
-								<span
-									class="absolute top-0.5 left-1 rounded-sm bg-background/80 px-0.5 text-[10px] leading-tight font-medium"
-									>{m.gantt_today()}</span
-								>
-							</div>
-						{/snippet}
-					</GanttTween>
+					<div
+						class="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/60"
+						style:left="{todayPosition.current * 100}%"
+						data-testid="gantt-today"
+					></div>
 				{/if}
 				<svg
 					class="pointer-events-none absolute inset-0 size-full overflow-visible text-muted-foreground"

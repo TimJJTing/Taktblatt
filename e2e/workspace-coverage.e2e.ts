@@ -237,9 +237,14 @@ test('a late Gantt label jump at 390px reveals the row between Timeline and isla
 				const stage = element.closest('[data-testid="stage"]')!;
 				const header = stage.querySelector(':scope > header')!.getBoundingClientRect();
 				const band = stage.querySelector('[data-testid="stage-band"]')!.getBoundingClientRect();
+				const ringBottoms = [...stage.querySelectorAll('[data-testid="stage-rule-ring"]')]
+					.filter((ring) => ring.getBoundingClientRect().width > 0)
+					.map((ring) => ring.getBoundingClientRect().bottom);
 				const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
 				return {
-					belowStack: bounds.top >= Math.max(timeline.bottom, header.bottom, band.bottom) - 1,
+					belowStack:
+						bounds.top >=
+						Math.max(timeline.bottom, header.bottom, band.bottom, ...ringBottoms) - 0.5,
 					aboveIsland: bounds.bottom <= island.top - 1,
 					groupScrolled: content.scrollTop > 0,
 					documentScroll: window.scrollY

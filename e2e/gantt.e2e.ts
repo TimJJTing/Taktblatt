@@ -1,6 +1,12 @@
+import { MILESTONE_SYMBOLS } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	dependencyArrowFades,
+	expectMilestoneRing,
+	expectMilestoneDatePosition,
+	expectTokenPaint,
+	formatted,
+	writeStoredPlan,
 	dependencyContrast,
 	defaultPanelHeight,
 	expectPanelHeight,
@@ -304,4 +310,59 @@ test('a milestone click opens the milestone dialog', async ({ page }) => {
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Open day');
+});
+
+test('the Default ring and ten ink alternatives keep milestone names, dates and editing', async ({
+	page
+}) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.milestones = MILESTONE_SYMBOLS.map((symbol, i) => ({
+			id: `sign-${symbol}`,
+			title: `Review ${symbol}`,
+			description: 'Original description',
+			date: new Date(Date.parse(`${plan.range.start}T00:00:00Z`) + (i + 2) * 86400000)
+				.toISOString()
+				.slice(0, 10),
+			symbol
+		}));
+	});
+	const plan = await storedPlan(page);
+	for (const theme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme: theme });
+		await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
+		for (const [index, milestone] of plan.milestones.entries()) {
+			const mark = gantt(page).getByTestId('gantt-milestone').nth(index);
+			await expect(mark).toHaveAccessibleName(
+				`Milestone M${index + 1}: ${milestone.title} (${formatted(milestone.date)})`
+			);
+			await expectTokenPaint(mark.locator('svg'), 'color', '--foreground');
+			await expectMilestoneDatePosition(mark, milestone.date, plan.range);
+			if (index === 0) await expectMilestoneRing(mark);
+			else {
+				const icon = milestone.symbol === 'pin' ? 'map-pin' : milestone.symbol;
+				await expect(mark.locator(`svg.lucide-${icon}`)).toBeVisible();
+			}
+		}
+	}
+	const mark = gantt(page).getByTestId('gantt-milestone').first();
+	await mark.focus();
+	await mark.press('Enter');
+	const dialog = page.getByTestId('milestone-dialog');
+	await expect(dialog).toBeVisible();
+	await expect(dialog.getByTestId('milestone-symbol')).toHaveText('Default');
+	await expectMilestoneRing(dialog.getByTestId('milestone-symbol'), false);
+	await expect(dialog.getByLabel('Description', { exact: true })).toHaveValue(
+		'Original description'
+	);
+	await dialog.getByLabel('Title', { exact: true }).fill('Edited ring');
+	await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(mark).toBeFocused();
+	await expect
+		.poll(async () => (await storedPlan(page)).milestones[0])
+		.toEqual({ ...plan.milestones[0], title: 'Edited ring' });
+	await page.reload();
+	await expectMilestoneRing(mark);
+	await expect(mark).toHaveAccessibleName(/Edited ring/);
 });

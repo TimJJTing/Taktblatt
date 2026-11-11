@@ -955,3 +955,283 @@ export async function appFontLoaded(page: Page): Promise<boolean> {
 		);
 	}, APP_FONT_FAMILY);
 }
+
+/** Checks the Default milestone outline. Picker previews can use a different display size. */
+export async function expectMilestoneRing(container: Locator, exactSize = true): Promise<void> {
+	const svg = container.locator('svg:has(circle)');
+	await expect(svg).toHaveCount(1);
+	const circle = svg.locator('circle');
+	await expect(circle).toHaveCount(1);
+	await expect
+		.poll(() =>
+			circle.evaluate((element) => {
+				const circle = element as SVGCircleElement;
+				const svg = circle.ownerSVGElement!;
+				const style = getComputedStyle(circle);
+				const scale =
+					svg.viewBox.baseVal.width > 0
+						? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width
+						: 1;
+				const stroke = parseFloat(style.strokeWidth) * scale;
+				return {
+					open: style.fill === 'none',
+					outlined: style.stroke !== 'none' && stroke > 0,
+					diameter: circle.r.baseVal.value * scale * 2 + stroke,
+					stroke
+				};
+			})
+		)
+		.toMatchObject({ open: true, outlined: true });
+	if (exactSize) {
+		const geometry = await circle.evaluate((element) => {
+			const circle = element as SVGCircleElement;
+			const svg = circle.ownerSVGElement!;
+			const scale =
+				svg.viewBox.baseVal.width > 0
+					? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width
+					: 1;
+			const stroke = parseFloat(getComputedStyle(circle).strokeWidth) * scale;
+			return { diameter: circle.r.baseVal.value * scale * 2 + stroke, stroke };
+		});
+		expect(geometry.diameter).toBeCloseTo(14, 1);
+		expect(geometry.stroke).toBeCloseTo(2.5, 1);
+	}
+}
+
+/** Compares effective paint, including ancestor opacity, with a theme token. */
+export async function expectTokenPaint(
+	target: Locator,
+	property: 'color' | 'stroke' | 'fill' | 'background-color' | 'border-left-color',
+	token: string,
+	strength = 1,
+	paper = false
+): Promise<void> {
+	await expect
+		.poll(() =>
+			target.evaluate(
+				(element, { property, token, strength, paper }) => {
+					const style = getComputedStyle(element);
+					const probe = document.createElement('span');
+					probe.style.color = `var(${token})`;
+					element.append(probe);
+					const ink = getComputedStyle(probe).color;
+					probe.style.color = `var(${paper ? '--color-paper' : '--background'})`;
+					const ground = getComputedStyle(probe).color;
+					probe.remove();
+					const canvas = document.createElement('canvas');
+					canvas.width = canvas.height = 1;
+					const context = canvas.getContext('2d')!;
+					const sample = (paint: string, alpha: number) => {
+						context.globalAlpha = 1;
+						context.clearRect(0, 0, 1, 1);
+						context.fillStyle = ground;
+						context.fillRect(0, 0, 1, 1);
+						context.globalAlpha = alpha;
+						context.fillStyle = paint;
+						context.fillRect(0, 0, 1, 1);
+						return [...context.getImageData(0, 0, 1, 1).data];
+					};
+					let opacity = 1;
+					for (let node: Element | null = element; node; node = node.parentElement) {
+						opacity *= Number(getComputedStyle(node).opacity);
+					}
+					const actual = sample(style.getPropertyValue(property), opacity);
+					const expected = sample(ink, strength);
+					return actual.every((channel, index) => Math.abs(channel - expected[index]) <= 2);
+				},
+				{ property, token, strength, paper }
+			)
+		)
+		.toBe(true);
+}
+
+/** Checks the Today line's actual ink strength instead of an unset opacity property. */
+export async function expectTodayLine(line: Locator, paper = false): Promise<void> {
+	await expect(line).toHaveCSS('border-left-width', '1px');
+	await expect(line).toHaveCSS('border-left-style', 'dashed');
+	await expectTokenPaint(
+		line,
+		'border-left-color',
+		paper ? '--color-paper-ink' : '--foreground',
+		0.6,
+		paper
+	);
+}
+
+/** Reads tag, line, date area, milestone and row bounds in one browser snapshot. */
+export async function todayTagGeometry(chart: Locator, paper = false) {
+	return chart.evaluate((chart, paper) => {
+		const prefix = paper ? 'sheet-gantt' : 'gantt';
+		const line = chart.querySelector(`[data-testid="${prefix}-today"]`)!.getBoundingClientRect();
+		const tagElement = chart.querySelector(`[data-testid="${prefix}-today-label"]`)!;
+		const tag = tagElement.getBoundingClientRect();
+		const dateArea = tagElement.parentElement!;
+		const dateBounds = dateArea.getBoundingClientRect();
+		const milestone = chart.querySelector(
+			paper ? '[role="img"][aria-label^="Milestone"]' : '[data-testid="gantt-milestone"]'
+		);
+		const mark = milestone?.querySelector('svg')?.getBoundingClientRect();
+		const row = dateArea.parentElement!.getBoundingClientRect();
+		return {
+			line: line.x,
+			tagLeft: tag.left,
+			tagRight: tag.right,
+			tagWidth: tag.width,
+			markLeft: mark?.left ?? NaN,
+			markRight: mark?.right ?? NaN,
+			dateAreaLeft: dateBounds.left,
+			dateAreaRight: dateBounds.right,
+			inRow: tag.top >= row.top - 0.5 && tag.bottom <= row.bottom + 0.5,
+			rowHeight: row.height
+		};
+	}, paper);
+}
+
+/** Checks the replacement stage rule and its decorative start ring in the active layout. */
+export async function expectStageRule(section: Locator, paper = false): Promise<void> {
+	const narrow =
+		!paper && (await section.evaluate((element) => element.getBoundingClientRect().width < 640));
+	const rule = narrow ? section.getByTestId('stage-band') : section.locator('thead th').first();
+	await expect(rule).toBeVisible();
+	await expect
+		.poll(() =>
+			rule.evaluate((element, narrow) => {
+				const style = getComputedStyle(element);
+				return narrow
+					? element.getBoundingClientRect().height === 4
+					: parseFloat(style.borderTopWidth) === 4 || /(?:^|\s)4px(?:\s|,)/.test(style.boxShadow);
+			}, narrow)
+		)
+		.toBe(true);
+	const ring = section.getByTestId('stage-rule-ring').filter({ visible: true });
+	await expect(ring).toHaveCount(1);
+	await expect(ring).toHaveAttribute('aria-hidden', 'true');
+	await expect(ring).not.toHaveAttribute('tabindex');
+	const shape = await ring.evaluate((element) => {
+		const box = element.getBoundingClientRect();
+		const circle = element.matches('circle') ? element : element.querySelector('circle');
+		const style = getComputedStyle(circle ?? element);
+		return {
+			width: box.width,
+			height: box.height,
+			fill: circle ? style.fill : style.backgroundColor,
+			outline: circle ? style.stroke : style.borderTopColor,
+			outlineWidth: parseFloat(circle ? style.strokeWidth : style.borderTopWidth),
+			forced: matchMedia('(forced-colors: active)').matches
+		};
+	});
+	expect(shape.width).toBeCloseTo(paper ? 4 : 6, 1);
+	expect(shape.height).toBeCloseTo(paper ? 4 : 6, 1);
+	expect(shape.fill).not.toBe('none');
+	expect(shape.fill).not.toBe('rgba(0, 0, 0, 0)');
+	expect(shape.outline).not.toBe(shape.fill);
+	expect(shape.outlineWidth).toBeGreaterThan(0);
+	if (!shape.forced) {
+		const fillTarget = ring.locator('circle');
+		if (await fillTarget.count())
+			await expectTokenPaint(
+				fillTarget,
+				'fill',
+				paper ? '--color-paper' : '--background',
+				1,
+				paper
+			);
+		else
+			await expectTokenPaint(
+				ring,
+				'background-color',
+				paper ? '--color-paper' : '--background',
+				1,
+				paper
+			);
+	}
+}
+
+/** Checks a revealed or focused row against all sticky chrome, including the ring overhang. */
+export async function expectJumpTarget(page: Page, title: string): Promise<void> {
+	await expect
+		.poll(() =>
+			row(page, title).evaluate((element) => {
+				const stage = element.closest('[data-testid="stage"]')!;
+				const header = stage.querySelector(':scope > header')!.getBoundingClientRect();
+				const narrow = stage.getBoundingClientRect().width < 640;
+				const band = stage
+					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
+					.getBoundingClientRect();
+				const rings = [...stage.querySelectorAll('[data-testid="stage-rule-ring"]')]
+					.filter((ring) => ring.getBoundingClientRect().width > 0)
+					.map((ring) => ring.getBoundingClientRect().bottom);
+				const bounds = element.getBoundingClientRect();
+				const content = document.querySelector('[data-testid="workspace-content"]')!;
+				const tabs = content.getAttribute('data-layout') === 'tabs';
+				const scroller = tabs ? content : document.querySelector('#work-pane')!;
+				const island = document
+					.querySelector('[data-testid="workspace-tabs"]')!
+					.getBoundingClientRect();
+				return (
+					bounds.top >=
+						Math.max(
+							header.bottom,
+							band.bottom,
+							...rings,
+							tabs ? document.querySelector('#timeline')!.getBoundingClientRect().bottom : 0
+						) -
+							0.5 &&
+					bounds.bottom <=
+						Math.min(scroller.getBoundingClientRect().bottom, tabs ? island.top : Infinity) - 1
+				);
+			})
+		)
+		.toBe(true);
+}
+
+/** Checks that the center of a milestone sign still represents the center of its date. */
+export async function expectMilestoneDatePosition(
+	mark: Locator,
+	date: string,
+	range: { start: string; end: string }
+): Promise<void> {
+	await expect
+		.poll(() =>
+			mark.evaluate(
+				(element, { date, range }) => {
+					const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86400000;
+					const fraction =
+						(day(date) - day(range.start) + 0.5) / (day(range.end) - day(range.start) + 1);
+					const timeline = element.parentElement!.getBoundingClientRect();
+					const icon = element.querySelector('svg')!.getBoundingClientRect();
+					return Math.abs(
+						(icon.left + icon.right) / 2 - (timeline.left + fraction * timeline.width)
+					);
+				},
+				{ date, range }
+			)
+		)
+		.toBeLessThanOrEqual(0.5);
+}
+
+/** Checks the text contrast on a rendered stage badge, including caller styles. */
+export async function expectBadgeContrast(badge: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			badge.evaluate((element) => {
+				const style = getComputedStyle(element);
+				const canvas = document.createElement('canvas');
+				canvas.width = canvas.height = 1;
+				const context = canvas.getContext('2d')!;
+				const luminance = (paint: string) => {
+					context.fillStyle = paint;
+					context.fillRect(0, 0, 1, 1);
+					const [r, g, b] = [...context.getImageData(0, 0, 1, 1).data].map((channel) => {
+						const value = channel / 255;
+						return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+					});
+					return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+				};
+				const background = luminance(style.backgroundColor);
+				const text = luminance(style.color);
+				return (Math.max(background, text) + 0.05) / (Math.min(background, text) + 0.05);
+			})
+		)
+		.toBeGreaterThanOrEqual(4.5);
+}

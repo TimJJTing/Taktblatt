@@ -15,6 +15,8 @@ export const GANTT_LABEL_WIDTH = 150;
 export const GANTT_ROW_HEIGHT = 18;
 export const GANTT_MONTH_HEIGHT = 20;
 export const GANTT_MILESTONE_HEIGHT = 22;
+/** The fixed paper tag width keeps its side independent of font and paint timing. */
+export const GANTT_TODAY_TAG_WIDTH = 28;
 
 /**
  * The paginator keeps this much free space at the bottom of the content area.

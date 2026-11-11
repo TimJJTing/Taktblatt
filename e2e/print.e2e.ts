@@ -1,7 +1,14 @@
+import { MILESTONE_SYMBOLS } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
 	appFontLoaded,
+	expectMilestoneRing,
+	expectMilestoneDatePosition,
+	expectStageRule,
+	expectTodayLine,
+	expectTokenPaint,
+	todayTagGeometry,
 	choosePrint,
 	dependencyArrowFades,
 	dependencyContrast,
@@ -331,6 +338,13 @@ test('the Gantt continues on the next sheet with the month header, and the table
 		ganttRows += n;
 		await expect(sheet.getByTestId('sheet-month-header')).toHaveCount(1);
 	}
+	const fragments = sheets(page).filter({ has: page.getByTestId('sheet-month-header') });
+	await expect(fragments.getByTestId('sheet-gantt-today')).toHaveCount(ganttSheets);
+	await expect(fragments.first().getByTestId('sheet-gantt-today-label')).toHaveCount(1);
+	for (const fragment of (await fragments.all()).slice(1)) {
+		await expect(fragment.getByTestId('sheet-gantt-today-label')).toHaveCount(0);
+		await expectTodayLine(fragment.getByTestId('sheet-gantt-today'), true);
+	}
 	expect(ganttSheets).toBeGreaterThanOrEqual(2);
 	expect(ganttRows).toBe(107);
 	await expect(sheets(page).nth(1).getByTestId('sheet-gantt-row').first()).toBeVisible();
@@ -356,7 +370,7 @@ test('the Gantt continues on the next sheet with the month header, and the table
 	expect(taskRows).toBe(107);
 	// The stage header shows once. The work plan title shows once.
 	await expect(
-		page.getByTestId('sheets').getByRole('heading', { name: /Stage 1 · Prepare/ })
+		page.getByTestId('sheets').getByRole('heading', { name: /S1.*Prepare/ })
 	).toHaveCount(1);
 	await expect(page.getByTestId('sheets').getByRole('heading', { name: 'Work plan' })).toHaveCount(
 		1
@@ -475,6 +489,8 @@ for (const source of ['preview', 'direct'] as const) {
 	}, testInfo) => {
 		await openExample(page);
 		await writeStoredPlan(page, (plan) => {
+			plan.milestones[0].symbol = 'diamond';
+			plan.milestones[1].symbol = 'hexagon';
 			// Cover a point and a completed bar that starts before the visible range.
 			plan.tasks.find((task: { title: string }) => task.title === 'First harvest')!.end = null;
 			plan.tasks.find((task: { title: string }) => task.title === 'Site survey')!.start = addDays(
@@ -492,6 +508,12 @@ for (const source of ['preview', 'direct'] as const) {
 		await expect(first.getByTestId('sheet-gantt-point')).toHaveCount(1);
 		await expect(first.getByTestId('sheet-gantt-band')).toHaveCount(1);
 		await expect(first.getByTestId('sheet-gantt-dependency')).toHaveCount(5);
+		await expectMilestoneRing(first.getByRole('img', { name: /^Milestone M1:/ }));
+		await expect(
+			first.getByRole('img', { name: /^Milestone M2:/ }).locator('svg.lucide-hexagon')
+		).toBeVisible();
+		await expectStageRule(sheets(page).getByTestId('sheet-table').first(), true);
+
 		const count = await sheets(page).count();
 		const withBackgrounds = await page.pdf({ preferCSSPageSize: true, printBackground: true });
 		// A direct print removes its sheets on afterprint. Render them for the second print.
@@ -685,24 +707,89 @@ test('the target column of the sheets follows the workspace rule', async ({ page
 	expect(checked).toBeGreaterThan(0);
 });
 
-test('the today label does not cover the milestone row', async ({ page }) => {
+test('the Preview Today tag stays inside the date area at both range edges', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await openExample(page);
-	await writeStoredPlan(page, (plan) => {
-		plan.footer.date = addDays(plan.range.start, 10);
-	});
-	await openPreview(page);
-	// Read the label and the milestone row in one snapshot.
-	const gap = await sheets(page)
-		.first()
-		.evaluate((sheet) => {
-			const label = sheet
-				.querySelector('[data-testid="sheet-gantt-today-label"]')!
-				.getBoundingClientRect();
-			const milestones = sheet.querySelector('[data-part="extra"]')!.getBoundingClientRect();
-			return label.top - milestones.bottom;
+	for (const edge of ['start', 'end'] as const) {
+		await writeStoredPlan(page, (plan) => {
+			plan.range = { start: '2027-01-01', end: '2027-02-28' };
+			plan.footer.date = plan.range[edge];
+			plan.milestones =
+				edge === 'start'
+					? [
+							{
+								id: 'paper-edge-review',
+								title: 'Review',
+								description: '',
+								date: '2027-01-02',
+								symbol: 'diamond'
+							}
+						]
+					: [];
 		});
-	expect(gap).toBeGreaterThanOrEqual(-0.5);
+		const preview = await openPreview(page);
+		const first = preview.getByTestId('sheet').first();
+		const tag = first.getByTestId('sheet-gantt-today-label');
+		await expect(tag).toBeVisible();
+		await expect(tag).toHaveAttribute('data-side', edge === 'start' ? 'right' : 'left');
+		await expect
+			.poll(async () => {
+				const geometry = await todayTagGeometry(first, true);
+				return (
+					geometry.inRow &&
+					geometry.tagLeft >= geometry.dateAreaLeft - 0.5 &&
+					geometry.tagRight <= geometry.dateAreaRight + 0.5
+				);
+			})
+			.toBe(true);
+		await page.keyboard.press('Escape');
+		await expect(preview).toHaveCount(0);
+	}
 });
+
+for (const side of ['right', 'left'] as const) {
+	test(`the paper Today tag stays in the milestone row on the ${side}`, async ({ page }) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.footer.date = addDays(plan.range.start, 10);
+			plan.milestones = [
+				{
+					id: 'tag-review',
+					title: 'Review',
+					description: '',
+					date: addDays(plan.range.start, side === 'left' ? 11 : 40),
+					symbol: 'diamond'
+				}
+			];
+		});
+		await openPreview(page);
+		for (const media of ['screen', 'print'] as const) {
+			await page.emulateMedia({ media });
+			const first = sheets(page).first();
+			await expectTodayLine(first.getByTestId('sheet-gantt-today'), true);
+			const geometry = await todayTagGeometry(first, true);
+			expect(geometry.inRow).toBe(true);
+			if (side === 'left') {
+				expect(geometry.tagRight).toBeLessThanOrEqual(geometry.line + 0.5);
+				expect(geometry.tagRight).toBeLessThan(geometry.markLeft);
+			} else expect(geometry.tagLeft).toBeGreaterThanOrEqual(geometry.line);
+			await expectTokenPaint(
+				first.getByTestId('sheet-gantt-today-label'),
+				'background-color',
+				'--color-paper-ink',
+				1,
+				true
+			);
+			await expectTokenPaint(
+				first.getByTestId('sheet-gantt-today-label'),
+				'color',
+				'--color-paper',
+				1,
+				true
+			);
+		}
+	});
+}
 
 test('the printed Gantt names points and marks tasks outside the range', async ({ page }) => {
 	await openExample(page);
@@ -821,4 +908,124 @@ test('the beforeprint fallback commits a field in edit mode', async ({ page }) =
 	await expect(sheets(page).first()).toContainText('Grow food together.');
 	await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 	await expect(sheets(page)).toHaveCount(0);
+});
+
+test('paper signs keep their ink, badges and first-row placement on A4 and Letter', async ({
+	page
+}) => {
+	await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.milestones = MILESTONE_SYMBOLS.map((symbol, index) => ({
+			id: `paper-${symbol}`,
+			title: `Paper ${symbol}`,
+			description: '',
+			date: addDays(plan.range.start, index * 3 + 1),
+			symbol
+		}));
+	});
+	const plan = await storedPlan(page);
+	await openPreview(page);
+	for (const paper of ['a4', 'letter']) {
+		await page.getByTestId(`paper-${paper}`).click();
+		await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', paper);
+		for (const media of ['screen', 'print'] as const) {
+			await page.emulateMedia({ media });
+			const first = sheets(page).first();
+			for (const milestone of await first.getByRole('img', { name: /^Milestone M/ }).all()) {
+				await expectTokenPaint(milestone.locator('svg'), 'color', '--color-paper-ink', 1, true);
+			}
+			await expectMilestoneRing(first.getByRole('img', { name: /^Milestone M1:/ }));
+			for (const [index, milestone] of plan.milestones.entries()) {
+				await expectMilestoneDatePosition(
+					first.getByRole('img', { name: new RegExp(`^Milestone M${index + 1}:`) }),
+					milestone.date,
+					plan.range
+				);
+			}
+			for (const symbol of [
+				'flag',
+				'star',
+				'circle',
+				'triangle',
+				'square',
+				'hexagon',
+				'pentagon',
+				'map-pin',
+				'bookmark',
+				'heart'
+			]) {
+				await expect(first.locator(`svg.lucide-${symbol}`)).toHaveCount(1);
+			}
+			await expect(
+				first.getByRole('list', { name: 'Stages', exact: true }).locator('.stage-badge')
+			).toHaveText(['S1', 'S2', 'S3']);
+			for (const table of await sheets(page).getByTestId('sheet-table').all()) {
+				await expectStageRule(table, true);
+				const heading = table.locator('xpath=preceding-sibling::*[1]').locator('h3');
+				await expect(heading.locator('.stage-badge')).toHaveCount(1);
+			}
+			await expect
+				.poll(() =>
+					sheets(page).evaluateAll((elements) =>
+						elements.every((sheet) => {
+							const content = sheet.querySelector('.sheet-content')!.getBoundingClientRect();
+							const fragments = [...sheet.querySelectorAll('[data-fragment]')];
+							return fragments.every(
+								(fragment) => fragment.getBoundingClientRect().bottom <= content.bottom + 1
+							);
+						})
+					)
+				)
+				.toBe(true);
+		}
+		await page.emulateMedia({ media: 'screen' });
+	}
+});
+
+test('flipping the paper Today tag preserves fragment rows and pagination', async ({ page }) => {
+	await openExample(page);
+	await addManyTasks(page, 100);
+	await writeStoredPlan(page, (plan) => {
+		plan.footer.date = addDays(plan.range.start, 10);
+		plan.milestones = [
+			{
+				id: 'flip-review',
+				title: 'Review',
+				description: '',
+				date: addDays(plan.range.start, 40),
+				symbol: 'diamond'
+			}
+		];
+	});
+	for (const paper of ['a4', 'letter']) {
+		await openPreview(page);
+		await page.getByTestId(`paper-${paper}`).click();
+		const assignments = () =>
+			sheets(page).evaluateAll((elements) =>
+				elements.map((sheet) => ({
+					rows: [
+						...sheet.querySelectorAll(
+							'[data-testid="sheet-gantt-row"], [data-testid="sheet-task-row"]'
+						)
+					].map((row) => row.textContent),
+					milestoneHeight:
+						sheet.querySelector('[data-part="extra"]')?.getBoundingClientRect().height ?? 0
+				}))
+			);
+		const before = await assignments();
+		await page.keyboard.press('Escape');
+		await writeStoredPlan(page, (plan) => {
+			plan.milestones[0].date = addDays(plan.range.start, 11);
+		});
+		await openPreview(page);
+		await expect.poll(assignments).toEqual(before);
+		const geometry = await todayTagGeometry(sheets(page).first(), true);
+		expect(geometry.inRow).toBe(true);
+		expect(geometry.tagRight).toBeLessThanOrEqual(geometry.line + 0.5);
+		await page.keyboard.press('Escape');
+		await writeStoredPlan(page, (plan) => {
+			plan.milestones[0].date = addDays(plan.range.start, 40);
+		});
+	}
 });

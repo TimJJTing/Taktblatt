@@ -16,6 +16,7 @@
 
 <span
 	class="stage-badge inline-flex shrink-0 items-center justify-center rounded-sm px-1.5 py-0.5 text-xs font-semibold tabular-nums"
+	class:still
 	style:background-color={still ? stagePaperColor(color) : stageColorVar(color)}
 	style:color={still
 		? STAGE_BADGE_TEXT.light
@@ -28,5 +29,13 @@
 <style>
 	.stage-badge {
 		transition-property: color, background-color;
+	}
+	.still {
+		transition: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.stage-badge {
+			transition: none;
+		}
 	}
 </style>
