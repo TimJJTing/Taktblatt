@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+	appFontLoaded,
 	expectStickyBelowHeader,
 	expectStickyStageStack,
 	openApp,
@@ -49,6 +50,7 @@ test.describe('PWA', () => {
 		await context.setOffline(true);
 		await page.reload();
 		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		expect(await appFontLoaded(page)).toBe(true);
 		await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
 		await expectStickyBelowHeader(page.getByTestId('timeline-panel'));
 		const panel = page.getByTestId('timeline-panel');

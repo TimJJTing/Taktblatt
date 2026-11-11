@@ -188,7 +188,7 @@
 						bind:value={startText}
 						onblur={() => readText('start')}
 						onkeydown={(e) => !isComposing(e) && e.key === 'Enter' && readText('start')}
-						class="h-8 text-sm text-foreground"
+						class="h-8 text-sm text-foreground tabular-nums"
 						data-testid="date-start"
 					/>
 				</label>
@@ -198,7 +198,7 @@
 						bind:value={endText}
 						onblur={() => readText('end')}
 						onkeydown={(e) => !isComposing(e) && e.key === 'Enter' && readText('end')}
-						class="h-8 text-sm text-foreground"
+						class="h-8 text-sm text-foreground tabular-nums"
 						data-testid="date-end"
 					/>
 				</label>
@@ -235,7 +235,7 @@
 		</RangeCalendar>
 		{#if span}
 			<p
-				class="-mt-1 flex w-0 min-w-full items-center gap-2 px-3 pb-3 text-xs text-muted-foreground"
+				class="-mt-1 flex w-0 min-w-full items-center gap-2 px-3 pb-3 text-xs text-muted-foreground tabular-nums"
 				id={legendId}
 				data-testid="date-subtask-span"
 			>

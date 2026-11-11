@@ -890,3 +890,17 @@ export async function expectDuplicateOnceAfterReopen(page: Page): Promise<void> 
 	await expect.poll(() => planIds(page)).toEqual(beforeDismissal);
 	expect(await planIds(page)).toHaveLength(before.length + 1);
 }
+
+/** The app font family. `document.fonts.check` also returns true for a family that no rule declares, so read the loaded faces. */
+export const APP_FONT_FAMILY = 'Source Sans 3 Variable';
+
+/** Returns true when a declared face of the app font has loaded. */
+export async function appFontLoaded(page: Page): Promise<boolean> {
+	return page.evaluate(async (family) => {
+		await document.fonts.ready;
+		await document.fonts.load(`12px "${family}"`);
+		return [...document.fonts].some(
+			(face) => face.family.replace(/"/g, '') === family && face.status === 'loaded'
+		);
+	}, APP_FONT_FAMILY);
+}

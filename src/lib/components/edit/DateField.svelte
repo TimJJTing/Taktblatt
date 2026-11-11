@@ -126,7 +126,7 @@
 					bind:value={text}
 					onblur={() => readText()}
 					onkeydown={(e) => !isComposing(e) && e.key === 'Enter' && readText()}
-					class="h-8 text-sm text-foreground"
+					class="h-8 text-sm text-foreground tabular-nums"
 					data-testid="date-value"
 				/>
 			</label>

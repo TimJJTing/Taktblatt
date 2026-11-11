@@ -25,7 +25,7 @@
 			data-testid="stage-card"
 			style:border-top-color={stageColorVar(stage.color)}
 		>
-			<p class="mb-2 text-xs font-medium uppercase" data-testid="stage-card-label">
+			<p class="mb-2 text-xs font-medium uppercase tabular-nums" data-testid="stage-card-label">
 				{span
 					? m.label_qualifier({
 							name: label,

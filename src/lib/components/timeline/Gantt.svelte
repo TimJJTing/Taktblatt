@@ -191,7 +191,7 @@
 									style:left="{x.x0 * 100}%"
 									style:width="{(x.x1 - x.x0) * 100}%"
 								>
-									<span class="truncate">{formatMonth(t.month, locale)}</span>
+									<span class="truncate tabular-nums">{formatMonth(t.month, locale)}</span>
 								</div>
 							{/snippet}
 						</GanttTween>
