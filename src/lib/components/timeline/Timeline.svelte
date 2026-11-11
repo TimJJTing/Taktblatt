@@ -8,6 +8,7 @@
 	Dates use the UI language.
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
 	import { DRAG_START_PX } from '#lib/browser/drag-click.ts';
 	import { tick, untrack } from 'svelte';
@@ -495,6 +496,7 @@
 			</div>
 			<div
 				bind:this={body}
+				use:overlayScrollbar
 				class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
 				style:--chart-min-height={`${MIN_CHART_HEIGHT}px`}
 				data-testid="timeline-body"
@@ -512,6 +514,7 @@
 				<div
 					id="timeline-legends"
 					bind:this={rail}
+					use:overlayScrollbar={{ axis: 'x' }}
 					class={cn(
 						'grid shrink-0 transition-[grid-template-rows] ease-out',
 						!workspaceLayout.split && 'overflow-x-auto overflow-y-hidden',

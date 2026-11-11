@@ -150,3 +150,27 @@
 		display: none !important;
 	}
 }
+
+.overlay-scroll {
+	scrollbar-width: none;
+}
+.overlay-scroll::-webkit-scrollbar {
+	display: none;
+}
+@media (forced-colors: active) {
+	[data-overlay-thumb] {
+		background-color: CanvasText !important;
+		forced-color-adjust: none;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	[data-overlay-scrollbar],
+	[data-overlay-thumb] {
+		transition-duration: 0ms !important;
+	}
+}
+@media print {
+	[data-overlay-scrollbar] {
+		display: none !important;
+	}
+}

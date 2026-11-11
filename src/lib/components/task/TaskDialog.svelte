@@ -3,6 +3,7 @@
 	Each field saves on blur. Esc closes the modal. The focus goes back to the "…" button.
 -->
 <script lang="ts">
+	import { overlayScrollbarInside } from '#lib/components/app/overlay-scrollbar.ts';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
@@ -108,6 +109,7 @@
 
 <Dialog.Root {open} onOpenChange={(o) => !o && close()}>
 	<Dialog.Content
+		{@attach overlayScrollbarInside}
 		class="max-h-[90vh] overflow-y-auto sm:max-w-xl"
 		onCloseAutoFocus={(e) => {
 			e.preventDefault();

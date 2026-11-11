@@ -8,6 +8,7 @@
 	The workspace behind the dialog is inert (src/routes/+page.svelte).
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onMount } from 'svelte';
@@ -119,7 +120,10 @@
 			<XIcon aria-hidden="true" />{m.preview_close()}
 		</Button>
 	</div>
-	<div class="min-h-0 flex-1 overflow-auto print:overflow-visible">
+	<div
+		use:overlayScrollbar={{ axis: 'both' }}
+		class="min-h-0 flex-1 overflow-auto print:overflow-visible"
+	>
 		<div
 			class="mx-auto flex w-max min-w-full justify-center p-6 print:block print:w-auto print:p-0"
 		>

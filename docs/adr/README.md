@@ -21,3 +21,4 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 15  | [A parent's planned window grows with its subtasks](0015-parent-planned-window.md)               | Accepted                                        | 2026-11-08 |
 | 16  | [Split workspace with pane scrolling](0016-split-workspace.md)                                   | Accepted (amended by ADR 17)                    | 2026-11-09 |
 | 17  | [Menus by scope, bottom sheets on touch, and the narrow Timeline handle](0017-menus-by-scope.md) | Accepted                                        | 2026-11-10 |
+| 18  | [Overlay scrollbar](0018-overlay-scrollbar.md)                                                   | Accepted                                        | 2026-11-11 |

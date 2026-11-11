@@ -6,6 +6,7 @@
 	If the browser cannot save, the import undoes its own writes and shows an error.
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { toast } from 'svelte-sonner';
 	import { formatImportDiagnostic } from '#lib/import-diagnostics.ts';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.ts';
@@ -134,7 +135,7 @@
 			<Dialog.Description>{m.import_error_body()}</Dialog.Description>
 		</Dialog.Header>
 		{#if errorList}
-			<ul class="max-h-60 list-disc space-y-1 overflow-y-auto pl-5 text-sm">
+			<ul use:overlayScrollbar class="max-h-60 list-disc space-y-1 overflow-y-auto pl-5 text-sm">
 				{#each errorList.shown as error, i (i)}
 					<li class="break-words">{error}</li>
 				{/each}
@@ -158,7 +159,7 @@
 			<AlertDialog.Description>{m.import_conflict_body()}</AlertDialog.Description>
 		</AlertDialog.Header>
 		{#if pending}
-			<div class="max-h-72 space-y-3 overflow-y-auto">
+			<div use:overlayScrollbar class="max-h-72 space-y-3 overflow-y-auto">
 				{#each pending.conflicts as conflict (conflict.incoming.id)}
 					{@const name = nameOf(conflict.incoming.heading)}
 					<fieldset class="space-y-1 rounded-md border p-3">

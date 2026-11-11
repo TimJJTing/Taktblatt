@@ -1,5 +1,6 @@
 <!-- A modal scope menu. The heading stays visible above the scrollable actions. -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { onDestroy, untrack, type Snippet } from 'svelte';
 	import { DRAG_START_PX, suppressNextClick } from '#lib/browser/drag-click.ts';
 	import * as Sheet from '#lib/components/ui/sheet/index.ts';
@@ -88,7 +89,7 @@
 		if (
 			!(target instanceof Element) ||
 			target.closest(
-				'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"]'
+				'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"], [data-overlay-scrollbar]'
 			)
 		)
 			return;
@@ -226,6 +227,7 @@
 			</header>
 			<div
 				bind:this={scrollArea}
+				use:overlayScrollbar
 				class="min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5"
 			>
 				{@render children()}
