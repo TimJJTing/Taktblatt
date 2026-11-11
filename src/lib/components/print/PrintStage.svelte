@@ -46,10 +46,10 @@
 			<span
 				>{m.label_qualifier({ name: m.stage_label({ n: segment.number }), qualifier: name })}</span
 			>
-			{#if months}<span class="font-normal text-paper-ink-3"
+			{#if months}<span class="font-normal text-paper-ink-3 tabular-nums"
 					>{m.parenthetical({ text: months })}</span
 				>{/if}
-			<span class="ml-auto text-[10px] font-normal whitespace-nowrap text-paper-ink-3">
+			<span class="ml-auto text-[10px] font-normal whitespace-nowrap text-paper-ink-3 tabular-nums">
 				{segment.progress.inProgress > 0
 					? m.stage_progress_in_progress(segment.progress)
 					: m.stage_progress(segment.progress)}

@@ -1,7 +1,7 @@
 import { KEYS } from '#lib/state/storage.ts';
+import { THEME_COLORS } from '#lib/theme-colors.ts';
 
-/** The browser and PWA theme colors for each resolved screen theme. */
-export const THEME_COLORS = { light: '#ffffff', dark: '#0e0f13' } as const;
+export { THEME_COLORS } from '#lib/theme-colors.ts';
 
 /**
  * The source of the startup script in `src/app.html`. The script applies the saved screen theme

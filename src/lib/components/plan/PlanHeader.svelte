@@ -57,6 +57,7 @@
 				{...props}
 				variant="ghost"
 				size="sm"
+				class="tabular-nums"
 				data-testid="plan-range">{rangeText}</Button
 			>{/snippet}
 	</DateRangeField>

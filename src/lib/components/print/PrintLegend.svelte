@@ -42,7 +42,7 @@
 			{/each}
 		{:else if segment.which === 'milestones'}
 			{#each orderedMilestones(ws.plan.milestones) as item (item.milestone.id)}
-				<li>
+				<li class="tabular-nums">
 					{m.milestone_label({
 						symbol: item.label,
 						title: item.milestone.title,
@@ -52,7 +52,7 @@
 			{/each}
 		{:else}
 			{#each ws.plan.bands as band (band.id)}
-				<li class="flex items-center gap-1.5">
+				<li class="flex items-center gap-1.5 tabular-nums">
 					<span
 						class="size-2 shrink-0 rounded-[1px] border border-paper-rule"
 						style:background={bandFill(bandPaperTint(band.color))}

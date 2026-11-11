@@ -19,7 +19,7 @@ async function expectTheme(page: Page, theme: 'light' | 'dark') {
 	await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
 	const chrome = page.locator('meta[name="theme-color"]');
 	await expect(chrome).toHaveCount(1);
-	await expect(chrome).toHaveAttribute('content', theme === 'dark' ? '#0e0f13' : '#ffffff');
+	await expect(chrome).toHaveAttribute('content', theme === 'dark' ? '#13161a' : '#ffffff');
 }
 
 test('System is the default and follows system changes while open', async ({ page }) => {

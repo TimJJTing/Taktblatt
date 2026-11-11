@@ -61,7 +61,7 @@
 						{...props}
 						variant="ghost"
 						size="sm"
-						class="h-6 px-1.5 text-xs"
+						class="h-6 px-1.5 text-xs tabular-nums"
 						data-testid="footer-date"
 						>{#if dateText}{dateText}{:else}<span class="text-muted-foreground/70"
 								>{m.footer_date_placeholder()}</span

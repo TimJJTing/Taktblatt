@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
+	appFontLoaded,
 	choosePrint,
 	dependencyArrowFades,
 	dependencyContrast,
@@ -237,8 +238,7 @@ test('the sheet count is stable and the sheets have no controls', async ({ page 
 	await expect(page.getByTestId('sheets').getByRole('button')).toHaveCount(0);
 	await expect(page.getByTestId('sheets').getByRole('textbox')).toHaveCount(0);
 	// The sheets use the plan fonts.
-	const loaded = await page.evaluate(() => document.fonts.check('12px "IBM Plex Sans Variable"'));
-	expect(loaded).toBe(true);
+	expect(await appFontLoaded(page)).toBe(true);
 });
 
 test('the paper size changes the sheet size, is one undo step, and persists', async ({ page }) => {
