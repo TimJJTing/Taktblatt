@@ -16,12 +16,12 @@
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { subtaskFill } from '#lib/components/plan/colors.ts';
 	import type { GanttMark, GanttRow } from '#lib/domain/gantt.ts';
-	import { motionDuration } from '#lib/motion.ts';
+	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
-	import { clipEdges, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.ts';
+	import { clipEdges, ROW_HEIGHT } from './gantt-layout.ts';
 	import { markLabel } from './mark-label.ts';
 
 	interface Props {
@@ -52,7 +52,7 @@
 
 	const y = new Tween(untrack(() => row.row * ROW_HEIGHT));
 	$effect(() => {
-		y.set(row.row * ROW_HEIGHT, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+		y.set(row.row * ROW_HEIGHT, { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
 	});
 
 	// The mark moves to its new position when the plan range changes.
@@ -65,7 +65,7 @@
 	const x = new Tween(untrack(() => markX(mark) ?? { x0: 0, x1: 0 }));
 	$effect(() => {
 		const next = markX(mark);
-		if (next) x.set(next, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+		if (next) x.set(next, { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 

@@ -29,7 +29,7 @@
 		visibleMilestones
 	} from '#lib/domain/gantt.ts';
 	import type { Band, Milestone } from '#lib/domain/schema.ts';
-	import { motionDuration } from '#lib/motion.ts';
+	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
@@ -42,7 +42,6 @@
 		LABEL_WIDTH,
 		MILESTONE_ROW_HEIGHT,
 		ROW_HEIGHT,
-		ROW_MOTION_MS,
 		TIMELINE_MIN_WIDTH
 	} from './gantt-layout.ts';
 	import { MILESTONE_SYMBOLS } from './milestone-symbols.ts';
@@ -83,7 +82,7 @@
 	const bodyHeight = new Tween(untrack(() => rows.length * ROW_HEIGHT));
 	$effect(() => {
 		bodyHeight.set(rows.length * ROW_HEIGHT, {
-			duration: motionDuration(ROW_MOTION_MS),
+			duration: motionDuration(GEOMETRY_MOTION_MS),
 			easing: cubicOut
 		});
 	});

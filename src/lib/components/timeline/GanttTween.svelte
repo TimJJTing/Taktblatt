@@ -8,8 +8,7 @@
 	import { untrack, type Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { motionDuration } from '#lib/motion.ts';
-	import { ROW_MOTION_MS } from './gantt-layout.ts';
+	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 
 	interface Props {
 		x0: number;
@@ -21,7 +20,7 @@
 
 	const x = new Tween(untrack(() => ({ x0, x1: x1 ?? x0 })));
 	$effect(() => {
-		x.set({ x0, x1: x1 ?? x0 }, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+		x.set({ x0, x1: x1 ?? x0 }, { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
 	});
 </script>
 

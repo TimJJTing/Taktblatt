@@ -34,7 +34,10 @@ function layoutConstant(name: string): number {
 		0
 	);
 }
-const ROW_MOTION_MS = layoutConstant('ROW_MOTION_MS');
+const motionSource = readFileSync(new URL('../src/lib/motion.ts', import.meta.url), 'utf8');
+const geometryMotion = motionSource.match(/export const GEOMETRY_MOTION_MS\s*=\s*(\d+);/)?.[1];
+if (!geometryMotion) throw new Error('Missing GEOMETRY_MOTION_MS');
+const GEOMETRY_MOTION_MS = Number(geometryMotion);
 export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
 export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
@@ -115,7 +118,7 @@ export async function timelineMotionWindow(page: Page): Promise<number> {
 			);
 		});
 		return Math.max(chartDuration, ...durations.filter(Number.isFinite)) + 100;
-	}, ROW_MOTION_MS);
+	}, GEOMETRY_MOTION_MS);
 }
 
 /** Samples all related geometry in each animation frame until the interaction settles. */

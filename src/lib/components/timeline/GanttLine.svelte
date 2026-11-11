@@ -8,8 +8,8 @@
 	import { Tween } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import type { DependencyLine } from '#lib/domain/gantt.ts';
-	import { motionDuration } from '#lib/motion.ts';
-	import { elbowPath, rowCenterY, ROW_MOTION_MS } from './gantt-layout.ts';
+	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
+	import { elbowPath, rowCenterY } from './gantt-layout.ts';
 
 	interface Props {
 		line: DependencyLine;
@@ -32,7 +32,7 @@
 
 	const pos = new Tween(untrack(() => ends(line)));
 	$effect(() => {
-		pos.set(ends(line), { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+		pos.set(ends(line), { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
 	});
 
 	const d = $derived(
