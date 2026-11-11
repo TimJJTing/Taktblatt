@@ -45,6 +45,9 @@ export interface Junction {
 	key: string;
 	trunk: string;
 	point: Pt;
+	kind: 'junction' | 'tap';
+	/** Only taps name the source track that owns the mark. */
+	source?: SceneId;
 }
 
 export interface Scene {
@@ -68,9 +71,12 @@ export interface Track {
 	span: readonly [number, number] | null;
 	inX: number;
 	outX: number;
+	/** Actual radii after clipping or shrinking each port. */
+	inR: number;
+	outR: number;
 }
 
-/** The router reads width, rowHeight, stub, pitch, minSeg, endZone and slots. */
+/** Resolved layout values and fixed routing distances. */
 export interface RouteMetrics {
 	width: number;
 	/** Adapter input: the number of body rows. */
@@ -82,6 +88,8 @@ export interface RouteMetrics {
 	barHalf: number;
 	/** Adapter input: the port dot radius in pixels. */
 	dotR: number;
+	/** The outer radius of a junction ring. */
+	ringR: number;
 	stub: number;
 	pitch: number;
 	minSeg: number;
