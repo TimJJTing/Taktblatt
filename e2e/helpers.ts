@@ -1742,3 +1742,81 @@ export async function expectBadgeContrast(badge: Locator): Promise<void> {
 		)
 		.toBeGreaterThanOrEqual(4.5);
 }
+
+/** Load a split Gantt with satisfied, open and cyclic dependencies in both directions. */
+export async function openContinuationPlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-04-10' };
+		plan.footer.date = '2027-01-15';
+		plan.stages = [{ ...plan.stages[0], description: '', color: 'blue' }];
+		plan.objective = '';
+		plan.remarks = [];
+		plan.bands = [];
+		plan.milestones = [
+			{
+				...plan.milestones[0],
+				id: 'split-milestone',
+				date: '2027-01-15',
+				title: 'Split milestone',
+				symbol: 'diamond'
+			}
+		];
+		const base = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			start: '2027-01-10',
+			end: '2027-02-10',
+			owners: [],
+			deliverable: '',
+			note: '',
+			status: 'todo',
+			dependsOn: []
+		};
+		plan.tasks = [
+			{
+				...base,
+				id: 'up-target',
+				title: 'Up target',
+				start: '2027-01-01',
+				end: '2027-01-20',
+				dependsOn: ['up-source']
+			},
+			{ ...base, id: 'a', title: 'Source A', status: 'done' },
+			{ ...base, id: 'b', title: 'Source B' },
+			...Array.from({ length: 120 }, (_, i) => ({
+				...base,
+				id: `split-${i}`,
+				title: `Split task ${i + 1}`
+			})),
+			{
+				...base,
+				id: 'ta',
+				title: 'Target A',
+				start: '2027-03-20',
+				end: '2027-03-25',
+				dependsOn: ['a']
+			},
+			{
+				...base,
+				id: 'tb',
+				title: 'Target B',
+				start: '2027-03-21',
+				end: '2027-03-27',
+				dependsOn: ['b']
+			},
+			{
+				...base,
+				id: 'up-source',
+				title: 'Up source',
+				start: '2027-04-01',
+				end: '2027-05-10',
+				dependsOn: ['up-target']
+			}
+		].map((task, i) => ({
+			...task,
+			createdAt: new Date(Date.UTC(2030, 0, 1, 0, 0, i)).toISOString()
+		}));
+	});
+}
