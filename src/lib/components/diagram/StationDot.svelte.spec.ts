@@ -87,7 +87,7 @@ async function paint(container: HTMLElement, underlay = false) {
 	}
 }
 
-describe('StationDot status fill (D6)', () => {
+describe('StationDot status fill', () => {
 	it('uses the screen ground inside a todo ring and white ground on paper', async () => {
 		const screen = await render(StationDot, {
 			color: '#e02020',
@@ -111,7 +111,7 @@ describe('StationDot status fill (D6)', () => {
 		expect(dot.element().getAnimations({ subtree: true })).toHaveLength(0);
 	});
 
-	it('uses the declared physical outer diameter and a 1 px inset, including a paper dot taller than its line [AC2,AC9]', async () => {
+	it('uses the declared physical outer diameter and a 1 px inset, including a paper dot taller than its line', async () => {
 		const screen = await render(StationDot, {
 			color: '#e02020',
 			status: 'todo',
@@ -189,7 +189,7 @@ describe('StationDot status fill (D6)', () => {
 		expect(done.right).toEqual(done.left);
 	});
 
-	it('keeps the ring and half-fill opaque over contrasting connectors in both grounds [AC4]', async () => {
+	it('keeps the ring and half-fill opaque over contrasting connectors in both grounds', async () => {
 		const screen = await render(StationDot, { color: '#e02020', status: 'todo', size: 8 });
 		for (const ground of ['#ffffff', '#13161a']) {
 			screen.container.style.setProperty('--background', ground);

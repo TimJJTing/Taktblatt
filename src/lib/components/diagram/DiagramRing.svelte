@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
-	import { motionDuration, GEOMETRY_MOTION_MS } from '#lib/motion.ts';
+	import { GeometryTween } from './geometry-tween.svelte.ts';
 	import type { Junction } from '#lib/scene/types.ts';
 	let {
 		junction,
@@ -13,19 +11,12 @@
 		x: junction.point.x.f * width + junction.point.x.px,
 		y: junction.point.y.px
 	});
-	const pos = new Tween(untrack(point));
-	let previousWidth = untrack(() => width);
-	let previousTarget = untrack(point);
+	const pos = new GeometryTween(
+		untrack(point),
+		untrack(() => width)
+	);
 	$effect(() => {
-		const target = point();
-		const resized = previousWidth !== width;
-		previousWidth = width;
-		if (!resized && target.x === previousTarget.x && target.y === previousTarget.y) return;
-		previousTarget = target;
-		pos.set(target, {
-			duration: still || resized ? 0 : motionDuration(GEOMETRY_MOTION_MS),
-			easing: cubicOut
-		});
+		pos.set(point(), { width, still });
 	});
 </script>
 

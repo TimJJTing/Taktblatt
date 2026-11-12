@@ -2,7 +2,7 @@ import type { GanttMark, GanttRow, DependencyLine } from '#lib/domain/gantt.ts';
 import type { RouteMetrics, Scene, Track, NodeGeom } from './types.ts';
 import { routeTracks } from './route-tracks.ts';
 
-/** Test-first contract. Width is the date area width, in CSS pixels. */
+/** Layout metrics use the date-area width in CSS pixels. */
 export interface GanttMetrics extends RouteMetrics {
 	media: 'screen' | 'paper';
 }

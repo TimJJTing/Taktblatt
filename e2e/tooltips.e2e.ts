@@ -206,7 +206,7 @@ test.describe('hints show in a tooltip', () => {
 	});
 });
 
-test('3c point stations retain hover and keyboard hints while paper signs have none [AC2,AC11]', async ({
+test('point stations retain hover and keyboard hints while paper signs have none', async ({
 	page
 }) => {
 	await openLinePlan(page);

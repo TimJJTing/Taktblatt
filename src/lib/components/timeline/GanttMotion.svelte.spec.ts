@@ -12,7 +12,7 @@ import GanttTest from './Gantt.test.svelte';
 
 vi.mock('#lib/scene/gantt-scene.ts', { spy: true });
 
-describe('rendered Gantt geometry motion (3c)', () => {
+describe('rendered Gantt geometry motion', () => {
 	const observers: { callback: ResizeObserverCallback; targets: Set<Element> }[] = [];
 	beforeAll(() =>
 		vi.stubGlobal(
@@ -71,6 +71,46 @@ describe('rendered Gantt geometry motion (3c)', () => {
 			frame(time + 1000);
 		});
 
+		it('keeps a moving milestone on its original deadline after an unrelated title edit', async () => {
+			ws.commit((plan) => {
+				plan.range = { start: '2027-01-01', end: '2027-01-31' };
+				plan.milestones = [
+					{
+						id: 'release',
+						title: 'Release',
+						description: '',
+						date: '2027-01-10',
+						symbol: 'diamond'
+					}
+				];
+			});
+			const screen = await render(GanttTest, { workspace: ws });
+			const milestone = screen.container.querySelector<HTMLElement>(
+				'[data-testid="gantt-milestone"]'
+			)!;
+			frame(0);
+			frame(300);
+			const start = milestone.getBoundingClientRect().left;
+			ws.commit((plan) => {
+				plan.milestones[0].date = '2027-01-20';
+			});
+			flushSync();
+			frame(300);
+			frame(420);
+			const moving = milestone.getBoundingClientRect().left;
+			expect(moving).toBeGreaterThan(start);
+			ws.commit((plan) => {
+				plan.milestones[0].title = 'Updated release';
+			});
+			flushSync();
+			frame(420);
+			expect(milestone.getBoundingClientRect().left).toBeCloseTo(moving, 2);
+			frame(540);
+			const atDeadline = milestone.getBoundingClientRect().left;
+			frame(780);
+			expect(atDeadline).toBeCloseTo(milestone.getBoundingClientRect().left, 2);
+		});
+
 		it.each(['none', 'invalid', 'outside'] as const)(
 			'places new bar and point bounds at their target from %s',
 			async (kind) => {
@@ -121,7 +161,7 @@ describe('rendered Gantt geometry motion (3c)', () => {
 			}
 		);
 
-		it('moves shrunk and ordinary stations continuously with ports and focus bounds, including retarget and width snap [AC3,AC8]', async () => {
+		it('moves shrunk and ordinary stations continuously with ports and focus bounds, including retarget and width snap', async () => {
 			const year = { start: '2027-01-01', end: '2027-12-31' };
 			const month = { start: '2027-01-01', end: '2027-01-31' };
 			ws.commit((plan) => {
@@ -243,7 +283,7 @@ describe('rendered Gantt geometry motion (3c)', () => {
 			expect(snapshot()).toEqual(resized);
 			expect(screen.container.querySelector('[data-testid="gantt-dependency"]')).toBe(path);
 		});
-		it('snaps a moving row, its stations and its tap to the resized connector route [AC7,AC8]', async () => {
+		it('snaps a moving row, its stations and its tap to the resized connector route', async () => {
 			ws.commit((plan) => {
 				plan.range = { start: '2027-01-01', end: '2027-01-31' };
 				const stageId = plan.stages[0].id;

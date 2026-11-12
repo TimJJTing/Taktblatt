@@ -1,6 +1,6 @@
 /**
- * Screen layout of the Gantt: sizes (CSS lengths and pixels) and small drawing helpers.
- * The geometry (fractions of the width) comes from #lib/domain/gantt.
+ * Screen layout sizes and pinned-height limits for the Gantt.
+ * The geometry (fractions of the width) comes from #lib/domain/gantt.ts.
  */
 import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.ts';
 
@@ -29,18 +29,6 @@ export const COLLAPSED_TIMELINE_HEIGHT = STAGE_EDGE_HEIGHT + TIMELINE_HANDLE_HEI
 export const TABS_TIMELINE_TOP_SPACE = 16;
 /** The duration of section height, control and legend motion, before motionDuration. */
 export const TIMELINE_MOTION_MS = 180;
-
-/**
- * The vertical center of a task row. `top` is the height above the first row (the milestone row)
- * and `rowHeight` is the height of a row. The defaults are the screen values.
- */
-export function rowCenterY(
-	row: number,
-	top: number = MILESTONE_ROW_HEIGHT,
-	rowHeight: number = ROW_HEIGHT
-): number {
-	return top + row * rowHeight + rowHeight / 2;
-}
 
 /**
  * The limits of the pinned height in pixels, for a viewport height. With tabs, the expanded section

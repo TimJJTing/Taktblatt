@@ -38,6 +38,7 @@
 	import { ganttScene } from '#lib/scene/gantt-scene.ts';
 	import { SCREEN_ROUTE_METRICS } from '#lib/scene/route-tracks.ts';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
+	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
 	import TodayTag from './TodayTag.svelte';
@@ -81,23 +82,21 @@
 	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(visibleBands(win, ws.plan.bands));
 	const milestones = $derived(visibleMilestones(win, ws.plan.milestones));
-	let milestoneTweens = $state.raw(new Map<string, Tween<number>>());
+	let milestoneTweens = $state.raw(new Map<string, GeometryTween<number>>());
 	const milestoneFractions = $derived(
 		milestones.map((item) => milestoneTweens.get(item.milestone.id)?.current ?? item.x)
 	);
 	$effect(() => {
 		const targets = milestones;
-		const duration = motionDuration(GEOMETRY_MOTION_MS);
 		// Only destination changes start tweens. Current positions drive drawing and tag placement.
-		untrack(() => {
-			milestoneTweens = new Map(
-				targets.map((item) => {
-					const tween = milestoneTweens.get(item.milestone.id) ?? new Tween(item.x);
-					tween.set(item.x, { duration, easing: cubicOut });
-					return [item.milestone.id, tween];
-				})
-			);
-		});
+		const previous = untrack(() => milestoneTweens);
+		milestoneTweens = new Map(
+			targets.map((item) => {
+				const tween = previous.get(item.milestone.id) ?? new GeometryTween(item.x);
+				tween.set(item.x);
+				return [item.milestone.id, tween];
+			})
+		);
 	});
 
 	const todayPosition = new Tween(untrack(() => today ?? 0));
@@ -116,12 +115,9 @@
 		});
 	});
 
-	const bodyHeight = new Tween(untrack(() => rows.length * ROW_HEIGHT));
+	const bodyHeight = new GeometryTween(untrack(() => rows.length * ROW_HEIGHT));
 	$effect(() => {
-		bodyHeight.set(rows.length * ROW_HEIGHT, {
-			duration: motionDuration(GEOMETRY_MOTION_MS),
-			easing: cubicOut
-		});
+		bodyHeight.set(rows.length * ROW_HEIGHT);
 	});
 
 	let timelineWidth = $state(TIMELINE_MIN_WIDTH);

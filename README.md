@@ -22,12 +22,14 @@ The **Sheet footer** row below the objective has a note, a version, a date and a
 
 ### Gantt timeline
 
-![The Gantt timeline with an expanded parent task and dependency lines](docs/screenshots/gantt.png)
+![The Gantt timeline with an expanded parent task and dependency connectors](docs/screenshots/gantt.png)
 
-- Each task has one bar. A parent task has a chevron. Click it to show the subtasks.
-- Thin lines show the dependencies between tasks.
-- Bands show a time range as a tint behind the bars, for example a time of frost risk.
-- Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
+- A task with a date range has a task line. A task with one date has a station dot. A parent task has a chevron. Click it to show the subtasks.
+- Station dots show status: a ring for Todo, half filled for In progress, solid for Done, and a ring with a diagonal slash for Canceled. Done and canceled task lines use a 40 % color mix of the stage color with the ground.
+- Thin connectors show the dependencies between tasks. They have no arrowheads.
+- Stage badges S1, S2 and so on show each stage color and number.
+- Bands show a time range as a tint behind the task lines, for example a time of frost risk.
+- Milestones show as symbols on their own row. The Default symbol is a ring. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
 - In split view, use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. In split view, use the Legends button to show or hide Stages, Milestones and Bands together. With tabs, the section is always pinned, and the legends are one line of chips below the chart. Swipe the line to see more.

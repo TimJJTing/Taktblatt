@@ -3,7 +3,7 @@ import { routePath } from './route-path.ts';
 import type { Pt } from './types.ts';
 
 describe('routePath', () => {
-	it('resolves fractional lengths and pixel offsets at two widths (Appendix A case 14)', () => {
+	it('resolves fractional lengths and pixel offsets at two widths', () => {
 		const points: Pt[] = [
 			{ x: { f: 0.25, px: 6 }, y: { f: 0.5, px: -4 } },
 			{ x: { f: 0.75, px: -2 }, y: { f: 1, px: 8 } }

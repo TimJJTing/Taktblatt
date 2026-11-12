@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { heightLimits, pinnedHeight, rowCenterY } from './gantt-layout.ts';
+import { heightLimits, pinnedHeight } from './gantt-layout.ts';
 
 describe('gantt-layout', () => {
-	it('calculates the vertical center of a row', () => {
-		expect(rowCenterY(0)).toBe(42);
-		expect(rowCenterY(2, 20, 30)).toBe(95);
-	});
-
 	it('clamps heightLimits and pinnedHeight when the viewport is smaller than minPx / max', () => {
 		// At viewport = 200, max = 0.5 * 200 = 100 < minPx (120), so min clamps to 100.
 		expect(heightLimits(200)).toEqual({ min: 100, max: 100 });

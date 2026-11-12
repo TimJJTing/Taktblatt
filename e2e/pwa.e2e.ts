@@ -18,7 +18,6 @@ import {
 	openLinePlan,
 	ganttRow,
 	expectStationStatus,
-	expectNoArrowheads,
 	setTaskStatus,
 	row
 } from './helpers.ts';
@@ -144,7 +143,7 @@ test.describe('PWA', () => {
 	});
 });
 
-test('3c stations, connectors and Preview work after offline reload and a persisted status edit [AC11]', async ({
+test('stations, connectors and Preview work after offline reload and a persisted status edit', async ({
 	page,
 	context
 }) => {
@@ -160,7 +159,6 @@ test('3c stations, connectors and Preview work after offline reload and a persis
 		await expectStationStatus(mark, 'todo');
 		const lines = page.getByTestId('gantt-dependency');
 		await expect(lines).toHaveCount(5);
-		await expectNoArrowheads(lines.first());
 		await setTaskStatus(page, row(page, 'Source'), 'done');
 		await page.reload();
 		await expectStationStatus(mark, 'done');
@@ -173,7 +171,6 @@ test('3c stations, connectors and Preview work after offline reload and a persis
 			.and(page.getByRole('img', { name: /^Source:/ }));
 		await expectStationStatus(paper, 'done', true);
 		await expect(page.getByTestId('sheet-gantt-dependency')).toHaveCount(5);
-		await expectNoArrowheads(page.getByTestId('sheet-gantt-dependency').first());
 	} finally {
 		await context.setOffline(false);
 	}

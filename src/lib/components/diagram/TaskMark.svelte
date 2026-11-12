@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { Tween } from 'svelte/motion';
-	import { cubicOut } from 'svelte/easing';
+	import { GeometryTween } from './geometry-tween.svelte.ts';
 	import StationDot from './StationDot.svelte';
 	import TaskTap from './TaskTap.svelte';
 	import type { GanttMarkGeom } from '#lib/scene/gantt-scene.ts';
 	import type { Junction } from '#lib/scene/types.ts';
 	import type { TaskStatus } from '#lib/domain/schema.ts';
-	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { markColorLevel, subtaskFill } from '#lib/components/plan/colors.ts';
 	interface Props {
 		geom: GanttMarkGeom;
@@ -51,29 +50,12 @@
 			g.mark.kind === 'bar' && g.mark.clipEnd ? empty(g.line?.x1 ?? 0) : (first ?? empty(0))
 		];
 	};
-	const stations = new Tween(untrack(() => stationTargets(geom)));
-	let previousTarget = untrack(() => stationTargets(geom));
-	let previousWidth = untrack(() => width);
+	const stations = new GeometryTween(
+		untrack(() => stationTargets(geom)),
+		untrack(() => width)
+	);
 	$effect(() => {
-		const next = stationTargets(geom);
-		const resized = previousWidth !== width;
-		previousWidth = width;
-		if (
-			!resized &&
-			next.every(
-				(s, i) =>
-					s.x === previousTarget[i].x &&
-					s.y === previousTarget[i].y &&
-					s.r === previousTarget[i].r &&
-					s.inset === previousTarget[i].inset
-			)
-		)
-			return;
-		previousTarget = next;
-		stations.set(next, {
-			duration: still || resized ? 0 : motionDuration(GEOMETRY_MOTION_MS),
-			easing: cubicOut
-		});
+		stations.set(stationTargets(geom), { width, still });
 	});
 </script>
 

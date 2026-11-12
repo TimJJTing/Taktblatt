@@ -22,8 +22,8 @@ const resolveBox = (s: GanttScene, id: string, width: number) => {
 	return { x: g.x.f * width + g.x.px, y: g.y.px, w: g.w.f * width + g.w.px, h: g.h.px };
 };
 
-describe('ganttScene (3c)', () => {
-	it('preserves derived parent status, stage identity, merged edge identity and row breaks [AC1]', () => {
+describe('ganttScene', () => {
+	it('preserves derived parent status, stage identity, merged edge identity and row breaks', () => {
 		const plan = makePlan([
 			makeTask({ id: 'parent' }),
 			makeTask({
@@ -56,7 +56,7 @@ describe('ganttScene (3c)', () => {
 		expect(resolveBox(scene, 'target', 600)).toEqual({ x: 240, y: 66, w: 240, h: 8 });
 	});
 
-	it('retains no-date, invalid and outside cues without inventing tracks or dependencies [AC1]', () => {
+	it('retains no-date, invalid and outside cues without inventing tracks or dependencies', () => {
 		const rows = [
 			sceneRow('none', 0, { kind: 'none' }),
 			sceneRow('invalid', 1, { kind: 'invalid' }),
@@ -77,7 +77,7 @@ describe('ganttScene (3c)', () => {
 	});
 
 	for (const width of [120, 600]) {
-		it(`keeps screen station extents inside date boxes and connects at ordinary dot centers at width ${width} [AC2]`, () => {
+		it(`keeps screen station extents inside date boxes and connects at ordinary dot centers at width ${width}`, () => {
 			const rows = [
 				sceneRow('parent', 0, bar(0.1, 0.4)),
 				sceneRow('sub', 1, bar(0.6, 0.9), { level: 1, parentId: 'parent' })
@@ -110,7 +110,7 @@ describe('ganttScene (3c)', () => {
 		});
 	}
 
-	it('keeps tiny date widths, centers one dot and uses its shrunk edge ports [AC3]', () => {
+	it('keeps tiny date widths, centers one dot and uses its shrunk edge ports', () => {
 		const rows = [
 			sceneRow('tiny', 0, bar(0.1, 0.106)),
 			sceneRow('short', 1, bar(0.2, 0.22)),
@@ -137,7 +137,7 @@ describe('ganttScene (3c)', () => {
 		}
 	});
 
-	it('gives clipped sides window ports and no dot even when the bar is tiny [AC3]', () => {
+	it('gives clipped sides window ports and no dot even when the bar is tiny', () => {
 		const rows = [
 			sceneRow('left', 0, bar(0, 0.005, true)),
 			sceneRow('right', 1, bar(0.995, 1, false, true)),
@@ -162,7 +162,7 @@ describe('ganttScene (3c)', () => {
 		expect([trackOf(scene, 'both').inX, trackOf(scene, 'both').outX]).toEqual([0, 600]);
 	});
 
-	it('uses point dot edges and keeps the complete 10 px mark inside its node box [AC2,AC3]', () => {
+	it('uses point dot edges and keeps the complete 10 px mark inside its node box', () => {
 		const rows = [sceneRow('point', 0, point(0.2)), sceneRow('target', 1, bar(0.6, 0.9))];
 		const scene = ganttScene(rows, [sceneLine(rows[0], rows[1])], screenMetrics(600, 2));
 		expect(markOf(scene, 'point').line).toBeNull();
@@ -172,7 +172,7 @@ describe('ganttScene (3c)', () => {
 		expect(xy(scene.geometry.edges[0].points[0], 600)).toEqual({ x: 125, y: 42 });
 	});
 
-	it('uses resolved D27 paper sizes and encloses dots taller than their lines [AC9]', () => {
+	it('uses resolved paper sizes and encloses dots taller than their lines', () => {
 		const rows = [
 			sceneRow('parent', 0, bar(0.1, 0.4)),
 			sceneRow('sub', 1, bar(0.5, 0.8), { level: 1 }),
@@ -192,7 +192,7 @@ describe('ganttScene (3c)', () => {
 		expect(scene.breaks).toEqual([40, 58, 76]);
 	});
 
-	it('routes identical complete target sets together but keeps partial overlap separate [AC1,AC7]', () => {
+	it('routes identical complete target sets together but keeps partial overlap separate', () => {
 		const rows = [
 			sceneRow('a', 0, bar(0.05, 0.2)),
 			sceneRow('b', 1, bar(0.05, 0.2)),
@@ -238,7 +238,7 @@ describe('ganttScene (3c)', () => {
 		}
 	});
 
-	it('keeps clamped tap keys and source association stable across width and row changes [AC7,AC8]', () => {
+	it('keeps clamped tap keys and source association stable across width and row changes', () => {
 		const rows = [
 			sceneRow('source', 0, bar(0.7, 1, false, true)),
 			sceneRow('target', 2, bar(0.2, 0.4))
@@ -262,7 +262,7 @@ describe('ganttScene (3c)', () => {
 		expect(moved.geometry.edges[0].key).toBe(scene.geometry.edges[0].key);
 	});
 
-	it('restores identical routes after a range round trip and ignores distant unrelated marks [AC8]', () => {
+	it('restores identical routes after a range round trip and ignores distant unrelated marks', () => {
 		const rows = [sceneRow('a', 0, bar(0.1, 0.2)), sceneRow('b', 3, bar(0.6, 0.8))];
 		const lines = [sceneLine(rows[0], rows[1])];
 		const before = ganttScene(rows, lines, screenMetrics(600, 4));

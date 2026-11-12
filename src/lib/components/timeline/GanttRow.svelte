@@ -9,8 +9,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
+	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
@@ -18,7 +17,7 @@
 	import type { GanttMarkGeom } from '#lib/scene/gantt-scene.ts';
 	import type { Junction } from '#lib/scene/types.ts';
 	import type { GanttRow } from '#lib/domain/gantt.ts';
-	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
@@ -53,18 +52,12 @@
 
 	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, status: row.status }));
 
-	let previousRow = untrack(() => row.row);
-	let previousWidthY = untrack(() => width);
-	const y = new Tween(untrack(() => row.row * ROW_HEIGHT));
+	const y = new GeometryTween(
+		untrack(() => row.row * ROW_HEIGHT),
+		untrack(() => width)
+	);
 	$effect(() => {
-		const resized = previousWidthY !== width;
-		previousWidthY = width;
-		if (!resized && previousRow === row.row) return;
-		previousRow = row.row;
-		y.set(row.row * ROW_HEIGHT, {
-			duration: resized ? 0 : motionDuration(GEOMETRY_MOTION_MS),
-			easing: cubicOut
-		});
+		y.set(row.row * ROW_HEIGHT, { width });
 	});
 
 	const bounds = (g: GanttMarkGeom) => {
@@ -75,29 +68,16 @@
 			height: Math.max(g.line?.height ?? 0, ...g.stations.map((s) => s.r * 2))
 		};
 	};
-	const x = new Tween(untrack(() => bounds(geom)));
-	let previousWidth = untrack(() => width);
-	let previousBounds = untrack(() => bounds(geom));
+	const x = new GeometryTween(
+		untrack(() => bounds(geom)),
+		untrack(() => width)
+	);
 	let previousVisible = untrack(() => geom.line !== null || geom.stations.length > 0);
 	$effect(() => {
-		const next = bounds(geom);
 		const visible = geom.line !== null || geom.stations.length > 0;
 		const newlyVisible = !previousVisible && visible;
 		previousVisible = visible;
-		const resized = width !== previousWidth;
-		previousWidth = width;
-		if (
-			!resized &&
-			next.x0 === previousBounds.x0 &&
-			next.x1 === previousBounds.x1 &&
-			next.height === previousBounds.height
-		)
-			return;
-		previousBounds = next;
-		x.set(next, {
-			duration: resized || newlyVisible ? 0 : motionDuration(GEOMETRY_MOTION_MS),
-			easing: cubicOut
-		});
+		x.set(bounds(geom), { width, snap: newlyVisible });
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 

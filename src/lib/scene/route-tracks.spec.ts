@@ -142,7 +142,7 @@ function riserCrossesDiagonal(riser: EdgeGeom, approach: EdgeGeom, m: RouteMetri
 	return fraction > 0 && fraction < 1 && y > Math.min(a.y, b.y) && y < Math.max(a.y, b.y);
 }
 
-describe('routeTracks (Appendix A)', () => {
+describe('routeTracks', () => {
 	it('does not mark two-arm bends as junctions when sources surround one target', () => {
 		const m = SCREEN_ROUTE_METRICS(600, 7);
 		const tracks = [
@@ -531,12 +531,12 @@ describe('routeTracks (Appendix A)', () => {
 	});
 });
 
-describe('routeTracks (slice 3a)', () => {
+describe('routeTracks', () => {
 	it.each([
 		['screen', SCREEN_ROUTE_METRICS, 3],
 		['paper', PRINT_ROUTE_METRICS, 2]
 	] as const)(
-		'AC1: applies the default %s junction radius to port clearance',
+		'applies the default %s junction radius to port clearance',
 		(_name, factory, ringR) => {
 			const m = { ...factory(600, 40), slots: 1 };
 			const { tracks, edges } = fanOut(m);
@@ -559,35 +559,32 @@ describe('routeTracks (slice 3a)', () => {
 		['point', 5],
 		['shrunk', 1],
 		['clipped', 0]
-	] as const)(
-		'R1: suppresses ordinary junctions inside actual %s port clearance',
-		(_name, radius) => {
-			const m = { ...metrics, slots: 1 };
-			const { tracks, edges } = fanOut(m);
-			const base = routed(tracks, edges, m);
-			expect(base.junctions).toHaveLength(1);
-			const branch = resolve(base.junctions[0].point, m);
-			// Probe each port separately. A null span cannot change the slot's obstacle cost.
-			for (const port of ['inX', 'outX'] as const) {
-				for (const margin of [-0.5, 0, 0.5]) {
-					const probe: Track = {
-						...track('probe', 1, 500, 570, m, radius),
-						center: branch.y,
-						span: null,
-						[port]: branch.x + radius + m.ringR + 2 + margin
-					};
-					const result = routed([...tracks, probe], edges, m);
-					const ordinary = result.junctions.filter((j) => j.kind !== 'tap');
-					expect
-						.soft(ordinary, `${port}, clearance margin ${margin}`)
-						.toHaveLength(margin < 0 ? 0 : 1);
-					if (margin >= 0) expect(ordinary.map((j) => resolve(j.point, m))).toContainEqual(branch);
-				}
+	] as const)('suppresses ordinary junctions inside actual %s port clearance', (_name, radius) => {
+		const m = { ...metrics, slots: 1 };
+		const { tracks, edges } = fanOut(m);
+		const base = routed(tracks, edges, m);
+		expect(base.junctions).toHaveLength(1);
+		const branch = resolve(base.junctions[0].point, m);
+		// Probe each port separately. A null span cannot change the slot's obstacle cost.
+		for (const port of ['inX', 'outX'] as const) {
+			for (const margin of [-0.5, 0, 0.5]) {
+				const probe: Track = {
+					...track('probe', 1, 500, 570, m, radius),
+					center: branch.y,
+					span: null,
+					[port]: branch.x + radius + m.ringR + 2 + margin
+				};
+				const result = routed([...tracks, probe], edges, m);
+				const ordinary = result.junctions.filter((j) => j.kind !== 'tap');
+				expect
+					.soft(ordinary, `${port}, clearance margin ${margin}`)
+					.toHaveLength(margin < 0 ? 0 : 1);
+				if (margin >= 0) expect(ordinary.map((j) => resolve(j.point, m))).toContainEqual(branch);
 			}
 		}
-	);
+	});
 
-	it('R1: checks radial clearance to ports in neighboring rows', () => {
+	it('checks radial clearance to ports in neighboring rows', () => {
 		const m = { ...metrics, slots: 1 };
 		const { tracks, edges } = fanOut(m);
 		const branch = resolve(routed(tracks, edges, m).junctions[0].point, m);
@@ -602,7 +599,7 @@ describe('routeTracks (slice 3a)', () => {
 		expect(routed([...tracks, probe], edges, m).junctions).toHaveLength(1);
 	});
 
-	it('R1: uses the supplied ring radius when suppressing an ordinary junction', () => {
+	it('uses the supplied ring radius when suppressing an ordinary junction', () => {
 		const { tracks, edges } = fanOut();
 		const base = routed(tracks, edges);
 		const branch = resolve(base.junctions[0].point);
@@ -618,7 +615,7 @@ describe('routeTracks (slice 3a)', () => {
 		expect(large.junctions).toHaveLength(0);
 	});
 
-	it('R1: starts a shared source-row junction at slot one or higher', () => {
+	it('starts a shared source-row junction at slot one or higher', () => {
 		const { tracks, edges } = join();
 		const result = routed(tracks, edges, { ...metrics, ringR: 3 });
 		expect(result.junctions).toHaveLength(1);
@@ -636,7 +633,7 @@ describe('routeTracks (slice 3a)', () => {
 		}
 	});
 
-	it('R1: identifies every preserved continuing-branch ring as an ordinary junction', () => {
+	it('identifies every preserved continuing-branch ring as an ordinary junction', () => {
 		const { tracks, edges } = fanOut();
 		tracks.push(track('middle', 5, 350, 420));
 		edges.push(edge('source', 'middle'));
@@ -655,7 +652,7 @@ describe('routeTracks (slice 3a)', () => {
 	});
 
 	it.each(['join', 'branch'] as const)(
-		'AC1: preserves an ordinary %s key when its row moves',
+		'preserves an ordinary %s key when its row moves',
 		(kind) => {
 			const { tracks, edges } = kind === 'join' ? join() : fanOut();
 			const movedId = kind === 'join' ? 'b' : 'first';
@@ -672,7 +669,7 @@ describe('routeTracks (slice 3a)', () => {
 		}
 	);
 
-	it('AC1: preserves a branch junction key when another trunk member moves', () => {
+	it('preserves a branch junction key when another trunk member moves', () => {
 		const m = SCREEN_ROUTE_METRICS(600, 10);
 		const tracks = [
 			track('a', 0, 7, 103, m, 3),
@@ -697,7 +694,7 @@ describe('routeTracks (slice 3a)', () => {
 		expect(afterRing.key).toBe(beforeRing.key);
 	});
 
-	it('AC1: keeps junction keys unique for mixed straight and direct entries', () => {
+	it('keeps junction keys unique for mixed straight and direct entries', () => {
 		const m = SCREEN_ROUTE_METRICS(600, 12);
 		const tracks: Track[] = [
 			track('above', 0, 7, 103, m, 3),
@@ -718,7 +715,7 @@ describe('routeTracks (slice 3a)', () => {
 		expect(new Set(result.junctions.map((j) => j.key)).size).toBe(result.junctions.length);
 	});
 
-	it('R2: overflows only the fourth overlapping run onto the near lane', () => {
+	it('overflows only the fourth overlapping run onto the near lane', () => {
 		const { tracks, edges } = incoming(4);
 		const result = routed(tracks, edges);
 		const main = result.debug.filter((d) => d.key.endsWith('->target'));
@@ -729,7 +726,7 @@ describe('routeTracks (slice 3a)', () => {
 		expect(points(overflow)[2].y).toBe(target.center - 10);
 	});
 
-	it('D29: prioritizes parallel conflicts over accumulated approach hits', () => {
+	it('prioritizes parallel conflicts over accumulated approach hits', () => {
 		const m = SCREEN_ROUTE_METRICS(600, 32);
 		const tracks = [
 			track('long', 0, 85, 105, m, 5),
@@ -768,7 +765,7 @@ describe('routeTracks (slice 3a)', () => {
 		['screen', SCREEN_ROUTE_METRICS, 18, 6],
 		['paper', PRINT_ROUTE_METRICS, 12, 3.5]
 	] as const)(
-		'R2: uses the %s far lane inside the neighboring row band with bar clearance',
+		'uses the %s far lane inside the neighboring row band with bar clearance',
 		(_name, factory, distance, clearance) => {
 			const m = factory(600, 40);
 			const { tracks, edges } = incoming(3, m);
@@ -788,99 +785,90 @@ describe('routeTracks (slice 3a)', () => {
 	it.each([
 		['screen', SCREEN_ROUTE_METRICS, 14, 8],
 		['paper', PRINT_ROUTE_METRICS, 9, 5]
-	] as const)(
-		'R3: takes the free %s boundary lane for a hook',
-		(_name, factory, distance, extra) => {
-			const m = factory(600, 8);
-			const tracks = [
-				track('source', 0, 250, 330, m),
-				track('neighbor', 2, 0, 500, m),
-				track('target', 3, 60, 150, m)
-			];
-			const result = routed(tracks, [edge('source', 'target')], m);
-			const laneY = points(result.edges[0], m)[2].y;
-			expect(tracks[2].center - laneY).toBe(distance);
-			expect(result.debug[0]).toMatchObject({ variant: 'hook', lane: 1, overflow: false });
-			for (const t of tracks)
-				expect(Math.abs(laneY - t.center)).toBeGreaterThanOrEqual(t.half + extra);
-		}
-	);
+	] as const)('takes the free %s boundary lane for a hook', (_name, factory, distance, extra) => {
+		const m = factory(600, 8);
+		const tracks = [
+			track('source', 0, 250, 330, m),
+			track('neighbor', 2, 0, 500, m),
+			track('target', 3, 60, 150, m)
+		];
+		const result = routed(tracks, [edge('source', 'target')], m);
+		const laneY = points(result.edges[0], m)[2].y;
+		expect(tracks[2].center - laneY).toBe(distance);
+		expect(result.debug[0]).toMatchObject({ variant: 'hook', lane: 1, overflow: false });
+		for (const t of tracks)
+			expect(Math.abs(laneY - t.center)).toBeGreaterThanOrEqual(t.half + extra);
+	});
 
 	it.each([
 		['screen', SCREEN_ROUTE_METRICS, 108],
 		['paper', PRINT_ROUTE_METRICS, 106]
-	] as const)(
-		'R4: avoids a %s incoming diagonal when another slot is free',
-		(_name, factory, inX) => {
-			const m = factory(600, 10);
-			const tracks = [
-				track('long', 0, 20, 100, m),
-				track('short', 1, 20, 63, m),
-				track('far', 7, 400, 470, m),
-				{ ...track('approach', 3, inX, inX + 10, m, 5), span: null, inX }
-			];
-			const edges = [edge('long', 'far'), edge('short', 'approach')];
-			const control = routed(tracks, [edges[0]], m);
-			expect(control.debug[0].slot).toBe(0);
-			const result = routed(tracks, edges, m);
-			const long = result.edges.find((e) => e.from === 'long')!;
-			const approach = result.edges.find((e) => e.to === 'approach')!;
-			expect(riserCrossesDiagonal(long, approach, m)).toBe(false);
-			const x = points(long, m)[1].x;
-			const farDistance = m.rowHeight / 2 + m.pitch;
-			expect(x < inX - farDistance - m.pitch || x > inX).toBe(true);
-			expect(result.debug.find((d) => d.key === 'long->far')!.slot).toBeGreaterThan(0);
-			expect(routed([...tracks].reverse(), [...edges].reverse(), m)).toEqual(result);
-		}
-	);
+	] as const)('avoids a %s incoming diagonal when another slot is free', (_name, factory, inX) => {
+		const m = factory(600, 10);
+		const tracks = [
+			track('long', 0, 20, 100, m),
+			track('short', 1, 20, 63, m),
+			track('far', 7, 400, 470, m),
+			{ ...track('approach', 3, inX, inX + 10, m, 5), span: null, inX }
+		];
+		const edges = [edge('long', 'far'), edge('short', 'approach')];
+		const control = routed(tracks, [edges[0]], m);
+		expect(control.debug[0].slot).toBe(0);
+		const result = routed(tracks, edges, m);
+		const long = result.edges.find((e) => e.from === 'long')!;
+		const approach = result.edges.find((e) => e.to === 'approach')!;
+		expect(riserCrossesDiagonal(long, approach, m)).toBe(false);
+		const x = points(long, m)[1].x;
+		const farDistance = m.rowHeight / 2 + m.pitch;
+		expect(x < inX - farDistance - m.pitch || x > inX).toBe(true);
+		expect(result.debug.find((d) => d.key === 'long->far')!.slot).toBeGreaterThan(0);
+		expect(routed([...tracks].reverse(), [...edges].reverse(), m)).toEqual(result);
+	});
+
+	it.each([
+		['screen', SCREEN_ROUTE_METRICS],
+		['paper', PRINT_ROUTE_METRICS]
+	] as const)('reserves all three %s lanes across opposite target sides', (_name, factory) => {
+		const m = factory(600, 12);
+		const tracks = [
+			track('a', 0, 20, 100, m),
+			track('b', 1, 50, 130, m),
+			track('c', 2, 80, 160, m),
+			track('d', 8, 150, 220, m),
+			track('lower-a', 4, 400, 470, m),
+			track('lower-b', 4, 400, 470, m),
+			track('lower-c', 4, 400, 470, m),
+			track('upper-d', 3, 300, 370, m)
+		];
+		const edges = [
+			edge('a', 'lower-a'),
+			edge('b', 'lower-b'),
+			edge('c', 'lower-c'),
+			edge('d', 'upper-d')
+		];
+		const result = routed(tracks, edges, m);
+		expect(result.debug.filter((d) => d.overflow).map((d) => d.key)).toEqual(['d->upper-d']);
+		expect(result.debug.map((d) => d.lane)).toEqual([0, 1, 2, 0]);
+		const lowerYs = result.edges
+			.filter((e) => e.to.startsWith('lower'))
+			.map((e) => points(e, m)[2].y);
+		expect(new Set(lowerYs).size).toBe(3);
+		const upperY = points(
+			result.edges.find((e) => e.to === 'upper-d')!,
+			m
+		)[2].y;
+		expect(upperY).toBe(lowerYs[2]);
+		const collisions = trunkOverlaps(result.edges, m).horizontal;
+		expect(collisions).toHaveLength(1);
+		for (const pair of collisions) expect(pair).toContain('d->upper-d');
+		expect(routed([...tracks].reverse(), [...edges].reverse(), m)).toEqual(result);
+	});
 
 	it.each([
 		['screen', SCREEN_ROUTE_METRICS],
 		['paper', PRINT_ROUTE_METRICS]
 	] as const)(
-		'R2/R3: reserves all three %s lanes across opposite target sides',
-		(_name, factory) => {
-			const m = factory(600, 12);
-			const tracks = [
-				track('a', 0, 20, 100, m),
-				track('b', 1, 50, 130, m),
-				track('c', 2, 80, 160, m),
-				track('d', 8, 150, 220, m),
-				track('lower-a', 4, 400, 470, m),
-				track('lower-b', 4, 400, 470, m),
-				track('lower-c', 4, 400, 470, m),
-				track('upper-d', 3, 300, 370, m)
-			];
-			const edges = [
-				edge('a', 'lower-a'),
-				edge('b', 'lower-b'),
-				edge('c', 'lower-c'),
-				edge('d', 'upper-d')
-			];
-			const result = routed(tracks, edges, m);
-			expect(result.debug.filter((d) => d.overflow).map((d) => d.key)).toEqual(['d->upper-d']);
-			expect(result.debug.map((d) => d.lane)).toEqual([0, 1, 2, 0]);
-			const lowerYs = result.edges
-				.filter((e) => e.to.startsWith('lower'))
-				.map((e) => points(e, m)[2].y);
-			expect(new Set(lowerYs).size).toBe(3);
-			const upperY = points(
-				result.edges.find((e) => e.to === 'upper-d')!,
-				m
-			)[2].y;
-			expect(upperY).toBe(lowerYs[2]);
-			const collisions = trunkOverlaps(result.edges, m).horizontal;
-			expect(collisions).toHaveLength(1);
-			for (const pair of collisions) expect(pair).toContain('d->upper-d');
-			expect(routed([...tracks].reverse(), [...edges].reverse(), m)).toEqual(result);
-		}
-	);
-
-	it.each([
-		['screen', SCREEN_ROUTE_METRICS],
-		['paper', PRINT_ROUTE_METRICS]
-	] as const)(
-		'R6: returns a %s source-row tap even inside ordinary port clearance',
+		'returns a %s source-row tap even inside ordinary port clearance',
 		(_name, factory) => {
 			const m = factory(600, 8);
 			const { tracks, edges } = clampedSource(m);
@@ -900,7 +888,7 @@ describe('routeTracks (slice 3a)', () => {
 		}
 	);
 
-	it('R6: keeps the tap key when its source row moves', () => {
+	it('keeps the tap key when its source row moves', () => {
 		const { tracks, edges } = clampedSource();
 		const before = routed(tracks, edges);
 		const after = routed(
@@ -918,7 +906,7 @@ describe('routeTracks (slice 3a)', () => {
 		expect(routed([...tracks].reverse(), [...edges].reverse())).toEqual(before);
 	});
 
-	it('R6: associates each bundled tap with its own source identity', () => {
+	it('associates each bundled tap with its own source identity', () => {
 		const { tracks, edges } = clampedSource();
 		tracks[0] = { ...track('source', 0, 510, 600), outX: 600, outR: 0 };
 		const second = {
@@ -943,7 +931,7 @@ describe('routeTracks (slice 3a)', () => {
 		}
 	});
 
-	it('R6: emits taps only when the riser is strictly left of the source out port', () => {
+	it('emits taps only when the riser is strictly left of the source out port', () => {
 		const { tracks, edges } = clampedSource();
 		const clamped = routed(tracks, edges);
 		const x = points(clamped.edges[0])[1].x;
@@ -958,7 +946,7 @@ describe('routeTracks (slice 3a)', () => {
 		}
 	});
 
-	it('AC7: routes 300 tracks and 400 edges with repeatable geometry and reports timing', () => {
+	it('routes 300 tracks and 400 edges with repeatable geometry and reports timing', () => {
 		const m = SCREEN_ROUTE_METRICS(1200, 300);
 		const tracks = Array.from({ length: 300 }, (_, i) =>
 			track(`task-${i}`, i, 20 + (i % 10) * 80, 70 + (i % 10) * 80, m)

@@ -1,3 +1,4 @@
+import { GANTT_ROW_HEIGHT } from './paper-layout.ts';
 import type {
 	EdgeGeom,
 	EdgeRef,
@@ -33,8 +34,8 @@ export function PRINT_ROUTE_METRICS(width: number, rows: number): RouteMetrics {
 	return {
 		width,
 		rows,
-		top: 18,
-		rowHeight: 18,
+		top: GANTT_ROW_HEIGHT,
+		rowHeight: GANTT_ROW_HEIGHT,
 		barHalf: 2.5,
 		dotR: 2,
 		ringR: 2,
@@ -276,7 +277,7 @@ function trunkJunctions(
 	return junctions;
 }
 
-/** Route resolved tracks. Recompute at each layout size before tweening the scene. */
+/** Route resolved tracks at the current size. Width changes apply without a tween. */
 export function routeTracks(
 	tracks: readonly Track[],
 	edges: readonly EdgeRef[],

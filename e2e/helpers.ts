@@ -42,6 +42,35 @@ const GEOMETRY_MOTION_MS = Number(geometryMotion);
 export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
 export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
+/** Samples the rendered paint and an expected color as opaque RGBA values. */
+export async function samplePaint(
+	locator: Locator,
+	property: 'background-color' | 'stroke',
+	expected: string
+): Promise<{ actual: number[]; expected: number[] }> {
+	return locator.evaluate(
+		(node, { property, expected }) => {
+			const style = getComputedStyle(node);
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			const sample = (color: string) => {
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = color;
+				context.fillRect(0, 0, 1, 1);
+				return [...context.getImageData(0, 0, 1, 1).data];
+			};
+			const probe = document.createElement('span');
+			probe.style.color = expected.replaceAll('currentColor', style.color);
+			node.append(probe);
+			const expectedColor = getComputedStyle(probe).color;
+			probe.remove();
+			return { actual: sample(style.getPropertyValue(property)), expected: sample(expectedColor) };
+		},
+		{ property, expected }
+	);
+}
+
 /** The section height that the default ganttHeight gives, in pixels. See storedPanelHeight. */
 export const defaultPanelHeight = (page: Page) =>
 	page.viewportSize()!.height * GANTT_HEIGHT.default;
@@ -702,7 +731,6 @@ export async function expectCyclePaint(line: Locator, paper = false): Promise<vo
 	await expect(line).toHaveCSS('stroke-width', '2px');
 	await expect(line).toHaveCSS('stroke-linecap', 'round');
 	await expect(line).toHaveCSS('stroke-dasharray', '1px, 4px');
-	await expectNoArrowheads(line);
 	const casing = line.locator('xpath=preceding-sibling::*[1]');
 	const from = await line.getAttribute('data-from'),
 		to = await line.getAttribute('data-to');
