@@ -27,6 +27,8 @@ For changed controls, check accessible names, keyboard activation, focus placeme
 
 Use these rules when writing or running interaction checks:
 
+- For hover-intent checks, move the real pointer and wait past the hover timers. Do not use the Playwright clock, because it also stops animation-frame tweens.
+- For `:focus-visible` checks, use `keyboard.press('Tab')` to move focus. `locator.focus()` does not set `:focus-visible`.
 - In calendar tests, select a date different from the initial date. Derive local-date expectations from the browser date.
 - In history tests, start with empty history and check both Undo and Redo.
 - Wait for focus and animation completion before asserting popover state.

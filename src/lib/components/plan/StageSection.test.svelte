@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.ts';
 	import { setWorkspace, type Workspace } from '#lib/state/workspace.svelte.ts';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.ts';
@@ -22,6 +22,7 @@
 	setWorkspace(untrack(() => workspace));
 	setViewer(untrack(() => suppliedViewer ?? new ViewerState(new MemoryStorage())));
 	setEditing(untrack(() => editing));
+	onMount(() => editing.routeFocus.attach(workspace));
 </script>
 
 <Tooltip.Provider>

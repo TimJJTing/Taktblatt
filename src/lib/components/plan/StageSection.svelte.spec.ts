@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { flushSync } from 'svelte';
 import { userEvent } from 'vitest/browser';
 import { makeTask } from '#lib/domain/test-helpers.ts';
+import { HOVER_COLD_MS, HOVER_GRACE_MS } from '#lib/state/route-focus.svelte.ts';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { updateTask } from '#lib/state/commands.ts';
 import { render } from 'vitest-browser-svelte';
 import { MemoryStorage } from '#lib/state/memory-storage.ts';
 import { Workspace } from '#lib/state/workspace.svelte.ts';
 import StageSectionTest from './StageSection.test.svelte';
+
+const HOVER_SCHEDULING_MARGIN_MS = 50;
 
 describe('stage heading signs', () => {
 	let ws: Workspace;
@@ -63,6 +66,186 @@ describe('Work plan route input', () => {
 	}
 	const chartRow = (container: Element, id: string) =>
 		container.querySelector(`[data-testid="gantt-row"][data-task-id="${id}"]`)!;
+
+	it('keeps pointer row focus below hover and restores it after leave without a Gantt', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing });
+		expect(screen.container.querySelector('[data-testid="gantt-row"]')).toBeNull();
+		await userEvent.click(
+			screen.container.querySelector('tr[data-task-id="b"] [data-testid="task-title"]')!
+		);
+		expect(document.activeElement?.closest('tr')?.dataset.taskId).toBe('b');
+		expect(editing.routeId).toBe('b');
+		await userEvent.hover(screen.container.querySelector('tr[data-task-id="other"]')!);
+		await expect.poll(() => editing.routeId).toBe('other');
+		await userEvent.hover(screen.getByTestId('outside-row'));
+		await expect.poll(() => editing.routeId).toBe('b');
+		await userEvent.keyboard('{Escape}');
+		expect(editing.routeId).toBe('b');
+	});
+
+	it('clears Work plan hover and pending input on Escape without a Gantt', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing });
+		await userEvent.hover(screen.container.querySelector('tr[data-task-id="a"]')!);
+		await expect.poll(() => editing.routeId).toBe('a');
+		await userEvent.hover(screen.container.querySelector('tr[data-task-id="other"]')!);
+		await userEvent.keyboard('{Escape}');
+		expect(editing.routeId).toBeNull();
+		await new Promise((resolve) =>
+			setTimeout(resolve, HOVER_COLD_MS + HOVER_GRACE_MS + HOVER_SCHEDULING_MARGIN_MS)
+		);
+		expect(editing.routeId).toBeNull();
+	});
+
+	function touchClick(target: Element) {
+		target.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+		target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+	}
+
+	it.each(['Escape', 'outside touch click'] as const)(
+		'clears touch input through %s without a Gantt',
+		async (clearBy) => {
+			const ws = workspace(),
+				editing = new EditingState();
+			const screen = await render(StageSectionTest, { workspace: ws, editing });
+			// The touch candidate can outlive the view that supplied its mark.
+			editing.routeFocus.toggleTouch('a', 'touch-a');
+			expect(editing.routeId).toBe('a');
+			if (clearBy === 'Escape') await userEvent.keyboard('{Escape}');
+			else touchClick(screen.getByTestId('outside-row').element());
+			expect(editing.routeId).toBeNull();
+		}
+	);
+
+	it('keeps row focus and floating ownership when the Gantt unmounts', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing, withGantt: true });
+		await userEvent.click(
+			screen.container.querySelector('tr[data-task-id="b"] [data-testid="task-title"]')!
+		);
+		const focusedField = document.activeElement;
+		expect(focusedField?.closest('tr')?.dataset.taskId).toBe('b');
+		expect(editing.routeId).toBe('b');
+		// Remove only the chart. A button click would move the row's focus.
+		await screen.rerender({ withGantt: false });
+		expect(document.activeElement).toBe(focusedField);
+		expect(screen.container.querySelector('[data-testid="gantt-row"]')).toBeNull();
+		expect(editing.routeId).toBe('b');
+		await userEvent.hover(screen.container.querySelector('tr[data-task-id="other"]')!);
+		await expect.poll(() => editing.routeId).toBe('other');
+		await userEvent.hover(screen.getByTestId('outside-row'));
+		await expect.poll(() => editing.routeId).toBe('b');
+		// End the title edit before the pointer click. Refer to spec 5.2.
+		await userEvent.keyboard('{Escape}');
+		await expect
+			.poll(() =>
+				screen.container.querySelector('tr[data-task-id="b"] [data-testid="task-title-input"]')
+			)
+			.toBeNull();
+		await expect.poll(() => document.activeElement?.closest('tr')?.dataset.taskId).toBe('b');
+		expect(editing.routeId).toBe('b');
+		const trigger = screen.container.querySelector(
+			'tr[data-task-id="b"] [data-testid="owner-field"]'
+		)!;
+		await userEvent.click(trigger);
+		await expect.poll(() => document.querySelector('[data-testid="owner-input"]')).not.toBeNull();
+		const content = document.querySelector('[data-slot="popover-content"]')!;
+		await expect.poll(() => content.contains(document.activeElement)).toBe(true);
+		await expect.poll(() => content.getAnimations().length).toBe(0);
+		await userEvent.hover(screen.getByTestId('outside-row'));
+		await new Promise((resolve) =>
+			setTimeout(resolve, HOVER_GRACE_MS + HOVER_SCHEDULING_MARGIN_MS)
+		);
+		expect(editing.routeId).toBe('b');
+		await userEvent.keyboard('{Escape}');
+		await expect.poll(() => content.isConnected).toBe(false);
+		await expect.poll(() => document.activeElement).toBe(trigger);
+		expect(editing.routeId).toBe('b');
+		await userEvent.click(screen.getByTestId('outside-row'));
+		await expect.poll(() => editing.routeId).toBeNull();
+		editing.routeFocus.toggleTouch('a', 'touch-a');
+		expect(editing.routeId).toBe('a');
+		await userEvent.keyboard('{Escape}');
+		expect(editing.routeId).toBeNull();
+		editing.routeFocus.toggleTouch('a', 'touch-a');
+		expect(editing.routeId).toBe('a');
+		touchClick(screen.getByTestId('outside-row').element());
+		expect(editing.routeId).toBeNull();
+	});
+
+	function controlledFloating(container: Element) {
+		const trigger = document.createElement('button');
+		trigger.textContent = 'Controlled row content';
+		trigger.setAttribute('aria-controls', 'controlled-route-content');
+		trigger.setAttribute('aria-expanded', 'true');
+		container.querySelector('tr[data-task-id="b"] td')!.append(trigger);
+		const content = document.createElement('div');
+		content.id = 'controlled-route-content';
+		const field = document.createElement('input');
+		field.setAttribute('aria-label', 'Controlled floating field');
+		content.append(field);
+		document.body.append(content);
+		return { trigger, content, field };
+	}
+
+	it('clears floating row focus when focus leaves its content without a Gantt', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing });
+		const { trigger, content, field } = controlledFloating(screen.container);
+		try {
+			await userEvent.click(trigger);
+			field.focus();
+			expect(document.activeElement).toBe(field);
+			await expect.poll(() => editing.routeId).toBe('b');
+			await userEvent.hover(screen.getByTestId('outside-row'));
+			await new Promise((resolve) =>
+				setTimeout(resolve, HOVER_GRACE_MS + HOVER_SCHEDULING_MARGIN_MS)
+			);
+			expect(editing.routeId).toBe('b');
+			(screen.getByTestId('outside-row').element() as HTMLElement).focus();
+			await expect.poll(() => editing.routeId).toBeNull();
+		} finally {
+			content.remove();
+			trigger.remove();
+		}
+	});
+
+	it('removes closed floating ownership when aria-controls remains and retains row focus return', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing, withGantt: true });
+		const { trigger, content, field } = controlledFloating(screen.container);
+		try {
+			await userEvent.click(trigger);
+			field.focus();
+			await expect.poll(() => editing.routeId).toBe('b');
+			await userEvent.hover(screen.getByTestId('outside-row'));
+			await new Promise((resolve) =>
+				setTimeout(resolve, HOVER_GRACE_MS + HOVER_SCHEDULING_MARGIN_MS)
+			);
+			// Controlled content can stay mounted during its close animation.
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
+			await expect.poll(() => document.activeElement).toBe(trigger);
+			expect(trigger.getAttribute('aria-controls')).toBe(content.id);
+			expect(content.isConnected).toBe(true);
+			expect(editing.routeId).toBe('b');
+			(screen.getByTestId('outside-row').element() as HTMLElement).focus();
+			await expect.poll(() => editing.routeId).toBeNull();
+			// Focus in the remaining closed root must not reclaim the row's route.
+			field.focus();
+			expect(document.activeElement).toBe(field);
+			await expect.poll(() => editing.routeId).toBeNull();
+		} finally {
+			content.remove();
+			trigger.remove();
+		}
+	});
 
 	it('lights a row from pointer intent without waiting to set linked highlight', async () => {
 		const ws = workspace(),
@@ -126,7 +309,7 @@ describe('Work plan route input', () => {
 			'[data-task-id="other"] [data-testid="gantt-bar"]'
 		)!;
 		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-		await new Promise((resolve) => setTimeout(resolve, 350));
+		await new Promise((resolve) => setTimeout(resolve, HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS));
 		expect(editing.routeId).toBe('b');
 		expect(chartRow(screen.container, 'other').getAttribute('data-route')).toBe('off');
 		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
@@ -174,7 +357,9 @@ describe('Work plan route input', () => {
 		await expect.poll(() => popover.getAnimations().length).toBe(0);
 		// Remove incidental row hover. Ownership must survive after leave grace ends.
 		await userEvent.hover(screen.getByTestId('outside-row'));
-		await new Promise((resolve) => setTimeout(resolve, 350));
+		await new Promise((resolve) =>
+			setTimeout(resolve, HOVER_GRACE_MS + HOVER_SCHEDULING_MARGIN_MS)
+		);
 		expect(editing.routeId).toBe('b');
 		expect(chartRow(screen.container, 'a').getAttribute('data-route')).toBe('lit');
 		await userEvent.click(popover.querySelector('[data-slot="dropdown-menu-trigger"]')!);
@@ -218,7 +403,7 @@ describe('Work plan route input', () => {
 			'[data-task-id="other"] [data-testid="gantt-bar"]'
 		)!;
 		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-		await new Promise((resolve) => setTimeout(resolve, 350));
+		await new Promise((resolve) => setTimeout(resolve, HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS));
 		expect(editing.routeId).toBe('b');
 		expect(chartRow(screen.container, 'other').getAttribute('data-route')).toBe('off');
 		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));

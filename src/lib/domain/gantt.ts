@@ -9,6 +9,7 @@ import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
 import { dependencyEdgeKey, dependencyWarnings } from './dependencies.ts';
 import { orderedMilestones, type TaskIndex } from './derive.ts';
 import type { Band, Milestone, TaskStatus } from './schema.ts';
+import { lineKey } from './route.ts';
 
 /** The visible range of the timeline. Both dates are inclusive. */
 export interface GanttWindow {
@@ -231,7 +232,7 @@ export function dependencyLines(index: TaskIndex, rows: readonly GanttRow[]): De
 		for (const depId of rowDependencies(index, to)) {
 			const from = visibleRow(depId);
 			if (!from || from.row === to.row || !isDrawn(from.mark)) continue;
-			const key = `${from.id}->${to.id}`;
+			const key = lineKey(from.id, to.id);
 			const cycle = cycles.has(dependencyEdgeKey(to.id, depId));
 			const existing = lines.get(key);
 			if (existing) {

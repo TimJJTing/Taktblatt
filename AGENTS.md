@@ -41,6 +41,8 @@ Show hints with `src/lib/components/app/Hint.svelte`, which wraps the Tooltip. D
 
 Provide text alternatives for SVGs and graphics that convey information. Hide purely decorative graphics from assistive technology. Ensure interactive bars, labels, and milestones have accessible names and support keyboard focus and activation.
 
+Floating triggers in a Work plan row must expose `aria-controls` and `aria-expanded` for route ownership.
+
 For every UI change, check the workspace, app Preview dialog, printed sheets, and installed PWA, including offline use. Follow the [Taktblatt UI validation skill](.agents/skills/taktblatt-ui-validation/SKILL.md). Report any mode you could not validate and the reason; do not report it as passed.
 
 ## Agent Workflow & Change Planning

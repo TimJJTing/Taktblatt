@@ -1,14 +1,14 @@
 <script lang="ts">
 	import type { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
-	import { markColorLevel } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import type { EdgeGeom } from '#lib/scene/types.ts';
 	interface Props {
 		line: EdgeGeom;
 		muted: boolean;
 		strokeWidth?: number;
-		tween: GeometryTween<{ x: number; y: number }[]>;
-		route?: 'lit' | 'off' | null;
+		tween: Pick<GeometryTween<{ x: number; y: number }[]>, 'current'>;
+		route?: RoutePaint;
 	}
 	let { line, muted, strokeWidth = 2, tween, route = null }: Props = $props();
 	const d = $derived(tween.current.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '));

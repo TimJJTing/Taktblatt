@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { indexTasks } from '#lib/domain/derive.ts';
 import { makeTask } from '#lib/domain/test-helpers.ts';
-import { RouteFocusState } from './route-focus.svelte.ts';
+import {
+	HOVER_COLD_MS,
+	HOVER_WARM_MS,
+	HOVER_GRACE_MS,
+	RouteFocusState
+} from './route-focus.svelte.ts';
 
 describe('RouteFocusState', () => {
 	let route: RouteFocusState;
@@ -14,38 +19,38 @@ describe('RouteFocusState', () => {
 		vi.clearAllTimers();
 		vi.useRealTimers();
 	});
-	const tick = (ms = 300) => vi.advanceTimersByTime(ms);
+	const tick = (ms = HOVER_COLD_MS) => vi.advanceTimersByTime(ms);
 	const index = indexTasks(['a', 'b', 'child'].map((id) => makeTask({ id })));
 
-	it('ignores cold sweeps shorter than 300 ms and activates only after a full rest', () => {
+	it('ignores cold sweeps and activates only after a full rest', () => {
 		for (const id of ['a', 'b', 'child']) {
 			route.hoverEnter(id, `bar-${id}`);
-			tick(299);
+			tick(HOVER_COLD_MS - 1);
 			expect(route.resolve()).toBeNull();
 			route.hoverLeave(`bar-${id}`);
 		}
-		tick(1000);
+		tick(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(route.resolve()).toBeNull();
 		route.hoverEnter('a', 'bar-a');
-		tick(299);
+		tick(HOVER_COLD_MS - 1);
 		expect(route.resolve()).toBeNull();
 		tick(1);
 		expect(route.resolve()).toBe('a');
 	});
 
-	it('hands off a shown hover after 80 ms without ever clearing the resolved route', () => {
+	it('switches a shown hover after the warm delay without clearing the resolved route', () => {
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		expect(route.resolve()).toBe('a');
 		route.hoverLeave('bar-a');
 		route.hoverEnter('b', 'bar-b');
-		for (let ms = 0; ms < 80; ms++) {
+		for (let ms = 0; ms < HOVER_WARM_MS; ms++) {
 			expect(route.resolve()).toBe('a');
 			tick(1);
 		}
 		expect(route.resolve()).toBe('b');
 		// The previous leave must not clear the accepted target later.
-		tick(250);
+		tick(HOVER_GRACE_MS);
 		expect(route.resolve()).toBe('b');
 	});
 
@@ -55,23 +60,23 @@ describe('RouteFocusState', () => {
 		tick();
 		expect(route.resolve()).toBe('a');
 		route.hoverEnter('child', 'bar-child');
-		tick(80);
+		tick(HOVER_WARM_MS);
 		route.focusLeave('row-a');
 		// Releasing keyboard priority must not reveal an early warm activation.
 		expect(route.resolve()).toBe('b');
-		tick(219);
+		tick(HOVER_COLD_MS - HOVER_WARM_MS - 1);
 		expect(route.resolve()).toBe('b');
 		tick(1);
 		expect(route.resolve()).toBe('child');
 	});
 
-	it('keeps leave grace active over pointer row focus for 250 ms', () => {
+	it('keeps leave grace active over pointer row focus until it expires', () => {
 		route.focusEnter('b', 'row-b', 'pointer');
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		route.hoverLeave('bar-a');
 		expect(route.resolve()).toBe('a');
-		tick(249);
+		tick(HOVER_GRACE_MS - 1);
 		expect(route.resolve()).toBe('a');
 		tick(1);
 		expect(route.resolve()).toBe('b');
@@ -81,14 +86,15 @@ describe('RouteFocusState', () => {
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		route.hoverLeave('bar-a');
-		tick(220);
+		const remainingGrace = HOVER_WARM_MS / 2;
+		tick(HOVER_GRACE_MS - remainingGrace);
 		route.hoverEnter('b', 'bar-b');
-		tick(29);
+		tick(remainingGrace - 1);
 		expect(route.resolve()).toBe('a');
 		tick(1);
 		expect(route.resolve()).toBeNull();
-		// The canceled warm timer would have expired 50 ms into the new rest.
-		tick(299);
+		// The canceled warm timer would have expired during the new cold rest.
+		tick(HOVER_COLD_MS - 1);
 		expect(route.resolve()).toBeNull();
 		tick(1);
 		expect(route.resolve()).toBe('b');
@@ -96,17 +102,17 @@ describe('RouteFocusState', () => {
 
 	it('cancels replaced intent without accepting stale token events', () => {
 		route.hoverEnter('a', 'old');
-		tick(200);
+		tick(HOVER_COLD_MS / 2);
 		route.hoverEnter('b', 'new');
 		route.hoverLeave('old');
-		tick(100);
+		tick(HOVER_COLD_MS / 2);
 		expect(route.resolve()).toBeNull();
-		tick(199);
+		tick(HOVER_COLD_MS / 2 - 1);
 		expect(route.resolve()).toBeNull();
 		tick(1);
 		expect(route.resolve()).toBe('b');
 		route.hoverLeave('old');
-		tick(250);
+		tick(HOVER_GRACE_MS);
 		expect(route.resolve()).toBe('b');
 	});
 
@@ -118,11 +124,11 @@ describe('RouteFocusState', () => {
 		route.clearPointer();
 		expect(route.resolve()).toBeNull();
 		expect(vi.getTimerCount()).toBe(0);
-		tick(1000);
+		tick(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(route.resolve()).toBeNull();
 		// Clearing must also remove warmth.
 		route.hoverEnter('b', 'bar-b');
-		tick(299);
+		tick(HOVER_COLD_MS - 1);
 		expect(route.resolve()).toBeNull();
 		tick(1);
 		expect(route.resolve()).toBe('b');
@@ -132,14 +138,14 @@ describe('RouteFocusState', () => {
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		route.hoverLeave('bar-a');
-		tick(100);
+		tick(HOVER_GRACE_MS / 2);
 		route.focusEnter('b', 'row-b', 'pointer');
 		expect(route.resolve()).toBe('a');
 		route.toggleTouch('child', 'child-mark');
 		expect(route.resolve()).toBe('child');
 		route.toggleTouch('child', 'child-mark');
 		expect(route.resolve()).toBe('a');
-		tick(149);
+		tick(HOVER_GRACE_MS / 2 - 1);
 		expect(route.resolve()).toBe('a');
 		tick(1);
 		expect(route.resolve()).toBe('b');
@@ -154,16 +160,16 @@ describe('RouteFocusState', () => {
 		route.reconcile(index, new Set(['a', 'b']));
 		expect(route.resolve()).toBeNull();
 		expect(vi.getTimerCount()).toBe(0);
-		tick(1000);
+		tick(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(route.resolve()).toBeNull();
 		route.hoverEnter('b', 'bar-b');
-		tick(299);
+		tick(HOVER_COLD_MS - 1);
 		expect(route.resolve()).toBeNull();
 		tick(1);
 		expect(route.resolve()).toBe('b');
 	});
 
-	it('cancels grace and pending hand-off on plan switch without restoring reused ids', () => {
+	it('cancels grace and pending switch on plan switch without restoring reused ids', () => {
 		route.reset('first');
 		route.hoverEnter('a', 'bar-a');
 		tick();
@@ -173,7 +179,7 @@ describe('RouteFocusState', () => {
 		route.reset('second');
 		expect(route.resolve()).toBeNull();
 		expect(vi.getTimerCount()).toBe(0);
-		tick(1000);
+		tick(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(route.resolve()).toBeNull();
 	});
 
@@ -210,14 +216,14 @@ describe('RouteFocusState', () => {
 		tick();
 		expect(route.resolve()).toBe('b');
 		route.hoverLeave('bar-b');
-		tick(250);
+		tick(HOVER_GRACE_MS);
 		expect(route.resolve()).toBe('a');
 	});
 
 	it('orders low-priority input when accepted rather than when a hover timer starts', () => {
 		route.hoverEnter('a', 'bar-a');
-		tick(60);
-		route.lastPointerType = 'mouse';
+		tick(HOVER_COLD_MS / 2);
+		route.pointerInput('mouse');
 		route.focusEnter('b', 'row-b', 'pointer');
 		// Focus cancels the pending intent. A fresh hover can override the row.
 		tick();
@@ -231,14 +237,14 @@ describe('RouteFocusState', () => {
 
 	it('updates a same-row focus cause only when a new focus input occurs', () => {
 		route.focusEnter('a', 'row-a', 'pointer');
-		route.lastPointerType = null;
+		route.keyboardInput('Escape', null);
 		route.hoverEnter('b', 'bar-b');
 		tick();
 		expect(route.resolve()).toBe('b');
 		route.focusEnter('a', 'row-a', 'keyboard');
 		expect(route.resolve()).toBe('a');
 		route.hoverLeave('bar-b');
-		tick(250);
+		tick(HOVER_GRACE_MS);
 		route.focusLeave('old-row');
 		expect(route.resolve()).toBe('a');
 	});
@@ -248,7 +254,7 @@ describe('RouteFocusState', () => {
 			route.focusEnter('a', 'row-a', cause);
 			route.toggleTouch('b', 'b-mark');
 			route.hoverEnter('child', 'pending');
-			route.lastPointerType = null;
+			route.keyboardInput('Escape', null);
 			route.clearPointer();
 			tick();
 			expect(route.resolve()).toBe('a');
@@ -260,13 +266,13 @@ describe('RouteFocusState', () => {
 	it('keeps pointer priority through a same-row edit return and repeated focus reports', () => {
 		const row = document.createElement('tr');
 		row.dataset.taskId = 'a';
+		row.dataset.routeTarget = 'a';
 		const field = document.createElement('input');
 		const display = document.createElement('button');
 		row.append(field, display);
 		route.pointerInput('mouse');
 		route.resolveFocus(field);
 		route.keyboardInput('Escape', field);
-		route.lastPointerType = null;
 		route.clearPointer();
 		field.remove();
 		route.resolveFocus(display);
@@ -275,20 +281,20 @@ describe('RouteFocusState', () => {
 		tick();
 		expect(route.resolve()).toBe('b');
 		route.hoverLeave('bar-b');
-		tick(250);
+		tick(HOVER_GRACE_MS);
 		expect(route.resolve()).toBe('a');
 	});
 
 	it('promotes a same-row Tab transfer only after focus reaches another field', () => {
 		const row = document.createElement('tr');
 		row.dataset.taskId = 'a';
+		row.dataset.routeTarget = 'a';
 		const first = document.createElement('button');
 		const second = document.createElement('input');
 		row.append(first, second);
 		route.pointerInput('mouse');
 		route.resolveFocus(first);
 		route.keyboardInput('Tab', first);
-		route.lastPointerType = null;
 		route.resolveFocus(first);
 		route.hoverEnter('b', 'bar-b');
 		tick();

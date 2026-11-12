@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { loadExample } from '#lib/state/commands.ts';
 	import { toast } from 'svelte-sonner';
 	import WorkspaceShell from '#lib/components/app/WorkspaceShell.svelte';
@@ -26,7 +27,8 @@
 		new Workspace(localStorage, () => toast.warning(m.toast_cycle_created()))
 	);
 	setViewer(new ViewerState(localStorage));
-	setEditing(new EditingState());
+	const editing = setEditing(new EditingState());
+	onMount(() => editing.routeFocus.attach(ws));
 	const preview = setPreview(new PreviewState());
 	const languageReload = setLanguageReload(new LanguageReload(ws, preview));
 

@@ -2,19 +2,18 @@
 	import TaskMark from './TaskMark.svelte';
 	import DiagramRing from './DiagramRing.svelte';
 	import TaskTap from './TaskTap.svelte';
+	import type { RoutePaint } from '#lib/components/plan/colors.ts';
 	import type { TaskStatus } from '#lib/domain/schema.ts';
 	import type { GanttMarkGeom } from '#lib/scene/gantt-scene.ts';
 	import type { Junction } from '#lib/scene/types.ts';
 	let {
 		still = false,
 		status = 'todo',
-		offRoute = true,
 		route = 'off'
 	}: {
 		still?: boolean;
 		status?: TaskStatus;
-		offRoute?: boolean;
-		route?: 'lit' | 'off' | null;
+		route?: RoutePaint;
 	} = $props();
 	const geom: GanttMarkGeom = {
 		id: 'child',
@@ -46,7 +45,7 @@
 			color="#cc0000"
 			width={300}
 			subtask
-			{offRoute}
+			{route}
 			{still}
 		/>
 	</div>

@@ -9,6 +9,8 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
+	import type { Action } from 'svelte/action';
+	import type { RoutePaint } from '#lib/components/plan/colors.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
@@ -28,20 +30,22 @@
 
 	interface Props {
 		row: GanttRow;
+		routeTarget: Action<HTMLElement, string>;
 		geom: GanttMarkGeom;
 		width: number;
 		taps: readonly Junction[];
 		/** The stage color as a CSS value. */
 		color: string;
 		highlighted: boolean;
-		route?: 'lit' | 'off' | null;
-		tapRoutes?: ReadonlyMap<string, 'lit' | 'off'>;
+		route?: RoutePaint;
+		tapRoutes?: ReadonlyMap<string, RoutePaint>;
 		onJump: (id: string) => void;
 		onHighlight: (id: string, on: boolean) => void;
 	}
 
 	let {
 		row,
+		routeTarget,
 		geom,
 		width,
 		taps,
@@ -100,41 +104,31 @@
 	const showRowId = `${targetId}-show`;
 	const showRow = $derived(m.gantt_show_row({ task: titleText }));
 
-	const input = (part: string) => {
-		const token = `${targetId}-${part}`;
-		return {
-			onpointerenter: (event: PointerEvent) => {
-				onHighlight(row.id, true);
-				editing.routeFocus.hoverEnter(row.id, token, event.pointerType);
-			},
-			onpointerleave: (event: PointerEvent) => {
-				onHighlight(row.id, false);
-				editing.routeFocus.hoverLeave(token, event.pointerType);
-			},
-			onfocusin: (event: FocusEvent) => {
-				onHighlight(row.id, true);
-				if (event.target instanceof Element && event.target.matches(':focus-visible')) {
-					editing.routeFocus.focusEnter(row.id, token, 'keyboard');
-				}
-			},
-			onfocusout: (event: FocusEvent) => {
-				onHighlight(row.id, false);
-				if (
-					!(event.relatedTarget instanceof Node) ||
-					!event.currentTarget ||
-					!(event.currentTarget as HTMLElement).contains(event.relatedTarget)
-				) {
-					editing.routeFocus.focusLeave(token);
-				}
-			}
-		};
+	const input = {
+		onpointerenter: (event: PointerEvent) => {
+			onHighlight(row.id, true);
+			editing.routeFocus.hoverEnter(
+				row.id,
+				editing.routeFocus.tokenFor(event.currentTarget as Element),
+				event.pointerType
+			);
+		},
+		onpointerleave: (event: PointerEvent) => {
+			onHighlight(row.id, false);
+			editing.routeFocus.hoverLeave(
+				editing.routeFocus.tokenFor(event.currentTarget as Element),
+				event.pointerType
+			);
+		},
+		onfocusin: () => onHighlight(row.id, true),
+		onfocusout: () => onHighlight(row.id, false)
 	};
-	const labelInput = input('label');
-	const markInput = input('mark');
-	function markClick() {
-		if (editing.routeFocus.lastPointerType === 'touch') {
-			editing.routeFocus.toggleTouch(row.id, `${targetId}-mark`);
-		}
+	function markClick(event: MouseEvent) {
+		if (editing.routeFocus.lastPointerType === 'touch')
+			editing.routeFocus.toggleTouch(
+				row.id,
+				editing.routeFocus.tokenFor(event.currentTarget as Element)
+			);
 	}
 </script>
 
@@ -155,7 +149,10 @@
 			subtask && 'pl-6'
 		)}
 		style:transition-duration={colorDuration}
-		{...labelInput}
+		data-route-target={row.id}
+		data-route-focus="keyboard"
+		use:routeTarget={row.id}
+		{...input}
 	>
 		{#if row.isParent}
 			<button
@@ -207,7 +204,7 @@
 				{#snippet child({ props })}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
-						{...mergeProps(props, markInput, { onclick: markClick })}
+						{...mergeProps(props, input, { onclick: markClick })}
 						role="img"
 						tabindex="0"
 						aria-label={markName}
@@ -218,12 +215,16 @@
 						style:left="{x.current.x0}px"
 						style:width="{x.current.x1 - x.current.x0}px"
 						style:height="{x.current.height}px"
+						data-route-target={row.id}
+						data-route-focus="keyboard"
+						data-route-touch
+						use:routeTarget={row.id}
 						data-testid={mark.kind === 'bar' ? 'gantt-bar' : 'gantt-point'}
 						data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
 						data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}
 					>
 						<TaskMark
-							offRoute={route === 'off'}
+							{route}
 							{tapRoutes}
 							{subtask}
 							{geom}

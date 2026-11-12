@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { motionDuration } from '#lib/motion.ts';
+	import { markColorLevel, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { untrack } from 'svelte';
 	import { GeometryTween } from './geometry-tween.svelte.ts';
 	import type { Junction } from '#lib/scene/types.ts';
@@ -12,7 +13,7 @@
 		junction: Junction;
 		width: number;
 		still?: boolean;
-		route?: 'lit' | 'off' | null;
+		route?: RoutePaint;
 	} = $props();
 	const paint = $derived(still ? null : route);
 	const ink = $derived(
@@ -21,7 +22,7 @@
 			: paint === 'lit'
 				? 'var(--foreground)'
 				: paint === 'off'
-					? 'color-mix(in oklab, var(--muted-foreground) 30%, var(--background, #FFFFFF))'
+					? `color-mix(in oklab, var(--muted-foreground) ${markColorLevel('todo', 'connector', true)}%, var(--background, #FFFFFF))`
 					: 'currentColor'
 	);
 	const point = () => ({

@@ -3,6 +3,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { flushSync } from 'svelte';
 import { render } from 'vitest-browser-svelte';
 import { makeTask } from '#lib/domain/test-helpers.ts';
+import { HOVER_COLD_MS, HOVER_WARM_MS, HOVER_GRACE_MS } from '#lib/state/route-focus.svelte.ts';
+import { userEvent } from 'vitest/browser';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { ViewerState } from '#lib/state/viewer.svelte.ts';
 import { updateTask } from '#lib/state/commands.ts';
@@ -11,6 +13,8 @@ import { Workspace } from '#lib/state/workspace.svelte.ts';
 import { effectiveDependencyGraph } from '#lib/domain/route.ts';
 import { ganttScene } from '#lib/scene/gantt-scene.ts';
 import GanttTest from './Gantt.test.svelte';
+
+const HOVER_SCHEDULING_MARGIN_MS = 50;
 
 vi.mock('#lib/scene/gantt-scene.ts', { spy: true });
 vi.mock('#lib/domain/route.ts', { spy: true });
@@ -557,7 +561,7 @@ describe('rendered Gantt task marks', () => {
 		await expect.poll(() => paths().length).toBe(0);
 	});
 
-	it('keeps every row classified throughout a warm hand-off and leave grace', async () => {
+	it('keeps every row classified throughout a warm switch and leave grace', async () => {
 		const editing = new EditingState();
 		const screen = await render(GanttTest, { workspace: ws, editing });
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -569,14 +573,14 @@ describe('rendered Gantt task marks', () => {
 					row.getAttribute('data-route')
 				);
 			mark('parent').dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-			vi.advanceTimersByTime(300);
+			vi.advanceTimersByTime(HOVER_COLD_MS);
 			flushSync();
 			expect(editing.routeId).toBe('parent');
 			const before = membership();
 			expect(before.every(Boolean)).toBe(true);
 			mark('parent').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
 			mark('tap-source').dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-			for (let ms = 0; ms < 80; ms++) {
+			for (let ms = 0; ms < HOVER_WARM_MS; ms++) {
 				flushSync();
 				expect(editing.routeId).toBe('parent');
 				expect(membership()).toEqual(before);
@@ -586,7 +590,7 @@ describe('rendered Gantt task marks', () => {
 			expect(editing.routeId).toBe('tap-source');
 			expect(membership().every(Boolean)).toBe(true);
 			mark('tap-source').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
-			vi.advanceTimersByTime(249);
+			vi.advanceTimersByTime(HOVER_GRACE_MS - 1);
 			flushSync();
 			expect(membership().every(Boolean)).toBe(true);
 			vi.advanceTimersByTime(1);
@@ -608,7 +612,7 @@ describe('rendered Gantt task marks', () => {
 			const parent = screen.container.querySelector('[data-task-id="parent"]')!;
 			const mark = parent.querySelector('[data-testid="gantt-bar"]')!;
 			mark.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-			vi.advanceTimersByTime(299);
+			vi.advanceTimersByTime(HOVER_COLD_MS - 1);
 			flushSync();
 			expect(editing.routeId).toBeNull();
 			expect(parent.hasAttribute('data-route')).toBe(false);
@@ -632,14 +636,14 @@ describe('rendered Gantt task marks', () => {
 				'[data-task-id="tap-source"] [data-testid="gantt-bar"]'
 			)!;
 			next.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-			vi.advanceTimersByTime(79);
+			vi.advanceTimersByTime(HOVER_WARM_MS - 1);
 			flushSync();
 			expect(editing.routeId).toBe('parent');
 			vi.advanceTimersByTime(1);
 			flushSync();
 			expect(editing.routeId).toBe('tap-source');
 			next.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
-			vi.advanceTimersByTime(249);
+			vi.advanceTimersByTime(HOVER_GRACE_MS - 1);
 			flushSync();
 			expect(editing.routeId).toBe('tap-source');
 			vi.advanceTimersByTime(1);
@@ -796,6 +800,24 @@ describe('rendered Gantt task marks', () => {
 		await screen.unmount();
 	});
 
+	it('accepts keyboard focus on a route mark without its test id', async () => {
+		const editing = new EditingState();
+		const screen = await render(GanttTest, { workspace: ws, editing });
+		const point = screen.getByTestId('gantt-point').element() as HTMLElement;
+		const label = point
+			.closest('[data-testid="gantt-row"]')!
+			.querySelector<HTMLElement>('[data-testid="gantt-label"]')!;
+		// Keep the source hooks. Only this rendered mark has its test id removed.
+		point.removeAttribute('data-testid');
+		await userEvent.click(label);
+		await userEvent.tab();
+		expect(document.activeElement).toBe(point);
+		expect(point.matches(':focus-visible')).toBe(true);
+		expect(editing.routeId).toBe('point');
+		expect(point.getAttribute('data-route-target')).toBe('point');
+		expect(point.closest('[data-testid="gantt-row"]')!.getAttribute('data-route')).toBe('lit');
+	});
+
 	it('clears plan input on switch and disposes an intent timer on unmount', async () => {
 		const editing = new EditingState();
 		const originalPlan = ws.plan.id;
@@ -812,7 +834,7 @@ describe('rendered Gantt task marks', () => {
 		expect(editing.routeId).toBeNull();
 		mark().dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
 		await screen.unmount();
-		await new Promise((resolve) => setTimeout(resolve, 350));
+		await new Promise((resolve) => setTimeout(resolve, HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS));
 		expect(editing.routeId).toBeNull();
 	});
 });

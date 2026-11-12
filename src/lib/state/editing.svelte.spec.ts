@@ -1,3 +1,4 @@
+import { HOVER_COLD_MS, HOVER_GRACE_MS } from './route-focus.svelte.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditingState, FLASH_MS } from './editing.svelte.ts';
 
@@ -86,7 +87,7 @@ describe('EditingState route ownership', () => {
 		expect(editing.routeId).toBe('dialog');
 		editing.routeFocus.hoverEnter('other', 'other-mark');
 		editing.routeFocus.toggleTouch('other', 'other-mark');
-		vi.advanceTimersByTime(300);
+		vi.advanceTimersByTime(HOVER_COLD_MS);
 		expect(editing.routeId).toBe('dialog');
 		editing.detailsTaskId = null;
 		expect(editing.routeId).toBe('field');
@@ -98,19 +99,19 @@ describe('EditingState route ownership', () => {
 		vi.useFakeTimers();
 		const editing = new EditingState();
 		editing.routeFocus.hoverEnter('pending', 'pending-mark');
-		vi.advanceTimersByTime(299);
+		vi.advanceTimersByTime(HOVER_COLD_MS - 1);
 		editing.openDetails('dialog', null);
 		expect(editing.routeId).toBe('dialog');
 		editing.detailsTaskId = null;
-		vi.advanceTimersByTime(500);
+		vi.advanceTimersByTime(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(editing.routeId).toBeNull();
 	});
 
-	it('clears shown hover, leave grace and a pending hand-off when details open', () => {
+	it('clears shown hover, leave grace and a pending switch when details open', () => {
 		vi.useFakeTimers();
 		const editing = new EditingState();
 		editing.routeFocus.hoverEnter('shown', 'bar-shown');
-		vi.advanceTimersByTime(300);
+		vi.advanceTimersByTime(HOVER_COLD_MS);
 		expect(editing.routeId).toBe('shown');
 		editing.routeFocus.hoverLeave('bar-shown');
 		editing.routeFocus.hoverEnter('waiting', 'bar-waiting');
@@ -119,10 +120,10 @@ describe('EditingState route ownership', () => {
 		expect(vi.getTimerCount()).toBe(0);
 		editing.detailsTaskId = null;
 		expect(editing.routeId).toBeNull();
-		vi.advanceTimersByTime(1000);
+		vi.advanceTimersByTime(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(editing.routeId).toBeNull();
 		editing.routeFocus.hoverEnter('waiting', 'bar-waiting');
-		vi.advanceTimersByTime(299);
+		vi.advanceTimersByTime(HOVER_COLD_MS - 1);
 		expect(editing.routeId).toBeNull();
 		vi.advanceTimersByTime(1);
 		expect(editing.routeId).toBe('waiting');
@@ -134,7 +135,7 @@ describe('EditingState route ownership', () => {
 		editing.highlightId = 'linked';
 		editing.routeFocus.hoverEnter('route', 'bar-route');
 		expect(editing.highlightId).toBe('linked');
-		vi.advanceTimersByTime(300);
+		vi.advanceTimersByTime(HOVER_COLD_MS);
 		expect(editing.routeId).toBe('route');
 		expect(editing.highlightId).toBe('linked');
 		editing.routeFocus.clearPointer();

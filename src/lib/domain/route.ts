@@ -1,11 +1,15 @@
 /** Dependency routes use the effective graph, including inherited parent dependencies. */
 import { effectiveDependencies, type TaskIndex } from './derive.ts';
-import type { DependencyLine, GanttRow } from './gantt.ts';
 
-export interface EffectiveDependencyGraph {
+interface EffectiveDependencyGraph {
 	upstream: ReadonlyMap<string, ReadonlySet<string>>;
 	downstream: ReadonlyMap<string, ReadonlySet<string>>;
 	pairs: readonly (readonly [string, string])[];
+}
+
+/** The stable key of a drawn dependency line. */
+export function lineKey(from: string, to: string): string {
+	return `${from}->${to}`;
 }
 
 /** Build once for an index. Pointer input reuses these maps and pairs. */
@@ -29,8 +33,8 @@ export function effectiveDependencyGraph(index: TaskIndex): EffectiveDependencyG
 export function routeFocusModel(
 	graph: EffectiveDependencyGraph,
 	index: TaskIndex,
-	rows: readonly GanttRow[],
-	lines: readonly DependencyLine[],
+	rows: readonly { id: string; isParent: boolean; expanded: boolean }[],
+	lines: readonly { key: string }[],
 	focusId: string | null
 ): { active: boolean; onRouteRowIds: Set<string>; litLineKeys: Set<string> } {
 	const model = { active: false, onRouteRowIds: new Set<string>(), litLineKeys: new Set<string>() };
@@ -60,13 +64,13 @@ export function routeFocusModel(
 		const fromRow = visibleId(from);
 		const toRow = visibleId(to);
 		if (!fromRow || !toRow || fromRow === toRow) continue;
-		const key = `${fromRow}->${toRow}`;
+		const key = lineKey(fromRow, toRow);
 		if (drawn.has(key)) model.litLineKeys.add(key);
 	}
 	return model;
 }
 
-export interface DependencyRoute {
+interface DependencyRoute {
 	upstream: Set<string>;
 	downstream: Set<string>;
 }
@@ -91,10 +95,7 @@ export function dependencyRoute(index: TaskIndex, focus: string): DependencyRout
 }
 
 /** Walk each side independently so a shortcut cannot join opposite sides. */
-export function graphDependencyRoute(
-	graph: EffectiveDependencyGraph,
-	focus: string
-): DependencyRoute {
+function graphDependencyRoute(graph: EffectiveDependencyGraph, focus: string): DependencyRoute {
 	return {
 		upstream: reachable(graph.upstream, focus),
 		downstream: reachable(graph.downstream, focus)

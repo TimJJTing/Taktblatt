@@ -1,4 +1,6 @@
-import { SvelteMap } from 'svelte/reactivity';
+/* eslint-disable svelte/prefer-svelte-reactivity -- DOM registries use explicit reconciliation. Refer to ADR 19. */
+import { untrack } from 'svelte';
+import type { Workspace } from './workspace.svelte.ts';
 import type { TaskIndex } from '#lib/domain/derive.ts';
 
 export const HOVER_COLD_MS = 300;
@@ -24,7 +26,10 @@ interface RowFocusOwner {
 
 /** Transient input and ownership for the visual dependency route. */
 export class RouteFocusState {
-	lastPointerType: string | null = null;
+	#lastPointerType: string | null = null;
+	get lastPointerType(): string | null {
+		return this.#lastPointerType;
+	}
 	#hover = $state.raw<Candidate | null>(null);
 	#touch = $state.raw<Candidate | null>(null);
 	#focus = $state.raw<FocusCandidate | null>(null);
@@ -35,17 +40,145 @@ export class RouteFocusState {
 	#blurTimer: ReturnType<typeof setTimeout> | undefined;
 	#sequence = 0;
 	#planId: string | undefined;
-	#floating = new SvelteMap<
-		HTMLElement,
-		{ owner: RowFocusOwner; trigger: HTMLElement; open: boolean; connected: boolean }
-	>();
-	#rowTokens = new WeakMap<Element, string>();
-	#nextRowToken = 0;
+	#floating = new Map<HTMLElement, { owner: RowFocusOwner; trigger: HTMLElement }>();
+	#targetTokens = new WeakMap<Element, string>();
+	#nextTargetToken = 0;
+	#targets = new Map<HTMLElement, { id: string; token: string; view?: symbol }>();
+	#views = new Map<symbol, () => ReadonlySet<string>>();
+	#viewIds = new Map<symbol, ReadonlySet<string>>();
+	#targetVersion = $state(0);
 	#returnOwner: RowFocusOwner | null = null;
 
 	constructor(private readonly detailsTask = (): string | null => null) {}
 
-	resolve(detailsTaskId: string | null = this.detailsTask()): string | null {
+	attach(workspace: Workspace): () => void {
+		const stopReconcile = $effect.root(() => {
+			$effect(() => {
+				const planId = workspace.plan.id;
+				const index = workspace.index;
+				void this.#targetVersion;
+				const viewIds = new Map([...this.#views].map(([view, ids]) => [view, ids()]));
+				untrack(() => {
+					this.reset(planId);
+					this.#viewIds = viewIds;
+					const ids = new Set<string>();
+					for (const [element, { id, token }] of this.#targets) {
+						if (this.#targetActive(element)) ids.add(id);
+						else this.#removeTarget(token);
+					}
+					this.reconcile(index, ids);
+				});
+			});
+		});
+		const pointerDown = (event: PointerEvent) => this.pointerInput(event.pointerType);
+		const keyDown = (event: KeyboardEvent) => this.keyboardInput(event.key, event.target);
+		const click = (event: MouseEvent) => {
+			if (this.lastPointerType !== 'touch') return;
+			if (!(event.target instanceof Element) || !event.target.closest('[data-route-touch]'))
+				this.clearPointer();
+		};
+		const focusIn = (event: FocusEvent) =>
+			this.resolveFocus(event.target, false, event.relatedTarget);
+		const focusOut = (event: FocusEvent) => this.focusOut(event.target, event.relatedTarget);
+		document.addEventListener('pointerdown', pointerDown, true);
+		document.addEventListener('keydown', keyDown, true);
+		document.addEventListener('click', click);
+		document.addEventListener('focusin', focusIn);
+		document.addEventListener('focusout', focusOut);
+		const stopFloating = this.observeFloating();
+		return () => {
+			stopReconcile();
+			document.removeEventListener('pointerdown', pointerDown, true);
+			document.removeEventListener('keydown', keyDown, true);
+			document.removeEventListener('click', click);
+			document.removeEventListener('focusin', focusIn);
+			document.removeEventListener('focusout', focusOut);
+			stopFloating();
+			this.dispose();
+		};
+	}
+
+	tokenFor(element: Element): string {
+		let token = this.#targetTokens.get(element);
+		if (!token) {
+			token = `target-${++this.#nextTargetToken}`;
+			this.#targetTokens.set(element, token);
+		}
+		return token;
+	}
+
+	/** Register intended ids before outgoing DOM finishes its transition. */
+	view(ids: () => ReadonlySet<string>) {
+		const view = Symbol();
+		return {
+			target: (element: HTMLElement, id: string) => this.#registerTarget(element, id, view),
+			register: () => {
+				this.#views.set(view, ids);
+				this.#targetVersion++;
+				return () => {
+					this.#views.delete(view);
+					this.#viewIds.delete(view);
+					for (const target of this.#targets.values()) {
+						if (target.view === view) this.#removeTarget(target.token);
+					}
+					this.#targetVersion++;
+				};
+			}
+		};
+	}
+
+	readonly target = (element: HTMLElement, id: string) => this.#registerTarget(element, id);
+
+	/** Register only this view's target. Other views can show the same task. */
+	#registerTarget(element: HTMLElement, id: string, view?: symbol) {
+		const token = this.tokenFor(element);
+		this.#targets.set(element, { id, token, view });
+		this.#targetVersion++;
+		return {
+			update: (nextId: string) => {
+				if (id === nextId) return;
+				this.#removeTarget(token);
+				id = nextId;
+				this.#targets.set(element, { id, token, view });
+				this.#targetVersion++;
+			},
+			destroy: () => {
+				this.#targets.delete(element);
+				this.#removeTarget(token);
+				this.#targetVersion++;
+			}
+		};
+	}
+
+	#targetActive(element: HTMLElement): boolean {
+		const target = this.#targets.get(element);
+		return target?.view === undefined || this.#viewIds.get(target.view)?.has(target.id) === true;
+	}
+
+	#tokenActive(token: string): boolean {
+		for (const [element, target] of this.#targets) {
+			if (target.token === token) return this.#targetActive(element);
+		}
+		return true;
+	}
+
+	#removeTarget(token: string): void {
+		if (this.#pending?.token === token) this.#cancelIntent();
+		if (this.#hover?.token === token) {
+			this.#hover = null;
+			this.#cancelGrace();
+			if (this.#pending) this.#armIntent(this.#pending, HOVER_COLD_MS);
+		}
+		if (this.#touch?.token === token) this.#touch = null;
+		if (this.#focus?.token === token) this.#focus = null;
+		if (this.#returnOwner?.token === token) this.#returnOwner = null;
+		for (const [root, { owner }] of this.#floating) {
+			if (owner.token === token) this.#floating.delete(root);
+		}
+	}
+
+	resolve(): string | null {
+		const detailsTaskId = this.detailsTask();
 		if (detailsTaskId !== null && (!this.#validIds || this.#validIds.has(detailsTaskId))) {
 			return detailsTaskId;
 		}
@@ -85,6 +218,7 @@ export class RouteFocusState {
 	}
 
 	hoverEnter(id: string, token: string, pointerType = 'mouse'): void {
+		if (!this.#tokenActive(token)) return;
 		if (pointerType === 'touch') return;
 		if (this.detailsTask() !== null) {
 			this.clearPointer();
@@ -115,12 +249,13 @@ export class RouteFocusState {
 	}
 
 	focusEnter(id: string, token: string, cause: Cause): void {
+		if (!this.#tokenActive(token)) return;
 		this.#cancelIntent();
 		this.#focus = { id, token, cause, sequence: ++this.#sequence };
 	}
 
 	pointerInput(pointerType: string): void {
-		this.lastPointerType = pointerType;
+		this.#lastPointerType = pointerType;
 		this.#returnOwner = null;
 		this.#pruneContent();
 		if (this.#focus?.navigationFrom != null) this.#focus = { ...this.#focus, navigationFrom: null };
@@ -128,6 +263,8 @@ export class RouteFocusState {
 
 	/** Record navigation on the focus candidate. Esc does not change its cause. */
 	keyboardInput(key: string, target: EventTarget | null): void {
+		this.#lastPointerType = null;
+		if (key === 'Escape') this.clearPointer();
 		if (key !== 'Escape') this.#returnOwner = null;
 		if (!this.#focus) return;
 		const navigation =
@@ -143,6 +280,7 @@ export class RouteFocusState {
 	}
 
 	toggleTouch(id: string, token: string): void {
+		if (!this.#tokenActive(token)) return;
 		if (this.detailsTask() !== null) {
 			this.clearPointer();
 			return;
@@ -158,40 +296,73 @@ export class RouteFocusState {
 		this.#touch = null;
 	}
 
-	/** Track controlled content for all row controls without app-component registration. */
-	observeFloating(): () => void {
-		const sync = () => {
-			for (const trigger of document.querySelectorAll<HTMLElement>('[aria-controls]')) {
+	/** Discover trigger links only inside row owners and their controlled content. */
+	#syncFloating(): void {
+		const next = new Map<HTMLElement, { owner: RowFocusOwner; trigger: HTMLElement }>();
+		const scopes: { root: HTMLElement; owner: RowFocusOwner }[] = [];
+		for (const [root, { id, token }] of this.#targets) {
+			if (root.isConnected && this.#targetActive(root) && root.dataset.routeFocus !== 'keyboard')
+				scopes.push({ root, owner: { id, token } });
+		}
+		const scanned = new Set<HTMLElement>();
+		const triggers = new Set<HTMLElement>();
+		const rootsById = new Map<string, HTMLElement | null>();
+		for (const { root: scope, owner } of scopes) {
+			if (scanned.has(scope)) continue;
+			scanned.add(scope);
+			const controlled = [...scope.querySelectorAll<HTMLElement>('[aria-controls]')];
+			if (scope.hasAttribute('aria-controls')) controlled.unshift(scope);
+			for (const trigger of controlled) {
+				if (triggers.has(trigger)) continue;
+				triggers.add(trigger);
+				if (!this.#triggerOpen(trigger)) continue;
+				const triggerOwner = this.#directOwner(trigger) ?? owner;
 				for (const id of trigger.getAttribute('aria-controls')!.split(/\s+/)) {
-					const root = document.getElementById(id);
-					if (root) this.rowOwner(root);
+					if (!rootsById.has(id)) rootsById.set(id, document.getElementById(id));
+					const root = rootsById.get(id);
+					if (!root || next.has(root)) continue;
+					const owned = {
+						...triggerOwner,
+						cause:
+							this.#focus?.token === triggerOwner.token
+								? this.#focus.cause
+								: (triggerOwner.cause ??
+									this.#floating.get(root)?.owner.cause ??
+									(this.lastPointerType === null ? ('keyboard' as const) : ('pointer' as const)))
+					};
+					next.set(root, { owner: owned, trigger });
+					scopes.push({ root, owner: owned });
 				}
 			}
-			let closing: HTMLElement | null = null;
-			for (const [root, content] of this.#floating) {
-				const { owner, trigger } = content;
-				const open =
-					root.isConnected &&
-					!!trigger.getAttribute('aria-controls')?.split(/\s+/).includes(root.id);
-				if (content.open === open && content.connected === root.isConnected) continue;
-				content.open = open;
-				content.connected = root.isConnected;
-				if (!open && this.#focus?.token === owner.token) {
-					this.#returnOwner = { ...owner, cause: this.#focus.cause };
-					closing = root;
-				}
+		}
+		let closing: HTMLElement | null = null;
+		for (const [root, { owner }] of this.#floating) {
+			if (!next.has(root) && this.#focus?.token === owner.token) {
+				this.#returnOwner = { ...owner, cause: this.#focus.cause };
+				closing = root;
 			}
-			if (closing) this.focusOut(closing, null);
-			else this.#pruneContent();
-		};
-		const observer = new MutationObserver(sync);
+		}
+		this.#floating = next;
+		if (closing) this.focusOut(closing, null);
+	}
+
+	#triggerOpen(trigger: HTMLElement): boolean {
+		return (
+			trigger.isConnected &&
+			trigger.getAttribute('aria-expanded') !== 'false' &&
+			trigger.getAttribute('data-state') !== 'closed'
+		);
+	}
+
+	observeFloating(): () => void {
+		const observer = new MutationObserver(() => this.#syncFloating());
 		observer.observe(document, {
 			childList: true,
 			subtree: true,
 			attributes: true,
-			attributeFilter: ['aria-controls']
+			attributeFilter: ['aria-controls', 'aria-expanded', 'data-state']
 		});
-		sync();
+		this.#syncFloating();
 		return () => {
 			observer.disconnect();
 			this.#cancelBlur();
@@ -214,45 +385,23 @@ export class RouteFocusState {
 		return match;
 	}
 
-	/** Resolve controlled content through its trigger, also across nested portals. */
-	rowOwner(target: EventTarget | null, visited: readonly Element[] = []): RowFocusOwner | null {
-		if (!(target instanceof Element) || visited.includes(target)) return null;
-		const row = target.closest<HTMLTableRowElement>('tr[data-task-id]');
-		if (row?.dataset.taskId) {
-			let token = this.#rowTokens.get(row);
-			if (!token) {
-				token = `row-${++this.#nextRowToken}`;
-				this.#rowTokens.set(row, token);
-			}
-			return { id: row.dataset.taskId, token };
-		}
-		for (let root: Element | null = target; root; root = root.parentElement) {
-			if (!(root instanceof HTMLElement) || !root.id) continue;
-			const known = this.#floating.get(root);
-			if (known) return known.owner;
-			for (const trigger of document.querySelectorAll<HTMLElement>('[aria-controls]')) {
-				if (!trigger.getAttribute('aria-controls')?.split(/\s+/).includes(root.id)) continue;
-				const owner = this.rowOwner(trigger, [...visited, target]);
-				if (!owner) continue;
-				const owned = {
-					...owner,
-					cause:
-						this.#focus?.token === owner.token
-							? this.#focus.cause
-							: this.lastPointerType === null
-								? ('keyboard' as const)
-								: ('pointer' as const)
-				};
-				this.#floating.set(root, {
-					owner: owned,
-					trigger,
-					open: true,
-					connected: root.isConnected
-				});
-				return owned;
-			}
-		}
-		return null;
+	#directOwner(target: Element): RowFocusOwner | null {
+		const owner = target.closest<HTMLElement>('[data-route-target]');
+		return owner?.dataset.routeTarget &&
+			this.#targetActive(owner) &&
+			owner.dataset.routeFocus !== 'keyboard'
+			? { id: owner.dataset.routeTarget, token: this.tokenFor(owner) }
+			: null;
+	}
+
+	/** Resolve a neutral owner or the trigger owner of controlled content. */
+	rowOwner(target: EventTarget | null): RowFocusOwner | null {
+		if (!(target instanceof Element)) return null;
+		const owner = this.#directOwner(target);
+		if (owner) return owner;
+		this.#syncFloating();
+		const root = this.#contentAt(target);
+		return root ? this.#floating.get(root)!.owner : null;
 	}
 
 	#cancelBlur(): void {
@@ -273,7 +422,8 @@ export class RouteFocusState {
 			const content = root && this.#floating.get(root);
 			if (
 				content &&
-				!content.trigger.getAttribute('aria-controls')?.split(/\s+/).includes(root.id)
+				(!this.#triggerOpen(content.trigger) ||
+					!content.trigger.getAttribute('aria-controls')?.split(/\s+/).includes(root.id))
 			) {
 				this.#returnOwner = { ...content.owner, cause: this.#focus?.cause ?? content.owner.cause };
 			}
@@ -300,14 +450,14 @@ export class RouteFocusState {
 				preserveCause ||
 				portalTransfer ||
 				this.#returnOwner?.token === owner.token ||
-				(current !== null && this.lastPointerType === null);
+				(current !== null && this.#lastPointerType === null);
 			const cause = navigationTransfer
 				? 'keyboard'
 				: keepCause
 					? (current?.cause ??
 						(this.#returnOwner?.token === owner.token ? this.#returnOwner.cause : owner.cause) ??
-						(this.lastPointerType === null ? 'keyboard' : 'pointer'))
-					: this.lastPointerType === null
+						(this.#lastPointerType === null ? 'keyboard' : 'pointer'))
+					: this.#lastPointerType === null
 						? 'keyboard'
 						: 'pointer';
 			// Close reconciliation must not cancel fresh hover when focus has already returned.
@@ -317,20 +467,26 @@ export class RouteFocusState {
 			this.focusEnter(owner.id, owner.token, cause);
 			if (navigationFrom !== null) this.#focus = { ...this.#focus!, navigationFrom };
 			this.#returnOwner = null;
-		} else if (
-			!(target instanceof Element) ||
-			!target.matches(
-				'[data-testid="gantt-bar"]:focus-visible, [data-testid="gantt-point"]:focus-visible, [data-testid="gantt-label"]:focus-visible, [data-testid="gantt-toggle"]:focus-visible'
+		} else {
+			const routeTarget =
+				target instanceof Element
+					? target.closest<HTMLElement>('[data-route-target][data-route-focus="keyboard"]')
+					: null;
+			if (
+				routeTarget?.dataset.routeTarget &&
+				this.#targetActive(routeTarget) &&
+				target instanceof Element &&
+				target.matches(':focus-visible')
 			)
-		) {
-			this.#focus = null;
+				this.focusEnter(routeTarget.dataset.routeTarget, this.tokenFor(routeTarget), 'keyboard');
+			else this.#focus = null;
 		}
 	}
 
-	reconcile(index: TaskIndex, rowIds: ReadonlySet<string>): void {
+	reconcile(index: TaskIndex, targetIds: ReadonlySet<string>): void {
 		this.#validIds = index.byId;
 		const valid = (candidate: Candidate) =>
-			index.byId.has(candidate.id) && rowIds.has(candidate.id);
+			index.byId.has(candidate.id) && targetIds.has(candidate.id);
 		if (this.#pending && !valid(this.#pending)) this.#cancelIntent();
 		if (this.#hover && !valid(this.#hover)) {
 			this.#hover = null;
@@ -359,6 +515,6 @@ export class RouteFocusState {
 		this.#validIds = null;
 		this.#floating.clear();
 		this.#returnOwner = null;
-		this.lastPointerType = null;
+		this.#lastPointerType = null;
 	}
 }

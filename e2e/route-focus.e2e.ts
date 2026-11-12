@@ -1,3 +1,4 @@
+import { HOVER_COLD_MS } from '#lib/state/route-focus.svelte.ts';
 import { expect, test } from '@playwright/test';
 import {
 	addWorkspaceOverflow,
@@ -17,6 +18,8 @@ import {
 	waitForFrames,
 	workPane
 } from './helpers.ts';
+
+const HOVER_SCHEDULING_MARGIN_MS = 50;
 
 test('hover targets share delayed route input and preserve saved plan and history', async ({
 	page
@@ -52,7 +55,7 @@ test('keyboard route outranks hover and the task dialog outranks keyboard focus'
 	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
 	await ganttRow(page, 'Route branch').getByTestId('gantt-bar').hover();
 	// Wait beyond cold hover intent so this checks priority after hover is accepted.
-	await page.waitForTimeout(350);
+	await page.waitForTimeout(HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS);
 	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
 	await row(page, 'Route branch').getByTestId('task-details').click();
 	const dialog = page.getByTestId('task-dialog');

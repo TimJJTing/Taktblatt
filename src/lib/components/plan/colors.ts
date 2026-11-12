@@ -3,6 +3,8 @@ import { BAND_TINTS, STAGE_COLORS, type BandTint, type StageColor } from '#lib/d
 import { m } from '#lib/paraglide/messages.js';
 import type { TaskStatus } from '#lib/domain/schema.ts';
 
+export type RoutePaint = 'lit' | 'off' | null;
+
 /** Select one opaque color level for a task sign. */
 export function markColorLevel(
 	status: TaskStatus,

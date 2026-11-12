@@ -7,7 +7,7 @@
 	import type { Junction } from '#lib/scene/types.ts';
 	import type { TaskStatus } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
-	import { markColorLevel, subtaskFill } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, subtaskFill, type RoutePaint } from '#lib/components/plan/colors.ts';
 	interface Props {
 		geom: GanttMarkGeom;
 		box: { x0: number; x1: number };
@@ -17,8 +17,8 @@
 		taps?: readonly Junction[];
 		still?: boolean;
 		subtask?: boolean;
-		offRoute?: boolean;
-		tapRoutes?: ReadonlyMap<string, 'lit' | 'off'>;
+		route?: RoutePaint;
+		tapRoutes?: ReadonlyMap<string, RoutePaint>;
 	}
 	let {
 		geom,
@@ -29,9 +29,10 @@
 		taps = [],
 		still = false,
 		subtask = false,
-		offRoute = false,
+		route = null,
 		tapRoutes
 	}: Props = $props();
+	const offRoute = $derived(route === 'off');
 	const ground = $derived(still ? '#FFFFFF' : 'var(--background, #FFFFFF)');
 	const base = $derived(
 		!(offRoute && !still) && subtask && status !== 'done' && status !== 'canceled'
@@ -108,14 +109,7 @@
 					? Math.max(0, station.x - box.x0 - station.r)
 					: -Math.max(0, box.x1 - station.x - station.r)}px)"
 			>
-				<StationDot
-					{offRoute}
-					{status}
-					{color}
-					size={station.r * 2}
-					inset={station.inset}
-					{still}
-				/>
+				<StationDot {route} {status} {color} size={station.r * 2} inset={station.inset} {still} />
 			</span>
 		{/if}
 	{/each}

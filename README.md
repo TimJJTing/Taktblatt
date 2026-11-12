@@ -27,6 +27,7 @@ The **Sheet footer** row below the objective has a note, a version, a date and a
 - A task with a date range has a task line. A task with one date has a station dot. A parent task has a chevron. Click it to show the subtasks.
 - Station dots show status: a ring for Todo, half filled for In progress, solid for Done, and a ring with a diagonal slash for Canceled. Done and canceled task lines use a 40 % color mix of the stage color with the ground.
 - Thin connectors show the dependencies between tasks. They have no arrowheads.
+- Hover over a task or use keyboard focus to show its dependency route. Other task marks dim. On a touch screen, tap a task mark to toggle its route.
 - Stage badges S1, S2 and so on show each stage color and number.
 - Bands show a time range as a tint behind the task lines, for example a time of frost risk.
 - Milestones show as symbols on their own row. The Default symbol is a ring. Each milestone has a label M1, M2 and so on.

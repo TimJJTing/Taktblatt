@@ -268,7 +268,7 @@ function trunkJunctions(
 	}
 	for (const source of trunk.sources) {
 		if (trunk.x >= source.outX) continue;
-		// D24 keeps taps even when the source port is inside ordinary clearance.
+		// Keep taps even when the source port is inside ordinary clearance.
 		junctions.push({
 			key: JSON.stringify([trunk.key, 'tap', source.id]),
 			trunk: trunk.key,
