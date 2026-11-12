@@ -390,7 +390,7 @@ async function startTodayMonitor(chart: import('@playwright/test').Locator) {
 	});
 }
 
-test('forced colors retain stage rules, start rings and milestone outlines', async ({ page }) => {
+test('forced colors retain stage rules and milestone outlines', async ({ page }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
 	await openExample(page);

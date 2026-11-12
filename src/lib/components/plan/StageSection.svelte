@@ -12,7 +12,6 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
-	import StageRuleRing from '#lib/components/diagram/StageRuleRing.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
 	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
@@ -200,9 +199,7 @@
 		data-testid="stage-band"
 		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-1 @min-[640px]:hidden forced-colors:border-t-4"
 		style="background: {stageColorVar(stage.color)}"
-	>
-		<StageRuleRing color={stageColorVar(stage.color)} />
-	</div>
+	></div>
 	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
 		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
@@ -214,7 +211,7 @@
 		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
 	>
 		<table
-			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:5px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
+			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:4px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
 			aria-label={stageName}
 		>
 			<colgroup>
@@ -230,12 +227,7 @@
 					class="text-left text-xs text-muted-foreground"
 					style="--stage-band: {stageColorVar(stage.color)}"
 				>
-					<th class={cn(headCell, 'pl-1')}>
-						<span class="hidden @min-[640px]:block"
-							><StageRuleRing color={stageColorVar(stage.color)} /></span
-						>
-						<span class="sr-only">{m.column_status()}</span>
-					</th>
+					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_status()}</span></th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_task()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_deliverable()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_target()}</th>
@@ -334,13 +326,6 @@
 	section[data-motion='false'] thead th,
 	section[data-motion='false'] > [data-testid='stage-band'] {
 		transition: none;
-	}
-
-	@media (forced-colors: active) {
-		thead th:first-child :global(.stage-rule-ring),
-		[data-testid='stage-band'] :global(.stage-rule-ring) {
-			top: -5px;
-		}
 	}
 
 	/* The scroller padding clears the pinned Timeline section. */

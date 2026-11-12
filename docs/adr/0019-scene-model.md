@@ -51,7 +51,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 
 ### Shared signs
 
-- `src/lib/components/diagram/` holds the signs that every diagram shares: `StationDot`, `TaskMark`, `TaskTap`, `DiagramRing`, `StageBadge` and `StageRuleRing`.
+- `src/lib/components/diagram/` holds the signs that every diagram shares: `StationDot`, `TaskMark`, `TaskTap`, `DiagramRing` and `StageBadge`.
 - Signs with motion follow the `ReadyDot` pattern. A `still` property gives the paper variant, without transition and without animation.
 - `StationDot` carries the status form: ring = todo, half = in progress, solid = done, ground-filled ring with a diagonal slash = canceled. Done and canceled dots use the full stage color. A canceled task line uses a 40 % color mix of the stage color with the ground. The forms differ in forced colors and grayscale print. Use these forms in every view and on paper.
 - `StageBadge` uses the stage badge text rule: white text on light fills, ground-color text on dark fills, with a contrast of 4.5:1 or more.
