@@ -1013,6 +1013,33 @@ for (const side of ['right', 'left'] as const) {
 	});
 }
 
+test('Today tags clear a milestone on the same date in Preview and print', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.footer.date = addDays(plan.range.start, 20);
+		plan.milestones = [
+			{
+				id: 'same-day',
+				title: 'Review',
+				description: '',
+				date: plan.footer.date,
+				symbol: 'diamond'
+			}
+		];
+	});
+	await openPreview(page);
+	for (const media of ['screen', 'print'] as const) {
+		await page.emulateMedia({ media });
+		await expect
+			.poll(async () => {
+				const geometry = await todayTagGeometry(sheets(page).first(), true);
+				return geometry.tagRight <= geometry.markLeft;
+			})
+			.toBe(true);
+	}
+});
+
 test('the printed Gantt names points and marks tasks outside the range', async ({ page }) => {
 	await openExample(page);
 	await writeStoredPlan(page, (plan) => {

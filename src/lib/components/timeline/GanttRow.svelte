@@ -78,8 +78,12 @@
 	const x = new Tween(untrack(() => bounds(geom)));
 	let previousWidth = untrack(() => width);
 	let previousBounds = untrack(() => bounds(geom));
+	let previousVisible = untrack(() => geom.line !== null || geom.stations.length > 0);
 	$effect(() => {
 		const next = bounds(geom);
+		const visible = geom.line !== null || geom.stations.length > 0;
+		const newlyVisible = !previousVisible && visible;
+		previousVisible = visible;
 		const resized = width !== previousWidth;
 		previousWidth = width;
 		if (
@@ -90,7 +94,10 @@
 		)
 			return;
 		previousBounds = next;
-		x.set(next, { duration: resized ? 0 : motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
+		x.set(next, {
+			duration: resized || newlyVisible ? 0 : motionDuration(GEOMETRY_MOTION_MS),
+			easing: cubicOut
+		});
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 

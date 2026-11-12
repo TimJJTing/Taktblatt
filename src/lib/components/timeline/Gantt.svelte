@@ -7,7 +7,7 @@
 <script lang="ts">
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
-	import { flushSync, tick, untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import {
@@ -143,31 +143,16 @@
 		)
 	);
 	function measureTimeline(element: HTMLElement) {
-		let frame = 0;
-		const observer = new ResizeObserver(() => {
-			if (frame) return;
-			frame = requestAnimationFrame(() => {
-				frame = 0;
-				timelineWidth = element.clientWidth;
-			});
-		});
-		// A viewport resize precedes the next paint. Element notifications stay coalesced.
-		const resize = () => {
-			cancelAnimationFrame(frame);
-			frame = 0;
+		const measure = () => {
 			const next = element.clientWidth;
-			if (next !== timelineWidth)
-				flushSync(() => {
-					timelineWidth = next;
-				});
+			if (next !== timelineWidth) timelineWidth = next;
 		};
-		window.addEventListener('resize', resize);
+		measure();
+		const observer = new ResizeObserver(measure);
 		observer.observe(element);
 		return {
 			destroy() {
 				observer.disconnect();
-				window.removeEventListener('resize', resize);
-				cancelAnimationFrame(frame);
 			}
 		};
 	}

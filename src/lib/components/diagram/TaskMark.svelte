@@ -30,7 +30,9 @@
 		subtask = false
 	}: Props = $props();
 	const ground = $derived(still ? '#FFFFFF' : 'var(--background, #FFFFFF)');
-	const base = $derived(subtask ? subtaskFill(color, ground) : color);
+	const base = $derived(
+		subtask && status !== 'done' && status !== 'canceled' ? subtaskFill(color, ground) : color
+	);
 	const ink = $derived(
 		`color-mix(in oklab, ${base} ${markColorLevel(status, 'line', false, still)}%, ${ground})`
 	);

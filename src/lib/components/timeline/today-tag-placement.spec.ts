@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { todayTagPlacement } from './today-tag-placement.ts';
 
 describe('todayTagPlacement', () => {
+	it('keeps a same-date milestone half-width clear on either side of the tag', () => {
+		for (const chartWidth of [600, 420]) {
+			const tagWidth = 28;
+			const placement = todayTagPlacement(0.5, [0.5], chartWidth, tagWidth);
+			expect(placement.side).toBe('left');
+			expect(placement.offset + tagWidth).toBeLessThanOrEqual(-7);
+			const nearLeft = todayTagPlacement(0.02, [0.02], chartWidth, tagWidth);
+			expect(nearLeft.side).toBe('right');
+			expect(nearLeft.offset).toBeGreaterThanOrEqual(7);
+		}
+	});
+
 	it('places the tag on the right when no milestone overlaps it', () => {
 		expect(todayTagPlacement(0.5, [], 128, 28)).toEqual({ side: 'right', offset: 4 });
 		expect(todayTagPlacement(0.5, [0.25, 0.875], 128, 28)).toEqual({ side: 'right', offset: 4 });
@@ -12,14 +24,14 @@ describe('todayTagPlacement', () => {
 	});
 
 	it('flips left when a milestone sign crosses the Today line', () => {
-		expect(todayTagPlacement(0.5, [0.46875], 128, 28)).toEqual({ side: 'left', offset: -32 });
+		expect(todayTagPlacement(0.5, [0.46875], 128, 28)).toEqual({ side: 'left', offset: -39 });
 	});
 
 	it('requires an overlap at both edges of the collision range', () => {
 		expect(todayTagPlacement(0.5, [0.5 - 7 / 128], 128, 28)).toEqual({ side: 'right', offset: 4 });
 		expect(todayTagPlacement(0.5, [0.5 - 6.5 / 128], 128, 28)).toEqual({
 			side: 'left',
-			offset: -32
+			offset: -41.5
 		});
 		expect(todayTagPlacement(0.5, [0.5 + 39 / 128], 128, 28)).toEqual({ side: 'right', offset: 4 });
 		expect(todayTagPlacement(0.5, [0.5 + 38.5 / 128], 128, 28)).toEqual({

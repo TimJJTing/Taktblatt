@@ -40,7 +40,7 @@
 	style:transition-duration={`${still ? 0 : motionDuration(150)}ms`}
 >
 	<circle cx={size / 2} cy={size / 2} r={size / 2} fill="currentColor" />
-	{#if status === 'todo' || status === 'in_progress'}
+	{#if status === 'todo' || status === 'in_progress' || status === 'canceled'}
 		<circle cx={size / 2} cy={size / 2} r={hole} fill="var(--station-ground)" />
 		{#if status === 'in_progress'}
 			<path
@@ -48,6 +48,14 @@
 				fill="currentColor"
 			/>
 		{/if}
+	{/if}
+	{#if status === 'canceled'}
+		<path
+			d="M {inset} {size - inset} L {size - inset} {inset}"
+			fill="none"
+			stroke="currentColor"
+			stroke-width={inset}
+		/>
 	{/if}
 </svg>
 

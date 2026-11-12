@@ -34,6 +34,7 @@
 {#if line.cycle}
 	<path
 		{d}
+		class="cycle-casing"
 		fill="none"
 		stroke="var(--background, #FFFFFF)"
 		stroke-width="4"
@@ -43,6 +44,7 @@
 {/if}
 <path
 	{d}
+	class:muted
 	class={line.cycle ? 'text-destructive' : undefined}
 	data-cycle={line.cycle ? 'true' : undefined}
 	fill="none"
@@ -60,3 +62,16 @@
 	data-from={line.from}
 	data-to={line.to}
 />
+
+<style>
+	@media (forced-colors: active) {
+		.cycle-casing {
+			forced-color-adjust: none;
+			stroke: Canvas;
+		}
+		.muted {
+			forced-color-adjust: none;
+			stroke: CanvasText;
+		}
+	}
+</style>

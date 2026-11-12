@@ -11,7 +11,7 @@ export function markColorLevel(
 	still = false
 ): number {
 	if (offRoute && !still) return 30;
-	return status === 'canceled' || (status === 'done' && part !== 'dot') ? 40 : 100;
+	return (status === 'canceled' || status === 'done') && part !== 'dot' ? 40 : 100;
 }
 
 /** Returns a CSS value that changes with the theme. */

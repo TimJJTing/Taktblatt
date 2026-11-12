@@ -46,3 +46,13 @@
 		fill={still ? '#FFFFFF' : 'var(--background, #FFFFFF)'}
 	/></svg
 >
+
+<style>
+	@media (forced-colors: active) {
+		circle {
+			forced-color-adjust: none;
+			fill: Canvas;
+			stroke: CanvasText;
+		}
+	}
+</style>
