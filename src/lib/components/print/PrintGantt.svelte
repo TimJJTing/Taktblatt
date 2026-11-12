@@ -7,7 +7,12 @@
 <script lang="ts">
 	import TodayTag from '#lib/components/timeline/TodayTag.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { bandFill, bandPaperTint, stagePaperColor } from '#lib/components/plan/colors.ts';
+	import {
+		bandFill,
+		bandPaperTint,
+		markColorLevel,
+		stagePaperColor
+	} from '#lib/components/plan/colors.ts';
 	import { ganttFragment, type GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
 	import { routePath } from '#lib/scene/route-path.ts';
 	import TaskMark from '#lib/components/diagram/TaskMark.svelte';
@@ -36,12 +41,10 @@
 		first: boolean;
 		/** The width of the sheet content in pixels. 0 while the paginator measures. */
 		width: number;
-		/** A key that identifies this rendered Gantt fragment. */
-		uid: string;
 		paper?: GanttPaperLayout;
 	}
 
-	let { segment, from, to, first, width, uid, paper }: Props = $props();
+	let { segment, from, to, first, width, paper }: Props = $props();
 
 	const ws = getWorkspace();
 	const intl = uiIntl();
@@ -76,7 +79,7 @@
 	</h2>
 {/if}
 <div
-	data-gantt-fragment={uid}
+	data-gantt-fragment
 	class="text-[9px] text-paper-ink"
 	role="group"
 	aria-label={m.gantt_label()}
@@ -280,7 +283,7 @@
 						{@const stroke = line.cycle
 							? 'currentColor'
 							: muted
-								? 'color-mix(in oklab, currentColor 40%, #FFFFFF)'
+								? `color-mix(in oklab, currentColor ${markColorLevel(sourceRows.get(line.from)!.status, 'connector', false, true)}%, #FFFFFF)`
 								: 'currentColor'}
 						{@const strokeWidth = line.cycle
 							? 2
@@ -308,7 +311,6 @@
 							data-from={line.from}
 							data-to={line.to}
 							data-continuation={continuation?.kind}
-							data-riser-x={continuation?.riserX}
 						/>
 						{#if continuation}
 							{#each continuation.stubs as points, i (i)}

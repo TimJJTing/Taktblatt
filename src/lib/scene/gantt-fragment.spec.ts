@@ -20,8 +20,8 @@ const lines = [
 	sceneLine(rows[3], rows[4])
 ];
 
-describe('ganttFragment (3c)', () => {
-	it('filters both endpoints before routing and rebases rows, line rows and source-local taps [AC10]', () => {
+describe('ganttFragment', () => {
+	it('filters both endpoints before routing and rebases rows, line rows and source-local taps', () => {
 		const saved = structuredClone({ rows, lines });
 		const f = ganttFragment(rows, lines, { from: 1, to: 4, first: false, width: 550 });
 		expect(f.rows.map((r) => [r.id, r.row, r.status])).toEqual([
@@ -44,7 +44,7 @@ describe('ganttFragment (3c)', () => {
 		expect({ rows, lines }).toEqual(saved);
 	});
 
-	it('uses the actual first-fragment milestone height and no later-fragment offset [AC10]', () => {
+	it('uses the actual first-fragment milestone height and no later-fragment offset', () => {
 		const first = ganttFragment(rows, lines, { from: 0, to: 3, first: true, width: 550 });
 		const later = ganttFragment(rows, lines, { from: 1, to: 4, first: false, width: 550 });
 		expect(first.scene.tracks.map((t) => t.center)).toEqual([31, 49, 67]);
@@ -53,7 +53,7 @@ describe('ganttFragment (3c)', () => {
 		expect(later.scene.breaks).toEqual([18, 36, 54]);
 	});
 
-	it('routes in measured paper date width and keeps every point inside the local body [AC9,AC10]', () => {
+	it('routes in measured paper date width and keeps every point inside the local body', () => {
 		for (const width of [470, 750]) {
 			const f = ganttFragment(rows, lines, { from: 1, to: 4, first: false, width });
 			const extent = width - 150;
@@ -75,7 +75,7 @@ describe('ganttFragment (3c)', () => {
 		}
 	});
 
-	it('keeps direct fragments without shared paper metadata limited to complete local edges [3d AC2]', () => {
+	it('keeps direct fragments without shared paper metadata limited to complete local edges', () => {
 		const crossing = [
 			sceneLine(rows[0], rows[4]),
 			sceneLine(rows[0], rows[2]),
@@ -88,7 +88,7 @@ describe('ganttFragment (3c)', () => {
 		expect(f.scene.geometry.junctions).toEqual([]);
 	});
 
-	it('handles zero measurement width without nonfinite or out-of-body routes [AC10]', () => {
+	it('handles zero measurement width without nonfinite or out-of-body routes', () => {
 		const f = ganttFragment(rows, lines, { from: 1, to: 4, first: false, width: 0 });
 		expect(f.rows.map((r) => r.id)).toEqual(['source', 'target', 'point']);
 		expect(f.scene.geometry.edges).toEqual([]);
@@ -102,7 +102,7 @@ describe('ganttFragment (3c)', () => {
 		expect(f.scene.breaks).toEqual([18, 36, 54]);
 	});
 
-	it('returns an empty bounded scene for an empty fragment [AC10]', () => {
+	it('returns an empty bounded scene for an empty fragment', () => {
 		const f = ganttFragment(rows, lines, { from: 2, to: 2, first: false, width: 550 });
 		expect(f.rows).toEqual([]);
 		expect(f.lines).toEqual([]);
@@ -123,7 +123,6 @@ function paperLayout(
 	width = 550
 ): GanttPaperLayout {
 	return {
-		width,
 		scene: ganttScene(rows, lines, {
 			...PRINT_ROUTE_METRICS(Math.max(0, width - 150), rows.length),
 			top: 22,
@@ -153,7 +152,7 @@ function crossingFixture() {
 	return { rows, lines: [sceneLine(rows[0], rows[4]), sceneLine(rows[1], rows[5])] };
 }
 
-describe('paper sheet-break continuations (3d)', () => {
+describe('paper sheet-break continuations', () => {
 	it('reserves continuation entry lanes against local routes without merging distinct trunks', () => {
 		const rows = [
 			sceneRow('a', 0, bar(0.1, 0.3)),
@@ -301,7 +300,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		).toEqual([]);
 	});
 
-	it('keeps the selected whole-segment riser across exit, pass-through and entry [AC1,AC3,AC4]', () => {
+	it('keeps the selected whole-segment riser across exit, pass-through and entry', () => {
 		const { rows, lines } = crossingFixture();
 		const paper = paperLayout(rows, lines);
 		const whole = paper.scene.geometry.edges.find((edge) => edge.key === 'a->ta')!;
@@ -336,7 +335,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		}
 	});
 
-	it('keeps complete paths fragment-local instead of clipping the whole routing result [AC2]', () => {
+	it('keeps complete paths fragment-local instead of clipping the whole routing result', () => {
 		const rows = [
 			sceneRow('b', 0, bar(0.1, 0.2625)),
 			sceneRow('a', 1, point(0.25)),
@@ -375,7 +374,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		expect({ rows, lines }).toEqual(saved);
 	});
 
-	it('uses exact solid-stub and tick geometry for clamped risers and cycles in both directions [AC3,AC4]', () => {
+	it('uses exact solid-stub and tick geometry for clamped risers and cycles in both directions', () => {
 		const { rows } = crossingFixture();
 		rows[5] = sceneRow('tb', 5, bar(0.8, 1, false, true));
 		const lines = [sceneLine(rows[0], rows[5], true), sceneLine(rows[5], rows[0], true)];
@@ -430,7 +429,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		}
 	});
 
-	it('keeps backward entry hooks orthogonal and allows diagonals only at final forward entries [AC2,AC3]', () => {
+	it('keeps backward entry hooks orthogonal and allows diagonals only at final forward entries', () => {
 		for (const variant of ['hook', 'forward', 'aligned']) {
 			const { rows } = crossingFixture();
 			rows[0] = sceneRow('a', 0, variant === 'hook' ? bar(0.8, 1, false, true) : point(0.25));
@@ -485,7 +484,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		}
 	});
 
-	it('keeps a clamped crossing source tap local and deduplicates a coincident internal tap [D24,AC2]', () => {
+	it('keeps a clamped crossing source tap local and deduplicates a coincident internal tap', () => {
 		const { rows } = crossingFixture();
 		rows[5] = sceneRow('tb', 5, bar(0.8, 1, false, true));
 		for (const includeInternal of [false, true]) {
@@ -517,7 +516,49 @@ describe('paper sheet-break continuations (3d)', () => {
 		}
 	});
 
-	it('does not represent edges that lie wholly before or after the fragment [AC2,AC5]', () => {
+	it('keeps one source tap at the continuation riser when the local route selects another riser', () => {
+		const extents = [
+			[0.191, 0.648],
+			[0.49, 0.953],
+			[0.039, 0.467],
+			[0.289, 0.315],
+			[0.055, 0.547],
+			[0.778, 1],
+			[0.361, 0.635],
+			[0.484, 0.873]
+		];
+		const rows = extents.map(([start, end], index) =>
+			sceneRow(`task-${index}`, index, bar(start, end))
+		);
+		const lines = [
+			[5, 0],
+			[5, 4],
+			[1, 4],
+			[2, 4],
+			[3, 6]
+		].map(([from, to]) => sceneLine(rows[from], rows[to]));
+		const fragment = ganttFragment(rows, lines, {
+			from: 4,
+			to: 8,
+			first: false,
+			width: 550,
+			paper: paperLayout(rows, lines)
+		});
+		const continuation = fragment.continuations.find((edge) => edge.key === 'task-5->task-0')!;
+		const local = fragment.scene.geometry.edges.find((edge) => edge.key === 'task-5->task-4')!;
+		expect(xy(local.points[1]).x).not.toBe(continuation.riserX);
+		const taps = fragment.scene.geometry.junctions.filter(
+			(junction) => junction.kind === 'tap' && junction.source === 'task-5'
+		);
+		expect(taps).toHaveLength(1);
+		expect(taps[0].key).toBe(JSON.stringify([continuation.trunk, 'tap', 'task-5']));
+		expect(xy(taps[0].point)).toEqual({
+			x: continuation.riserX,
+			y: fragment.scene.tracks.find((track) => track.id === 'task-5')!.center
+		});
+	});
+
+	it('does not represent edges that lie wholly before or after the fragment', () => {
 		const { rows } = crossingFixture();
 		const lines = [sceneLine(rows[0], rows[1]), sceneLine(rows[4], rows[5])];
 		const fragment = ganttFragment(rows, lines, {
@@ -532,7 +573,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		expect(fragment.rows.map((row) => row.id)).toEqual(['middle-a', 'middle-b']);
 	});
 
-	it('keeps width-zero and empty fragments safe with shared continuation metadata [AC6]', () => {
+	it('keeps width-zero and empty fragments safe with shared continuation metadata', () => {
 		const { rows, lines } = crossingFixture();
 		const zero = ganttFragment(rows, lines, {
 			from: 0,
@@ -554,7 +595,7 @@ describe('paper sheet-break continuations (3d)', () => {
 		expect(empty.scene.nodes).toEqual([]);
 	});
 
-	it('shares one whole-segment computation and rebuilds deterministically for width, range and expansion [AC1,AC6]', () => {
+	it('shares one whole-segment computation and rebuilds deterministically for width, range and expansion', () => {
 		const { rows, lines } = crossingFixture();
 		const cache = createGanttPaperCache();
 		const first = cache.get(rows, lines, 550);

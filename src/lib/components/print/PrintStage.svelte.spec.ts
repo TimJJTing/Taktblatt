@@ -11,7 +11,7 @@ vi.mock('#lib/state/workspace.svelte.ts', async (original) => ({
 	getWorkspace: vi.fn()
 }));
 
-describe('paper stage signs (3b)', () => {
+describe('paper stage signs', () => {
 	let ws: Workspace;
 	beforeEach(() => {
 		ws = new Workspace(new MemoryStorage());

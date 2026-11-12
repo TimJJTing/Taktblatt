@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
-	import { motionDuration, GEOMETRY_MOTION_MS } from '#lib/motion.ts';
+	import { GeometryTween } from './geometry-tween.svelte.ts';
 	import type { Junction } from '#lib/scene/types.ts';
 	let {
 		tap,
@@ -11,19 +9,12 @@
 		still = false
 	}: { tap: Junction; width: number; left: number; still?: boolean } = $props();
 	const x = () => tap.point.x.f * width + tap.point.x.px;
-	const pos = new Tween(untrack(x));
-	let previousWidth = untrack(() => width);
-	let previousTarget = untrack(x);
+	const pos = new GeometryTween(
+		untrack(x),
+		untrack(() => width)
+	);
 	$effect(() => {
-		const target = x();
-		const resized = previousWidth !== width;
-		previousWidth = width;
-		if (!resized && target === previousTarget) return;
-		previousTarget = target;
-		pos.set(target, {
-			duration: still || resized ? 0 : motionDuration(GEOMETRY_MOTION_MS),
-			easing: cubicOut
-		});
+		pos.set(x(), { width, still });
 	});
 </script>
 

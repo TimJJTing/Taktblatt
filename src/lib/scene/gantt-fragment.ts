@@ -1,12 +1,11 @@
 import type { DependencyLine, GanttRow } from '#lib/domain/gantt.ts';
 import { ganttScene, type GanttScene } from './gantt-scene.ts';
 import { PRINT_ROUTE_METRICS } from './route-tracks.ts';
+import { GANTT_LABEL_WIDTH, GANTT_MILESTONE_HEIGHT, GANTT_ROW_HEIGHT } from './paper-layout.ts';
 import type { EdgeGeom, Pt, Track, Junction } from './types.ts';
 
 export interface GanttPaperLayout {
 	scene: GanttScene;
-	/** Measured sheet content width, including the label column. */
-	width: number;
 }
 
 export interface GanttContinuation extends EdgeGeom {
@@ -20,23 +19,23 @@ export interface GanttContinuation extends EdgeGeom {
 export function createGanttPaperCache(): {
 	get(rows: readonly GanttRow[], lines: readonly DependencyLine[], width: number): GanttPaperLayout;
 } {
-	let previousKey: string | undefined;
+	let previousRows: readonly GanttRow[] | undefined;
+	let previousLines: readonly DependencyLine[] | undefined;
+	let previousWidth: number | undefined;
 	let previous: GanttPaperLayout | undefined;
 	return {
 		get(rows, lines, width) {
-			const key = JSON.stringify([
-				width,
-				rows.map((r) => [r.id, r.stageId, r.status, r.row, r.level, r.mark]),
-				lines.map((l) => [l.key, l.fromId, l.toId, l.cycle])
-			]);
-			if (previous && key === previousKey) return previous;
+			if (previous && rows === previousRows && lines === previousLines && width === previousWidth)
+				return previous;
 			const scene = ganttScene(rows, lines, {
-				...PRINT_ROUTE_METRICS(Math.max(0, width - 150), rows.length),
-				top: 22,
+				...PRINT_ROUTE_METRICS(Math.max(0, width - GANTT_LABEL_WIDTH), rows.length),
+				top: GANTT_MILESTONE_HEIGHT,
 				media: 'paper'
 			});
-			previousKey = key;
-			previous = { scene, width };
+			previousRows = rows;
+			previousLines = lines;
+			previousWidth = width;
+			previous = { scene };
 			return previous;
 		}
 	};
@@ -51,17 +50,18 @@ function entryPoints(
 	x: number,
 	boundary: number,
 	dir: number,
-	stub: number,
+	metrics: ReturnType<typeof PRINT_ROUTE_METRICS>,
 	laneDistance?: number
 ): Pt[] {
+	const { stub, rowHeight, pitch, minSeg } = metrics;
 	const available = Math.max(0, Math.abs(target.center - boundary) - stub);
-	const near = Math.min(laneDistance ?? 6, available);
+	const near = Math.min(laneDistance ?? rowHeight / 2 - pitch, available);
 	const delta = target.inX - x;
 	const end = point(target.inX, target.center);
 	const start = point(x, boundary);
 	const stubEnd = point(x, boundary + dir * stub);
 	if (delta < -near) {
-		const distance = Math.min(laneDistance ?? 9, available);
+		const distance = Math.min(laneDistance ?? rowHeight / 2, available);
 		const laneY = target.center - dir * distance;
 		const entryX = Math.max(0, target.inX - stub);
 		return [
@@ -73,7 +73,7 @@ function entryPoints(
 			end
 		];
 	}
-	if (delta < near + 4 && Math.abs(delta) <= available) {
+	if (delta < near + minSeg && Math.abs(delta) <= available) {
 		const turn = point(x, target.center - dir * Math.abs(delta));
 		return [start, stubEnd, turn, turn, turn, end];
 	}
@@ -145,14 +145,14 @@ function reserveEntryLanes(
 		}
 		const available = Math.max(0, Math.abs(target.center - boundary) - metrics.stub);
 		const hook = target.inX - edge.riserX < -Math.min(near, available);
-		let points = entryPoints(target, edge.riserX, boundary, dir, metrics.stub, near);
+		let points = entryPoints(target, edge.riserX, boundary, dir, metrics, near);
 		for (const lane of hook ? [1, 0, 2] : [0, 1, 2]) {
 			const candidate = entryPoints(
 				target,
 				edge.riserX,
 				boundary,
 				dir,
-				metrics.stub,
+				metrics,
 				near + lane * metrics.pitch
 			);
 			const entry = run(candidate);
@@ -180,14 +180,14 @@ function fragmentContinuations(
 	options: GanttFragmentOptions
 ): GanttContinuation[] {
 	const { paper, width, from, to, first } = options;
-	const extent = Math.max(0, width - 150);
-	if (!paper || paper.width !== width || extent === 0 || from === to || scene.nodes.length === 0)
-		return [];
+	const extent = Math.max(0, width - GANTT_LABEL_WIDTH);
+	if (!paper || extent === 0 || from === to || scene.nodes.length === 0) return [];
 	const positions = new Map(rows.map((r) => [r.id, r.row]));
 	const tracks = new Map(scene.tracks.map((t) => [t.id, t]));
-	const top = first ? 22 : 0;
-	const bottom = top + scene.nodes.length * 18;
-	const stub = PRINT_ROUTE_METRICS(extent, scene.nodes.length).stub;
+	const top = first ? GANTT_MILESTONE_HEIGHT : 0;
+	const bottom = top + scene.nodes.length * GANTT_ROW_HEIGHT;
+	const metrics = PRINT_ROUTE_METRICS(extent, scene.nodes.length);
+	const { stub } = metrics;
 	const result: GanttContinuation[] = [];
 	for (const edge of paper.scene.geometry.edges) {
 		const sourceRow = positions.get(edge.from)!;
@@ -229,7 +229,7 @@ function fragmentContinuations(
 				end
 			];
 		} else if (target) {
-			points = entryPoints(target, x, boundaries[0], dir, stub);
+			points = entryPoints(target, x, boundaries[0], dir, metrics);
 		} else {
 			const start = point(x, dir > 0 ? top : bottom);
 			const end = point(x, dir > 0 ? bottom : top);
@@ -301,7 +301,7 @@ function continuationJunctions(
 					: 'direct';
 		add(trunk, x, edge.points[2].y.px, JSON.stringify(['branch', target.id, dir, variant]));
 	}
-	const junctions = continuationTaps(scene, continuations, width);
+	const junctions = continuationTaps(scene, continuations, paper);
 	const keys = new Set(junctions.map((junction) => junction.key));
 	for (const { trunk, x, y, roles } of candidates.values()) {
 		const arms = new Set<string>();
@@ -355,28 +355,35 @@ function continuationJunctions(
 function continuationTaps(
 	scene: GanttScene,
 	continuations: readonly GanttContinuation[],
-	width: number
+	paper: GanttPaperLayout
 ): Junction[] {
-	const taps: Junction[] = [...scene.geometry.junctions];
+	const trunks = new Map(paper.scene.geometry.edges.map((edge) => [edge.from, edge.trunk]));
+	const taps: Junction[] = scene.geometry.junctions.map((junction) => {
+		if (junction.kind !== 'tap') return junction;
+		const trunk = trunks.get(junction.source!) ?? junction.trunk;
+		return { ...junction, trunk, key: JSON.stringify([trunk, 'tap', junction.source]) };
+	});
+	const positions = new Map(taps.map((tap, index) => [tap.key, index]));
 	const tracks = new Map(scene.tracks.map((t) => [t.id, t]));
 	for (const edge of continuations) {
 		if (edge.kind !== 'exit') continue;
 		const source = tracks.get(edge.from)!;
-		if (
-			edge.riserX >= source.outX ||
-			taps.some(
-				(j) =>
-					j.kind === 'tap' && j.source === edge.from && resolveX(j.point, width) === edge.riserX
-			)
-		)
-			continue;
-		taps.push({
-			key: JSON.stringify([edge.trunk, 'tap', edge.from]),
+		const key = JSON.stringify([edge.trunk, 'tap', edge.from]);
+		if (edge.riserX >= source.outX) continue;
+		const tap: Junction = {
+			key,
 			trunk: edge.trunk,
 			point: point(edge.riserX, source.center),
 			kind: 'tap',
 			source: edge.from
-		});
+		};
+		const index = positions.get(key);
+		if (index === undefined) {
+			positions.set(key, taps.length);
+			taps.push(tap);
+		} else {
+			taps[index] = tap;
+		}
 	}
 	return taps;
 }
@@ -410,8 +417,8 @@ export function ganttFragment(
 		.filter((l) => ids.has(l.fromId) && ids.has(l.toId))
 		.map((l) => ({ ...l, row0: l.row0 - from, row1: l.row1 - from }));
 	let scene = ganttScene(localRows, localLines, {
-		...PRINT_ROUTE_METRICS(Math.max(0, width - 150), localRows.length),
-		top: first ? 22 : 0,
+		...PRINT_ROUTE_METRICS(Math.max(0, width - GANTT_LABEL_WIDTH), localRows.length),
+		top: first ? GANTT_MILESTONE_HEIGHT : 0,
 		media: 'paper'
 	});
 	const continuations = fragmentContinuations(rows, scene, options);
@@ -424,7 +431,7 @@ export function ganttFragment(
 					scene,
 					continuations,
 					options.paper!,
-					Math.max(0, width - 150)
+					Math.max(0, width - GANTT_LABEL_WIDTH)
 				)
 			}
 		};

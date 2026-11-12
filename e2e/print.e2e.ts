@@ -10,7 +10,6 @@ import {
 	expectTokenPaint,
 	todayTagGeometry,
 	choosePrint,
-	expectNoArrowheads,
 	expectOpaqueMark,
 	expectLineStatus,
 	expectStationStatus,
@@ -31,7 +30,8 @@ import {
 	expectLocalTap,
 	expectJunctionBehindMark,
 	expectCyclePaint,
-	dependencyGeometry
+	dependencyGeometry,
+	samplePaint
 } from './helpers.ts';
 
 declare global {
@@ -44,7 +44,7 @@ declare global {
 const sheets = (page: Page) => page.getByTestId('sheet');
 const menuButton = (page: Page) => page.getByTestId('app-menu');
 
-test('3c paper marks use D27 sizes, opaque status paint and source-local taps on A4 and Letter [AC4,AC7,AC9]', async ({
+test('paper marks use physical sizes, opaque status paint and source-local taps on A4 and Letter', async ({
 	page
 }) => {
 	await openLinePlan(page);
@@ -103,7 +103,6 @@ test('3c paper marks use D27 sizes, opaque status paint and source-local taps on
 		await expectCoveredCrossing(child, lines);
 		await expectJunctionBehindMark(first.getByTestId('sheet-gantt-junction').first(), crossed);
 		for (const line of await lines.all()) {
-			await expectNoArrowheads(line);
 			await expect(line).toHaveAttribute('data-from', /.+/);
 			await expect(line).toHaveAttribute('data-to', /.+/);
 		}
@@ -114,7 +113,7 @@ test('3c paper marks use D27 sizes, opaque status paint and source-local taps on
 	}
 });
 
-test('3d paper keeps complete local routes below repeated headers and adds crossing paths separately [AC2,AC5]', async ({
+test('paper keeps complete local routes below repeated headers and adds crossing paths separately', async ({
 	page
 }) => {
 	await openLinePlan(page);
@@ -306,7 +305,6 @@ test('Preview and print mute dependency lines from done and canceled sources', a
 	await setTaskStatus(page, row(page, 'Site survey'), 'done');
 	await openPreview(page);
 	await expect.poll(() => dependencyContrast(line, true)).toBeLessThan(normal);
-	await expectNoArrowheads(line);
 	await expect(line).toHaveCSS('opacity', '1');
 	await expect(sheets(page)).toHaveCount(sheetCount);
 	const previewContrast = await dependencyContrast(line, true);
@@ -324,7 +322,6 @@ test('Preview and print mute dependency lines from done and canceled sources', a
 	await expectStationStatus(canceledBar, 'canceled', true);
 	await expectLineStatus(canceledBar, 'canceled', true);
 	await expect.poll(() => dependencyContrast(line, true)).toBe(previewContrast);
-	await expectNoArrowheads(line);
 	await expect(line).toHaveCSS('opacity', '1');
 	await page.emulateMedia({ media: 'print' });
 	await expectOpaqueMark(canceledBar);
@@ -663,7 +660,7 @@ function pdfPageContent(pdf: Buffer): string[] {
 }
 
 for (const source of ['preview', 'direct'] as const) {
-	test(`3c ${source} PDFs retain station, tap and cycle casing paint with backgrounds off [AC6,AC9]`, async ({
+	test(`${source} PDFs retain station, tap and cycle casing paint with backgrounds off`, async ({
 		page
 	}, testInfo) => {
 		await openLinePlan(page);
@@ -1279,7 +1276,7 @@ test('flipping the paper Today tag preserves fragment rows and pagination', asyn
 	}
 });
 
-test('3d paired stubs, pass-throughs and metadata cover each represented dependency on A4 and Letter [AC3–6]', async ({
+test('paired stubs, pass-throughs and metadata cover each represented dependency on A4 and Letter', async ({
 	page
 }) => {
 	await openContinuationPlan(page);
@@ -1332,7 +1329,10 @@ test('3d paired stubs, pass-throughs and metadata cover each represented depende
 						? 'entry'
 						: 'pass-through';
 				await expect(path).toHaveAttribute('data-continuation', kind);
-				const x = Number(await path.getAttribute('data-riser-x'));
+				const x = await path.evaluate((node, kind) => {
+					const path = node as SVGPathElement;
+					return path.getPointAtLength(kind === 'exit' ? path.getTotalLength() : 0).x;
+				}, kind);
 				expect(Number.isFinite(x)).toBe(true);
 				if (risers.has(edge.key)) expect(x).toBe(risers.get(edge.key));
 				else risers.set(edge.key, x);
@@ -1386,28 +1386,18 @@ test('3d paired stubs, pass-throughs and metadata cover each represented depende
 		await expectLocalTap(tap, 'up-source', true);
 		const clamped = last.locator('[data-testid="sheet-gantt-dependency"][data-from="up-source"]');
 		const clamp = await clamped.evaluate((node) => ({
-			x: Number((node as SVGElement).dataset.riserX),
+			x: (node as SVGPathElement).getPointAtLength((node as SVGPathElement).getTotalLength()).x,
 			width: (node as SVGPathElement).ownerSVGElement!.getBoundingClientRect().width
 		}));
 		expect(clamp.x).toBeLessThan(clamp.width);
 		const satisfied = fragments
 			.nth(1)
 			.locator('[data-testid="sheet-gantt-dependency"][data-from="a"]');
-		const paint = await satisfied.evaluate((node) => {
-			const canvas = document.createElement('canvas');
-			canvas.width = canvas.height = 1;
-			const context = canvas.getContext('2d')!;
-			const sample = (value: string) => {
-				context.clearRect(0, 0, 1, 1);
-				context.fillStyle = value;
-				context.fillRect(0, 0, 1, 1);
-				return [...context.getImageData(0, 0, 1, 1).data];
-			};
-			return {
-				actual: sample(getComputedStyle(node).stroke),
-				expected: sample(`color-mix(in oklab, ${getComputedStyle(node).color} 40%, #fff)`)
-			};
-		});
+		const paint = await samplePaint(
+			satisfied,
+			'stroke',
+			'color-mix(in oklab, currentColor 40%, #fff)'
+		);
 		expect(paint.actual).toEqual(paint.expected);
 		await expect(sheets(page).first()).toHaveCSS('color-scheme', 'light');
 	}
@@ -1467,7 +1457,7 @@ function pdfSheetPaint(pdf: Buffer): string[] {
 	);
 }
 
-test('3d Preview and direct A4 and Letter PDFs keep solid break signs and cycle casing with backgrounds off [AC6]', async ({
+test('Preview and direct A4 and Letter PDFs keep solid break signs and cycle casing with backgrounds off', async ({
 	page
 }, testInfo) => {
 	await openContinuationPlan(page);

@@ -141,14 +141,7 @@
 		<div class="sheet-content" data-measure-content>
 			{#each model as segment, i (segment.id)}
 				<div data-segment={i}>
-					<SegmentView
-						{segment}
-						from={0}
-						to={itemCount(segment)}
-						first={true}
-						width={0}
-						uid="m{i}"
-					/>
+					<SegmentView {segment} from={0} to={itemCount(segment)} first={true} width={0} />
 				</div>
 			{/each}
 		</div>
@@ -190,7 +183,6 @@
 								first={fragment.first}
 								width={current.width}
 								paper={current.paper.get(fragment.segment)}
-								uid="s{sheet.number}-{fragment.segment}"
 							/>
 						</div>
 					{/each}

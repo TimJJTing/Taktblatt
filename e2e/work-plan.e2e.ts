@@ -423,7 +423,7 @@ test.describe('work plan', () => {
 			.toBeLessThanOrEqual(1);
 	});
 
-	test('on a narrow screen the stage title and colored band stay visible while scrolling', async ({
+	test('on a narrow screen the stage title and stage badge stay visible while scrolling', async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 600, height: 400 });

@@ -11,8 +11,8 @@ import SheetsTest from './Sheets.test.svelte';
 
 vi.mock('#lib/scene/gantt-scene.ts', { spy: true });
 
-describe('shared whole-segment paper routing (3d)', () => {
-	it('routes the whole segment once across sheets and rebuilds once for paper, range and expansion [AC1,AC6]', async () => {
+describe('shared whole-segment paper routing', () => {
+	it('routes the whole segment once across sheets and rebuilds once for paper, range and expansion', async () => {
 		const workspace = new Workspace(new MemoryStorage());
 		const viewer = new ViewerState(new MemoryStorage());
 		workspace.commit((plan) => {

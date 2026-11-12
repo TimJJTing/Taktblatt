@@ -16,10 +16,10 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 10  | [Load the inlang plugins from node_modules](0010-local-inlang-plugins.md)                        | Accepted                                        | 2026-11-05 |
 | 11  | [Required CI checks before a merge to main](0011-required-ci-checks.md)                          | Accepted                                        | 2026-11-05 |
 | 12  | [Import modules with the file extension on disk](0012-import-file-extensions.md)                 | Accepted                                        | 2026-11-06 |
-| 13  | [Cycles are warnings, not errors](0013-cycles-are-warnings.md)                                   | Accepted                                        | 2026-11-08 |
+| 13  | [Cycles are warnings, not errors](0013-cycles-are-warnings.md)                                   | Accepted (amended by ADR 19)                    | 2026-11-08 |
 | 14  | [Subtasks depend only on siblings](0014-subtasks-depend-only-on-siblings.md)                     | Accepted                                        | 2026-11-08 |
 | 15  | [A parent's planned window grows with its subtasks](0015-parent-planned-window.md)               | Accepted                                        | 2026-11-08 |
 | 16  | [Split workspace with pane scrolling](0016-split-workspace.md)                                   | Accepted (amended by ADR 17)                    | 2026-11-09 |
 | 17  | [Menus by scope, bottom sheets on touch, and the narrow Timeline handle](0017-menus-by-scope.md) | Accepted                                        | 2026-11-10 |
 | 18  | [Overlay scrollbar](0018-overlay-scrollbar.md)                                                   | Accepted                                        | 2026-11-11 |
-| 19  | [Scene model and shared diagram layer](0019-scene-model.md)                                      | Accepted                                        | 2026-11-11 |
+| 19  | [Scene model and shared diagram layer](0019-scene-model.md)                                      | Accepted; Amended 2026-11-12 (slice 3)          | 2026-11-11 |

@@ -3,6 +3,11 @@
  * The sheet size is in CSS units, so the sheet is the same size on all screens.
  */
 import type { PaperSize } from '#lib/domain/schema.ts';
+export {
+	GANTT_LABEL_WIDTH,
+	GANTT_MILESTONE_HEIGHT,
+	GANTT_ROW_HEIGHT
+} from '#lib/scene/paper-layout.ts';
 
 /** The sheet size as CSS lengths. */
 export const PAPER: Record<PaperSize, { width: string; height: string; css: string }> = {
@@ -10,11 +15,7 @@ export const PAPER: Record<PaperSize, { width: string; height: string; css: stri
 	letter: { width: '8.5in', height: '11in', css: 'letter' }
 };
 
-/** The width of the label column of the printed Gantt. */
-export const GANTT_LABEL_WIDTH = 150;
-export const GANTT_ROW_HEIGHT = 18;
 export const GANTT_MONTH_HEIGHT = 20;
-export const GANTT_MILESTONE_HEIGHT = 22;
 /** The fixed paper tag width keeps its side independent of font and paint timing. */
 export const GANTT_TODAY_TAG_WIDTH = 28;
 

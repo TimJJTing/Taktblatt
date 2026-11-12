@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
-	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
+	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
+	import { markColorLevel } from '#lib/components/plan/colors.ts';
+	import { motionDuration } from '#lib/motion.ts';
 	import type { EdgeGeom } from '#lib/scene/types.ts';
 	interface Props {
 		line: EdgeGeom;
@@ -13,20 +13,12 @@
 	let { line, muted, width, strokeWidth = 2 }: Props = $props();
 	const points = (edge: EdgeGeom, extent: number) =>
 		edge.points.map((p) => ({ x: p.x.f * extent + p.x.px, y: p.y.px }));
-	const pos = new Tween(untrack(() => points(line, width)));
-	let previousWidth = untrack(() => width);
-	let previousTarget = untrack(() => points(line, width));
+	const pos = new GeometryTween(
+		untrack(() => points(line, width)),
+		untrack(() => width)
+	);
 	$effect(() => {
-		const next = points(line, width);
-		const resized = width !== previousWidth;
-		previousWidth = width;
-		if (
-			!resized &&
-			next.every((p, i) => p.x === previousTarget[i]?.x && p.y === previousTarget[i]?.y)
-		)
-			return;
-		previousTarget = next;
-		pos.set(next, { duration: resized ? 0 : motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
+		pos.set(points(line, width), { width });
 	});
 	const d = $derived(pos.current.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '));
 </script>
@@ -51,7 +43,7 @@
 	stroke={line.cycle
 		? 'currentColor'
 		: muted
-			? 'color-mix(in oklab, currentColor 40%, var(--background, #FFFFFF))'
+			? `color-mix(in oklab, currentColor ${markColorLevel('done', 'connector')}%, var(--background, #FFFFFF))`
 			: 'currentColor'}
 	stroke-width={line.cycle ? 2 : strokeWidth}
 	stroke-dasharray={line.cycle ? '1 4' : undefined}

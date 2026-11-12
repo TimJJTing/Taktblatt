@@ -4,7 +4,7 @@ import { MemoryStorage } from '#lib/state/memory-storage.ts';
 import { Workspace } from '#lib/state/workspace.svelte.ts';
 import StageSectionTest from './StageSection.test.svelte';
 
-describe('stage heading signs (3b)', () => {
+describe('stage heading signs', () => {
 	let ws: Workspace;
 	beforeEach(() => {
 		ws = new Workspace(new MemoryStorage());

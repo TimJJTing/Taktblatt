@@ -12,7 +12,6 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
-	import StageRuleRing from '#lib/components/diagram/StageRuleRing.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
 	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
@@ -89,7 +88,7 @@
 	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate rule sticks instead.
 	// In forced-colors mode shadows are removed, so borders take over.
 	const headCell =
-		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_4px_0_var(--stage-band),inset_0_-1px_0_var(--border)] @min-[640px]:forced-colors:border-t-4 forced-colors:border-b';
+		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -198,11 +197,9 @@
 	<div
 		aria-hidden="true"
 		data-testid="stage-band"
-		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-1 @min-[640px]:hidden forced-colors:border-t-4"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-0.5 @min-[640px]:hidden"
 		style="background: {stageColorVar(stage.color)}"
-	>
-		<StageRuleRing color={stageColorVar(stage.color)} />
-	</div>
+	></div>
 	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
 		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
@@ -214,7 +211,7 @@
 		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
 	>
 		<table
-			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:5px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
+			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:2px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
 			aria-label={stageName}
 		>
 			<colgroup>
@@ -230,12 +227,7 @@
 					class="text-left text-xs text-muted-foreground"
 					style="--stage-band: {stageColorVar(stage.color)}"
 				>
-					<th class={cn(headCell, 'pl-1')}>
-						<span class="hidden @min-[640px]:block"
-							><StageRuleRing color={stageColorVar(stage.color)} /></span
-						>
-						<span class="sr-only">{m.column_status()}</span>
-					</th>
+					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_status()}</span></th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_task()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_deliverable()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_target()}</th>
@@ -334,13 +326,6 @@
 	section[data-motion='false'] thead th,
 	section[data-motion='false'] > [data-testid='stage-band'] {
 		transition: none;
-	}
-
-	@media (forced-colors: active) {
-		thead th:first-child :global(.stage-rule-ring),
-		[data-testid='stage-band'] :global(.stage-rule-ring) {
-			top: -5px;
-		}
 	}
 
 	/* The scroller padding clears the pinned Timeline section. */
