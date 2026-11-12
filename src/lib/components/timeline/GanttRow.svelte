@@ -14,18 +14,23 @@
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { subtaskFill } from '#lib/components/plan/colors.ts';
-	import type { GanttMark, GanttRow } from '#lib/domain/gantt.ts';
+	import TaskMark from '#lib/components/diagram/TaskMark.svelte';
+	import type { GanttMarkGeom } from '#lib/scene/gantt-scene.ts';
+	import type { Junction } from '#lib/scene/types.ts';
+	import type { GanttRow } from '#lib/domain/gantt.ts';
 	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
-	import { clipEdges, ROW_HEIGHT } from './gantt-layout.ts';
+	import { ROW_HEIGHT } from './gantt-layout.ts';
 	import { markLabel } from './mark-label.ts';
 
 	interface Props {
 		row: GanttRow;
+		geom: GanttMarkGeom;
+		width: number;
+		taps: readonly Junction[];
 		/** The stage color as a CSS value. */
 		color: string;
 		highlighted: boolean;
@@ -33,7 +38,7 @@
 		onHighlight: (id: string, on: boolean) => void;
 	}
 
-	let { row, color, highlighted, onJump, onHighlight }: Props = $props();
+	let { row, geom, width, taps, color, highlighted, onJump, onHighlight }: Props = $props();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -48,24 +53,51 @@
 
 	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, status: row.status }));
 
-	const fill = $derived(subtask ? subtaskFill(color) : color);
-
+	let previousRow = untrack(() => row.row);
+	let previousWidthY = untrack(() => width);
 	const y = new Tween(untrack(() => row.row * ROW_HEIGHT));
 	$effect(() => {
-		y.set(row.row * ROW_HEIGHT, { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
+		const resized = previousWidthY !== width;
+		previousWidthY = width;
+		if (!resized && previousRow === row.row) return;
+		previousRow = row.row;
+		y.set(row.row * ROW_HEIGHT, {
+			duration: resized ? 0 : motionDuration(GEOMETRY_MOTION_MS),
+			easing: cubicOut
+		});
 	});
 
-	// The mark moves to its new position when the plan range changes.
-	const markX = (value: GanttMark) =>
-		value.kind === 'bar'
-			? { x0: value.x0, x1: value.x1 }
-			: value.kind === 'point'
-				? { x0: value.x, x1: value.x }
-				: null;
-	const x = new Tween(untrack(() => markX(mark) ?? { x0: 0, x1: 0 }));
+	const bounds = (g: GanttMarkGeom) => {
+		const dot = g.stations[0];
+		return {
+			x0: g.line?.x0 ?? (dot ? dot.x - dot.r : 0),
+			x1: g.line?.x1 ?? (dot ? dot.x + dot.r : 0),
+			height: Math.max(g.line?.height ?? 0, ...g.stations.map((s) => s.r * 2))
+		};
+	};
+	const x = new Tween(untrack(() => bounds(geom)));
+	let previousWidth = untrack(() => width);
+	let previousBounds = untrack(() => bounds(geom));
+	let previousVisible = untrack(() => geom.line !== null || geom.stations.length > 0);
 	$effect(() => {
-		const next = markX(mark);
-		if (next) x.set(next, { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
+		const next = bounds(geom);
+		const visible = geom.line !== null || geom.stations.length > 0;
+		const newlyVisible = !previousVisible && visible;
+		previousVisible = visible;
+		const resized = width !== previousWidth;
+		previousWidth = width;
+		if (
+			!resized &&
+			next.x0 === previousBounds.x0 &&
+			next.x1 === previousBounds.x1 &&
+			next.height === previousBounds.height
+		)
+			return;
+		previousBounds = next;
+		x.set(next, {
+			duration: resized || newlyVisible ? 0 : motionDuration(GEOMETRY_MOTION_MS),
+			easing: cubicOut
+		});
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 
@@ -142,11 +174,8 @@
 		</Hint>
 		<span id={showRowId} class="sr-only">{showRow}</span>
 	</div>
-	<div
-		class={cn('relative flex-1 transition-colors', highlighted && 'bg-accent/60')}
-		style:transition-duration={colorDuration}
-	>
-		{#if mark.kind === 'bar'}
+	<div class="relative flex-1" style:transition-duration={colorDuration}>
+		{#if mark.kind === 'bar' || mark.kind === 'point'}
 			<Hint text={markName}>
 				{#snippet child({ props })}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -156,50 +185,18 @@
 						tabindex="0"
 						aria-label={markName}
 						class={cn(
-							'pointer-events-auto absolute top-1/2 min-w-0.5 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							!mark.clipStart && 'rounded-l-sm',
-							!mark.clipEnd && 'rounded-r-sm',
+							'pointer-events-auto absolute top-1/2 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
 							highlighted && 'ring-2 ring-ring/70'
 						)}
-						style:left="{x.current.x0 * 100}%"
-						style:width="{(x.current.x1 - x.current.x0) * 100}%"
-						style:height={subtask ? '8px' : '14px'}
-						data-testid="gantt-bar"
-						data-clip-start={mark.clipStart || undefined}
-						data-clip-end={mark.clipEnd || undefined}
+						style:left="{x.current.x0}px"
+						style:width="{x.current.x1 - x.current.x0}px"
+						style:height="{x.current.height}px"
+						data-testid={mark.kind === 'bar' ? 'gantt-bar' : 'gantt-point'}
+						data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
+						data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}
 					>
-						<!-- The clip path is on the fill only. The focus outline and the ring stay visible. -->
-						<div
-							class={cn(
-								'absolute inset-0',
-								!mark.clipStart && 'rounded-l-sm',
-								!mark.clipEnd && 'rounded-r-sm',
-								muted && 'opacity-40'
-							)}
-							style:background={fill}
-							style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
-						></div>
+						<TaskMark {subtask} {geom} box={x.current} status={row.status} {color} {width} {taps} />
 					</div>
-				{/snippet}
-			</Hint>
-		{:else if mark.kind === 'point'}
-			<Hint text={markName}>
-				{#snippet child({ props })}
-					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-					<div
-						{...mergeProps(props, hover)}
-						role="img"
-						tabindex="0"
-						aria-label={markName}
-						class={cn(
-							'pointer-events-auto absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							muted && 'opacity-40',
-							highlighted && 'ring-2 ring-ring/70'
-						)}
-						style:left="{x.current.x0 * 100}%"
-						style:background={fill}
-						data-testid="gantt-point"
-					></div>
 				{/snippet}
 			</Hint>
 		{:else if mark.kind === 'outside'}

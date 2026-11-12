@@ -143,6 +143,20 @@ function riserCrossesDiagonal(riser: EdgeGeom, approach: EdgeGeom, m: RouteMetri
 }
 
 describe('routeTracks (Appendix A)', () => {
+	it('does not mark two-arm bends as junctions when sources surround one target', () => {
+		const m = SCREEN_ROUTE_METRICS(600, 7);
+		const tracks = [
+			track('above', 0, 20, 100, m),
+			track('target', 3, 300, 380, m),
+			track('below', 6, 20, 100, m)
+		];
+		const edges = [edge('above', 'target'), edge('below', 'target')];
+		const result = routed(tracks, edges, m);
+		expect(result.junctions.filter((junction) => junction.kind === 'junction')).toEqual([]);
+		for (const e of result.edges) validGeometry(e, m);
+		expect(routed([...tracks].reverse(), [...edges].reverse(), m)).toEqual(result);
+	});
+
 	it('reserves a shared boundary by its physical y position from both directions', () => {
 		const tracks = [
 			track('a', 0, 20, 100),

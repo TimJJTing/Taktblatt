@@ -8,7 +8,13 @@ import {
 	openPreview,
 	openMenu,
 	storedPlan,
-	openMenuWithKeyboard
+	writeStoredPlan,
+	openMenuWithKeyboard,
+	openLinePlan,
+	ganttRow,
+	expectStationStatus,
+	setTaskStatus,
+	row
 } from './helpers.ts';
 
 const menuButton = (page: Page) => page.getByTestId('app-menu');
@@ -241,3 +247,124 @@ test('the Menu button shows its name in a tooltip', async ({ page }) => {
 	await menuButton(page).hover();
 	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Menu');
 });
+
+test('3c forced colors keep task lines, station fill forms and junctions visible [AC9,D30]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+	await expect
+		.poll(() => page.evaluate(() => matchMedia('(forced-colors: active)').matches))
+		.toBe(true);
+	for (const title of ['Source', 'Crossing']) {
+		const mark = ganttRow(page, title).getByTestId('gantt-bar');
+		const line = mark.locator('[data-gantt-line]');
+		await expect(line).toBeVisible();
+		const paint = await line.evaluate((node) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			const sample = (color: string) => {
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = color;
+				context.fillRect(0, 0, 1, 1);
+				return [...context.getImageData(0, 0, 1, 1).data];
+			};
+			const probe = document.createElement('span');
+			probe.style.color = 'Canvas';
+			node.append(probe);
+			const ground = sample(getComputedStyle(probe).color);
+			probe.remove();
+			return { ground, line: sample(getComputedStyle(node).backgroundColor) };
+		});
+		expect(paint.line[3]).toBe(255);
+		expect(paint.line).not.toEqual(paint.ground);
+		await expect(mark.locator('.station-dot').first()).toBeVisible();
+	}
+	await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'todo');
+	await expectStationStatus(ganttRow(page, 'Crossing').getByTestId('gantt-bar'), 'done');
+	for (const status of ['in_progress', 'canceled'] as const) {
+		await setTaskStatus(page, row(page, 'Source'), status);
+		await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), status);
+	}
+	const ring = page.getByTestId('gantt-junction').first();
+	await expect(ring).toBeVisible();
+	const stroke = await ring.locator('circle').evaluate((node) => getComputedStyle(node).stroke);
+	expect(stroke).not.toBe('none');
+	expect(stroke).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('3c keyboard focus encloses the complete point station [AC3,AC11]', async ({ page }) => {
+	await openLinePlan(page);
+	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
+	await point.focus();
+	await expect(point).toBeFocused();
+	await expect(point).toHaveAccessibleName(/^Point:/);
+	await expect(point).toHaveCSS('outline-style', 'solid');
+	const bounds = await point.evaluate((node) => {
+		const mark = node.getBoundingClientRect(),
+			dot = node.querySelector('.station-dot')?.getBoundingClientRect();
+		const clip = node.closest('[data-testid="gantt-scroller"]')!.getBoundingClientRect();
+		return {
+			mark: { left: mark.left, right: mark.right, top: mark.top, bottom: mark.bottom },
+			dot: dot ? { left: dot.left, right: dot.right, top: dot.top, bottom: dot.bottom } : null,
+			clip: { top: clip.top, bottom: clip.bottom },
+			outline: parseFloat(getComputedStyle(node).outlineWidth)
+		};
+	});
+	expect(bounds.dot).not.toBeNull();
+	expect(bounds.mark.left).toBeLessThanOrEqual(bounds.dot!.left);
+	expect(bounds.mark.right).toBeGreaterThanOrEqual(bounds.dot!.right);
+	expect(bounds.mark.top).toBeLessThanOrEqual(bounds.dot!.top);
+	expect(bounds.mark.bottom).toBeGreaterThanOrEqual(bounds.dot!.bottom);
+	expect(bounds.mark.top - bounds.outline).toBeGreaterThan(bounds.clip.top);
+	expect(bounds.mark.bottom + bounds.outline).toBeLessThan(bounds.clip.bottom);
+});
+
+for (const [system, app] of [
+	['light', 'Dark'],
+	['dark', 'Light']
+] as const) {
+	test(`forced colors use system ground when the ${app} theme differs from ${system}`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme: system, reducedMotion: 'reduce' });
+		await openLinePlan(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.id === 'source')!.dependsOn = ['target'];
+		});
+		await chooseTheme(page, app);
+		await page.emulateMedia({ forcedColors: 'active' });
+		const casing = page.locator('[data-overlay-for]').first();
+		const ring = page.getByTestId('gantt-junction').first().locator('circle');
+		const tap = page.getByTestId('gantt-tap').first().locator('circle');
+		const muted = page.locator('[data-testid="gantt-dependency"][data-from="child-a"]');
+		await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+		for (const [node, property, token] of [
+			[casing, 'stroke', 'Canvas'],
+			[ring, 'fill', 'Canvas'],
+			[tap, 'fill', 'Canvas'],
+			[tap, 'stroke', 'CanvasText'],
+			[muted, 'stroke', 'CanvasText']
+		] as const) {
+			await expect(node).toBeVisible();
+			await expect
+				.poll(() =>
+					node.evaluate(
+						(element, { property, token }) => {
+							const probe = document.createElement('span');
+							probe.style.cssText = `forced-color-adjust:none;color:${token}`;
+							element.parentElement!.append(probe);
+							const expected = getComputedStyle(probe).color;
+							probe.remove();
+							return getComputedStyle(element).getPropertyValue(property) === expected;
+						},
+						{ property, token }
+					)
+				)
+				.toBe(true);
+		}
+		await setTaskStatus(page, row(page, 'Source'), 'canceled');
+		await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'canceled');
+	});
+}

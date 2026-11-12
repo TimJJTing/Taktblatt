@@ -42,31 +42,6 @@ export function rowCenterY(
 	return top + row * rowHeight + rowHeight / 2;
 }
 
-/** An elbow path from the end of the predecessor to the start of the dependent. */
-export function elbowPath(x0: number, y0: number, x1: number, y1: number): string {
-	const out = x0 + 6;
-	if (x1 >= out + 4) return `M ${x0} ${y0} H ${out} V ${y1} H ${x1}`;
-	// The dependent starts before the predecessor ends: go around between the rows.
-	const mid = (y0 + y1) / 2;
-	return `M ${x0} ${y0} H ${out} V ${mid} H ${x1 - 6} V ${y1} H ${x1}`;
-}
-
-/** A clip path that gives a jagged edge to each clipped side of a bar. */
-export function clipEdges(clipStart: boolean, clipEnd: boolean): string | undefined {
-	if (!clipStart && !clipEnd) return undefined;
-	const left = clipStart ? ['4px 100%', '0 75%', '4px 50%', '0 25%', '4px 0'] : ['0 100%', '0 0'];
-	const right = clipEnd
-		? [
-				'calc(100% - 4px) 0',
-				'100% 25%',
-				'calc(100% - 4px) 50%',
-				'100% 75%',
-				'calc(100% - 4px) 100%'
-			]
-		: ['100% 0', '100% 100%'];
-	return `polygon(${[...left, ...right].join(', ')})`;
-}
-
 /**
  * The limits of the pinned height in pixels, for a viewport height. With tabs, the expanded section
  * adds TABS_TIMELINE_TOP_SPACE to this height.

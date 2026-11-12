@@ -39,3 +39,7 @@ docs/plans/
 .impeccable/review/
 .impeccable/hook.cache.json
 .impeccable/config.local.json
+
+# Local agent state and nested worktrees
+/.codex/
+/.claude/worktrees/

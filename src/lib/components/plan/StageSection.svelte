@@ -139,10 +139,9 @@
 		>
 			<span class="flex min-w-0 items-baseline">
 				<span class="flex shrink-0 items-baseline gap-1 whitespace-pre">
-					<StageBadge
-						color={stage.color}
-						label={m.stage_badge({ n: number })}
-					/>{stageLabelParts[0]}
+					<span aria-hidden="true">
+						<StageBadge color={stage.color} label={m.stage_badge({ n: number })} />
+					</span>{stageLabelParts[0]}
 				</span>
 				<span class="min-w-0"><StageTitle {stage} {number} /></span>
 				{#if stageLabelParts[1]}<span class="shrink-0 whitespace-pre">{stageLabelParts[1]}</span

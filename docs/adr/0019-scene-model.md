@@ -17,7 +17,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 - The pure folder `src/lib/scene/` holds the scene model. It has no Svelte, no DOM and no store imports. The rules for `src/lib/domain/` apply.
 - A `SceneNode` is the identity of a task in a diagram. Its `SceneId` is stable across views, undo, redo and tab sync. Identity does not contain positions.
 - Geometry is per view. `NodeGeom` gives the box of one node. `EdgeGeom` gives the points of one edge. A `Scene` holds the nodes, the edges and the geometry of one view at one size.
-- A length is `Len { f, px }`. It resolves as `f * extent + px`. A point is `Pt { x: Len, y: Len }`. A time axis can use `f` for the date fraction and `px` for fixed offsets, such as a port radius. Routing uses resolved ports and metrics at the current width. A width change requires new routes to keep the bend angles and clearances. Within the Gantt, a width-only reroute applies at once, with duration 0, including during a running tween. Only row and range changes tween between old and new geometry by stable id. This follows decision D26 B3 of the design-system plan.
+- A length is `Len { f, px }`. It resolves as `f * extent + px`. A point is `Pt { x: Len, y: Len }`. A time axis can use `f` for the date fraction and `px` for fixed offsets, such as a port radius. Routing uses resolved ports and metrics at the current width. A width change requires new routes to keep the bend angles and clearances. Within the Gantt, a width-only reroute applies at once, with duration 0, including during a running tween. Only row and range changes tween between old and new geometry by stable id. Marks, station sizes, taps and rings use the same geometry timing. A width change also snaps a moving row to the current-width scene. Equal target coordinates do not restart a running tween. This follows decision D26 B3 of the design-system plan.
 
 ### Routing
 
@@ -41,7 +41,8 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 ### Rendering
 
 - Task nodes are HTML in every view. Only edges and guides are SVG. HTML nodes keep text layout, focus, accessible names and hints (`Hint.svelte`).
-- Row and range transitions tween the Gantt geometry by stable id. This is the project's `Tween` pattern. A `Tween` retargets during a running tween, so a fast second change does not jump. A width-only reroute is the exception: it applies the current-width geometry at once with duration 0. Coalesce width notifications to at most one reroute per animation frame. Do not interpolate resolved old-width points against a new-width chart. Diagram switches retain their separate view-transition duration.
+- Row and range transitions tween the Gantt geometry by stable id. This is the project's `Tween` pattern. A `Tween` retargets during a running tween, so a fast second change does not jump. A width-only reroute is the exception: it applies the current-width geometry at once with duration 0. Measure the timeline width synchronously when its action starts. In the ResizeObserver callback, assign the current container width directly when it changes. Do not defer the assignment to an animation frame, add a window resize listener or call `flushSync`. Do not interpolate resolved old-width points against a new-width chart. Diagram switches retain their separate view-transition duration.
+- The shared Today-tag placement rule keeps the 7 px milestone half-width clear on both sides of the Today line. This includes a milestone on the same date. Screen and paper use this rule. If neither side fits, clamp the tag inside the date area.
 - A FLIP flight layer is used only when the source and the target position are in different scroll containers.
 - The app does not use the View Transitions API.
 - `src/lib/motion.ts` holds the motion constants. `GEOMETRY_MOTION_MS = 240` is for geometry changes in a view. It replaces `ROW_MOTION_MS` in `gantt-layout.ts`. `VIEW_MOTION_MS = 300` is for a switch between views. All durations still go through `motionDuration(ms)`. `TIMELINE_MOTION_MS` is section chrome, not diagram geometry, and stays where it is.
@@ -50,7 +51,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 
 - `src/lib/components/diagram/` holds the signs that every diagram shares: `StationDot` and `StageBadge`.
 - Both follow the `ReadyDot` pattern. A `still` property gives the paper variant, without transition and without animation.
-- `StationDot` carries the status fill rule (decision D6 of the plan): ring = todo, half = in progress, solid = done, 40 % = canceled. The fill is the status sign in every view and on paper.
+- `StationDot` carries the status form: ring = todo, half = in progress, solid = done, ground-filled ring with a diagonal slash = canceled. Done and canceled dots use the full stage color. A canceled task line uses a 40 % mix of the stage color with the ground. The forms differ in forced colors and grayscale print. Use these forms in every view and on paper.
 - `StageBadge` uses the stage badge text rule: white text on light fills, ground-color text on dark fills, with a contrast of 4.5:1 or more.
 - The views do not copy these forms. A change to a sign is one change for all views.
 
@@ -58,7 +59,9 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 
 - `routeId` lives in `EditingState` (`src/lib/state/editing.svelte.ts`). It is the task whose dependency route is lit. Every view reads the same value, so route focus stays when the view changes. `highlightId` keeps its current purpose: the linked highlight and scroll.
 - The pure helpers in `src/lib/domain/route.ts` follow effective dependencies in both directions. Each walk stops on a visited task. They ship with the landed tests as groundwork for slice 4. Slice 2b adds no route-focus controls.
-- Print builds a `Scene` with paper metrics and draws it with no tween. The paper metrics have their own row height, line widths and clearances. Print routes each fragment after the fragment filter, with rows rebased.
+- `ganttScene(rows, lines, metrics)` adapts task rows and dependency lines to the shared scene. It supplies station positions, exact ports, task boxes and source-local taps for both renderers. Clipped ports use the window edge. Short bars retain their date width.
+- The workspace renders one keyed list of base connector paths. Satisfied paths paint first and cycle paths paint last. A status change moves keyed siblings without changing their parent. Cycle casings are decorative siblings. Ordinary junctions stay below task marks. Taps stay inside their source mark between its line and dots.
+- Print builds a `Scene` with paper metrics and draws it with no tween. The paper metrics have their own row height, line widths and clearances. `ganttFragment` filters rows and complete edges, rebases row indices and routes each fragment at its measured date-area width. The first fragment has a 22 px milestone offset. Later fragments have no offset. In slice 3c, dependencies that cross a sheet break stay hidden. Slice 3d adds continuations.
 
 ## Alternatives considered
 
@@ -77,7 +80,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
   - `StationDot` and `StageBadge` in `src/lib/components/diagram/`, with screen and `still` variants;
   - `routeId` in `EditingState`.
 - Slice 2b does not change the Gantt on screen or on paper. No view uses the new router or the new signs yet.
-- Decision D25 splits slice 3 into four working PRs. Slice 3a (`feat/gantt-router`) changes the unused neutral router and contracts. Slice 3b (`feat/gantt-signs`) independently adopts badges and chrome. Slice 3c (`feat/gantt-lines`) depends on both. It adds `ganttScene(rows, lines, metrics)`, adopts lines and station dots on screen and paper, and removes `elbowPath` and markers. Cross-break edges remain hidden until slice 3d (`feat/gantt-continuations`) adds their continuation signs.
+- Decision D25 splits slice 3 into four working PRs. Slice 3a (`feat/gantt-router`) changes the unused neutral router and contracts. Slice 3b (`feat/gantt-signs`) independently adopts badges and chrome. Slice 3c (`feat/gantt-lines`) depends on both. It adopts `ganttScene(rows, lines, metrics)` and `ganttFragment`, draws lines and station dots on screen and paper, and removes `elbowPath`, jagged cuts and markers. Cross-break edges remain hidden until slice 3d (`feat/gantt-continuations`) adds their continuation signs.
 - Slice 4 (`feat/route-focus`) sets and reads `routeId`.
 - The route map PR adds the view switch, the `DiagramStage` container and the first switch between two scenes with `VIEW_MOTION_MS`. The print model gets a generic scene segment when the second diagram arrives. `GanttSegment` does not change before that.
 - The Kanban PR adds the FLIP flight layer when a task moves between scroll containers, for example from the Gantt body to a board column that scrolls on its own.

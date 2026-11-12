@@ -1,7 +1,10 @@
 import { MILESTONE_SYMBOLS } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
-	dependencyArrowFades,
+	expectNoArrowheads,
+	expectOpaqueMark,
+	expectLineStatus,
+	expectStationStatus,
 	expectMilestoneRing,
 	expectMilestoneDatePosition,
 	expectTokenPaint,
@@ -14,16 +17,238 @@ import {
 	openExample,
 	row,
 	storedPlan,
-	setTaskStatus
+	setTaskStatus,
+	ganttRow,
+	openLinePlan,
+	dependencyGeometry,
+	expectCoveredCrossing,
+	expectLocalTap,
+	expectJunctionBehindMark,
+	startDependencyMonitor,
+	changePlanInOtherTab,
+	waitForFrames,
+	waitForAnimations
 } from './helpers.ts';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 
-/** The Gantt row of a task, found by its label text. */
-const ganttRow = (page: Page, title: string) =>
-	gantt(page)
-		.getByTestId('gantt-row')
-		.filter({ has: page.getByTestId('gantt-label').and(page.getByText(title, { exact: true })) });
+test('3c screen lines, stations and sibling connectors use physical sizes [AC2]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+	for (const [title, lineHeight, dotSize] of [
+		['Source', 8, 8],
+		['Child A', 6, 6]
+	] as const) {
+		const mark = ganttRow(page, title).getByTestId('gantt-bar');
+		await expect(mark.locator('[data-gantt-line]')).toHaveCSS('height', `${lineHeight}px`);
+		await expect(mark.locator('.station-dot')).toHaveCount(2);
+		await expect(mark.locator('.station-dot').first()).toHaveCSS('width', `${dotSize}px`);
+	}
+	const lines = gantt(page).getByTestId('gantt-dependency');
+	await expect(lines.and(page.locator('[data-from="source"]')).first()).toHaveCSS(
+		'stroke-width',
+		'2px'
+	);
+	await expect(lines.and(page.locator('[data-from="child-a"][data-to="child-b"]'))).toHaveCSS(
+		'stroke-width',
+		'1.5px'
+	);
+	for (const line of await lines.all()) await expectNoArrowheads(line);
+});
+
+test('3c tiny, point and clipped marks use exact ports and flat cuts [AC2,AC3]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const tiny = ganttRow(page, 'Tiny').getByTestId('gantt-bar');
+	await expect(tiny.locator('.station-dot')).toHaveCount(1);
+	const tinySize = await tiny.evaluate((mark) => {
+		const rect = mark.getBoundingClientRect(),
+			dot = mark.querySelector('.station-dot')!.getBoundingClientRect();
+		return {
+			width: rect.width,
+			dateWidth: mark.parentElement!.clientWidth / 100,
+			left: dot.left - rect.left,
+			right: rect.right - dot.right
+		};
+	});
+	expect(tinySize.width).toBeCloseTo(tinySize.dateWidth, 1);
+	expect(tinySize.left).toBeCloseTo(tinySize.right, 2);
+	expect(tinySize.left).toBeGreaterThanOrEqual(-0.1);
+	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
+	await expect(point).toHaveAccessibleName(/^Point:/);
+	await expect(point.locator('.station-dot')).toHaveCSS('width', '10px');
+	await point.focus();
+	await expect(point).toBeFocused();
+	const clipped = ganttRow(page, 'Tap source').getByTestId('gantt-bar');
+	await expect(clipped.locator('.station-dot')).toHaveCount(1);
+	await expect(clipped.locator('[data-gantt-line]')).toHaveCSS('clip-path', 'none');
+	await expect(clipped.locator('[data-gantt-line]')).toHaveCSS('border-top-right-radius', '0px');
+	for (const to of ['point', 'tiny', 'tap-target']) {
+		const line = gantt(page)
+			.getByTestId('gantt-dependency')
+			.and(page.locator(`[data-to="${to}"]`));
+		await expect
+			.poll(async () => {
+				const g = await dependencyGeometry(line);
+				return g.out && g.in
+					? Math.max(
+							Math.abs(g.first.x - g.out.x),
+							Math.abs(g.first.y - g.out.y),
+							Math.abs(g.last.x - g.in.x),
+							Math.abs(g.last.y - g.in.y)
+						)
+					: Infinity;
+			})
+			.toBeLessThan(0.6);
+	}
+});
+
+test('3c finished marks cover crossing connectors in both themes [AC4]', async ({ page }) => {
+	await openLinePlan(page);
+	await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+	for (const colorScheme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+		const mark = ganttRow(page, 'Crossing').getByTestId('gantt-bar');
+		await expectOpaqueMark(mark);
+		await expectStationStatus(mark, 'done');
+		await expectLineStatus(mark, 'done');
+		const child = ganttRow(page, 'Child A').getByTestId('gantt-bar');
+		await expectStationStatus(child, 'done');
+		await expectLineStatus(child, 'done');
+		await expectCoveredCrossing(child, gantt(page).getByTestId('gantt-dependency'));
+		await expectCoveredCrossing(mark, gantt(page).getByTestId('gantt-dependency'));
+		await expect(ganttRow(page, 'Crossing').getByTestId('gantt-label')).toHaveClass(/line-through/);
+	}
+});
+
+test('3c status sorting preserves base DOM identity, parent and geometry [AC5]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const line = gantt(page)
+		.getByTestId('gantt-dependency')
+		.and(page.locator('[data-from="tap-source"]'));
+	const original = await line.evaluateHandle((element) => ({
+		element,
+		parent: element.parentNode,
+		d: element.getAttribute('d')
+	}));
+	await setTaskStatus(page, row(page, 'Tap source'), 'done');
+	await expect
+		.poll(() =>
+			original.evaluate(({ element, parent, d }) => {
+				const paths = [...document.querySelectorAll('[data-testid="gantt-dependency"]')];
+				return (
+					paths[0] === element &&
+					element.parentNode === parent &&
+					element.getAttribute('d') === d &&
+					paths.every((p) => p.parentNode === parent)
+				);
+			})
+		)
+		.toBe(true);
+	await original.dispose();
+	await expect(line).toHaveCSS('opacity', '1');
+	await expectNoArrowheads(line);
+});
+
+test('3c ordinary rings stay below bars and taps stay in their source marks [AC7]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const rings = gantt(page).getByTestId('gantt-junction');
+	expect(await rings.count()).toBeGreaterThan(0);
+	await expect(rings.first()).toHaveCSS('width', '6px');
+	const source = ganttRow(page, 'Tap source').getByTestId('gantt-bar');
+	const tap = source.getByTestId('gantt-tap');
+	await expect(tap).toHaveAttribute('data-source', 'tap-source');
+	await expect(tap).toHaveAttribute('aria-hidden', 'true');
+	await expectLocalTap(source, 'tap-source');
+	await expectJunctionBehindMark(
+		rings.first(),
+		ganttRow(page, 'Crossing').getByTestId('gantt-bar')
+	);
+	await expect(
+		gantt(page).locator('svg:has([data-testid="gantt-dependency"])').getByTestId('gantt-tap')
+	).toHaveCount(0);
+});
+
+test('3c a width-only resize has no intermediate connector route [AC8]', async ({ page }) => {
+	await page.setViewportSize({ width: 1900, height: 1000 });
+	await openLinePlan(page);
+	const line = gantt(page)
+		.getByTestId('gantt-dependency')
+		.and(page.locator('[data-from="tap-source"]'));
+	const monitor = await startDependencyMonitor(line);
+	await page.setViewportSize({ width: 1550, height: 1000 });
+	const frames = await monitor.finish();
+	const width = frames.at(-1)!.width;
+	const resized = frames.filter((f) => f.width === width);
+	expect(resized.length).toBeGreaterThan(1);
+	expect(new Set(resized.map((f) => f.d)).size).toBe(1);
+	const geometry = await dependencyGeometry(line);
+	expect(geometry.first.x).toBeCloseTo(geometry.out!.x, 0);
+	expect(geometry.last.x).toBeCloseTo(geometry.in!.x, 0);
+	// The new route must be expressed as six-point scene geometry, not a resized elbow.
+	expect(geometry.d).not.toMatch(/[HV]/);
+});
+
+for (const reducedMotion of ['reduce', 'no-preference'] as const) {
+	test(`3c range and row motion stays attached with ${reducedMotion} during repeated changes [AC8]`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ reducedMotion });
+		await openLinePlan(page);
+		const line = gantt(page)
+			.getByTestId('gantt-dependency')
+			.and(page.locator('[data-from="source"][data-to="target"]'));
+		const before = await line.getAttribute('d');
+		const monitor = await startDependencyMonitor(line);
+		await changePlanInOtherTab(page, (plan) => {
+			plan.range.end = '2027-05-10';
+		});
+		await waitForFrames(page, 2);
+		await changePlanInOtherTab(page, (plan) => {
+			plan.range.end = '2027-06-10';
+		});
+		await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+		const frames = await monitor.finish();
+		const end = frames.at(-1)!.d;
+		expect(end).not.toBe(before);
+		const intermediate = frames.filter((f) => f.d !== before && f.d !== end);
+		if (reducedMotion === 'no-preference') expect(intermediate.length).toBeGreaterThan(0);
+		// All rendered path frames must use scene segments, including the first frame.
+		expect(frames.every((f) => !/[HV]/.test(f.d ?? ''))).toBe(true);
+		await expect
+			.poll(async () => {
+				const g = await dependencyGeometry(line);
+				return Math.abs(g.first.x - g.out!.x) + Math.abs(g.last.y - g.in!.y);
+			})
+			.toBeLessThan(0.7);
+	});
+}
+
+test('3c linked highlight keeps label paint and ready dots without a timeline wash [AC11]', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const source = ganttRow(page, 'Source');
+	await source.getByTestId('gantt-bar').focus();
+	await expect(row(page, 'Source')).toHaveClass(/bg-accent/);
+	await expect(source).toHaveAttribute('data-highlighted', 'true');
+	const dateArea = source.getByTestId('gantt-bar').locator('..');
+	await expect(dateArea).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+	await expect(source.getByTestId('gantt-label').locator('..')).not.toHaveCSS(
+		'background-color',
+		'rgba(0, 0, 0, 0)'
+	);
+	await expect(ganttRow(page, 'Child A')).toHaveCount(0);
+	await setTaskStatus(page, row(page, 'Source'), 'done');
+	await expect(ganttRow(page, 'Target').getByTestId('ready-dot')).toHaveCount(1);
+});
 
 test('the Gantt shows bars, lines and the today line of the example plan', async ({ page }) => {
 	await openExample(page);
@@ -61,28 +286,28 @@ test('outgoing dependency lines mute done and canceled sources', async ({ page }
 	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-bar')).toHaveAccessibleName(
 		/, in progress$/
 	);
-	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-bar').locator(':scope > div')).toHaveCSS(
-		'opacity',
-		'1'
-	);
+	await expectOpaqueMark(ganttRow(page, 'Sowing').getByTestId('gantt-bar'));
+	await expectStationStatus(ganttRow(page, 'Sowing').getByTestId('gantt-bar'), 'in_progress');
 	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-label')).not.toHaveClass(/line-through/);
 	await setTaskStatus(page, row(page, 'Sowing'), 'done');
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
-	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	await expectNoArrowheads(line);
+	await expect(line).toHaveCSS('opacity', '1');
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
+	await waitForAnimations(line);
 	const doneContrast = await dependencyContrast(line);
 	await setTaskStatus(page, row(page, 'Sowing'), 'canceled');
 	await expect.poll(() => dependencyContrast(line)).toBe(doneContrast);
-	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	await expectNoArrowheads(line);
+	await expect(line).toHaveCSS('opacity', '1');
 	const canceled = ganttRow(page, 'Sowing');
 	await expect(canceled.getByTestId('gantt-bar')).toHaveAccessibleName(/, canceled$/);
-	await expect(canceled.getByTestId('gantt-bar').locator(':scope > div')).toHaveCSS(
-		'opacity',
-		'0.4'
-	);
+	await expectOpaqueMark(canceled.getByTestId('gantt-bar'));
+	await expectStationStatus(canceled.getByTestId('gantt-bar'), 'canceled');
+	await expectLineStatus(canceled.getByTestId('gantt-bar'), 'canceled');
 	await expect(canceled.getByTestId('gantt-label')).toHaveClass(/line-through/);
 });
 

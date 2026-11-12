@@ -1,4 +1,5 @@
 import type {
+	EdgeGeom,
 	EdgeRef,
 	Junction,
 	Pt,
@@ -212,15 +213,36 @@ function addRiserPoint(positions: RiserPoints, y: number, key: string) {
 function trunkJunctions(
 	trunk: Trunk,
 	positions: RiserPoints,
+	edges: readonly EdgeGeom[],
 	tracks: readonly Track[],
 	m: RouteMetrics
 ): Junction[] {
 	const junctions: Junction[] = [];
-	const ys = [...positions.keys()];
-	const min = Math.min(...ys);
-	const max = Math.max(...ys);
 	for (const [y, keys] of positions) {
-		if (y <= min || y >= max) continue;
+		const arms = new Set<string>();
+		for (const edge of edges) {
+			for (let i = 1; i < edge.points.length; i++) {
+				const a = edge.points[i - 1];
+				const b = edge.points[i];
+				const dx = b.x.px - a.x.px;
+				const dy = b.y.px - a.y.px;
+				if (dx === 0 && dy === 0) continue;
+				if (Math.abs((trunk.x - a.x.px) * dy - (y - a.y.px) * dx) > 1e-7) continue;
+				if (
+					trunk.x < Math.min(a.x.px, b.x.px) ||
+					trunk.x > Math.max(a.x.px, b.x.px) ||
+					y < Math.min(a.y.px, b.y.px) ||
+					y > Math.max(a.y.px, b.y.px)
+				)
+					continue;
+				for (const p of [a, b]) {
+					const xDirection = Math.sign(p.x.px - trunk.x);
+					const yDirection = Math.sign(p.y.px - y);
+					if (xDirection || yDirection) arms.add(`${xDirection},${yDirection}`);
+				}
+			}
+		}
+		if (arms.size < 3) continue;
 		// A one-slot layout cannot provide the required source-join offset.
 		if (trunk.slot === 0 && trunk.sources.some((source) => source.center === y)) continue;
 		const nearPort = tracks.some((track) => {
@@ -379,7 +401,15 @@ export function routeTracks(
 		riserPoints.set(trunk.key, positions);
 	}
 	for (const trunk of trunks) {
-		result.junctions.push(...trunkJunctions(trunk, riserPoints.get(trunk.key)!, tracks, m));
+		result.junctions.push(
+			...trunkJunctions(
+				trunk,
+				riserPoints.get(trunk.key)!,
+				result.edges.filter((edge) => edge.trunk === trunk.key),
+				tracks,
+				m
+			)
+		);
 	}
 	result.junctions.sort((a, b) => compare(a.key, b.key));
 	return result;
