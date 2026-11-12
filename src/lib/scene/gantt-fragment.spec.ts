@@ -154,6 +154,153 @@ function crossingFixture() {
 }
 
 describe('paper sheet-break continuations (3d)', () => {
+	it('reserves continuation entry lanes against local routes without merging distinct trunks', () => {
+		const rows = [
+			sceneRow('a', 0, bar(0.1, 0.3)),
+			sceneRow('filler-1', 1, { kind: 'none' }),
+			sceneRow('filler-2', 2, { kind: 'none' }),
+			sceneRow('b', 3, bar(0.2, 0.4)),
+			sceneRow('t', 4, bar(0.8, 0.9)),
+			sceneRow('u', 5, bar(0.8, 0.9))
+		];
+		const lines = [
+			sceneLine(rows[0], rows[4]),
+			sceneLine(rows[0], rows[5]),
+			sceneLine(rows[3], rows[4])
+		];
+		const paper = paperLayout(rows, lines);
+		const fragment = ganttFragment(rows, lines, {
+			from: 3,
+			to: 6,
+			first: false,
+			width: 550,
+			paper
+		});
+		const local = fragment.scene.geometry.edges.find((edge) => edge.key === 'b->t')!;
+		const entry = fragment.continuations.find((edge) => edge.key === 'a->t')!;
+		expect(entry.trunk).not.toBe(local.trunk);
+		expect(xy(local.points[2]).y).toBe(21);
+		expect(xy(entry.points[2]).y).toBe(18);
+		expect(
+			fragment.scene.geometry.junctions
+				.filter((junction) => junction.kind === 'junction')
+				.map((junction) => xy(junction.point))
+		).toEqual([{ x: entry.riserX, y: 18 }]);
+		for (const continuation of fragment.continuations) {
+			const whole = paper.scene.geometry.edges.find((edge) => edge.key === continuation.key)!;
+			const target = fragment.scene.tracks.find((track) => track.id === continuation.to)!;
+			expect(continuation.kind).toBe('entry');
+			expect(continuation.riserX).toBe(xy(whole.points[1]).x);
+			expect(xy(continuation.points[0])).toEqual({ x: continuation.riserX, y: 0 });
+			expect(distance(continuation.stubs[0])).toBe(4);
+			expect(xy(continuation.points.at(-1)!)).toEqual({ x: target.inX, y: target.center });
+		}
+		const runs = [local, ...fragment.continuations].flatMap((edge) =>
+			edge.points.slice(1).flatMap((point, i) => {
+				const a = xy(edge.points[i]),
+					b = xy(point);
+				return a.y === b.y && a.x !== b.x
+					? [{ trunk: edge.trunk, y: a.y, min: Math.min(a.x, b.x), max: Math.max(a.x, b.x) }]
+					: [];
+			})
+		);
+		for (const [i, run] of runs.entries()) {
+			for (const other of runs.slice(i + 1)) {
+				if (run.trunk === other.trunk || run.y !== other.y) continue;
+				expect(Math.max(run.min, other.min)).toBeGreaterThanOrEqual(Math.min(run.max, other.max));
+			}
+		}
+		const incomingLines = [lines[0], lines[1], sceneLine(rows[3], rows[5])];
+		const incoming = ganttFragment(rows, incomingLines, {
+			from: 4,
+			to: 6,
+			first: false,
+			width: 550,
+			paper: paperLayout(rows, incomingLines)
+		});
+		const a = incoming.continuations.find((edge) => edge.key === 'a->u')!;
+		const b = incoming.continuations.find((edge) => edge.key === 'b->u')!;
+		expect(a.trunk).not.toBe(b.trunk);
+		expect([xy(a.points[2]).y, xy(b.points[2]).y].sort((a, b) => a - b)).toEqual([18, 21]);
+	});
+
+	it('marks continuation joins only where three arms meet and keeps port clearance and unique keys', () => {
+		const rows = Array.from({ length: 6 }, (_, row) =>
+			sceneRow(String(row), row, row < 2 ? bar(0.1, 0.3) : bar(0.7, 0.8))
+		);
+		const lines = [sceneLine(rows[0], rows[5]), sceneLine(rows[1], rows[5])];
+		const paper = paperLayout(rows, lines);
+		const fragment = ganttFragment(rows, lines, {
+			from: 0,
+			to: 2,
+			first: true,
+			width: 550,
+			paper
+		});
+		const junctions = fragment.scene.geometry.junctions.filter(
+			(junction) => junction.kind === 'junction'
+		);
+		expect(junctions.map((junction) => xy(junction.point))).toEqual([{ x: 124, y: 49 }]);
+		expect(new Set(junctions.map((junction) => junction.key)).size).toBe(junctions.length);
+		for (const junction of junctions) {
+			const p = xy(junction.point);
+			for (const track of fragment.scene.tracks) {
+				for (const [x, radius] of [
+					[track.inX, track.inR],
+					[track.outX, track.outR]
+				]) {
+					expect(Math.hypot(p.x - x, p.y - track.center)).toBeGreaterThanOrEqual(radius + 2 + 2);
+				}
+			}
+		}
+		const firstSource = ganttFragment(rows, lines, {
+			from: 0,
+			to: 1,
+			first: true,
+			width: 550,
+			paper
+		});
+		expect(
+			firstSource.scene.geometry.junctions.filter((junction) => junction.kind === 'junction')
+		).toEqual([]);
+		const secondSource = ganttFragment(rows, lines, {
+			from: 1,
+			to: 2,
+			first: false,
+			width: 550,
+			paper
+		});
+		const secondJoins = secondSource.scene.geometry.junctions.filter(
+			(junction) => junction.kind === 'junction'
+		);
+		expect(secondJoins.map((junction) => xy(junction.point))).toEqual([{ x: 124, y: 9 }]);
+		expect(secondJoins[0].key).toBe(junctions[0].key);
+		const singleLine = ganttFragment(rows, [lines[1]], {
+			from: 1,
+			to: 2,
+			first: false,
+			width: 550,
+			paper: paperLayout(rows, [lines[1]])
+		});
+		expect(
+			singleLine.scene.geometry.junctions.filter((junction) => junction.kind === 'junction')
+		).toEqual([]);
+		const narrow = ganttFragment(rows, lines, {
+			from: 0,
+			to: 2,
+			first: true,
+			width: 156,
+			paper: paperLayout(rows, lines, 156)
+		});
+		const source = narrow.scene.tracks.find((track) => track.id === '1')!;
+		expect(
+			narrow.continuations.find((edge) => edge.from === '1')!.riserX - source.outX
+		).toBeLessThan(source.outR + 2 + 2);
+		expect(
+			narrow.scene.geometry.junctions.filter((junction) => junction.kind === 'junction')
+		).toEqual([]);
+	});
+
 	it('keeps the selected whole-segment riser across exit, pass-through and entry [AC1,AC3,AC4]', () => {
 		const { rows, lines } = crossingFixture();
 		const paper = paperLayout(rows, lines);
