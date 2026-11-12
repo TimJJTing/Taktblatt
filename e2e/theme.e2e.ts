@@ -14,7 +14,8 @@ import {
 	ganttRow,
 	expectStationStatus,
 	setTaskStatus,
-	row
+	row,
+	samplePaint
 } from './helpers.ts';
 
 const menuButton = (page: Page) => page.getByTestId('app-menu');
@@ -248,7 +249,7 @@ test('the Menu button shows its name in a tooltip', async ({ page }) => {
 	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Menu');
 });
 
-test('3c forced colors keep task lines, station fill forms and junctions visible [AC9,D30]', async ({
+test('forced colors keep task lines, station fill forms and junctions visible', async ({
 	page
 }) => {
 	await openLinePlan(page);
@@ -260,25 +261,9 @@ test('3c forced colors keep task lines, station fill forms and junctions visible
 		const mark = ganttRow(page, title).getByTestId('gantt-bar');
 		const line = mark.locator('[data-gantt-line]');
 		await expect(line).toBeVisible();
-		const paint = await line.evaluate((node) => {
-			const canvas = document.createElement('canvas');
-			canvas.width = canvas.height = 1;
-			const context = canvas.getContext('2d')!;
-			const sample = (color: string) => {
-				context.clearRect(0, 0, 1, 1);
-				context.fillStyle = color;
-				context.fillRect(0, 0, 1, 1);
-				return [...context.getImageData(0, 0, 1, 1).data];
-			};
-			const probe = document.createElement('span');
-			probe.style.color = 'Canvas';
-			node.append(probe);
-			const ground = sample(getComputedStyle(probe).color);
-			probe.remove();
-			return { ground, line: sample(getComputedStyle(node).backgroundColor) };
-		});
-		expect(paint.line[3]).toBe(255);
-		expect(paint.line).not.toEqual(paint.ground);
+		const paint = await samplePaint(line, 'background-color', 'Canvas');
+		expect(paint.actual[3]).toBe(255);
+		expect(paint.actual).not.toEqual(paint.expected);
 		await expect(mark.locator('.station-dot').first()).toBeVisible();
 	}
 	await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'todo');
@@ -294,7 +279,7 @@ test('3c forced colors keep task lines, station fill forms and junctions visible
 	expect(stroke).not.toBe('rgba(0, 0, 0, 0)');
 });
 
-test('3c keyboard focus encloses the complete point station [AC3,AC11]', async ({ page }) => {
+test('keyboard focus encloses the complete point station', async ({ page }) => {
 	await openLinePlan(page);
 	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
 	await point.focus();

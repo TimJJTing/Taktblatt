@@ -11,7 +11,7 @@ import GanttTest from './Gantt.test.svelte';
 
 vi.mock('#lib/scene/gantt-scene.ts', { spy: true });
 
-describe('rendered Gantt task marks (3c)', () => {
+describe('rendered Gantt task marks', () => {
 	const observers: { callback: ResizeObserverCallback; targets: Set<Element> }[] = [];
 	beforeAll(() =>
 		vi.stubGlobal(
@@ -65,7 +65,7 @@ describe('rendered Gantt task marks (3c)', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('renders 8/6 px lines and encloses station dots in focusable mark bounds [AC2,AC3]', async () => {
+	it('renders 8/6 px lines and encloses station dots in focusable mark bounds', async () => {
 		const screen = await render(GanttTest, { workspace: ws });
 		for (const [id, height, diameter] of [
 			['parent', 8, 8],
@@ -92,7 +92,7 @@ describe('rendered Gantt task marks (3c)', () => {
 		}
 	});
 
-	it('keeps clipped cuts flat and makes the point an accessible round station [AC2,AC3]', async () => {
+	it('keeps clipped cuts flat and makes the point an accessible round station', async () => {
 		const screen = await render(GanttTest, { workspace: ws });
 		const clipped = screen.container.querySelector(
 			'[data-task-id="tap-source"] [data-testid="gantt-bar"]'
@@ -110,7 +110,7 @@ describe('rendered Gantt task marks (3c)', () => {
 		expect(document.activeElement).toBe(point.element());
 	});
 
-	it('keeps taps in their source mark between its line and dots, hidden and timeline-clipped [AC7]', async () => {
+	it('keeps taps in their source mark between its line and dots, hidden and timeline-clipped', async () => {
 		const screen = await render(GanttTest, { workspace: ws });
 		const mark = screen.container.querySelector(
 			'[data-task-id="tap-source"] [data-testid="gantt-bar"]'
@@ -140,7 +140,7 @@ describe('rendered Gantt task marks (3c)', () => {
 		).toBeNull();
 	});
 
-	it('sorts satisfied paths before open paths without remounting, reparenting or rerouting them [AC5]', async () => {
+	it('sorts satisfied paths before open paths without remounting, reparenting or rerouting them', async () => {
 		const screen = await render(GanttTest, { workspace: ws });
 		const paths = [
 			...screen.container.querySelectorAll<SVGPathElement>('[data-testid="gantt-dependency"]')
@@ -158,8 +158,6 @@ describe('rendered Gantt task marks (3c)', () => {
 		expect(after.every((p) => paths.includes(p))).toBe(true);
 		expect(sourcePath.getAttribute('d')).toBe(d);
 		expect(getComputedStyle(sourcePath).opacity).toBe('1');
-		expect(sourcePath.getAttribute('marker-end')).toBeNull();
-		expect(screen.container.querySelectorAll('marker')).toHaveLength(0);
 	});
 
 	it('uses the measured width before paint and reroutes each changed container width once', async () => {

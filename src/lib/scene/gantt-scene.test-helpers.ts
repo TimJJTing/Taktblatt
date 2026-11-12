@@ -1,3 +1,4 @@
+import { GANTT_MILESTONE_HEIGHT } from './paper-layout.ts';
 import type { DependencyLine, GanttMark, GanttRow } from '#lib/domain/gantt.ts';
 import type { GanttMetrics } from './gantt-scene.ts';
 import { PRINT_ROUTE_METRICS, SCREEN_ROUTE_METRICS } from './route-tracks.ts';
@@ -51,6 +52,6 @@ export const screenMetrics = (width: number, rows: number): GanttMetrics => ({
 });
 export const paperMetrics = (width: number, rows: number): GanttMetrics => ({
 	...PRINT_ROUTE_METRICS(width, rows),
-	top: 22,
+	top: GANTT_MILESTONE_HEIGHT,
 	media: 'paper'
 });

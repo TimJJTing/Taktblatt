@@ -20,6 +20,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { createGanttPaperCache, type GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
 	import { PAPER, SHEET_SAFETY } from './print-layout.ts';
 	import SegmentView from './SegmentView.svelte';
 	import SheetFooter from './SheetFooter.svelte';
@@ -49,7 +50,10 @@
 		sheets: Sheet[];
 		/** The width of the sheet content in pixels. */
 		width: number;
+		paper: Map<number, GanttPaperLayout>;
 	}
+
+	const paperCache = createGanttPaperCache();
 
 	let measurer = $state<HTMLElement | null>(null);
 	let layout = $state.raw<Layout | null>(null);
@@ -90,7 +94,19 @@
 			};
 		});
 		const contentHeight = Math.floor(box.height) - SHEET_SAFETY;
-		layout = { model: segments, sheets: paginate(contentHeight, inputs), width: box.width };
+		const paperLayouts = new Map(
+			segments.flatMap((segment, i) =>
+				segment.kind === 'gantt'
+					? [[i, paperCache.get(segment.rows, segment.lines, box.width)] as const]
+					: []
+			)
+		);
+		layout = {
+			model: segments,
+			sheets: paginate(contentHeight, inputs),
+			width: box.width,
+			paper: paperLayouts
+		};
 	}
 
 	// Measure after each render of the hidden blocks. The effect reads the model and the paper size.
@@ -125,14 +141,7 @@
 		<div class="sheet-content" data-measure-content>
 			{#each model as segment, i (segment.id)}
 				<div data-segment={i}>
-					<SegmentView
-						{segment}
-						from={0}
-						to={itemCount(segment)}
-						first={true}
-						width={0}
-						uid="m{i}"
-					/>
+					<SegmentView {segment} from={0} to={itemCount(segment)} first={true} width={0} />
 				</div>
 			{/each}
 		</div>
@@ -173,7 +182,7 @@
 								to={fragment.to}
 								first={fragment.first}
 								width={current.width}
-								uid="s{sheet.number}-{fragment.segment}"
+								paper={current.paper.get(fragment.segment)}
 							/>
 						</div>
 					{/each}

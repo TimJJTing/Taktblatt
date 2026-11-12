@@ -4,6 +4,7 @@
 	Both use this component, so the heights match.
 -->
 <script lang="ts">
+	import type { GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
 	import type { Segment } from '#lib/domain/print-model.ts';
 	import PrintCards from './PrintCards.svelte';
 	import PrintGantt from './PrintGantt.svelte';
@@ -19,17 +20,16 @@
 		first: boolean;
 		/** The width of the sheet content in pixels. 0 while the paginator measures. */
 		width: number;
-		/** A key that is unique for the fragment. */
-		uid: string;
+		paper?: GanttPaperLayout;
 	}
 
-	let { segment, from, to, first, width, uid }: Props = $props();
+	let { segment, from, to, first, width, paper }: Props = $props();
 </script>
 
 {#if segment.kind === 'header'}
 	<PrintHeader />
 {:else if segment.kind === 'gantt'}
-	<PrintGantt {segment} {from} {to} {first} {width} {uid} />
+	<PrintGantt {segment} {from} {to} {first} {width} {paper} />
 {:else if segment.kind === 'legend'}
 	<PrintLegend {segment} />
 {:else if segment.kind === 'cards'}

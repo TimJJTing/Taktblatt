@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { MILESTONE_SYMBOLS } from './milestone-symbols.ts';
 
-describe('milestone display forms (3b)', () => {
+describe('milestone display forms', () => {
 	it('draws the stored diamond as a 14 px open ring with a 2.5 px ink outline', async () => {
 		const screen = await render(MILESTONE_SYMBOLS.diamond, {
 			class: 'size-3.5 fill-current',

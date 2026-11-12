@@ -98,7 +98,7 @@ These semantics use the existing fields. The file shape and `schemaVersion` stay
 | `date`        | date                                                                                                                             |
 | `symbol`      | `diamond` \| `flag` \| `star` \| `circle` \| `triangle` \| `square` \| `hexagon` \| `pentagon` \| `pin` \| `bookmark` \| `heart` |
 
-The `pin` key represents a map pin. Symbol keys are language-neutral. The UI language controls the displayed names.
+The stored `diamond` key shows as the Default ring. The key stays unchanged for existing milestones. The `pin` key represents a map pin. Symbol keys are language-neutral. The UI language controls the displayed names.
 
 ## Band
 

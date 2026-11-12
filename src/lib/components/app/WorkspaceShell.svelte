@@ -339,9 +339,7 @@
 		);
 		const stack =
 			header && !header.contains(target)
-				? header.getBoundingClientRect().height +
-					(columns?.getBoundingClientRect().height ?? 0) +
-					(stage && stage.getBoundingClientRect().width < 640 ? 1 : 0)
+				? header.getBoundingClientRect().height + (columns?.getBoundingClientRect().height ?? 0)
 				: 0;
 		const top = view.top + pinned + stack;
 		const bottom =

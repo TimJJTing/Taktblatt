@@ -22,7 +22,7 @@ All parts are complete.
 - Load and import accept cycles. Import counts stored rows with cycle, date or scope warnings. Each row counts once.
 - Parents use their own dependencies. Subtasks inherit the own dependencies of their parent. Subtasks can add dependencies only on siblings. The move dialog removes dependencies that break this scope rule. It has no cycle fix. Refer to [ADR 14](0014-subtasks-depend-only-on-siblings.md).
 - The picker permits cycle and date candidates. It marks them with icons and hints and puts warned candidates last.
-- Stored dependencies and inherited "From parent" chips show cycle warnings. Gantt lines and arrowheads are red at full opacity when any effective edge that they represent is part of a cycle. This applies in the workspace, Preview and print.
+- Stored dependencies and inherited "From parent" chips show cycle warnings. Gantt connectors use the full warning color and a dotted form with no arrowheads when any effective edge that they represent is part of a cycle. Refer to [ADR 19](0019-scene-model.md). This applies in the workspace, Preview and print.
 - A forward commit shows one warning toast after a successful save when it adds a new cycle-warning row. Undo, redo, activation, import and tab sync do not show this toast.
 - Moving subtask S under parent P adds inherited edges S → P.own. It does not add edges P → S.own. A cycle through S → P.own is permitted.
 - Inherited edges can make a cycle in an existing plan. For example, P depends on X, X depends on S, and S is a subtask of P. Load and import accept this plan.

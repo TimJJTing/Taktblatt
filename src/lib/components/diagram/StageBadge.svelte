@@ -33,6 +33,8 @@
 	.still {
 		transition: none;
 	}
+	/* The global reduced-motion rule keeps a 0.01 ms transition. Remove it here, so a
+	   color or side change applies in the same frame. */
 	@media (prefers-reduced-motion: reduce) {
 		.stage-badge {
 			transition: none;

@@ -6,9 +6,7 @@
 -->
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
-	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
+	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 
 	interface Props {
 		x0: number;
@@ -18,9 +16,9 @@
 
 	let { x0, x1, child }: Props = $props();
 
-	const x = new Tween(untrack(() => ({ x0, x1: x1 ?? x0 })));
+	const x = new GeometryTween(untrack(() => ({ x0, x1: x1 ?? x0 })));
 	$effect(() => {
-		x.set({ x0, x1: x1 ?? x0 }, { duration: motionDuration(GEOMETRY_MOTION_MS), easing: cubicOut });
+		x.set({ x0, x1: x1 ?? x0 });
 	});
 </script>
 

@@ -47,7 +47,7 @@ function near(actual: number[], expected: number[]) {
 	for (const [i, n] of actual.entries()) expect(n).toBeCloseTo(expected[i], 4);
 }
 
-describe('GanttLine geometry and cycle paint (3c)', () => {
+describe('GanttLine geometry and cycle paint', () => {
 	let time = 0;
 	let nextId = 0;
 	let pending = new Map<number, FrameRequestCallback>();
@@ -76,13 +76,13 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		vi.unstubAllGlobals();
 	});
 
-	it('renders all six scene points instead of rebuilding an elbow from endpoints [AC1,AC8]', async () => {
+	it('renders all six scene points instead of rebuilding an elbow from endpoints', async () => {
 		const l = line();
 		const screen = await render(GanttLineTest, { line: l });
 		near(coords(screen.container.querySelector('[data-testid="gantt-dependency"]')!), target(l));
 	});
 
-	it('uses 2 px top-level and 1.5 px sibling connector strokes without markers [AC2,AC5]', async () => {
+	it('uses 2 px top-level and 1.5 px sibling connector strokes', async () => {
 		const screen = await render(GanttLineTest, { line: line(), strokeWidth: 2 });
 		const path = screen.container.querySelector<SVGPathElement>(
 			'[data-testid="gantt-dependency"]'
@@ -90,10 +90,9 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		expect(getComputedStyle(path).strokeWidth).toBe('2px');
 		await screen.rerender({ strokeWidth: 1.5 });
 		expect(getComputedStyle(path).strokeWidth).toBe('1.5px');
-		expect(getComputedStyle(path).markerEnd).toBe('none');
 	});
 
-	it('moves every bend with cubicOut over 240 ms for a row and range change [AC8]', async () => {
+	it('moves every bend with cubicOut over 240 ms for a row and range change', async () => {
 		const old = line();
 		const next = line(0.1);
 		next.row1 = 5;
@@ -116,7 +115,7 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		near(coords(path), b);
 	});
 
-	it('retargets a fast second range change from the current six points without a jump [AC8]', async () => {
+	it('retargets a fast second range change from the current six points without a jump', async () => {
 		const screen = await render(GanttLineTest, { line: line() });
 		frame(300);
 		const path = screen.container.querySelector<SVGPathElement>(
@@ -139,7 +138,7 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		near(coords(path), b);
 	});
 
-	it('keeps the original tween deadline when status supplies an equal geometry object mid-flight [AC5,AC8]', async () => {
+	it('keeps the original tween deadline when status supplies an equal geometry object mid-flight', async () => {
 		const screen = await render(GanttLineTest, { line: line() });
 		frame(300);
 		const path = screen.container.querySelector<SVGPathElement>(
@@ -158,7 +157,7 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		near(coords(path), target(next));
 	});
 
-	it('applies new-width routes immediately during a running tween and cancels its stale target [AC8]', async () => {
+	it('applies new-width routes immediately during a running tween and cancels its stale target', async () => {
 		const screen = await render(GanttLineTest, { line: line(), width: 600 });
 		frame(300);
 		await screen.rerender({ line: line(0.1) });
@@ -177,7 +176,7 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		near(coords(path), target(resized, 400));
 	});
 
-	it('makes row and range geometry immediate when motionDuration returns zero [AC8]', async () => {
+	it('makes row and range geometry immediate when motionDuration returns zero', async () => {
 		motion.reduced = true;
 		const screen = await render(GanttLineTest, { line: line() });
 		await screen.rerender({ line: line(0.1) });
@@ -188,7 +187,7 @@ describe('GanttLine geometry and cycle paint (3c)', () => {
 		);
 	});
 
-	it('keeps warning paint on the counted base and a matching hidden 4 px casing immediately below it [AC5,AC6]', async () => {
+	it('keeps warning paint on the counted base and a matching hidden 4 px casing immediately below it', async () => {
 		const screen = await render(GanttLineTest, { line: line(0, true), muted: true });
 		const path = screen.container.querySelector<SVGPathElement>(
 			'[data-testid="gantt-dependency"]'
