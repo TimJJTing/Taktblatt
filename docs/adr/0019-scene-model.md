@@ -1,6 +1,6 @@
 # 19. Scene model and shared diagram layer
 
-Status: Accepted (2026-11-11). Amended 2026-11-13 (slices 3 and 4).
+Status: Accepted (2026-11-11). Amended 2026-11-13 (slices 3 and 4). Delivery assignments superseded by [ADR 20](0020-diagram-views.md), which is Proposed until implementation is accepted.
 
 ## Context
 
@@ -128,7 +128,8 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 - Slice 2b does not change the Gantt on screen or on paper. No view uses the new router or the new signs yet.
 - The Gantt adoption uses four parts. Slice 3a (`feat/gantt-router`) changes the unused neutral router and contracts. Slice 3b (`feat/gantt-signs`) independently adopts badges and chrome. Slice 3c (`feat/gantt-lines`) depends on both. It adopts `ganttScene(rows, lines, metrics)` and `ganttFragment`, draws lines and station dots on screen and paper, and removes `elbowPath`, jagged cuts and markers. Slice 3d (`feat/gantt-continuations`) adds paired 4 px continuation stubs with 2 px cross ticks and intervening pass-throughs. One whole-segment paper route supplies the matched riser x for those signs.
 - Slice 4 (`feat/route-focus`) resolves shared route input, projects effective routes onto visible rows and existing lines, and adds screen-only lit overlays. It preserves stored dependency drawing rules and paper output.
-- The route map PR adds the view switch, the `DiagramStage` container and the first switch between two scenes with `VIEW_MOTION_MS`. The print model gets a generic scene segment when the second diagram arrives. `GanttSegment` does not change before that.
-- The Kanban PR adds the FLIP flight layer when a task moves between scroll containers, for example from the Gantt body to a board column that scrolls on its own.
+- **Superseded by ADR 20:** the earlier assignment of the view switch, `DiagramStage`, the first scene switch and generic scene print integration to Route map no longer applies. The preliminary `feat/diagram-views` PR owns these shared contracts and integration. It also owns the required Gantt and GanttRow motion-adapter hooks.
+- **Superseded by ADR 20:** the earlier assignment of the FLIP flight layer to Kanban no longer applies. The preliminary PR supplies transition and scroll-container hooks only. FLIP flight-layer and cross-router connector interpolation implementations are deferred. Each required shared implementation must merge in the preliminary PR or a follow-up shared PR before its consuming slice. Appendix C and spec section 5.13 retain the final motion target.
+- Route map and Kanban can implement in parallel against the shared contract. Route map merges before Kanban (D14). Kanban updates to the merged Route map before final integration.
 - Each graph algorithm in the router must stop on a cycle (ADR 13). A cycle edge gets a valid route.
 - The plan file and the schema do not change.
