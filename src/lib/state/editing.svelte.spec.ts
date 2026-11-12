@@ -107,7 +107,7 @@ describe('EditingState route ownership', () => {
 		expect(editing.routeId).toBeNull();
 	});
 
-	it('clears shown hover, leave grace and a pending switch when details open', () => {
+	it('clears shown hover and a pending switch when details open', () => {
 		vi.useFakeTimers();
 		const editing = new EditingState();
 		editing.routeFocus.hoverEnter('shown', 'bar-shown');
@@ -127,6 +127,24 @@ describe('EditingState route ownership', () => {
 		expect(editing.routeId).toBeNull();
 		vi.advanceTimersByTime(1);
 		expect(editing.routeId).toBe('waiting');
+	});
+
+	it('cancels running leave grace when details open and keeps it cleared after close', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.hoverEnter('shown', 'bar-shown');
+		vi.advanceTimersByTime(HOVER_COLD_MS);
+		editing.routeFocus.hoverLeave('bar-shown');
+		vi.advanceTimersByTime(HOVER_GRACE_MS - 1);
+		expect(editing.routeId).toBe('shown');
+		expect(vi.getTimerCount()).toBe(1);
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		expect(vi.getTimerCount()).toBe(0);
+		editing.detailsTaskId = null;
+		expect(editing.routeId).toBeNull();
+		vi.advanceTimersByTime(HOVER_COLD_MS + HOVER_GRACE_MS);
+		expect(editing.routeId).toBeNull();
 	});
 
 	it('resolves route input independently of the immediate linked highlight', () => {

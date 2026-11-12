@@ -152,7 +152,7 @@ describe('RouteFocusState', () => {
 		expect(route.resolve()).toBe('b');
 	});
 
-	it('clears grace and waiting intent at once on Esc without a late activation', () => {
+	it('clears shown hover and waiting intent on Esc without a late activation', () => {
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		route.hoverLeave('bar-a');
@@ -187,7 +187,7 @@ describe('RouteFocusState', () => {
 		expect(route.resolve()).toBe('b');
 	});
 
-	it('clears a removed hover row and both timers without grace even when its task remains', () => {
+	it('clears a removed hover row and pending switch without grace even when its task remains', () => {
 		route.hoverEnter('child', 'bar-child');
 		tick();
 		expect(route.resolve()).toBe('child');
@@ -203,9 +203,15 @@ describe('RouteFocusState', () => {
 		expect(route.resolve()).toBeNull();
 		tick(1);
 		expect(route.resolve()).toBe('b');
+		route.hoverLeave('bar-b');
+		tick(HOVER_GRACE_MS - 1);
+		expect(route.resolve()).toBe('b');
+		tick(1);
+		expect(route.resolve()).toBeNull();
+		expect(vi.getTimerCount()).toBe(0);
 	});
 
-	it('cancels grace and pending switch on plan switch without restoring reused ids', () => {
+	it('cancels shown hover and pending switch on plan switch without restoring reused ids', () => {
 		route.reset('first');
 		route.hoverEnter('a', 'bar-a');
 		tick();
@@ -218,6 +224,89 @@ describe('RouteFocusState', () => {
 		tick(HOVER_COLD_MS + HOVER_GRACE_MS);
 		expect(route.resolve()).toBeNull();
 	});
+
+	it.each(['unregister', 'row removal'] as const)(
+		'clears the old route after pending-target %s with no target under the pointer',
+		(removal) => {
+			const target = removal === 'unregister' ? document.createElement('div') : null;
+			const registration = target ? route.target(target, 'b') : null;
+			const token = target ? route.tokenFor(target) : 'bar-b';
+			route.hoverEnter('a', 'bar-a');
+			tick();
+			expect(route.resolve()).toBe('a');
+			// Entry can precede the previous target's leave.
+			route.hoverEnter('b', token);
+			route.hoverLeave('bar-a');
+			tick(HOVER_WARM_MS - 1);
+			expect(route.resolve()).toBe('a');
+			if (registration) registration.destroy();
+			else route.reconcile(index, new Set(['a', 'child']));
+			tick(HOVER_GRACE_MS + 50);
+			expect(route.resolve()).toBeNull();
+			expect(vi.getTimerCount()).toBe(0);
+			tick(HOVER_COLD_MS + HOVER_GRACE_MS);
+			expect(route.resolve()).toBeNull();
+		}
+	);
+
+	it.each(['unregister', 'row removal'] as const)(
+		'cancels pending hover instead of restarting it cold after shown-target %s',
+		(removal) => {
+			const target = removal === 'unregister' ? document.createElement('div') : null;
+			const registration = target ? route.target(target, 'a') : null;
+			const token = target ? route.tokenFor(target) : 'bar-a';
+			route.hoverEnter('a', token);
+			tick();
+			expect(route.resolve()).toBe('a');
+			route.hoverEnter('b', 'bar-b');
+			route.hoverLeave(token);
+			tick(HOVER_WARM_MS - 1);
+			if (registration) registration.destroy();
+			else route.reconcile(index, new Set(['b', 'child']));
+			expect(route.resolve()).toBeNull();
+			expect.soft(vi.getTimerCount()).toBe(0);
+			tick(HOVER_COLD_MS - 1);
+			expect(route.resolve()).toBeNull();
+			tick(1);
+			expect(route.resolve()).toBeNull();
+			tick(HOVER_GRACE_MS);
+			expect(route.resolve()).toBeNull();
+		}
+	);
+
+	it('shows the pending row when pointer focus enters it before warm intent completes', () => {
+		route.hoverEnter('a', 'bar-a');
+		tick();
+		expect(route.resolve()).toBe('a');
+		route.hoverEnter('b', 'row-b');
+		route.hoverLeave('bar-a');
+		tick(HOVER_WARM_MS - 1);
+		expect(route.resolve()).toBe('a');
+		route.pointerInput('mouse');
+		route.focusEnter('b', 'row-b', 'pointer');
+		expect(route.resolve()).toBe('b');
+		tick(HOVER_COLD_MS + HOVER_GRACE_MS);
+		expect(route.resolve()).toBe('b');
+	});
+
+	it.each(['Escape', 'removal', 'dispose'] as const)(
+		'cancels running leave grace on %s without a late callback',
+		(action) => {
+			route.hoverEnter('a', 'bar-a');
+			tick();
+			route.hoverLeave('bar-a');
+			tick(HOVER_GRACE_MS - 1);
+			expect(route.resolve()).toBe('a');
+			expect(vi.getTimerCount()).toBe(1);
+			if (action === 'Escape') route.keyboardInput('Escape', null);
+			else if (action === 'removal') route.reconcile(index, new Set(['b', 'child']));
+			else route.dispose();
+			expect(route.resolve()).toBeNull();
+			expect(vi.getTimerCount()).toBe(0);
+			tick(HOVER_COLD_MS + HOVER_GRACE_MS);
+			expect(route.resolve()).toBeNull();
+		}
+	);
 
 	it('toggles touch immediately, ignores touch leave, and replaces it with another mark', () => {
 		route.hoverEnter('b', 'pending');
@@ -386,7 +475,7 @@ describe('RouteFocusState', () => {
 		expect(route.resolve()).toBeNull();
 	});
 
-	it('disposes active input, leave grace and pending intent without a late activation', () => {
+	it('disposes active input and pending intent without a late activation', () => {
 		route.toggleTouch('a', 'bar-a');
 		expect(route.resolve()).toBe('a');
 		route.hoverEnter('child', 'bar-child');

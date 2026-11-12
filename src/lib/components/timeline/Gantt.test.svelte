@@ -10,11 +10,13 @@
 	let {
 		workspace,
 		editing = new EditingState(),
-		viewer: suppliedViewer
+		viewer: suppliedViewer,
+		scrollable = false
 	}: {
 		workspace: Workspace;
 		editing?: EditingState;
 		viewer?: ViewerState;
+		scrollable?: boolean;
 	} = $props();
 	setWorkspace(untrack(() => workspace));
 	const viewer = untrack(() => suppliedViewer ?? new ViewerState(new MemoryStorage()));
@@ -27,7 +29,11 @@
 </script>
 
 <Tooltip.Provider>
-	<div style="width: 1000px">
+	<div
+		style={scrollable
+			? 'width:1000px;height:180px;display:flex;flex-direction:column'
+			: 'width:1000px'}
+	>
 		<Gantt todayDate="2027-01-10" onBand={() => {}} onMilestone={() => {}} onReveal={() => {}} />
 	</div>
 </Tooltip.Provider>

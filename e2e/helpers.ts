@@ -1886,3 +1886,52 @@ export async function routeMembership(page: Page) {
 			.sort()
 	}));
 }
+
+/** Hold frame callbacks until release. Keep cancellation active while frames are held. */
+export async function holdAnimationFrames(page: Page) {
+	type FrameWindow = Window & {
+		heldTestFrames?: {
+			request: typeof requestAnimationFrame;
+			cancel: typeof cancelAnimationFrame;
+			callbacks: Map<number, FrameRequestCallback>;
+			cancelled: number;
+		};
+	};
+	await page.evaluate(() => {
+		const target = window as FrameWindow;
+		const state = {
+			request: window.requestAnimationFrame,
+			cancel: window.cancelAnimationFrame,
+			callbacks: new Map<number, FrameRequestCallback>(),
+			cancelled: 0
+		};
+		target.heldTestFrames = state;
+		let nextId = -1;
+		window.requestAnimationFrame = (callback) => {
+			const id = nextId--;
+			state.callbacks.set(id, callback);
+			return id;
+		};
+		window.cancelAnimationFrame = (id) => {
+			if (state.callbacks.delete(id)) state.cancelled++;
+			else state.cancel.call(window, id);
+		};
+	});
+	return {
+		state: () =>
+			page.evaluate(() => {
+				const state = (window as FrameWindow).heldTestFrames!;
+				return { pending: state.callbacks.size, cancelled: state.cancelled };
+			}),
+		release: () =>
+			page.evaluate(() => {
+				const target = window as FrameWindow;
+				const state = target.heldTestFrames;
+				if (!state) return;
+				window.requestAnimationFrame = state.request;
+				window.cancelAnimationFrame = state.cancel;
+				delete target.heldTestFrames;
+				for (const callback of state.callbacks.values()) callback(performance.now());
+			})
+	};
+}

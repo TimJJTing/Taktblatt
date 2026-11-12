@@ -137,7 +137,31 @@ test('hover targets share delayed route input and preserve saved plan and histor
 }) => {
 	await openRoutePlan(page);
 	const undo = page.getByRole('button', { name: 'Undo', exact: true });
-	const before = { plan: await storedPlan(page), undo: await undo.isEnabled() };
+	const redo = page.getByRole('button', { name: 'Redo', exact: true });
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeDisabled();
+	const original = await storedPlan(page);
+	const deliverable = row(page, 'Route parent').getByTestId('task-deliverable');
+	await deliverable.click();
+	const input = row(page, 'Route parent').getByTestId('task-deliverable-input');
+	await input.fill('First saved deliverable');
+	await input.press('Enter');
+	const first = await storedPlan(page);
+	expect(first.tasks.find((task) => task.id === 'parent')!.deliverable).toBe(
+		'First saved deliverable'
+	);
+	await deliverable.click();
+	await input.fill('Second saved deliverable');
+	await input.press('Enter');
+	const second = await storedPlan(page);
+	expect(second.tasks.find((task) => task.id === 'parent')!.deliverable).toBe(
+		'Second saved deliverable'
+	);
+	await undo.click();
+	await expect.poll(() => storedPlan(page)).toEqual(first);
+	await expect(undo).toBeEnabled();
+	await expect(redo).toBeEnabled();
+	const before = { plan: first, undo: true, redo: true };
 	const targets = [
 		ganttRow(page, 'Route parent').getByTestId('gantt-bar'),
 		ganttRow(page, 'Route point').getByTestId('gantt-point'),
@@ -152,7 +176,19 @@ test('hover targets share delayed route input and preserve saved plan and histor
 		// Leave grace ends before the next target starts a cold rest.
 		await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 	}
-	expect({ plan: await storedPlan(page), undo: await undo.isEnabled() }).toEqual(before);
+	expect({
+		plan: await storedPlan(page),
+		undo: await undo.isEnabled(),
+		redo: await redo.isEnabled()
+	}).toEqual(before);
+	await undo.click();
+	await expect.poll(() => storedPlan(page)).toEqual(original);
+	await expect(undo).toBeDisabled();
+	await redo.click();
+	await expect.poll(() => storedPlan(page)).toEqual(first);
+	await redo.click();
+	await expect.poll(() => storedPlan(page)).toEqual(second);
+	await expect(redo).toBeDisabled();
 });
 
 test('keyboard route outranks hover and the task dialog outranks keyboard focus', async ({

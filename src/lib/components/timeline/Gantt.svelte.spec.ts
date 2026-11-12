@@ -1,9 +1,10 @@
+import { ganttPointer } from './gantt-pointer.test-helper.ts';
 import '../../../routes/layout.css';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { render } from 'vitest-browser-svelte';
 import { makeTask } from '#lib/domain/test-helpers.ts';
-import { HOVER_COLD_MS, HOVER_GRACE_MS } from '#lib/state/route-focus.svelte.ts';
+import { HOVER_COLD_MS, HOVER_GRACE_MS, HOVER_WARM_MS } from '#lib/state/route-focus.svelte.ts';
 import { userEvent } from 'vitest/browser';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { ViewerState } from '#lib/state/viewer.svelte.ts';
@@ -15,24 +16,6 @@ import { ganttScene } from '#lib/scene/gantt-scene.ts';
 import GanttTest from './Gantt.test.svelte';
 
 const HOVER_SCHEDULING_MARGIN_MS = 50;
-
-async function ganttPointer(target: Element, type: 'pointermove' | 'pointerleave') {
-	const destination =
-		type === 'pointermove'
-			? target
-			: target.closest('[data-testid="gantt-scroller"]')!.firstElementChild!;
-	const bounds = destination.getBoundingClientRect();
-	destination.dispatchEvent(
-		new PointerEvent(type, {
-			bubbles: type === 'pointermove',
-			clientX: bounds.left + bounds.width / 2,
-			clientY: bounds.top + bounds.height / 2,
-			pointerType: 'mouse'
-		})
-	);
-	await new Promise(requestAnimationFrame);
-	flushSync();
-}
 
 vi.mock('#lib/scene/gantt-scene.ts', { spy: true });
 vi.mock('#lib/domain/route.ts', { spy: true });
@@ -307,20 +290,67 @@ describe('rendered Gantt task marks', () => {
 		const row = screen.container.querySelector('[data-testid="gantt-row"][data-task-id="parent"]')!;
 		const label = row.querySelector('[data-testid="gantt-label"]')!;
 		const mark = row.querySelector('[data-testid="gantt-bar"]')!;
-		await userEvent.hover(label);
-		const enteredAt = performance.now();
-		await wait(100);
-		await hoverEmptyBand(row);
-		await wait(100);
-		await userEvent.hover(mark);
-		// Check the original deadline, before a new cold rest on the mark could finish.
-		await wait(Math.max(0, 350 - (performance.now() - enteredAt)));
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			await ganttPointer(label, 'pointermove', { dispatchTarget: 'chart' });
+			vi.advanceTimersByTime(100);
+			await hoverEmptyBand(row);
+			vi.advanceTimersByTime(100);
+			await ganttPointer(mark, 'pointermove', { dispatchTarget: 'chart' });
+			vi.advanceTimersByTime(99);
+			flushSync();
+			expect(editing.routeId).toBeNull();
+			expect(row.hasAttribute('data-route')).toBe(false);
+			vi.advanceTimersByTime(1);
+			flushSync();
+			expect(editing.routeId).toBe('parent');
+			expect(row.getAttribute('data-route')).toBe('lit');
+			await hoverEmptyBand(row);
+			vi.advanceTimersByTime(HOVER_COLD_MS);
+			flushSync();
+			expect(editing.routeId).toBe('parent');
+			expect(row.getAttribute('data-highlighted')).toBe('true');
+		} finally {
+			await screen.unmount();
+			vi.useRealTimers();
+		}
+	});
+
+	it('updates hover after rows scroll under a stationary chart pointer', async () => {
+		ws.commit((plan) => {
+			for (let i = 0; i < 12; i++) {
+				plan.tasks.push(makeTask({ id: `overflow-${i}`, stageId: plan.stages[0].id }));
+			}
+		});
+		const editing = new EditingState();
+		const screen = await render(GanttTest, { workspace: ws, editing, scrollable: true });
+		const scroller = screen.getByTestId('gantt-scroller').element() as HTMLElement;
+		const first = screen.container.querySelector(
+			'[data-testid="gantt-row"][data-task-id="parent"]'
+		)!;
+		const second = screen.container.querySelector(
+			'[data-testid="gantt-row"][data-task-id="child"]'
+		)!;
+		const initial = first.getBoundingClientRect();
+		const pointer = { x: initial.left + initial.width / 2, y: initial.top + initial.height / 2 };
+		await ganttPointer(first, 'pointermove', { dispatchTarget: 'chart' });
+		await wait(HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS);
 		expect(editing.routeId).toBe('parent');
-		expect(row.getAttribute('data-route')).toBe('lit');
-		await hoverEmptyBand(row);
-		await wait(300);
-		expect(editing.routeId).toBe('parent');
-		expect(row.getAttribute('data-highlighted')).toBe('true');
+		expect(editing.highlightId).toBe('parent');
+		expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+		const distance = second.getBoundingClientRect().top - initial.top;
+		scroller.scrollTo({ top: distance, behavior: 'instant' });
+		await new Promise(requestAnimationFrame);
+		await new Promise(requestAnimationFrame);
+		const moved = second.getBoundingClientRect();
+		expect(pointer.y).toBeGreaterThanOrEqual(moved.top);
+		expect(pointer.y).toBeLessThan(moved.bottom);
+		expect(pointer.y).toBeGreaterThanOrEqual(first.getBoundingClientRect().bottom);
+		// Do not send a pointermove after the scroll.
+		await wait(HOVER_WARM_MS + HOVER_SCHEDULING_MARGIN_MS);
+		expect(editing.highlightId).toBe('child');
+		expect(editing.routeId).toBe('child');
+		expect(second.getAttribute('data-highlighted')).toBe('true');
 	});
 
 	it('highlights the label cell without a shadow on the highlighted or route-focused mark', async () => {
