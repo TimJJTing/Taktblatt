@@ -162,44 +162,63 @@ describe('rendered Gantt task marks (3c)', () => {
 		expect(screen.container.querySelectorAll('marker')).toHaveLength(0);
 	});
 
-	it('coalesces width notifications into one scene reroute and cancels queued work on teardown [AC8]', async () => {
+	it('uses the measured width before paint and reroutes each changed container width once', async () => {
+		vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(() => 0);
 		const screen = await render(GanttTest, { workspace: ws });
-		const notify = () => {
-			for (const observer of observers)
-				observer.callback(
-					[...observer.targets].map((target) => ({
-						target,
-						contentRect: target.getBoundingClientRect(),
-						contentBoxSize: [{ inlineSize: target.clientWidth, blockSize: target.clientHeight }],
-						borderBoxSize: [],
-						devicePixelContentBoxSize: []
-					})),
-					{} as ResizeObserver
-				);
-			flushSync();
-		};
-		expect(observers.some((o) => o.targets.size > 0)).toBe(true);
-		notify();
-		await new Promise(requestAnimationFrame);
-		vi.mocked(ganttScene).mockClear();
-		const wrapper = screen.container.querySelector<HTMLElement>('div[style]')!;
-		for (const width of [900, 800, 700]) {
-			wrapper.style.width = `${width}px`;
-			notify();
-		}
-		await new Promise(requestAnimationFrame);
-		flushSync();
-		expect(ganttScene).toHaveBeenCalledTimes(1);
-		vi.mocked(ganttScene).mockClear();
 		const measured = observers
 			.flatMap((o) => [...o.targets])
 			.find((target) => target.querySelector('[data-testid="gantt-dependency"]'))!;
-		const oldWidth = measured.clientWidth;
-		wrapper.style.width = '1200px';
-		expect(measured.clientWidth).not.toBe(oldWidth);
-		notify();
+		const sceneWidth = () => vi.mocked(ganttScene).mock.calls.at(-1)![2].width;
+		// No observer delivery or animation frame is needed for the mounted width.
+		expect(sceneWidth()).toBe(measured.clientWidth);
+		const observer = observers.find((o) => o.targets.has(measured))!;
+		const notify = () => {
+			observer.callback([], {} as ResizeObserver);
+			flushSync();
+		};
+		const wrapper = screen.container.querySelector<HTMLElement>('div[style]')!;
+		for (const width of [900, 800, 700]) {
+			vi.mocked(ganttScene).mockClear();
+			wrapper.style.width = `${width}px`;
+			notify();
+			expect(ganttScene).toHaveBeenCalledTimes(1);
+			expect(sceneWidth()).toBe(measured.clientWidth);
+			notify();
+			expect(ganttScene).toHaveBeenCalledTimes(1);
+		}
 		await screen.unmount();
-		await new Promise(requestAnimationFrame);
-		expect(ganttScene).not.toHaveBeenCalled();
+		expect(observer.targets.size).toBe(0);
+	});
+
+	it('uses one 40 percent stage mix for finished subtask lines and full stage ink for their dots', async () => {
+		const screen = await render(GanttTest, { workspace: ws });
+		const mark = screen.container.querySelector<HTMLElement>(
+			'[data-task-id="child"] [data-testid="gantt-bar"]'
+		)!;
+		const sample = (color: string) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			context.fillStyle = color;
+			context.fillRect(0, 0, 1, 1);
+			return [...context.getImageData(0, 0, 1, 1).data];
+		};
+		const dot = mark.querySelector('.station-dot')!;
+		const full = sample(getComputedStyle(dot).color);
+		const probe = document.createElement('span');
+		mark.append(probe);
+		for (const status of ['done', 'canceled'] as const) {
+			updateTask(ws, 'child', { status });
+			flushSync();
+			await expect
+				.poll(() => mark.querySelector('[data-gantt-line]')!.getAnimations().length)
+				.toBe(0);
+			probe.style.color = `color-mix(in oklab, rgb(${full.slice(0, 3).join(' ')}) 40%, var(--background))`;
+			expect(
+				sample(getComputedStyle(mark.querySelector('[data-gantt-line]')!).backgroundColor)
+			).toEqual(sample(getComputedStyle(probe).color));
+			expect(sample(getComputedStyle(dot).color)).toEqual(full);
+		}
+		probe.remove();
 	});
 });

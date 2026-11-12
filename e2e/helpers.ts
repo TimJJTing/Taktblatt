@@ -560,7 +560,7 @@ export async function expectLineStatus(
 			const stageColor = task.parentId ? `color-mix(in oklab, ${base} 55%, ${ground})` : base;
 			const expected =
 				status === 'done' || status === 'canceled'
-					? `color-mix(in oklab, ${stageColor} 40%, ${ground})`
+					? `color-mix(in oklab, ${base} 40%, ${ground})`
 					: stageColor;
 			const canvas = document.createElement('canvas');
 			canvas.width = canvas.height = 1;
@@ -593,7 +593,7 @@ export async function expectStationStatus(
 	await expect(dot).toBeVisible();
 	await waitForAnimations(dot);
 	const paint = await dot.evaluate(
-		async (element, { onPaper, palette, status }) => {
+		async (element, { onPaper, palette }) => {
 			const svg = element as SVGSVGElement;
 			const forcedColors = matchMedia('(forced-colors: active)').matches;
 			const copy = svg.cloneNode(true) as SVGSVGElement;
@@ -628,7 +628,7 @@ export async function expectStationStatus(
 				const context = canvas.getContext('2d')!;
 				context.drawImage(image, 0, 0);
 				const sample = (x: number, y = 50) => [...context.getImageData(x, y, 1, 1).data];
-				const samples = [sample(35), sample(65), sample(50)];
+				const samples = [sample(30), sample(70), sample(50)];
 				context.clearRect(0, 0, 100, 100);
 				// Resolve custom properties in this element's own theme, not in the canvas.
 				const probe = document.createElement('span');
@@ -651,14 +651,10 @@ export async function expectStationStatus(
 				const probePaint = document.createElement('span');
 				svg.parentElement!.append(probePaint);
 				probePaint.style.color = onPaper ? '#ffffff' : 'var(--background)';
-				const groundColor = getComputedStyle(probePaint).color;
 				probePaint.remove();
 				context.clearRect(0, 0, 1, 1);
 				const stageColor = base;
-				context.fillStyle =
-					status === 'canceled'
-						? `color-mix(in oklab, ${stageColor} 40%, ${groundColor})`
-						: stageColor;
+				context.fillStyle = stageColor;
 				context.fillRect(0, 0, 1, 1);
 				const ink = [...context.getImageData(0, 0, 1, 1).data];
 				return {
@@ -684,6 +680,10 @@ export async function expectStationStatus(
 		else
 			for (const [i, value] of right.entries())
 				expect(Math.abs(value - paint.ink[i])).toBeLessThanOrEqual(1);
+	} else if (status === 'canceled') {
+		expect(left).toEqual(paint.ground);
+		expect(right).toEqual(paint.ground);
+		expect(center).not.toEqual(paint.ground);
 	} else {
 		if (paint.forcedColors) expect(center).not.toEqual(paint.ground);
 		else
@@ -988,16 +988,26 @@ export async function startDependencyMonitor(line: Locator) {
 			stopped: false,
 			frames: [] as { d: string | null; casing: string | null; width: number; time: number }[]
 		};
+		// Animation frames run before resize observers. A layout read in this callback can see a
+		// new width that the app has not delivered yet. Record the width that the painted frame
+		// uses: the width from the latest resize observation.
+		const svg = path.ownerSVGElement!;
+		let width = svg.getBoundingClientRect().width;
+		const observer = new ResizeObserver(([entry]) => {
+			width = entry.contentRect.width;
+		});
+		observer.observe(svg);
 		const sample = () => {
 			state.frames.push({
 				d: path.getAttribute('d'),
 				casing: path.previousElementSibling?.getAttribute('data-overlay-for')
 					? path.previousElementSibling.getAttribute('d')
 					: null,
-				width: path.ownerSVGElement!.getBoundingClientRect().width,
+				width,
 				time: performance.now()
 			});
 			if (!state.stopped) requestAnimationFrame(sample);
+			else observer.disconnect();
 		};
 		sample();
 		return state;

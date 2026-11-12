@@ -142,21 +142,51 @@ describe('StationDot status fill (D6)', () => {
 		expect((await paint(screen.container)).edge[3]).toBeGreaterThan(200);
 	});
 
-	it('paints canceled dots with an opaque 40 percent ground mix and leaves done dots full strength [AC4]', async () => {
-		const screen = await render(StationDot, { color: '#e02020', status: 'done', still: true });
-		expect((await paint(screen.container)).center).toEqual([224, 32, 32, 255]);
-		await screen.rerender({ status: 'canceled' });
-		const actual = await paint(screen.container);
-		const canvas = document.createElement('canvas');
-		canvas.width = canvas.height = 1;
-		const context = canvas.getContext('2d')!;
-		context.fillStyle = 'color-mix(in oklab, #e02020 40%, #ffffff)';
-		context.fillRect(0, 0, 1, 1);
-		const expected = [...context.getImageData(0, 0, 1, 1).data];
-		for (const [i, channel] of actual.center.entries())
-			expect(channel).toBeCloseTo(expected[i], -0.5);
-		for (const node of screen.container.querySelectorAll('svg, svg *'))
-			expect(Number(getComputedStyle(node).opacity)).toBe(1);
+	it('draws canceled as a ground-filled ring and slash while done stays solid on screen and paper', async () => {
+		const screen = await render(StationDot, {
+			color: '#e02020',
+			status: 'done',
+			size: 8,
+			still: true
+		});
+		for (const still of [false, true]) {
+			await screen.rerender({ status: 'done', still });
+			await expect
+				.poll(() => screen.container.querySelector('svg')!.getAnimations().length)
+				.toBe(0);
+			const done = await paint(screen.container);
+			expect(done.left).toEqual([224, 32, 32, 255]);
+			expect(done.right).toEqual(done.left);
+			await screen.rerender({ status: 'canceled' });
+			await expect
+				.poll(() => screen.container.querySelector('svg')!.getAnimations().length)
+				.toBe(0);
+			const canceled = await paint(screen.container);
+			expect(canceled.left).toEqual([255, 255, 255, 255]);
+			expect(canceled.right).toEqual(canceled.left);
+			expect(canceled.center).not.toEqual(canceled.left);
+			expect(canceled.interior).toBeLessThan(done.interior);
+			expect(canceled.whole).toBeGreaterThan(0.1);
+			for (const node of screen.container.querySelectorAll('svg, svg *'))
+				expect(Number(getComputedStyle(node).opacity)).toBe(1);
+		}
+	});
+
+	it('keeps canceled and done forms distinct with grayscale paper ink', async () => {
+		const screen = await render(StationDot, {
+			color: '#555555',
+			status: 'canceled',
+			still: true,
+			size: 8
+		});
+		const canceled = await paint(screen.container);
+		expect(canceled.left).toEqual([255, 255, 255, 255]);
+		expect(canceled.right).toEqual(canceled.left);
+		expect(canceled.center).toEqual([85, 85, 85, 255]);
+		await screen.rerender({ status: 'done' });
+		const done = await paint(screen.container);
+		expect(done.left).toEqual([85, 85, 85, 255]);
+		expect(done.right).toEqual(done.left);
 	});
 
 	it('keeps the ring and half-fill opaque over contrasting connectors in both grounds [AC4]', async () => {

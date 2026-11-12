@@ -6,7 +6,7 @@ describe('D19 opaque color selection (3c)', () => {
 		expect(colors.markColorLevel('done', 'dot')).toBe(100);
 		expect(colors.markColorLevel('done', 'line')).toBe(40);
 		expect(colors.markColorLevel('done', 'connector')).toBe(40);
-		expect(colors.markColorLevel('canceled', 'dot')).toBe(40);
+		expect(colors.markColorLevel('canceled', 'dot')).toBe(100);
 		expect(colors.markColorLevel('in_progress', 'line')).toBe(100);
 		expect(colors.markColorLevel('todo', 'connector')).toBe(100);
 	});
@@ -20,7 +20,7 @@ describe('D19 opaque color selection (3c)', () => {
 	it('ignores route dimming on paper and keeps the status levels [AC9]', () => {
 		expect(colors.markColorLevel('done', 'dot', true, true)).toBe(100);
 		expect(colors.markColorLevel('done', 'line', true, true)).toBe(40);
-		expect(colors.markColorLevel('canceled', 'dot', true, true)).toBe(40);
+		expect(colors.markColorLevel('canceled', 'dot', true, true)).toBe(100);
 		expect(colors.markColorLevel('todo', 'line', true, true)).toBe(100);
 	});
 });

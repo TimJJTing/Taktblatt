@@ -32,8 +32,7 @@
 		)}
 		{...restProps}
 	>
-		{@render children?.()}
-		<TooltipPrimitive.Arrow>
+		{@render children?.()}<TooltipPrimitive.Arrow>
 			{#snippet child({ props })}
 				<div
 					class={cn(

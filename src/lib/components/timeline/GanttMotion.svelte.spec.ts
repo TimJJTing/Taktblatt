@@ -71,6 +71,56 @@ describe('rendered Gantt geometry motion (3c)', () => {
 			frame(time + 1000);
 		});
 
+		it.each(['none', 'invalid', 'outside'] as const)(
+			'places new bar and point bounds at their target from %s',
+			async (kind) => {
+				ws.commit((plan) => {
+					plan.range = { start: '2027-01-01', end: '2027-01-31' };
+					const dates =
+						kind === 'none'
+							? {}
+							: kind === 'invalid'
+								? { start: '2027-01-20', end: '2027-01-10' }
+								: { start: '2027-02-10', end: '2027-02-15' };
+					plan.tasks = [makeTask({ id: 'new-mark', stageId: plan.stages[0].id, ...dates })];
+				});
+				const screen = await render(GanttTest, { workspace: ws });
+				frame(0);
+				frame(300);
+				for (const end of ['2027-01-20', null]) {
+					updateTask(ws, 'new-mark', {
+						start: kind === 'none' ? null : kind === 'invalid' ? '2027-01-20' : '2027-02-10',
+						end: kind === 'none' ? null : kind === 'invalid' ? '2027-01-10' : '2027-02-15'
+					});
+					flushSync();
+					frame(time + 300);
+					updateTask(ws, 'new-mark', { start: '2027-01-10', end });
+					flushSync();
+					const mark = screen.container.querySelector<HTMLElement>(
+						'[data-task-id="new-mark"] [role="img"][tabindex="0"]'
+					)!;
+					const target = vi
+						.mocked(ganttScene)
+						.mock.results.at(-1)!
+						.value.marks.find((item: GanttMarkGeom) => item.id === 'new-mark')! as GanttMarkGeom;
+					expect(parseFloat(mark.style.left)).toBeCloseTo(
+						target.line?.x0 ?? target.stations[0].x - target.stations[0].r,
+						2
+					);
+					expect(parseFloat(mark.style.width)).toBeCloseTo(
+						target.line ? target.line.x1 - target.line.x0 : target.stations[0].r * 2,
+						2
+					);
+					expect(parseFloat(mark.style.height)).toBe(
+						Math.max(target.line?.height ?? 0, ...target.stations.map((station) => station.r * 2))
+					);
+					const before = mark.getBoundingClientRect().toJSON();
+					frame(time + 120);
+					expect(mark.getBoundingClientRect().toJSON()).toEqual(before);
+				}
+			}
+		);
+
 		it('moves shrunk and ordinary stations continuously with ports and focus bounds, including retarget and width snap [AC3,AC8]', async () => {
 			const year = { start: '2027-01-01', end: '2027-12-31' };
 			const month = { start: '2027-01-01', end: '2027-01-31' };

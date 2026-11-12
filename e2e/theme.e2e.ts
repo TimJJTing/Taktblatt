@@ -8,6 +8,7 @@ import {
 	openPreview,
 	openMenu,
 	storedPlan,
+	writeStoredPlan,
 	openMenuWithKeyboard,
 	openLinePlan,
 	ganttRow,
@@ -319,3 +320,51 @@ test('3c keyboard focus encloses the complete point station [AC3,AC11]', async (
 	expect(bounds.mark.top - bounds.outline).toBeGreaterThan(bounds.clip.top);
 	expect(bounds.mark.bottom + bounds.outline).toBeLessThan(bounds.clip.bottom);
 });
+
+for (const [system, app] of [
+	['light', 'Dark'],
+	['dark', 'Light']
+] as const) {
+	test(`forced colors use system ground when the ${app} theme differs from ${system}`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme: system, reducedMotion: 'reduce' });
+		await openLinePlan(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.id === 'source')!.dependsOn = ['target'];
+		});
+		await chooseTheme(page, app);
+		await page.emulateMedia({ forcedColors: 'active' });
+		const casing = page.locator('[data-overlay-for]').first();
+		const ring = page.getByTestId('gantt-junction').first().locator('circle');
+		const tap = page.getByTestId('gantt-tap').first().locator('circle');
+		const muted = page.locator('[data-testid="gantt-dependency"][data-from="child-a"]');
+		await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+		for (const [node, property, token] of [
+			[casing, 'stroke', 'Canvas'],
+			[ring, 'fill', 'Canvas'],
+			[tap, 'fill', 'Canvas'],
+			[tap, 'stroke', 'CanvasText'],
+			[muted, 'stroke', 'CanvasText']
+		] as const) {
+			await expect(node).toBeVisible();
+			await expect
+				.poll(() =>
+					node.evaluate(
+						(element, { property, token }) => {
+							const probe = document.createElement('span');
+							probe.style.cssText = `forced-color-adjust:none;color:${token}`;
+							element.parentElement!.append(probe);
+							const expected = getComputedStyle(probe).color;
+							probe.remove();
+							return getComputedStyle(element).getPropertyValue(property) === expected;
+						},
+						{ property, token }
+					)
+				)
+				.toBe(true);
+		}
+		await setTaskStatus(page, row(page, 'Source'), 'canceled');
+		await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'canceled');
+	});
+}

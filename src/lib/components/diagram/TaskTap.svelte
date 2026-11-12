@@ -46,3 +46,13 @@
 		/></svg
 	>
 </span>
+
+<style>
+	@media (forced-colors: active) {
+		circle {
+			forced-color-adjust: none;
+			fill: Canvas;
+			stroke: CanvasText;
+		}
+	}
+</style>

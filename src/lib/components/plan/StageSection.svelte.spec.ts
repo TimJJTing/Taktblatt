@@ -19,6 +19,10 @@ describe('stage heading signs (3b)', () => {
 		const heading = screen.container.querySelector('h3')!;
 		const badge = heading.querySelector('.stage-badge');
 		expect(badge?.textContent?.trim()).toBe('S1');
+		expect(badge?.closest('[aria-hidden="true"]')).not.toBeNull();
+		await expect.element(screen.getByRole('heading', { level: 3 })).toHaveAccessibleName(/Prepare/);
+		await expect.element(screen.getByRole('heading', { level: 3 })).not.toHaveAccessibleName(/S1/);
+		await expect.element(screen.getByRole('region')).not.toHaveAccessibleName(/S1/);
 		await expect.element(screen.getByTestId('stage-title')).toHaveTextContent('Prepare');
 		await screen.getByTestId('stage-color').click();
 		await expect.element(screen.getByRole('radiogroup')).toBeVisible();

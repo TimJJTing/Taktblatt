@@ -213,6 +213,9 @@ test('3c point stations retain hover and keyboard hints while paper signs have n
 	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
 	await expect(point.locator('.station-dot')).toBeVisible();
 	await expectHint(page, point, /^Point:/);
+	// The hint text equals the accessible name, with no trailing whitespace.
+	const name = await point.getAttribute('aria-label');
+	await expect.poll(async () => (await tooltips(page).first().textContent()) === name).toBe(true);
 	await expect(row(page, 'Point')).toHaveClass(/bg-accent/);
 	await closeHints(page);
 	await openPreview(page);
