@@ -1622,7 +1622,7 @@ export async function todayTagGeometry(chart: Locator, paper = false) {
 	}, paper);
 }
 
-/** Checks the 2 px stage rule in the active layout. */
+/** Checks the replacement stage rule and its decorative start ring in the active layout. */
 export async function expectStageRule(section: Locator, paper = false): Promise<void> {
 	const narrow =
 		!paper && (await section.evaluate((element) => element.getBoundingClientRect().width < 640));
@@ -1632,15 +1632,73 @@ export async function expectStageRule(section: Locator, paper = false): Promise<
 		.poll(() =>
 			rule.evaluate((element, narrow) => {
 				const style = getComputedStyle(element);
-				return narrow
-					? element.getBoundingClientRect().height === 2
-					: parseFloat(style.borderTopWidth) === 2 || /(?:^|\s)2px(?:\s|,)/.test(style.boxShadow);
+				// On screen, a 1 px ground-colored gap is above the rule. It keeps the start ring below
+				// the stage header. The narrow rule paints its content box below a 1 px top padding.
+				// The wide rule is a 5 px inset shadow below a 1 px ground shadow.
+				// In forced colors, a 4 px top border is the rule.
+				if (parseFloat(style.borderTopWidth) === 4) return true;
+				if (narrow)
+					return element.getBoundingClientRect().height - parseFloat(style.paddingTop) === 4;
+				const insets = [...style.boxShadow.matchAll(/0px (\d+)px 0px 0px inset/g)].map((match) =>
+					Number(match[1])
+				);
+				return insets[0] === 1 && insets[1] === 5;
 			}, narrow)
 		)
 		.toBe(true);
+	const ring = section.getByTestId('stage-rule-ring').filter({ visible: true });
+	await expect(ring).toHaveCount(1);
+	await expect(ring).toHaveAttribute('aria-hidden', 'true');
+	await expect(ring).not.toHaveAttribute('tabindex');
+	const shape = await ring.evaluate((element) => {
+		const box = element.getBoundingClientRect();
+		const circle = element.matches('circle') ? element : element.querySelector('circle');
+		const style = getComputedStyle(circle ?? element);
+		return {
+			width: box.width,
+			height: box.height,
+			fill: circle ? style.fill : style.backgroundColor,
+			outline: circle ? style.stroke : style.borderTopColor,
+			outlineWidth: parseFloat(circle ? style.strokeWidth : style.borderTopWidth),
+			forced: matchMedia('(forced-colors: active)').matches
+		};
+	});
+	expect(shape.width).toBeCloseTo(paper ? 4 : 6, 1);
+	expect(shape.height).toBeCloseTo(paper ? 4 : 6, 1);
+	expect(shape.fill).not.toBe('none');
+	expect(shape.fill).not.toBe('rgba(0, 0, 0, 0)');
+	expect(shape.outline).not.toBe(shape.fill);
+	expect(shape.outlineWidth).toBeGreaterThan(0);
+	if (!paper) {
+		// The sticky stage header paints above the rule. It must not cover any part of the ring.
+		const overlap = await ring.evaluate((element) => {
+			const header = element.closest('[data-testid="stage"]')!.querySelector(':scope > header')!;
+			return header.getBoundingClientRect().bottom - element.getBoundingClientRect().top;
+		});
+		expect(overlap).toBeLessThanOrEqual(0.1);
+	}
+	if (!shape.forced) {
+		const fillTarget = ring.locator('circle');
+		if (await fillTarget.count())
+			await expectTokenPaint(
+				fillTarget,
+				'fill',
+				paper ? '--color-paper' : '--background',
+				1,
+				paper
+			);
+		else
+			await expectTokenPaint(
+				ring,
+				'background-color',
+				paper ? '--color-paper' : '--background',
+				1,
+				paper
+			);
+	}
 }
 
-/** Checks a revealed or focused row against all sticky chrome. */
+/** Checks a revealed or focused row against all sticky chrome, including the ring overhang. */
 export async function expectJumpTarget(page: Page, title: string): Promise<void> {
 	await expect
 		.poll(() =>
@@ -1651,6 +1709,9 @@ export async function expectJumpTarget(page: Page, title: string): Promise<void>
 				const band = stage
 					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
 					.getBoundingClientRect();
+				const rings = [...stage.querySelectorAll('[data-testid="stage-rule-ring"]')]
+					.filter((ring) => ring.getBoundingClientRect().width > 0)
+					.map((ring) => ring.getBoundingClientRect().bottom);
 				const bounds = element.getBoundingClientRect();
 				const content = document.querySelector('[data-testid="workspace-content"]')!;
 				const tabs = content.getAttribute('data-layout') === 'tabs';
@@ -1663,6 +1724,7 @@ export async function expectJumpTarget(page: Page, title: string): Promise<void>
 						Math.max(
 							header.bottom,
 							band.bottom,
+							...rings,
 							tabs ? document.querySelector('#timeline')!.getBoundingClientRect().bottom : 0
 						) -
 							0.5 &&

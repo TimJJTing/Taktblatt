@@ -465,15 +465,15 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
 
 ### 5.6 Work plan
 
-- **Stage header:** a stage badge S1, S2, …, the color picker, "Stage N · Title (months)" and "x / y done · z in progress". The badge uses the same form as the stage legend. A 2 px stage-color rule sits below the heading. The printed work plan uses the same badge and rule forms. Hide the in-progress part when z is 0. Animate both counts. Use the same text on printed sheets. Keep the word order and punctuation in translation messages. Click the title to edit it. When the header is too wide for the screen, the progress and the stage menu move to a second line.
+- **Stage header:** a stage badge S1, S2, …, the color picker, "Stage N · Title (months)" and "x / y done · z in progress". The badge uses the same form as the stage legend. A 4 px stage-color rule sits below the heading. At its start is a decorative ground-filled stage-color ring, with radius 3 px on screen and 2 px on paper. The ring has no task status and is hidden from assistive technology. The printed work plan uses the same badge and rule forms. Hide the in-progress part when z is 0. Animate both counts. Use the same text on printed sheets. Keep the word order and punctuation in translation messages. Click the title to edit it. When the header is too wide for the screen, the progress and the stage menu move to a second line.
 - **Sticky stage headers:** while a stage scrolls, its header stays at the top of the Work plan region: the top of the Work plan pane in split view, or below a pinned Timeline section with tabs. The header stays within its stage. It scrolls out when the stage ends.
   - The app header and a pinned Timeline section stay above every stage header throughout scrolling. This includes the outgoing header when the next stage takes its place. Stage headers do not cover their content or controls.
   - From a stage width of 640 px, the table column headers and rule stay below the stage header. Their offset uses the current stage header height.
-  - Below a stage width of 640 px, the separate 2 px rule stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
+  - Below a stage width of 640 px, the separate 4 px rule stays below the stage header. The table still scrolls sideways. Its column headers stay in the table.
   - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.
   - A jump from a pinned Timeline label shows the task below its stage header and any sticky table column headers.
   - Keyboard focus on a task control shows the complete task row below the stage header and any sticky table column headers. The row clears the bottom of the scroll region by at least 1 px.
-  - Sticky offsets, focus offsets and label jumps include the full 2 px stage rule. The rule does not cover task controls.
+  - Sticky offsets, focus offsets and label jumps include the full 4 px stage rule. The rule and its start ring do not cover task controls. Focus offsets clear the 1 px ring overhang on narrow stages. The stage header does not cover the start ring. A 1 px ground-colored gap separates the rule from the stage header, and the ring extends into this gap. In forced colors, the ring aligns with the top edge of the rule.
   - Preview and printed sheets keep their existing headers, content and pagination. Sticky workspace headers do not appear on sheets.
 - **Color picker:** a curated palette of 8 colors. The picker shows a warning when two stages have similar colors. A new stage gets the next unused color.
 - **Stage order:** a drag handle (it also works with the keyboard), and **Move up** and **Move down** in the stage menu.

@@ -23,7 +23,7 @@ import {
 } from './helpers.ts';
 
 for (const width of [1800, 390]) {
-	test(`stage badges and the 2 px rule clear wrapped headings, jumps and keyboard focus at ${width}px`, async ({
+	test(`stage badges and the 4 px rule clear wrapped headings, jumps and keyboard focus at ${width}px`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 900 });
@@ -390,7 +390,7 @@ async function startTodayMonitor(chart: import('@playwright/test').Locator) {
 	});
 }
 
-test('forced colors retain stage rules and milestone outlines', async ({ page }) => {
+test('forced colors retain stage rules, start rings and milestone outlines', async ({ page }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
 	await openExample(page);
