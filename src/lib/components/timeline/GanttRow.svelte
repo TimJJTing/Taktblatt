@@ -104,22 +104,7 @@
 	const showRowId = `${targetId}-show`;
 	const showRow = $derived(m.gantt_show_row({ task: titleText }));
 
-	const input = {
-		onpointerenter: (event: PointerEvent) => {
-			onHighlight(row.id, true);
-			editing.routeFocus.hoverEnter(
-				row.id,
-				editing.routeFocus.tokenFor(event.currentTarget as Element),
-				event.pointerType
-			);
-		},
-		onpointerleave: (event: PointerEvent) => {
-			onHighlight(row.id, false);
-			editing.routeFocus.hoverLeave(
-				editing.routeFocus.tokenFor(event.currentTarget as Element),
-				event.pointerType
-			);
-		},
+	const focusInput = {
 		onfocusin: () => onHighlight(row.id, true),
 		onfocusout: () => onHighlight(row.id, false)
 	};
@@ -136,6 +121,8 @@
 	class="pointer-events-none absolute inset-x-0 flex"
 	style:top="{y.current}px"
 	style:height="{ROW_HEIGHT}px"
+	data-route-target={row.id}
+	use:routeTarget={row.id}
 	data-testid="gantt-row"
 	data-task-id={row.id}
 	data-highlighted={highlighted || undefined}
@@ -145,14 +132,16 @@
 	<div
 		class={cn(
 			'pointer-events-auto sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center gap-1 border-r px-1 transition-colors',
-			highlighted ? 'bg-accent' : 'bg-background',
+			highlighted
+				? 'bg-accent forced-colors:bg-[Highlight] forced-colors:text-[HighlightText] forced-colors:forced-color-adjust-none forced-colors:[&_button]:text-inherit'
+				: 'bg-background',
 			subtask && 'pl-6'
 		)}
 		style:transition-duration={colorDuration}
 		data-route-target={row.id}
 		data-route-focus="keyboard"
 		use:routeTarget={row.id}
-		{...input}
+		{...focusInput}
 	>
 		{#if row.isParent}
 			<button
@@ -204,14 +193,11 @@
 				{#snippet child({ props })}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
-						{...mergeProps(props, input, { onclick: markClick })}
+						{...mergeProps(props, focusInput, { onclick: markClick })}
 						role="img"
 						tabindex="0"
 						aria-label={markName}
-						class={cn(
-							'pointer-events-auto absolute top-1/2 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							highlighted && 'ring-2 ring-ring/70'
-						)}
+						class="pointer-events-auto absolute top-1/2 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
 						style:left="{x.current.x0}px"
 						style:width="{x.current.x1 - x.current.x0}px"
 						style:height="{x.current.height}px"

@@ -244,6 +244,98 @@
 		}
 	}
 
+	let hoveredRow: HTMLElement | null = null;
+	let hoverFrame: number | undefined;
+	let hoverPoint = { x: 0, y: 0 };
+	function setHoveredRow(row: HTMLElement | null) {
+		if (row === hoveredRow) return;
+		if (hoveredRow) {
+			editing.routeFocus.hoverLeave(editing.routeFocus.tokenFor(hoveredRow));
+			onHighlight(hoveredRow.dataset.routeTarget!, false);
+		}
+		hoveredRow = row;
+		if (row) {
+			editing.routeFocus.hoverEnter(row.dataset.routeTarget!, editing.routeFocus.tokenFor(row));
+			onHighlight(row.dataset.routeTarget!, true);
+		}
+	}
+
+	function updateChartHover(chart: HTMLElement) {
+		if (!scroller) return;
+		const view = scroller.getBoundingClientRect();
+		const bounds = chart.getBoundingClientRect();
+		let next: HTMLElement | null = null;
+		// The sticky header can cover rows after a vertical scroll.
+		if (
+			hoverPoint.x >= view.left &&
+			hoverPoint.x < view.right &&
+			hoverPoint.y >=
+				Math.max(view.top + HEADER_HEIGHT, bounds.top + HEADER_HEIGHT + MILESTONE_ROW_HEIGHT) &&
+			hoverPoint.y < view.bottom
+		) {
+			// Read the animated row positions before updating highlight paint.
+			for (const row of chart.querySelectorAll<HTMLElement>(
+				'[data-route-target]:not([data-route-focus])'
+			)) {
+				if (!sourceRows.has(row.dataset.routeTarget!)) continue;
+				const rect = row.getBoundingClientRect();
+				if (
+					hoverPoint.x >= rect.left &&
+					hoverPoint.x < rect.right &&
+					hoverPoint.y >= rect.top &&
+					hoverPoint.y < rect.bottom
+				) {
+					next = row;
+					break;
+				}
+			}
+		}
+		setHoveredRow(next);
+	}
+
+	function chartPointerMove(event: PointerEvent) {
+		if (event.pointerType === 'touch') return;
+		hoverPoint = { x: event.clientX, y: event.clientY };
+		if (hoverFrame !== undefined) return;
+		const chart = event.currentTarget as HTMLElement;
+		hoverFrame = requestAnimationFrame(() => {
+			hoverFrame = undefined;
+			updateChartHover(chart);
+		});
+	}
+
+	function chartPointerDown(event: PointerEvent) {
+		if (event.pointerType === 'touch' || hoverFrame === undefined) return;
+		// Apply pending hover before a chevron click clears its linked highlight.
+		cancelAnimationFrame(hoverFrame);
+		hoverFrame = undefined;
+		hoverPoint = { x: event.clientX, y: event.clientY };
+		updateChartHover(event.currentTarget as HTMLElement);
+	}
+
+	function clearChartHover() {
+		if (hoverFrame !== undefined) cancelAnimationFrame(hoverFrame);
+		hoverFrame = undefined;
+		setHoveredRow(null);
+	}
+	function chartPointerLeave(event: PointerEvent) {
+		if (event.pointerType !== 'touch') clearChartHover();
+	}
+	let hoverPlanId = untrack(() => ws.plan.id);
+	$effect(() => {
+		const planId = ws.plan.id;
+		const currentRows = sourceRows;
+		untrack(() => {
+			if (
+				planId !== hoverPlanId ||
+				(hoveredRow && !currentRows.has(hoveredRow.dataset.routeTarget!))
+			)
+				clearChartHover();
+			hoverPlanId = planId;
+		});
+	});
+	onMount(() => clearChartHover);
+
 	$effect(() => {
 		const id = editing.highlightId;
 		if (!isTimelinePinned(viewer) || id === null || id === ownHighlight) return;
@@ -348,7 +440,14 @@
 		class="min-h-0 flex-1 overflow-auto"
 		data-testid="gantt-scroller"
 	>
-		<div class="relative" style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="relative"
+			style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)"
+			onpointerdown={chartPointerDown}
+			onpointermove={chartPointerMove}
+			onpointerleave={chartPointerLeave}
+		>
 			<div class="sticky top-0 z-20 flex border-b bg-background" style:height="{HEADER_HEIGHT}px">
 				<div
 					class="sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center border-r bg-background px-1"

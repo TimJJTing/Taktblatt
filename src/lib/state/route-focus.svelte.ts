@@ -4,7 +4,7 @@ import type { Workspace } from './workspace.svelte.ts';
 import type { TaskIndex } from '#lib/domain/derive.ts';
 
 export const HOVER_COLD_MS = 300;
-export const HOVER_WARM_MS = 80;
+export const HOVER_WARM_MS = 120;
 export const HOVER_GRACE_MS = 250;
 
 type Cause = 'keyboard' | 'pointer';
@@ -35,6 +35,8 @@ export class RouteFocusState {
 	#focus = $state.raw<FocusCandidate | null>(null);
 	#validIds = $state.raw<ReadonlyMap<string, unknown> | null>(null);
 	#pending: Candidate | null = null;
+	// An entry can arrive before the previous target's leave.
+	#hoverTargets = new Map<string, string>();
 	#timer: ReturnType<typeof setTimeout> | undefined;
 	#graceTimer: ReturnType<typeof setTimeout> | undefined;
 	#blurTimer: ReturnType<typeof setTimeout> | undefined;
@@ -163,6 +165,7 @@ export class RouteFocusState {
 	}
 
 	#removeTarget(token: string): void {
+		this.#hoverTargets.delete(token);
 		if (this.#pending?.token === token) this.#cancelIntent();
 		if (this.#hover?.token === token) {
 			this.#hover = null;
@@ -224,9 +227,10 @@ export class RouteFocusState {
 			this.clearPointer();
 			return;
 		}
+		this.#hoverTargets.set(token, id);
+		this.#cancelGrace();
 		if (this.#hover?.token === token && this.#hover.id === id) {
 			this.#cancelIntent();
-			this.#cancelGrace();
 			return;
 		}
 		const shown =
@@ -238,13 +242,12 @@ export class RouteFocusState {
 
 	hoverLeave(token: string, pointerType = 'mouse'): void {
 		if (pointerType === 'touch') return;
+		this.#hoverTargets.delete(token);
 		if (this.#pending?.token === token) this.#cancelIntent();
-		if (this.#hover?.token !== token || this.#graceTimer !== undefined) return;
+		if (!this.#hover || this.#hoverTargets.size > 0 || this.#graceTimer !== undefined) return;
 		this.#graceTimer = setTimeout(() => {
 			this.#graceTimer = undefined;
 			this.#hover = null;
-			// A waiting target starts a full cold rest when the shown route expires.
-			if (this.#pending) this.#armIntent(this.#pending, HOVER_COLD_MS);
 		}, HOVER_GRACE_MS);
 	}
 
@@ -292,6 +295,7 @@ export class RouteFocusState {
 	clearPointer(): void {
 		this.#cancelIntent();
 		this.#cancelGrace();
+		this.#hoverTargets.clear();
 		this.#hover = null;
 		this.#touch = null;
 	}
@@ -487,6 +491,9 @@ export class RouteFocusState {
 		this.#validIds = index.byId;
 		const valid = (candidate: Candidate) =>
 			index.byId.has(candidate.id) && targetIds.has(candidate.id);
+		for (const [token, id] of this.#hoverTargets) {
+			if (!index.byId.has(id) || !targetIds.has(id)) this.#hoverTargets.delete(token);
+		}
 		if (this.#pending && !valid(this.#pending)) this.#cancelIntent();
 		if (this.#hover && !valid(this.#hover)) {
 			this.#hover = null;
