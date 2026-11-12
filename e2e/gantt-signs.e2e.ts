@@ -23,7 +23,7 @@ import {
 } from './helpers.ts';
 
 for (const width of [1800, 390]) {
-	test(`stage badges and the 4 px rule clear wrapped headings, jumps and keyboard focus at ${width}px`, async ({
+	test(`stage badges and the 2 px rule clear wrapped headings, jumps and keyboard focus at ${width}px`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 900 });

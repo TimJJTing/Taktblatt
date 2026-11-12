@@ -72,13 +72,13 @@
 	</colgroup>
 	<thead data-part="repeat" data-testid="sheet-table-head">
 		<tr>
-			<th class={th} style:border-top="4px solid {color}">{m.column_status()}</th>
-			<th class={th} style:border-top="4px solid {color}">{m.column_task()}</th>
-			<th class={th} style:border-top="4px solid {color}">
+			<th class={th} style:border-top="2px solid {color}">{m.column_status()}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_task()}</th>
+			<th class={th} style:border-top="2px solid {color}">
 				{m.column_deliverable()}
 			</th>
-			<th class={th} style:border-top="4px solid {color}">{m.column_target()}</th>
-			<th class={th} style:border-top="4px solid {color}">{m.column_owner()}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_target()}</th>
+			<th class={th} style:border-top="2px solid {color}">{m.column_owner()}</th>
 		</tr>
 	</thead>
 	<tbody>

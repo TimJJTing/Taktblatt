@@ -1622,7 +1622,7 @@ export async function todayTagGeometry(chart: Locator, paper = false) {
 	}, paper);
 }
 
-/** Checks the 4 px stage rule in the active layout. */
+/** Checks the 2 px stage rule in the active layout. */
 export async function expectStageRule(section: Locator, paper = false): Promise<void> {
 	const narrow =
 		!paper && (await section.evaluate((element) => element.getBoundingClientRect().width < 640));
@@ -1633,8 +1633,8 @@ export async function expectStageRule(section: Locator, paper = false): Promise<
 			rule.evaluate((element, narrow) => {
 				const style = getComputedStyle(element);
 				return narrow
-					? element.getBoundingClientRect().height === 4
-					: parseFloat(style.borderTopWidth) === 4 || /(?:^|\s)4px(?:\s|,)/.test(style.boxShadow);
+					? element.getBoundingClientRect().height === 2
+					: parseFloat(style.borderTopWidth) === 2 || /(?:^|\s)2px(?:\s|,)/.test(style.boxShadow);
 			}, narrow)
 		)
 		.toBe(true);
