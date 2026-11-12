@@ -165,13 +165,19 @@ export class RouteFocusState {
 	}
 
 	#removeTarget(token: string): void {
-		this.#hoverTargets.delete(token);
-		if (this.#pending?.token === token) this.#cancelIntent();
-		if (this.#hover?.token === token) {
-			this.#hover = null;
+		const hovered = this.#hoverTargets.delete(token);
+		if (
+			hovered ||
+			this.#pending?.token === token ||
+			this.#hover?.token === token ||
+			this.#touch?.token === token ||
+			this.#focus?.token === token
+		) {
+			this.#cancelIntent();
 			this.#cancelGrace();
-			if (this.#pending) this.#armIntent(this.#pending, HOVER_COLD_MS);
 		}
+		if (this.#hover?.token === token) this.#hover = null;
+		this.#leaveIfOutsideTargets();
 		if (this.#touch?.token === token) this.#touch = null;
 		if (this.#focus?.token === token) this.#focus = null;
 		if (this.#returnOwner?.token === token) this.#returnOwner = null;
@@ -244,6 +250,10 @@ export class RouteFocusState {
 		if (pointerType === 'touch') return;
 		this.#hoverTargets.delete(token);
 		if (this.#pending?.token === token) this.#cancelIntent();
+		this.#leaveIfOutsideTargets();
+	}
+
+	#leaveIfOutsideTargets(): void {
 		if (!this.#hover || this.#hoverTargets.size > 0 || this.#graceTimer !== undefined) return;
 		this.#graceTimer = setTimeout(() => {
 			this.#graceTimer = undefined;
@@ -253,6 +263,16 @@ export class RouteFocusState {
 
 	focusEnter(id: string, token: string, cause: Cause): void {
 		if (!this.#tokenActive(token)) return;
+		if (
+			cause === 'pointer' &&
+			this.#hover !== null &&
+			this.#hover.token !== token &&
+			this.#pending?.token === token &&
+			this.#pending.id === id
+		) {
+			this.#hover = { ...this.#pending, sequence: ++this.#sequence };
+			this.#cancelGrace();
+		}
 		this.#cancelIntent();
 		this.#focus = { id, token, cause, sequence: ++this.#sequence };
 	}
@@ -491,15 +511,24 @@ export class RouteFocusState {
 		this.#validIds = index.byId;
 		const valid = (candidate: Candidate) =>
 			index.byId.has(candidate.id) && targetIds.has(candidate.id);
+		let removed = false;
 		for (const [token, id] of this.#hoverTargets) {
-			if (!index.byId.has(id) || !targetIds.has(id)) this.#hoverTargets.delete(token);
+			if (!index.byId.has(id) || !targetIds.has(id)) {
+				this.#hoverTargets.delete(token);
+				removed = true;
+			}
 		}
-		if (this.#pending && !valid(this.#pending)) this.#cancelIntent();
-		if (this.#hover && !valid(this.#hover)) {
-			this.#hover = null;
+		if (
+			removed ||
+			[this.#pending, this.#hover, this.#touch, this.#focus].some(
+				(candidate) => candidate !== null && !valid(candidate)
+			)
+		) {
+			this.#cancelIntent();
 			this.#cancelGrace();
-			if (this.#pending) this.#armIntent(this.#pending, HOVER_COLD_MS);
 		}
+		if (this.#hover && !valid(this.#hover)) this.#hover = null;
+		this.#leaveIfOutsideTargets();
 		if (this.#touch && !valid(this.#touch)) this.#touch = null;
 		if (this.#focus && !valid(this.#focus)) this.#focus = null;
 		if (this.#returnOwner && !valid({ ...this.#returnOwner, sequence: 0 }))

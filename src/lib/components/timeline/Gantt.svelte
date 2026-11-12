@@ -245,6 +245,7 @@
 	}
 
 	let hoveredRow: HTMLElement | null = null;
+	let hoverChart: HTMLElement | null = null;
 	let hoverFrame: number | undefined;
 	let hoverPoint = { x: 0, y: 0 };
 	function setHoveredRow(row: HTMLElement | null) {
@@ -296,11 +297,15 @@
 	function chartPointerMove(event: PointerEvent) {
 		if (event.pointerType === 'touch') return;
 		hoverPoint = { x: event.clientX, y: event.clientY };
-		if (hoverFrame !== undefined) return;
-		const chart = event.currentTarget as HTMLElement;
+		hoverChart = event.currentTarget as HTMLElement;
+		scheduleChartHover();
+	}
+
+	function scheduleChartHover() {
+		if (!hoverChart || hoverFrame !== undefined) return;
 		hoverFrame = requestAnimationFrame(() => {
 			hoverFrame = undefined;
-			updateChartHover(chart);
+			if (hoverChart) updateChartHover(hoverChart);
 		});
 	}
 
@@ -316,6 +321,7 @@
 	function clearChartHover() {
 		if (hoverFrame !== undefined) cancelAnimationFrame(hoverFrame);
 		hoverFrame = undefined;
+		hoverChart = null;
 		setHoveredRow(null);
 	}
 	function chartPointerLeave(event: PointerEvent) {
@@ -326,15 +332,45 @@
 		const planId = ws.plan.id;
 		const currentRows = sourceRows;
 		untrack(() => {
-			if (
-				planId !== hoverPlanId ||
-				(hoveredRow && !currentRows.has(hoveredRow.dataset.routeTarget!))
-			)
-				clearChartHover();
+			if (planId !== hoverPlanId) clearChartHover();
+			else {
+				if (hoveredRow && !currentRows.has(hoveredRow.dataset.routeTarget!)) setHoveredRow(null);
+				scheduleChartHover();
+			}
 			hoverPlanId = planId;
 		});
 	});
-	onMount(() => clearChartHover);
+	onMount(() => {
+		const observer = new ResizeObserver(scheduleChartHover);
+		observer.observe(scroller!);
+		observer.observe(scroller!.firstElementChild!);
+		const rowsObserver = new MutationObserver((changes) => {
+			if (
+				changes.some(
+					(change) =>
+						change.type === 'childList' ||
+						(change.target instanceof HTMLElement &&
+							change.target.matches('[data-route-target]:not([data-route-focus])'))
+				)
+			)
+				scheduleChartHover();
+		});
+		rowsObserver.observe(scroller!, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ['style']
+		});
+		window.addEventListener('scroll', scheduleChartHover, true);
+		window.addEventListener('resize', scheduleChartHover);
+		return () => {
+			observer.disconnect();
+			rowsObserver.disconnect();
+			window.removeEventListener('scroll', scheduleChartHover, true);
+			window.removeEventListener('resize', scheduleChartHover);
+			clearChartHover();
+		};
+	});
 
 	$effect(() => {
 		const id = editing.highlightId;
