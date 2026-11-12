@@ -8,6 +8,7 @@ import {
 	focusPreviousControl,
 	ganttRow,
 	isCoarse,
+	openExample,
 	openRoutePlan,
 	routeMembership,
 	row,
@@ -20,6 +21,116 @@ import {
 } from './helpers.ts';
 
 const HOVER_SCHEDULING_MARGIN_MS = 50;
+
+test('keeps the chart dimmed through a continuous sweep across example row bands', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 1000 });
+	await openExample(page);
+	const last = ganttRow(page, 'Neighbourhood stall');
+	const toggle = last.getByTestId('gantt-toggle');
+	if ((await toggle.getAttribute('aria-expanded')) === 'true') await toggle.click();
+	await waitForAnimations(page.getByTestId('gantt'));
+	const first = ganttRow(page, 'Site survey');
+	const mark = first.getByTestId('gantt-bar');
+	await mark.hover();
+	await page.waitForTimeout(350);
+	await expect(first).toHaveAttribute('data-route', 'lit');
+	await expect(last).toHaveAttribute('data-route', 'off');
+	const geometry = await page.getByTestId('gantt').evaluate((chart) => {
+		const rows = [...chart.querySelectorAll('[data-testid="gantt-row"]')];
+		const first = rows[0];
+		const mark = first.querySelector('[data-testid="gantt-bar"]')!.getBoundingClientRect();
+		const last = rows.at(-1)!;
+		const bounds = last.getBoundingClientRect();
+		return {
+			x: mark.x + mark.width / 2,
+			from: mark.y + mark.height / 2,
+			to: bounds.y + bounds.height / 2,
+			lastId: last.getAttribute('data-task-id')!
+		};
+	});
+	await expect(last).toHaveAttribute('data-task-id', geometry.lastId);
+	await expect(last.getByTestId('gantt-label')).toBeInViewport({ ratio: 1 });
+	// The full sweep lasts longer than leave grace. Each 28 px row takes about 80 ms.
+	const duration = ((geometry.to - geometry.from) / 350) * 1000;
+	expect(duration).toBeGreaterThan(250);
+	type MonitorWindow = Window & { routeSweep?: { frame: number; counts: number[] } };
+	await page.evaluate(() => {
+		const target = window as MonitorWindow;
+		const state = { frame: 0, counts: [] as number[] };
+		target.routeSweep = state;
+		const sample = () => {
+			state.counts.push(document.querySelectorAll('[data-testid="gantt-row"][data-route]').length);
+			state.frame = requestAnimationFrame(sample);
+		};
+		sample();
+	});
+	let counts: number[];
+	try {
+		const startedAt = performance.now();
+		const steps = Math.ceil((geometry.to - geometry.from) / 6);
+		for (let step = 1; step <= steps; step++) {
+			const due = startedAt + (duration * step) / steps;
+			await page.waitForTimeout(Math.max(0, due - performance.now()));
+			await page.mouse.move(
+				geometry.x,
+				geometry.from + ((geometry.to - geometry.from) * step) / steps
+			);
+		}
+		await page.waitForTimeout(170);
+	} finally {
+		counts = await page.evaluate(() => {
+			const target = window as MonitorWindow;
+			const state = target.routeSweep!;
+			cancelAnimationFrame(state.frame);
+			delete target.routeSweep;
+			return state.counts;
+		});
+	}
+	expect(counts.length).toBeGreaterThan(10);
+	expect(
+		counts,
+		'Every animation frame must keep an active route during the sweep and final rest'
+	).not.toContain(0);
+	expect((await routeMembership(page)).rows).toEqual([geometry.lastId]);
+	await expect(last).toHaveAttribute('data-highlighted', 'true');
+	await page.mouse.move(0, 0);
+	expect((await routeMembership(page)).rows).toEqual([geometry.lastId]);
+	await page.waitForTimeout(300);
+	await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
+});
+
+test('uses system highlight colors on the Gantt label when its Work plan row is hovered', async ({
+	page
+}) => {
+	await page.emulateMedia({ forcedColors: 'active' });
+	await openRoutePlan(page);
+	const chartRow = ganttRow(page, 'Route parent');
+	const cell = chartRow.getByTestId('gantt-label').locator('..');
+	await row(page, 'Route parent').hover();
+	await page.waitForTimeout(350);
+	await expect(chartRow).toHaveAttribute('data-highlighted', 'true');
+	const paint = await cell.evaluate((element) => {
+		const probe = document.createElement('span');
+		probe.style.backgroundColor = 'Highlight';
+		probe.style.color = 'HighlightText';
+		probe.style.forcedColorAdjust = 'none';
+		element.append(probe);
+		const style = getComputedStyle(element);
+		const system = getComputedStyle(probe);
+		const result = {
+			background: style.backgroundColor,
+			text: style.color,
+			highlight: system.backgroundColor,
+			highlightText: system.color
+		};
+		probe.remove();
+		return result;
+	});
+	expect(paint.background).toBe(paint.highlight);
+	expect(paint.text).toBe(paint.highlightText);
+});
 
 test('hover targets share delayed route input and preserve saved plan and history', async ({
 	page

@@ -12,6 +12,22 @@ import StageSectionTest from './StageSection.test.svelte';
 
 const HOVER_SCHEDULING_MARGIN_MS = 50;
 
+async function ganttPointer(target: Element, type: 'pointermove' | 'pointerleave') {
+	// The chart maps the pointer position to a row. Send the event to the chart, so the mark Hint stays closed.
+	const chart = target.closest('[data-testid="gantt-scroller"]')!.firstElementChild!;
+	const bounds = (type === 'pointermove' ? target : chart).getBoundingClientRect();
+	chart.dispatchEvent(
+		new PointerEvent(type, {
+			bubbles: type === 'pointermove',
+			clientX: bounds.left + bounds.width / 2,
+			clientY: bounds.top + bounds.height / 2,
+			pointerType: 'mouse'
+		})
+	);
+	await new Promise(requestAnimationFrame);
+	flushSync();
+}
+
 describe('stage heading signs', () => {
 	let ws: Workspace;
 	beforeEach(() => {
@@ -275,12 +291,14 @@ describe('Work plan route input', () => {
 		expect(editing.routeId).toBe('b');
 		await userEvent.keyboard('{Escape}');
 		expect(editing.routeId).toBe('b');
+		// The real pointer leaves the Work plan row before the Gantt hover starts.
+		await userEvent.hover(screen.getByTestId('outside-row'));
 		const other = screen.container.querySelector(
 			'[data-task-id="other"] [data-testid="gantt-bar"]'
 		)!;
-		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+		await ganttPointer(other, 'pointermove');
 		await expect.poll(() => editing.routeId).toBe('other');
-		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+		await ganttPointer(other, 'pointerleave');
 		await expect.poll(() => editing.routeId).toBe('b');
 		updateTask(ws, 'b', { dependsOn: ['other'] });
 		flushSync();
@@ -308,11 +326,11 @@ describe('Work plan route input', () => {
 		const other = screen.container.querySelector(
 			'[data-task-id="other"] [data-testid="gantt-bar"]'
 		)!;
-		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+		await ganttPointer(other, 'pointermove');
 		await new Promise((resolve) => setTimeout(resolve, HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS));
 		expect(editing.routeId).toBe('b');
 		expect(chartRow(screen.container, 'other').getAttribute('data-route')).toBe('off');
-		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+		await ganttPointer(other, 'pointerleave');
 		await userEvent.click(screen.getByTestId('outside-row'));
 		// Clearing keyboard focus can reveal hover until its leave grace expires.
 		await expect.poll(() => editing.routeId).toBeNull();
@@ -402,11 +420,11 @@ describe('Work plan route input', () => {
 		const other = screen.container.querySelector(
 			'[data-task-id="other"] [data-testid="gantt-bar"]'
 		)!;
-		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+		await ganttPointer(other, 'pointermove');
 		await new Promise((resolve) => setTimeout(resolve, HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS));
 		expect(editing.routeId).toBe('b');
 		expect(chartRow(screen.container, 'other').getAttribute('data-route')).toBe('off');
-		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+		await ganttPointer(other, 'pointerleave');
 		// A real pointer move closes the bar Hint before Esc reaches the date picker.
 		await userEvent.hover(screen.getByTestId('outside-row'));
 		await expect.poll(() => document.querySelector('[data-slot="tooltip-content"]')).toBeNull();

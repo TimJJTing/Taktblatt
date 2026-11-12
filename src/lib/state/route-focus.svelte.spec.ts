@@ -38,13 +38,15 @@ describe('RouteFocusState', () => {
 		expect(route.resolve()).toBe('a');
 	});
 
-	it('switches a shown hover after the warm delay without clearing the resolved route', () => {
+	it('keeps the shown hover at 80 ms and switches at 120 ms without clearing the route', () => {
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		expect(route.resolve()).toBe('a');
 		route.hoverLeave('bar-a');
 		route.hoverEnter('b', 'bar-b');
-		for (let ms = 0; ms < HOVER_WARM_MS; ms++) {
+		tick(80);
+		expect(route.resolve()).toBe('a');
+		for (let ms = 80; ms < 120; ms++) {
 			expect(route.resolve()).toBe('a');
 			tick(1);
 		}
@@ -82,22 +84,56 @@ describe('RouteFocusState', () => {
 		expect(route.resolve()).toBe('b');
 	});
 
-	it('re-arms a waiting target with a full cold rest when grace expires first', () => {
+	it('cancels leave grace on entry and switches warm even after the old grace deadline', () => {
 		route.hoverEnter('a', 'bar-a');
 		tick();
 		route.hoverLeave('bar-a');
-		const remainingGrace = HOVER_WARM_MS / 2;
-		tick(HOVER_GRACE_MS - remainingGrace);
+		tick(220);
 		route.hoverEnter('b', 'bar-b');
-		tick(remainingGrace - 1);
+		tick(119);
+		expect(route.resolve()).toBe('a');
+		tick(1);
+		expect(route.resolve()).toBe('b');
+		route.hoverLeave('bar-b');
+		tick(40);
+		route.hoverEnter('child', 'bar-child');
+		tick(119);
+		expect(route.resolve()).toBe('b');
+		tick(1);
+		expect(route.resolve()).toBe('child');
+		tick(300);
+		expect(route.resolve()).toBe('child');
+		route.hoverLeave('bar-child');
+		tick(249);
+		expect(route.resolve()).toBe('child');
+		tick(1);
+		expect(route.resolve()).toBeNull();
+	});
+
+	it('keeps the first route during a continuous sweep and starts grace only off all targets', () => {
+		route.hoverEnter('a', 'row-a');
+		tick();
+		let previous = 'row-a';
+		// Each pass is shorter than either warm delay. Together they exceed leave grace.
+		for (let pass = 0; pass < 30; pass++) {
+			const id = pass % 2 === 0 ? 'b' : 'child';
+			const token = `row-${id}`;
+			route.hoverLeave(previous);
+			route.hoverEnter(id, token);
+			for (let ms = 0; ms < 60; ms++) {
+				tick(1);
+				expect(route.resolve()).toBe('a');
+			}
+			previous = token;
+		}
+		// The shown token was left long ago. Leaving the last pending target starts fresh grace.
+		route.hoverLeave(previous);
+		tick(249);
 		expect(route.resolve()).toBe('a');
 		tick(1);
 		expect(route.resolve()).toBeNull();
-		// The canceled warm timer would have expired during the new cold rest.
-		tick(HOVER_COLD_MS - 1);
+		tick(300);
 		expect(route.resolve()).toBeNull();
-		tick(1);
-		expect(route.resolve()).toBe('b');
 	});
 
 	it('cancels replaced intent without accepting stale token events', () => {
