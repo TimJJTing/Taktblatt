@@ -35,6 +35,7 @@ test('hover targets share delayed route input and preserve saved plan and histor
 		await expect(ganttRow(page, 'Route upstream')).toHaveAttribute('data-route', 'lit');
 		await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
 		await page.mouse.move(0, 0);
+		// Leave grace ends before the next target starts a cold rest.
 		await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 	}
 	expect({ plan: await storedPlan(page), undo: await undo.isEnabled() }).toEqual(before);
@@ -50,7 +51,8 @@ test('keyboard route outranks hover and the task dialog outranks keyboard focus'
 	await expect(point).toBeFocused();
 	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
 	await ganttRow(page, 'Route branch').getByTestId('gantt-bar').hover();
-	await waitForFrames(page, 12);
+	// Wait beyond cold hover intent so this checks priority after hover is accepted.
+	await page.waitForTimeout(350);
 	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
 	await row(page, 'Route branch').getByTestId('task-details').click();
 	const dialog = page.getByTestId('task-dialog');
@@ -142,7 +144,7 @@ test.describe('touch route input', () => {
 		await parent.tap();
 		await ganttRow(page, 'Route downstream').getByTestId('gantt-label').tap();
 		await expectJumpTarget(page, 'Route downstream');
-		await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
+		await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 		await expect(row(page, 'Route downstream')).toHaveClass(/row-flash/);
 	});
 

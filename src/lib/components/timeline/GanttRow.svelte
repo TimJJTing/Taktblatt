@@ -19,6 +19,7 @@
 	import type { GanttRow } from '#lib/domain/gantt.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
@@ -33,11 +34,26 @@
 		/** The stage color as a CSS value. */
 		color: string;
 		highlighted: boolean;
+		route?: 'lit' | 'off' | null;
+		tapRoutes?: ReadonlyMap<string, 'lit' | 'off'>;
 		onJump: (id: string) => void;
 		onHighlight: (id: string, on: boolean) => void;
 	}
 
-	let { row, geom, width, taps, color, highlighted, onJump, onHighlight }: Props = $props();
+	let {
+		row,
+		geom,
+		width,
+		taps,
+		color,
+		highlighted,
+		onJump,
+		onHighlight,
+		route = null,
+		tapRoutes
+	}: Props = $props();
+	const editing = getEditing();
+	const targetId = $props.id();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -81,15 +97,45 @@
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 
-	const showRowId = $props.id();
+	const showRowId = `${targetId}-show`;
 	const showRow = $derived(m.gantt_show_row({ task: titleText }));
 
-	const hover = {
-		onpointerenter: () => onHighlight(row.id, true),
-		onpointerleave: () => onHighlight(row.id, false),
-		onfocusin: () => onHighlight(row.id, true),
-		onfocusout: () => onHighlight(row.id, false)
+	const input = (part: string) => {
+		const token = `${targetId}-${part}`;
+		return {
+			onpointerenter: (event: PointerEvent) => {
+				onHighlight(row.id, true);
+				editing.routeFocus.hoverEnter(row.id, token, event.pointerType);
+			},
+			onpointerleave: (event: PointerEvent) => {
+				onHighlight(row.id, false);
+				editing.routeFocus.hoverLeave(token, event.pointerType);
+			},
+			onfocusin: (event: FocusEvent) => {
+				onHighlight(row.id, true);
+				if (event.target instanceof Element && event.target.matches(':focus-visible')) {
+					editing.routeFocus.focusEnter(row.id, token, 'keyboard');
+				}
+			},
+			onfocusout: (event: FocusEvent) => {
+				onHighlight(row.id, false);
+				if (
+					!(event.relatedTarget instanceof Node) ||
+					!event.currentTarget ||
+					!(event.currentTarget as HTMLElement).contains(event.relatedTarget)
+				) {
+					editing.routeFocus.focusLeave(token);
+				}
+			}
+		};
 	};
+	const labelInput = input('label');
+	const markInput = input('mark');
+	function markClick() {
+		if (editing.routeFocus.lastPointerType === 'touch') {
+			editing.routeFocus.toggleTouch(row.id, `${targetId}-mark`);
+		}
+	}
 </script>
 
 <div
@@ -99,6 +145,7 @@
 	data-testid="gantt-row"
 	data-task-id={row.id}
 	data-highlighted={highlighted || undefined}
+	data-route={route ?? undefined}
 	transition:fade={{ duration: motionDuration(150) }}
 >
 	<div
@@ -108,7 +155,7 @@
 			subtask && 'pl-6'
 		)}
 		style:transition-duration={colorDuration}
-		{...hover}
+		{...labelInput}
 	>
 		{#if row.isParent}
 			<button
@@ -160,7 +207,7 @@
 				{#snippet child({ props })}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
-						{...mergeProps(props, hover)}
+						{...mergeProps(props, markInput, { onclick: markClick })}
 						role="img"
 						tabindex="0"
 						aria-label={markName}
@@ -175,7 +222,17 @@
 						data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
 						data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}
 					>
-						<TaskMark {subtask} {geom} box={x.current} status={row.status} {color} {width} {taps} />
+						<TaskMark
+							offRoute={route === 'off'}
+							{tapRoutes}
+							{subtask}
+							{geom}
+							box={x.current}
+							status={row.status}
+							{color}
+							{width}
+							{taps}
+						/>
 					</div>
 				{/snippet}
 			</Hint>

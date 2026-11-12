@@ -1549,6 +1549,6 @@ test.describe('route paper isolation', () => {
 			.locator('[data-testid="sheet-gantt-dependency"][data-from="up"][data-to="parent"]')
 			.first();
 		await expect(satisfied).toBeAttached();
-		await expectTokenPaint(satisfied, 'stroke', '--color-paper-ink-3', 0.4, true);
+		await expectTokenPaint(satisfied, 'stroke', '--color-paper-ink-3', 0.4, true, 'oklab');
 	});
 });

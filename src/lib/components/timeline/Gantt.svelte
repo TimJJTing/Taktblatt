@@ -7,9 +7,10 @@
 <script lang="ts">
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
-	import { tick, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
+	import { SvelteMap } from 'svelte/reactivity';
 	import {
 		isTimelinePinned,
 		workspaceLayout,
@@ -18,6 +19,8 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
 	import { isFinished } from '#lib/domain/derive.ts';
+	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
+	import type { EdgeGeom, Junction } from '#lib/scene/types.ts';
 	import { cn } from '#lib/utils.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
@@ -78,6 +81,21 @@
 		)
 	);
 	const lines = $derived(dependencyLines(ws.index, rows));
+	const graph = $derived(effectiveDependencyGraph(ws.index));
+	const routeModel = $derived(routeFocusModel(graph, ws.index, rows, lines, editing.routeId));
+	const routePaint = (lit: boolean): 'lit' | 'off' | null =>
+		routeModel.active ? (lit ? 'lit' : 'off') : null;
+	$effect(() => {
+		const planId = ws.plan.id;
+		const index = ws.index;
+		const rowIds = new Set(rows.map((row) => row.id));
+		untrack(() => {
+			editing.routeFocus.reset(planId);
+			editing.routeFocus.reconcile(index, rowIds);
+		});
+	});
+	$effect(() => untrack(() => editing.routeFocus.observeFloating()));
+	onDestroy(() => editing.routeFocus.dispose());
 	const ticks = $derived(monthTicks(win));
 	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(visibleBands(win, ws.plan.bands));
@@ -138,6 +156,90 @@
 				a.key.localeCompare(b.key)
 		)
 	);
+	const edgePoints = (line: EdgeGeom, width: number) =>
+		line.points.map((p) => ({ x: p.x.f * width + p.x.px, y: p.y.px }));
+	let edgeTweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }[]>>());
+	$effect(() => {
+		const targets = scene.geometry.edges;
+		const width = timelineWidth;
+		const previous = untrack(() => edgeTweens);
+		edgeTweens = new Map(
+			targets.map((line) => {
+				const points = edgePoints(line, width);
+				const tween = previous.get(line.key) ?? new GeometryTween(points, width);
+				tween.set(points, { width });
+				return [line.key, tween];
+			})
+		);
+	});
+	const litEdges = $derived(
+		sortedEdges.filter((line) => !line.cycle && routeModel.litLineKeys.has(line.key))
+	);
+	const firstCycle = $derived(sortedEdges.find((line) => line.cycle)?.key);
+	const edgePath = (line: EdgeGeom) =>
+		(edgeTweens.get(line.key)?.current ?? edgePoints(line, timelineWidth))
+			.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`)
+			.join(' ');
+	const lineWidth = (line: EdgeGeom) =>
+		sourceRows.get(line.from)!.level === 1 && sourceRows.get(line.to)!.level === 1 ? 1.5 : 2;
+	const tapMembers = $derived.by(() => {
+		const members = new SvelteMap<string, SvelteMap<string, string[]>>();
+		for (const edge of scene.geometry.edges) {
+			let sources = members.get(edge.trunk);
+			if (!sources) members.set(edge.trunk, (sources = new SvelteMap()));
+			let keys = sources.get(edge.from);
+			if (!keys) sources.set(edge.from, (keys = []));
+			keys.push(edge.key);
+		}
+		return members;
+	});
+	function junctionPaint(junction: Junction) {
+		const members =
+			junction.kind === 'tap'
+				? (tapMembers.get(junction.trunk)?.get(junction.source!) ?? [])
+				: (junction.edges ?? []);
+		return routePaint(members.some((key) => routeModel.litLineKeys.has(key)));
+	}
+	const tapRoutes = $derived(
+		new Map(
+			scene.geometry.junctions
+				.filter((j) => j.kind === 'tap')
+				.flatMap((j) => {
+					const paint = junctionPaint(j);
+					return paint ? [[j.key, paint] as const] : [];
+				})
+		)
+	);
+	function routeFade(_node: Element, { casing = false } = {}) {
+		return {
+			duration: motionDuration(150),
+			css: (t: number) =>
+				`stroke: color-mix(in oklab, var(${casing ? '--route-ground' : '--route-ink'}) ${t * 100}%, transparent)`
+		};
+	}
+	function pointerDown(event: PointerEvent) {
+		editing.routeFocus.pointerInput(event.pointerType);
+	}
+	function keyDown(event: KeyboardEvent) {
+		editing.routeFocus.keyboardInput(event.key, event.target);
+		editing.routeFocus.lastPointerType = null;
+		if (event.key === 'Escape') editing.routeFocus.clearPointer();
+	}
+	function outsideTouch(event: MouseEvent) {
+		if (editing.routeFocus.lastPointerType !== 'touch') return;
+		if (
+			!(event.target instanceof Element) ||
+			!event.target.closest('[data-testid="gantt-bar"], [data-testid="gantt-point"]')
+		) {
+			editing.routeFocus.clearPointer();
+		}
+	}
+	function documentFocus(event: FocusEvent) {
+		editing.routeFocus.resolveFocus(event.target, false, event.relatedTarget);
+	}
+	function documentBlur(event: FocusEvent) {
+		editing.routeFocus.focusOut(event.target, event.relatedTarget);
+	}
 	function measureTimeline(element: HTMLElement) {
 		const measure = () => {
 			const next = element.clientWidth;
@@ -230,6 +332,41 @@
 	}
 </script>
 
+<svelte:document
+	onpointerdowncapture={pointerDown}
+	onkeydowncapture={keyDown}
+	onclick={outsideTouch}
+	onfocusin={documentFocus}
+	onfocusout={documentBlur}
+/>
+
+{#snippet routeOverlays()}
+	<g aria-hidden="true" class="route-overlays">
+		{#each litEdges as line (line.key)}
+			<path
+				d={edgePath(line)}
+				fill="none"
+				stroke="var(--route-ground)"
+				stroke-width="4"
+				aria-hidden="true"
+				data-overlay-for={line.key}
+				data-route-layer="casing"
+				transition:routeFade={{ casing: true }}
+			/>
+			<path
+				d={edgePath(line)}
+				fill="none"
+				stroke="var(--route-ink)"
+				stroke-width={lineWidth(line)}
+				aria-hidden="true"
+				data-overlay-for={line.key}
+				data-route-layer="ink"
+				transition:routeFade
+			/>
+		{/each}
+	</g>
+{/snippet}
+
 <div
 	role="group"
 	aria-label={m.gantt_label()}
@@ -316,6 +453,8 @@
 						taps={scene.geometry.junctions.filter((j) => j.kind === 'tap' && j.source === row.id)}
 						color={colors.get(row.stageId) ?? 'currentColor'}
 						highlighted={editing.highlightId === row.id}
+						route={routePaint(routeModel.onRouteRowIds.has(row.id))}
+						{tapRoutes}
 						onJump={jump}
 						{onHighlight}
 					/>
@@ -378,21 +517,37 @@
 					aria-hidden="true"
 				>
 					{#each sortedEdges as line (line.key)}
-						<GanttLine
-							{line}
-							muted={isFinished(sourceRows.get(line.from)!.status)}
-							width={timelineWidth}
-							strokeWidth={sourceRows.get(line.from)!.level === 1 &&
-							sourceRows.get(line.to)!.level === 1
-								? 1.5
-								: 2}
-						/>
+						{#if line.key === firstCycle}{@render routeOverlays()}{/if}
+						{#if edgeTweens.has(line.key)}
+							<GanttLine
+								{line}
+								tween={edgeTweens.get(line.key)!}
+								muted={isFinished(sourceRows.get(line.from)!.status)}
+								route={routePaint(routeModel.litLineKeys.has(line.key))}
+								strokeWidth={lineWidth(line)}
+							/>
+						{/if}
 					{/each}
+					{#if firstCycle === undefined}{@render routeOverlays()}{/if}
 					{#each scene.geometry.junctions.filter((j) => j.kind === 'junction') as junction (junction.key)}
-						<DiagramRing {junction} width={timelineWidth} />
+						<DiagramRing {junction} width={timelineWidth} route={junctionPaint(junction)} />
 					{/each}
 				</svg>
 			</div>
 		</div>
 	</div>
 </div>
+
+<style>
+	.route-overlays {
+		--route-ink: var(--foreground);
+		--route-ground: var(--background, #ffffff);
+	}
+	@media (forced-colors: active) {
+		.route-overlays {
+			forced-color-adjust: none;
+			--route-ink: Highlight;
+			--route-ground: Canvas;
+		}
+	}
+</style>

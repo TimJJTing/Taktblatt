@@ -1,31 +1,18 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
-	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
+	import type { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { markColorLevel } from '#lib/components/plan/colors.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import type { EdgeGeom } from '#lib/scene/types.ts';
 	interface Props {
 		line: EdgeGeom;
 		muted: boolean;
-		width: number;
 		strokeWidth?: number;
-		// Stub: slice 4 implementation pending.
-		tween?: GeometryTween<{ x: number; y: number }[]>;
-		// Stub: slice 4 implementation pending.
+		tween: GeometryTween<{ x: number; y: number }[]>;
 		route?: 'lit' | 'off' | null;
 	}
-	// eslint-disable-next-line svelte/no-unused-props -- Stub: slice 4 implementation pending.
-	let { line, muted, width, strokeWidth = 2 }: Props = $props();
-	const points = (edge: EdgeGeom, extent: number) =>
-		edge.points.map((p) => ({ x: p.x.f * extent + p.x.px, y: p.y.px }));
-	const pos = new GeometryTween(
-		untrack(() => points(line, width)),
-		untrack(() => width)
-	);
-	$effect(() => {
-		pos.set(points(line, width), { width });
-	});
-	const d = $derived(pos.current.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '));
+	let { line, muted, strokeWidth = 2, tween, route = null }: Props = $props();
+	const d = $derived(tween.current.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '));
+	const offRoute = $derived(!line.cycle && route === 'off');
 </script>
 
 {#if line.cycle}
@@ -42,14 +29,18 @@
 <path
 	{d}
 	class:muted
+	class:off-route={offRoute}
+	data-route={line.cycle ? (route === 'lit' ? 'lit' : undefined) : (route ?? undefined)}
 	class={line.cycle ? 'text-destructive' : undefined}
 	data-cycle={line.cycle ? 'true' : undefined}
 	fill="none"
 	stroke={line.cycle
 		? 'currentColor'
-		: muted
-			? `color-mix(in oklab, currentColor ${markColorLevel('done', 'connector')}%, var(--background, #FFFFFF))`
-			: 'currentColor'}
+		: offRoute
+			? `color-mix(in oklab, currentColor ${markColorLevel('done', 'connector', true)}%, var(--background, #FFFFFF))`
+			: muted
+				? `color-mix(in oklab, currentColor ${markColorLevel('done', 'connector')}%, var(--background, #FFFFFF))`
+				: 'currentColor'}
 	stroke-width={line.cycle ? 2 : strokeWidth}
 	stroke-dasharray={line.cycle ? '1 4' : undefined}
 	stroke-linecap={line.cycle ? 'round' : undefined}
@@ -66,7 +57,8 @@
 			forced-color-adjust: none;
 			stroke: Canvas;
 		}
-		.muted {
+		.muted,
+		.off-route {
 			forced-color-adjust: none;
 			stroke: CanvasText;
 		}

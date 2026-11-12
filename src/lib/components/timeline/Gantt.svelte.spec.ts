@@ -247,7 +247,7 @@ describe('rendered Gantt task marks', () => {
 			).toBe('off');
 			target.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
 			flushSync();
-			expect(row.hasAttribute('data-route')).toBe(false);
+			await expect.poll(() => row.hasAttribute('data-route')).toBe(false);
 		}
 	});
 
@@ -283,7 +283,13 @@ describe('rendered Gantt task marks', () => {
 			'[data-task-id="parent"] [data-testid="gantt-bar"]'
 		)!;
 		const name = source.getAttribute('aria-label');
-		const description = source.getAttribute('aria-describedby');
+		// Hover opens Hint. Compare only descriptions outside that tooltip.
+		const descriptions = () =>
+			(source.getAttribute('aria-describedby') ?? '')
+				.split(/\s+/)
+				.filter(Boolean)
+				.filter((id) => !document.getElementById(id)?.matches('[data-slot="tooltip-content"]'));
+		const description = descriptions();
 		source.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
 		await expect
 			.poll(() => screen.container.querySelectorAll('[data-route-layer="ink"]').length)
@@ -332,10 +338,10 @@ describe('rendered Gantt task marks', () => {
 		}
 		expect(bases()).toHaveLength(before.length);
 		expect(source.getAttribute('aria-label')).toBe(name);
-		expect(source.getAttribute('aria-describedby')).toBe(description);
+		expect(descriptions()).toEqual(description);
 		source.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
 		flushSync();
-		expect(before.every((p) => !p.hasAttribute('data-route'))).toBe(true);
+		await expect.poll(() => before.every((p) => !p.hasAttribute('data-route'))).toBe(true);
 		await expect.poll(() => screen.container.querySelectorAll('[data-route-layer]').length).toBe(0);
 		expect(bases()).toEqual(before);
 	});
@@ -371,7 +377,7 @@ describe('rendered Gantt task marks', () => {
 		expect(editing.routeId).toBeNull();
 	});
 
-	it('keeps isolated input inactive while its linked highlight still responds', async () => {
+	it('dims every other task for isolated input while its linked highlight still responds', async () => {
 		const editing = new EditingState();
 		const screen = await render(GanttTest, { workspace: ws, editing });
 		const parent = screen.container.querySelector(
@@ -384,9 +390,14 @@ describe('rendered Gantt task marks', () => {
 		point.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
 		await expect.poll(() => editing.routeId).toBe('point');
 		expect(editing.highlightId).toBe('point');
-		expect(screen.container.querySelectorAll('[data-testid="gantt-row"][data-route]')).toHaveLength(
-			0
-		);
+		expect(
+			screen.container.querySelector('[data-task-id="point"]')!.getAttribute('data-route')
+		).toBe('lit');
+		for (const row of screen.container.querySelectorAll(
+			'[data-testid="gantt-row"]:not([data-task-id="point"])'
+		)) {
+			expect(row.getAttribute('data-route')).toBe('off');
+		}
 		await expect.poll(() => screen.container.querySelectorAll('[data-route-layer]').length).toBe(0);
 	});
 
@@ -442,83 +453,203 @@ describe('rendered Gantt task marks', () => {
 		frame(3000);
 	});
 
-	it('fades overlay stroke color on entry, exit and return while clearing membership immediately', async () => {
+	it('continues overlay paint through interrupted entry, exit and return without endpoint jumps', async () => {
 		const editing = new EditingState();
 		const screen = await render(GanttTest, { workspace: ws, editing });
-		const selector = '[data-overlay-for="parent->target"][data-route-layer="ink"]';
-		const alpha = () => {
-			const path = screen.container.querySelector(selector);
-			if (!path) return null;
-			const canvas = document.createElement('canvas');
-			canvas.width = canvas.height = 1;
-			const context = canvas.getContext('2d')!;
-			const style = getComputedStyle(path);
-			context.fillStyle = style.stroke.replaceAll('currentcolor', style.color);
-			context.fillRect(0, 0, 1, 1);
-			expect(style.opacity).toBe('1');
-			return context.getImageData(0, 0, 1, 1).data[3];
-		};
-		const sample = async (until: (value: number | null) => boolean) => {
-			const samples: (number | null)[] = [];
-			for (let i = 0; i < 40; i++) {
-				await new Promise(requestAnimationFrame);
-				const value = alpha();
-				samples.push(value);
-				if (until(value)) break;
+		const selector = '[data-overlay-for="parent->target"][data-route-layer]';
+		const paths = () => [...screen.container.querySelectorAll<SVGPathElement>(selector)];
+		const animate = Element.prototype.animate;
+		vi.spyOn(Element.prototype, 'animate').mockImplementation(function (
+			this: Element,
+			frames,
+			options
+		) {
+			const animation = animate.call(this, frames, options);
+			// Control color progress so the assertion does not depend on frame delivery speed.
+			if (this.matches(selector) && Number(animation.effect!.getTiming().duration) > 0) {
+				animation.pause();
 			}
-			return samples;
+			return animation;
+		});
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		const context = canvas.getContext('2d')!;
+		const paint = () =>
+			paths().map((path) => {
+				const style = getComputedStyle(path);
+				expect(style.opacity).toBe('1');
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = style.stroke.replaceAll('currentcolor', style.color);
+				context.fillRect(0, 0, 1, 1);
+				return context.getImageData(0, 0, 1, 1).data[3];
+			});
+		let animations: Animation[] = [];
+		const seek = (fraction: number) => {
+			for (const animation of animations) {
+				animation.pause();
+				animation.currentTime = Number(animation.effect!.getTiming().duration) * fraction;
+			}
+			return paint();
+		};
+		const pauseNewPhase = async (fraction: number) => {
+			const previous = animations;
+			// Wait for the new color animations, not Svelte's zero-duration setup animation.
+			await expect
+				.poll(() =>
+					paths().every((path) =>
+						path
+							.getAnimations()
+							.some(
+								(animation) =>
+									!previous.includes(animation) &&
+									Number(animation.effect!.getTiming().duration) > 0 &&
+									(animation.effect as KeyframeEffect)
+										.getKeyframes()
+										.some((frame) => 'stroke' in frame)
+							)
+					)
+				)
+				.toBe(true);
+			animations = paths().map((path) =>
+				path
+					.getAnimations()
+					.filter(
+						(animation) =>
+							!previous.includes(animation) &&
+							Number(animation.effect!.getTiming().duration) > 0 &&
+							(animation.effect as KeyframeEffect).getKeyframes().some((frame) => 'stroke' in frame)
+					)
+					.at(-1)!
+			);
+			return seek(fraction);
+		};
+		const expectContinuous = (before: number[], after: number[]) => {
+			expect(after).toHaveLength(2);
+			for (const [i, value] of after.entries()) {
+				expect(value).toBeGreaterThan(0);
+				expect(value).toBeLessThan(255);
+				expect(Math.abs(value - before[i])).toBeLessThanOrEqual(2);
+			}
 		};
 		editing.routeFocus.toggleTouch('parent', 'parent-mark');
 		flushSync();
-		expect(screen.container.querySelector(selector)).not.toBeNull();
-		const entry = await sample((value) => value === 255);
-		expect(entry.some((a) => a !== null && a > 0 && a < 255)).toBe(true);
-		expect(entry.at(-1)).toBe(255);
+		expect(paths()).toHaveLength(2);
+		const entry = await pauseNewPhase(0.5);
+		expect(entry.every((a) => a > 0 && a < 255)).toBe(true);
 		editing.routeFocus.clearPointer();
 		flushSync();
 		expect(
 			screen.container.querySelector('[data-task-id="parent"]')!.hasAttribute('data-route')
 		).toBe(false);
-		const exit = await sample((value) => value !== null && value > 0 && value < 255);
-		expect(exit.some((a) => a !== null && a > 0 && a < 255)).toBe(true);
-		expect(screen.container.querySelector(selector)!.getAttribute('aria-hidden')).toBe('true');
+		expectContinuous(entry, await pauseNewPhase(0));
+		const exit = seek(0.5);
+		expect(exit.every((a, i) => a > 0 && a < entry[i])).toBe(true);
 		editing.routeFocus.toggleTouch('parent', 'parent-mark');
 		flushSync();
-		expect(screen.container.querySelectorAll(selector)).toHaveLength(1);
-		await sample((value) => value === 255);
-		expect(alpha()).toBe(255);
+		expect(paths()).toHaveLength(2);
+		expectContinuous(exit, await pauseNewPhase(0));
+		for (const path of paths()) for (const animation of path.getAnimations()) animation.finish();
+		await expect.poll(paint).toEqual([255, 255]);
 		editing.routeFocus.clearPointer();
 		flushSync();
-		await sample((value) => value === null);
-		expect(screen.container.querySelectorAll('[data-route-layer]')).toHaveLength(0);
+		await pauseNewPhase(0.5);
+		for (const animation of animations) animation.finish();
+		await expect.poll(() => paths().length).toBe(0);
 	});
 
-	it('keeps pointer intent under reduced motion and applies final route paint immediately', async () => {
+	it('keeps every row classified throughout a warm hand-off and leave grace', async () => {
+		const editing = new EditingState();
+		const screen = await render(GanttTest, { workspace: ws, editing });
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const mark = (id: string) =>
+				screen.container.querySelector(`[data-task-id="${id}"] [data-testid="gantt-bar"]`)!;
+			const membership = () =>
+				[...screen.container.querySelectorAll('[data-testid="gantt-row"]')].map((row) =>
+					row.getAttribute('data-route')
+				);
+			mark('parent').dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+			vi.advanceTimersByTime(300);
+			flushSync();
+			expect(editing.routeId).toBe('parent');
+			const before = membership();
+			expect(before.every(Boolean)).toBe(true);
+			mark('parent').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+			mark('tap-source').dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+			for (let ms = 0; ms < 80; ms++) {
+				flushSync();
+				expect(editing.routeId).toBe('parent');
+				expect(membership()).toEqual(before);
+				vi.advanceTimersByTime(1);
+			}
+			flushSync();
+			expect(editing.routeId).toBe('tap-source');
+			expect(membership().every(Boolean)).toBe(true);
+			mark('tap-source').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+			vi.advanceTimersByTime(249);
+			flushSync();
+			expect(membership().every(Boolean)).toBe(true);
+			vi.advanceTimersByTime(1);
+			flushSync();
+			expect(editing.routeId).toBeNull();
+			expect(membership().every((value) => value === null)).toBe(true);
+		} finally {
+			await screen.unmount();
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps cold, warm and grace timers under reduced motion with immediate final paint', async () => {
 		routeMotion.reduced = true;
-		const screen = await render(GanttTest, { workspace: ws });
-		const parent = screen.container.querySelector('[data-task-id="parent"]')!;
-		const mark = parent.querySelector('[data-testid="gantt-bar"]')!;
-		const entered = performance.now();
-		mark.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-		flushSync();
-		expect(parent.hasAttribute('data-route')).toBe(false);
-		await expect.poll(() => parent.getAttribute('data-route')).toBe('lit');
-		expect(performance.now() - entered).toBeGreaterThanOrEqual(120);
-		const overlay = screen.container.querySelector('[data-route-layer="ink"]');
-		expect(overlay).not.toBeNull();
-		expect(getComputedStyle(overlay!).opacity).toBe('1');
-		const canvas = document.createElement('canvas');
-		canvas.width = canvas.height = 1;
-		const context = canvas.getContext('2d')!;
-		context.fillStyle = getComputedStyle(overlay!).stroke;
-		context.fillRect(0, 0, 1, 1);
-		expect(context.getImageData(0, 0, 1, 1).data[3]).toBe(255);
-		expect(getComputedStyle(mark.querySelector('[data-gantt-line]')!).transitionDuration).toBe(
-			'0s'
-		);
-		mark.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
-		flushSync();
-		expect(screen.container.querySelectorAll('[data-route-layer]')).toHaveLength(0);
+		const editing = new EditingState();
+		const screen = await render(GanttTest, { workspace: ws, editing });
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const parent = screen.container.querySelector('[data-task-id="parent"]')!;
+			const mark = parent.querySelector('[data-testid="gantt-bar"]')!;
+			mark.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+			vi.advanceTimersByTime(299);
+			flushSync();
+			expect(editing.routeId).toBeNull();
+			expect(parent.hasAttribute('data-route')).toBe(false);
+			vi.advanceTimersByTime(1);
+			flushSync();
+			expect(parent.getAttribute('data-route')).toBe('lit');
+			const overlay = screen.container.querySelector('[data-route-layer="ink"]')!;
+			expect(overlay).not.toBeNull();
+			expect(getComputedStyle(overlay).opacity).toBe('1');
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			context.fillStyle = getComputedStyle(overlay).stroke;
+			context.fillRect(0, 0, 1, 1);
+			expect(context.getImageData(0, 0, 1, 1).data[3]).toBe(255);
+			expect(getComputedStyle(mark.querySelector('[data-gantt-line]')!).transitionDuration).toBe(
+				'0s'
+			);
+			mark.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+			const next = screen.container.querySelector(
+				'[data-task-id="tap-source"] [data-testid="gantt-bar"]'
+			)!;
+			next.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+			vi.advanceTimersByTime(79);
+			flushSync();
+			expect(editing.routeId).toBe('parent');
+			vi.advanceTimersByTime(1);
+			flushSync();
+			expect(editing.routeId).toBe('tap-source');
+			next.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+			vi.advanceTimersByTime(249);
+			flushSync();
+			expect(editing.routeId).toBe('tap-source');
+			vi.advanceTimersByTime(1);
+			flushSync();
+			expect(editing.routeId).toBeNull();
+			expect(screen.container.querySelectorAll('[data-route-layer]')).toHaveLength(0);
+		} finally {
+			await screen.unmount();
+			vi.useRealTimers();
+		}
 	});
 
 	it('keeps unlit branches dim inside a shared trunk and taps tied to their own source', async () => {
@@ -542,7 +673,8 @@ describe('rendered Gantt task marks', () => {
 		});
 		const editing = new EditingState();
 		const screen = await render(GanttTest, { workspace: ws, editing });
-		editing.routeFocus.toggleTouch('first', 'first-mark');
+		// This target leaves an upper branch outside the lit route.
+		editing.routeFocus.toggleTouch('last', 'last-mark');
 		flushSync();
 		const rings = [...screen.container.querySelectorAll('[data-testid="gantt-junction"]')];
 		expect(rings.some((ring) => ring.getAttribute('data-route') === 'lit')).toBe(true);
@@ -680,7 +812,7 @@ describe('rendered Gantt task marks', () => {
 		expect(editing.routeId).toBeNull();
 		mark().dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
 		await screen.unmount();
-		await new Promise((resolve) => setTimeout(resolve, 150));
+		await new Promise((resolve) => setTimeout(resolve, 350));
 		expect(editing.routeId).toBeNull();
 	});
 });

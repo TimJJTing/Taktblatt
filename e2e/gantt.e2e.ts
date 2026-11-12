@@ -105,6 +105,9 @@ test('tiny, point and clipped marks use exact ports and flat cuts', async ({ pag
 test('finished marks cover crossing connectors in both themes', async ({ page }) => {
 	await openLinePlan(page);
 	await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+	// Sample status paint with route focus inactive after the chevron hover.
+	await page.mouse.move(0, 0);
+	await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 	for (const colorScheme of ['light', 'dark'] as const) {
 		await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
 		const mark = ganttRow(page, 'Crossing').getByTestId('gantt-bar');

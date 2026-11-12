@@ -1533,18 +1533,19 @@ export async function expectMilestoneRing(container: Locator, exactSize = true):
 	}
 }
 
-/** Compares effective paint, including ancestor opacity, with a theme token. */
+/** Compare effective paint with a token. Use mixSpace for a color mix instead of alpha. */
 export async function expectTokenPaint(
 	target: Locator,
 	property: 'color' | 'stroke' | 'fill' | 'background-color' | 'border-left-color',
 	token: string,
 	strength = 1,
-	paper = false
+	paper = false,
+	mixSpace?: 'oklab'
 ): Promise<void> {
 	await expect
 		.poll(() =>
 			target.evaluate(
-				(element, { property, token, strength, paper }) => {
+				(element, { property, token, strength, paper, mixSpace }) => {
 					const style = getComputedStyle(element);
 					const probe = document.createElement('span');
 					probe.style.color = `var(${token})`;
@@ -1552,6 +1553,9 @@ export async function expectTokenPaint(
 					const ink = getComputedStyle(probe).color;
 					probe.style.color = `var(${paper ? '--color-paper' : '--background'})`;
 					const ground = getComputedStyle(probe).color;
+					if (mixSpace)
+						probe.style.color = `color-mix(in ${mixSpace}, ${ink} ${strength * 100}%, ${ground})`;
+					const expectedInk = mixSpace ? getComputedStyle(probe).color : ink;
 					probe.remove();
 					const canvas = document.createElement('canvas');
 					canvas.width = canvas.height = 1;
@@ -1571,10 +1575,10 @@ export async function expectTokenPaint(
 						opacity *= Number(getComputedStyle(node).opacity);
 					}
 					const actual = sample(style.getPropertyValue(property), opacity);
-					const expected = sample(ink, strength);
+					const expected = sample(expectedInk, mixSpace ? 1 : strength);
 					return actual.every((channel, index) => Math.abs(channel - expected[index]) <= 2);
 				},
-				{ property, token, strength, paper }
+				{ property, token, strength, paper, mixSpace }
 			)
 		)
 		.toBe(true);

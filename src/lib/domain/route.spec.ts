@@ -95,7 +95,7 @@ describe('routeFocusModel', () => {
 		};
 	}
 
-	it('activates for an undated graph route even when no connector is drawn', () => {
+	it('activates isolated and undated focus without drawn connectors and rejects missing focus', () => {
 		const f = fixture([
 			task('isolated'),
 			task('undated', { start: null, end: null }),
@@ -108,8 +108,11 @@ describe('routeFocusModel', () => {
 				litLineKeys: new Set()
 			});
 		}
-		expect(f.model('isolated').active).toBe(false);
-		expect(f.model('isolated').litLineKeys.size).toBe(0);
+		expect(f.model('isolated')).toEqual({
+			active: true,
+			onRouteRowIds: new Set(['isolated']),
+			litLineKeys: new Set()
+		});
 		expect(f.lines).toEqual([]);
 		expect(f.model('undated')).toEqual({
 			active: true,

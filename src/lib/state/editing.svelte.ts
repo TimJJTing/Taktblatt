@@ -19,8 +19,7 @@ function afterNextFrame(fn: () => void) {
 }
 
 export class EditingState {
-	// Stub: slice 4 implementation pending.
-	readonly routeFocus = new RouteFocusState();
+	readonly routeFocus = new RouteFocusState(() => this.detailsTaskId);
 	/** The id of a new task. Its title starts in edit mode. */
 	newTaskId = $state<string | null>(null);
 	/** The id of a new remark section. Its title starts in edit mode. */
@@ -32,7 +31,9 @@ export class EditingState {
 	/** The task that has hover or focus, for the linked highlight between Gantt and table. */
 	highlightId = $state<string | null>(null);
 	/** The task whose dependency route is lit across diagram views. */
-	routeId = $state<string | null>(null);
+	get routeId(): string | null {
+		return this.routeFocus.resolve();
+	}
 	/** A task row that flashes one time, after a jump from the Gantt. */
 	flashId = $state<string | null>(null);
 
@@ -40,6 +41,7 @@ export class EditingState {
 	#flashCount = 0;
 
 	openDetails(id: string, from: HTMLElement | null) {
+		this.routeFocus.clearPointer();
 		this.detailsReturnFocus = from;
 		this.detailsTaskId = id;
 	}

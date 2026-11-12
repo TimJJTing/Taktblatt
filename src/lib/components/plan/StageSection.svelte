@@ -258,10 +258,28 @@
 							style:animation-duration={editing.flashId === rowTask.id
 								? `${motionDuration(FLASH_MS)}ms`
 								: undefined}
-							onpointerenter={() => (editing.highlightId = rowTask.id)}
-							onpointerleave={() =>
-								editing.highlightId === rowTask.id && (editing.highlightId = null)}
-							onfocusin={() => (editing.highlightId = rowTask.id)}
+							onpointerenter={(event) => {
+								editing.highlightId = rowTask.id;
+								editing.routeFocus.hoverEnter(
+									rowTask.id,
+									editing.routeFocus.rowOwner(event.currentTarget)!.token,
+									event.pointerType
+								);
+							}}
+							onpointerleave={(event) => {
+								if (editing.highlightId === rowTask.id) editing.highlightId = null;
+								editing.routeFocus.hoverLeave(
+									editing.routeFocus.rowOwner(event.currentTarget)!.token,
+									event.pointerType
+								);
+							}}
+							onfocusin={(event) => {
+								editing.highlightId = rowTask.id;
+								editing.routeFocus.resolveFocus(event.target, false, event.relatedTarget);
+							}}
+							onfocusout={(event) => {
+								editing.routeFocus.focusOut(event.target, event.relatedTarget);
+							}}
 							animate:flip={{ duration: flipDuration, easing: cubicOut }}
 							data-testid="task-row"
 						>

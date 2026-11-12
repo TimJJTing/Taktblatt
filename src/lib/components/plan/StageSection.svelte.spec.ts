@@ -47,7 +47,14 @@ describe('Work plan route input', () => {
 			plan.range = { start: '2027-01-01', end: '2027-01-31' };
 			plan.tasks = [
 				makeTask({ id: 'a', stageId, start: '2027-01-02', end: '2027-01-05' }),
-				makeTask({ id: 'b', stageId, start: '2027-01-10', end: '2027-01-15', dependsOn: ['a'] }),
+				makeTask({
+					id: 'b',
+					stageId,
+					owners: ['Ada'],
+					start: '2027-01-10',
+					end: '2027-01-15',
+					dependsOn: ['a']
+				}),
 				makeTask({ id: 'other', stageId, start: '2027-01-20', end: '2027-01-22' })
 			];
 		});
@@ -62,13 +69,16 @@ describe('Work plan route input', () => {
 			editing = new EditingState();
 		const screen = await render(StageSectionTest, { workspace: ws, editing, withGantt: true });
 		const row = screen.container.querySelector('tr[data-task-id="a"]')!;
+		// Keep the real pointer outside the synthetic hover target.
+		await userEvent.hover(screen.getByTestId('outside-row'));
 		row.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
 		flushSync();
 		expect(editing.highlightId).toBe('a');
 		await expect.poll(() => chartRow(screen.container, 'b').getAttribute('data-route')).toBe('lit');
+		expect(editing.routeId).toBe('a');
 		row.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
 		flushSync();
-		expect(chartRow(screen.container, 'b').hasAttribute('data-route')).toBe(false);
+		await expect.poll(() => chartRow(screen.container, 'b').hasAttribute('data-route')).toBe(false);
 	});
 
 	it('retains pointer edit focus on Esc and follows live dependency edits, undo and redo', async () => {
@@ -82,6 +92,13 @@ describe('Work plan route input', () => {
 		expect(editing.routeId).toBe('b');
 		await userEvent.keyboard('{Escape}');
 		expect(editing.routeId).toBe('b');
+		const other = screen.container.querySelector(
+			'[data-task-id="other"] [data-testid="gantt-bar"]'
+		)!;
+		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+		await expect.poll(() => editing.routeId).toBe('other');
+		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+		await expect.poll(() => editing.routeId).toBe('b');
 		updateTask(ws, 'b', { dependsOn: ['other'] });
 		flushSync();
 		expect(chartRow(screen.container, 'a').getAttribute('data-route')).toBe('off');
@@ -109,12 +126,109 @@ describe('Work plan route input', () => {
 			'[data-task-id="other"] [data-testid="gantt-bar"]'
 		)!;
 		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
-		await new Promise((resolve) => setTimeout(resolve, 150));
+		await new Promise((resolve) => setTimeout(resolve, 350));
 		expect(editing.routeId).toBe('b');
 		expect(chartRow(screen.container, 'other').getAttribute('data-route')).toBe('off');
 		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
 		await userEvent.click(screen.getByTestId('outside-row'));
-		expect(editing.routeId).toBeNull();
+		// Clearing keyboard focus can reveal hover until its leave grace expires.
+		await expect.poll(() => editing.routeId).toBeNull();
+	});
+
+	it.each([false, true])(
+		'clears null-target blur outside the row with Gantt mounted: %s',
+		async (withGantt) => {
+			const ws = workspace(),
+				editing = new EditingState();
+			const screen = await render(StageSectionTest, { workspace: ws, editing, withGantt });
+			editing.routeFocus.pointerInput('mouse');
+			await userEvent.click(
+				screen.container.querySelector('tr[data-task-id="b"] [data-testid="task-title"]')!
+			);
+			expect(editing.routeId).toBe('b');
+			const input = document.activeElement as HTMLElement;
+			expect(input.closest('tr')?.dataset.taskId).toBe('b');
+			// A blur to non-focusable space has no related target and no following focusin.
+			input.blur();
+			expect(document.activeElement).toBe(document.body);
+			await expect.poll(() => editing.routeId).toBeNull();
+			const otherRow = screen.container.querySelector('tr[data-task-id="other"]')!;
+			otherRow.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+			await expect.poll(() => editing.routeId).toBe('other');
+		}
+	);
+
+	it('keeps the owner popover and nested menu attached to their row through focus return', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing, withGantt: true });
+		const trigger = screen.container.querySelector(
+			'tr[data-task-id="b"] [data-testid="owner-field"]'
+		)!;
+		await userEvent.click(trigger);
+		await expect.poll(() => document.querySelector('[data-testid="owner-input"]')).not.toBeNull();
+		const input = document.querySelector<HTMLElement>('[data-testid="owner-input"]')!;
+		const popover = input.closest('[data-slot="popover-content"]')!;
+		await expect.poll(() => popover.contains(document.activeElement)).toBe(true);
+		expect(popover.closest('tr')).toBeNull();
+		await expect.poll(() => popover.getAnimations().length).toBe(0);
+		// Remove incidental row hover. Ownership must survive after leave grace ends.
+		await userEvent.hover(screen.getByTestId('outside-row'));
+		await new Promise((resolve) => setTimeout(resolve, 350));
+		expect(editing.routeId).toBe('b');
+		expect(chartRow(screen.container, 'a').getAttribute('data-route')).toBe('lit');
+		await userEvent.click(popover.querySelector('[data-slot="dropdown-menu-trigger"]')!);
+		await expect.poll(() => document.querySelector('[role="menu"]')).not.toBeNull();
+		const menu = document.querySelector('[role="menu"]')!;
+		await expect.poll(() => menu.contains(document.activeElement)).toBe(true);
+		expect(menu.closest('tr')).toBeNull();
+		expect(popover.contains(menu)).toBe(false);
+		expect(editing.routeId).toBe('b');
+		expect(chartRow(screen.container, 'a').getAttribute('data-route')).toBe('lit');
+		await userEvent.keyboard('{Escape}');
+		await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull();
+		await expect.poll(() => popover.contains(document.activeElement)).toBe(true);
+		expect(editing.routeId).toBe('b');
+		await userEvent.keyboard('{Escape}');
+		await expect.poll(() => document.querySelector('[data-testid="owner-input"]')).toBeNull();
+		await expect.poll(() => document.activeElement).toBe(trigger);
+		expect(editing.routeId).toBe('b');
+		await userEvent.click(screen.getByTestId('outside-row'));
+		await expect.poll(() => editing.routeId).toBeNull();
+	});
+
+	it('promotes pointer focus when ArrowRight moves to another calendar date', async () => {
+		const ws = workspace(),
+			editing = new EditingState();
+		const screen = await render(StageSectionTest, { workspace: ws, editing, withGantt: true });
+		await userEvent.click(
+			screen.container.querySelector('tr[data-task-id="b"] [data-testid="task-target"]')!
+		);
+		await expect.poll(() => document.querySelector('[data-slot="popover-content"]')).not.toBeNull();
+		const content = document.querySelector('[data-slot="popover-content"]')!;
+		await expect.poll(() => content.getAnimations().length).toBe(0);
+		const date = content.querySelector('[data-range-calendar-day][data-value="2027-01-12"]')!;
+		await userEvent.click(date);
+		await expect.poll(() => document.activeElement).toBe(date);
+		await userEvent.keyboard('{ArrowRight}');
+		await expect.poll(() => document.activeElement).not.toBe(date);
+		expect(document.activeElement?.matches('[data-range-calendar-day]')).toBe(true);
+		expect((document.activeElement as HTMLElement).dataset.value).toBe('2027-01-13');
+		const other = screen.container.querySelector(
+			'[data-task-id="other"] [data-testid="gantt-bar"]'
+		)!;
+		other.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+		await new Promise((resolve) => setTimeout(resolve, 350));
+		expect(editing.routeId).toBe('b');
+		expect(chartRow(screen.container, 'other').getAttribute('data-route')).toBe('off');
+		other.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+		// A real pointer move closes the bar Hint before Esc reaches the date picker.
+		await userEvent.hover(screen.getByTestId('outside-row'));
+		await expect.poll(() => document.querySelector('[data-slot="tooltip-content"]')).toBeNull();
+		await userEvent.keyboard('{Escape}');
+		await expect.poll(() => content.isConnected).toBe(false);
+		await expect.poll(() => document.activeElement?.closest('tr')?.dataset.taskId).toBe('b');
+		expect(editing.routeId).toBe('b');
 	});
 
 	it('keeps row ownership in the status select and date portal, including normal focus return', async () => {

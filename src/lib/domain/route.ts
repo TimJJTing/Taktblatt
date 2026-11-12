@@ -2,29 +2,68 @@
 import { effectiveDependencies, type TaskIndex } from './derive.ts';
 import type { DependencyLine, GanttRow } from './gantt.ts';
 
-// Stub: slice 4 implementation pending.
 export interface EffectiveDependencyGraph {
 	upstream: ReadonlyMap<string, ReadonlySet<string>>;
 	downstream: ReadonlyMap<string, ReadonlySet<string>>;
 	pairs: readonly (readonly [string, string])[];
 }
 
-// Stub: slice 4 implementation pending.
-export function effectiveDependencyGraph(_index: TaskIndex): EffectiveDependencyGraph {
-	void _index;
-	return { upstream: new Map(), downstream: new Map(), pairs: [] };
+/** Build once for an index. Pointer input reuses these maps and pairs. */
+export function effectiveDependencyGraph(index: TaskIndex): EffectiveDependencyGraph {
+	const upstream = new Map<string, Set<string>>();
+	const downstream = new Map<string, Set<string>>();
+	const pairs: [string, string][] = [];
+	for (const id of index.byId.keys()) downstream.set(id, new Set());
+	for (const id of index.byId.keys()) {
+		const dependencies = effectiveDependencies(index, id);
+		upstream.set(id, dependencies);
+		for (const dependency of dependencies) {
+			downstream.get(dependency)?.add(id);
+			pairs.push([dependency, id]);
+		}
+	}
+	return { upstream, downstream, pairs };
 }
 
-// Stub: slice 4 implementation pending.
+/** Project separate focus routes onto existing rows and connectors. */
 export function routeFocusModel(
-	_graph: EffectiveDependencyGraph,
-	_index: TaskIndex,
-	_rows: readonly GanttRow[],
-	_lines: readonly DependencyLine[],
-	_focusId: string | null
+	graph: EffectiveDependencyGraph,
+	index: TaskIndex,
+	rows: readonly GanttRow[],
+	lines: readonly DependencyLine[],
+	focusId: string | null
 ): { active: boolean; onRouteRowIds: Set<string>; litLineKeys: Set<string> } {
-	void [_graph, _index, _rows, _lines, _focusId];
-	return { active: false, onRouteRowIds: new Set(), litLineKeys: new Set() };
+	const model = { active: false, onRouteRowIds: new Set<string>(), litLineKeys: new Set<string>() };
+	if (focusId === null || !index.byId.has(focusId)) return model;
+	const visible = new Map(rows.map((row) => [row.id, row]));
+	const focusRow = visible.get(focusId);
+	const focuses = [focusId];
+	if (focusRow?.isParent && !focusRow.expanded) {
+		focuses.push(...(index.children.get(focusId) ?? []).map((task) => task.id));
+	}
+	const routes = focuses.map((focus) => ({ focus, route: graphDependencyRoute(graph, focus) }));
+	model.active = true;
+	const visibleId = (id: string): string | undefined => {
+		if (visible.has(id)) return id;
+		const parent = index.byId.get(id)?.parentId;
+		return parent && visible.has(parent) ? parent : undefined;
+	};
+	for (const { focus, route } of routes) {
+		for (const id of [focus, ...route.upstream, ...route.downstream]) {
+			const rowId = visibleId(id);
+			if (rowId) model.onRouteRowIds.add(rowId);
+		}
+	}
+	const drawn = new Set(lines.map((line) => line.key));
+	for (const [from, to] of graph.pairs) {
+		if (!routes.some(({ focus, route }) => isLitEdge(route, focus, from, to))) continue;
+		const fromRow = visibleId(from);
+		const toRow = visibleId(to);
+		if (!fromRow || !toRow || fromRow === toRow) continue;
+		const key = `${fromRow}->${toRow}`;
+		if (drawn.has(key)) model.litLineKeys.add(key);
+	}
+	return model;
 }
 
 export interface DependencyRoute {
@@ -48,15 +87,18 @@ function reachable(graph: ReadonlyMap<string, ReadonlySet<string>>, focus: strin
 
 /** Find all predecessors and dependents. Each walk stops at tasks it has already visited. */
 export function dependencyRoute(index: TaskIndex, focus: string): DependencyRoute {
-	const upstream = new Map<string, Set<string>>();
-	const downstream = new Map<string, Set<string>>();
-	for (const id of index.byId.keys()) downstream.set(id, new Set());
-	for (const id of index.byId.keys()) {
-		const dependencies = effectiveDependencies(index, id);
-		upstream.set(id, dependencies);
-		for (const dependency of dependencies) downstream.get(dependency)?.add(id);
-	}
-	return { upstream: reachable(upstream, focus), downstream: reachable(downstream, focus) };
+	return graphDependencyRoute(effectiveDependencyGraph(index), focus);
+}
+
+/** Walk each side independently so a shortcut cannot join opposite sides. */
+export function graphDependencyRoute(
+	graph: EffectiveDependencyGraph,
+	focus: string
+): DependencyRoute {
+	return {
+		upstream: reachable(graph.upstream, focus),
+		downstream: reachable(graph.downstream, focus)
+	};
 }
 
 /** Light edges on either side of the focus. Exclude shortcuts between the two sides. */
