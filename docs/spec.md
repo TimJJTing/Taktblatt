@@ -473,7 +473,7 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
   - The stage title, color picker, progress and menu stay available while the header is sticky. The header has an opaque background.
   - A jump from a pinned Timeline label shows the task below its stage header and any sticky table column headers.
   - Keyboard focus on a task control shows the complete task row below the stage header and any sticky table column headers. The row clears the bottom of the scroll region by at least 1 px.
-  - Sticky offsets, focus offsets and label jumps include the full 4 px stage rule. The rule and its start ring do not cover task controls. Focus offsets clear the 1 px ring overhang on narrow stages.
+  - Sticky offsets, focus offsets and label jumps include the full 4 px stage rule. The rule and its start ring do not cover task controls. Focus offsets clear the 1 px ring overhang on narrow stages. The stage header does not cover the start ring. A 1 px ground-colored gap separates the rule from the stage header, and the ring extends into this gap. In forced colors, the ring aligns with the top edge of the rule.
   - Preview and printed sheets keep their existing headers, content and pagination. Sticky workspace headers do not appear on sheets.
 - **Color picker:** a curated palette of 8 colors. The picker shows a warning when two stages have similar colors. A new stage gets the next unused color.
 - **Stage order:** a drag handle (it also works with the keyboard), and **Move up** and **Move down** in the stage menu.

@@ -15,7 +15,7 @@
 
 <style>
 	.stage-rule-ring {
-		top: -1px;
+		top: 0;
 	}
 	.paper {
 		top: -4px;

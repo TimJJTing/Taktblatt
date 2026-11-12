@@ -1632,9 +1632,17 @@ export async function expectStageRule(section: Locator, paper = false): Promise<
 		.poll(() =>
 			rule.evaluate((element, narrow) => {
 				const style = getComputedStyle(element);
-				return narrow
-					? element.getBoundingClientRect().height === 4
-					: parseFloat(style.borderTopWidth) === 4 || /(?:^|\s)4px(?:\s|,)/.test(style.boxShadow);
+				// On screen, a 1 px ground-colored gap is above the rule. It keeps the start ring below
+				// the stage header. The narrow rule paints its content box below a 1 px top padding.
+				// The wide rule is a 5 px inset shadow below a 1 px ground shadow.
+				// In forced colors, a 4 px top border is the rule.
+				if (parseFloat(style.borderTopWidth) === 4) return true;
+				if (narrow)
+					return element.getBoundingClientRect().height - parseFloat(style.paddingTop) === 4;
+				const insets = [...style.boxShadow.matchAll(/0px (\d+)px 0px 0px inset/g)].map((match) =>
+					Number(match[1])
+				);
+				return insets[0] === 1 && insets[1] === 5;
 			}, narrow)
 		)
 		.toBe(true);
@@ -1661,6 +1669,14 @@ export async function expectStageRule(section: Locator, paper = false): Promise<
 	expect(shape.fill).not.toBe('rgba(0, 0, 0, 0)');
 	expect(shape.outline).not.toBe(shape.fill);
 	expect(shape.outlineWidth).toBeGreaterThan(0);
+	if (!paper) {
+		// The sticky stage header paints above the rule. It must not cover any part of the ring.
+		const overlap = await ring.evaluate((element) => {
+			const header = element.closest('[data-testid="stage"]')!.querySelector(':scope > header')!;
+			return header.getBoundingClientRect().bottom - element.getBoundingClientRect().top;
+		});
+		expect(overlap).toBeLessThanOrEqual(0.1);
+	}
 	if (!shape.forced) {
 		const fillTarget = ring.locator('circle');
 		if (await fillTarget.count())

@@ -88,8 +88,11 @@
 	// From 640 px up, the table does not scroll, so the cells stick below the stage header.
 	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate rule sticks instead.
 	// In forced-colors mode shadows are removed, so borders take over.
+	// The rule starts 1 px below the cell top. The start ring extends 1 px above the rule, and the
+	// sticky stage header paints above the cell. Thus the gap keeps the ring below the header.
+	// The header has 1 px less bottom padding, so the rule stays in the same position.
 	const headCell =
-		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_4px_0_var(--stage-band),inset_0_-1px_0_var(--border)] @min-[640px]:forced-colors:border-t-4 forced-colors:border-b';
+		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] @min-[640px]:pt-[9px] @min-[640px]:shadow-[inset_0_1px_0_var(--background),inset_0_5px_0_var(--stage-band),inset_0_-1px_0_var(--border)] @min-[640px]:forced-colors:border-t-4 forced-colors:border-b';
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -115,7 +118,7 @@
 >
 	<header
 		bind:offsetHeight={headerHeight}
-		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px))] z-25 flex flex-wrap items-center gap-x-2 gap-y-1 bg-background pb-2"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px))] z-25 flex flex-wrap items-center gap-x-2 gap-y-1 bg-background pb-[7px]"
 	>
 		<!-- Not a <button>: svelte-dnd-action ignores keyboard drag on elements with a "disabled" property. -->
 		<div
@@ -195,11 +198,14 @@
 	</header>
 
 	<!-- Below 640 px only: the rule sticks here, because the header cells cannot stick in the scrolling wrapper. -->
+	<!-- The 1 px top padding is the ground-colored gap that keeps the start ring below the stage header. -->
 	<div
 		aria-hidden="true"
 		data-testid="stage-band"
-		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-1 @min-[640px]:hidden forced-colors:border-t-4"
-		style="background: {stageColorVar(stage.color)}"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-[5px] pt-px @min-[640px]:hidden forced-colors:border-t-4 forced-colors:pt-0"
+		style="background: linear-gradient({stageColorVar(stage.color)}, {stageColorVar(
+			stage.color
+		)}) content-box, var(--background)"
 	>
 		<StageRuleRing color={stageColorVar(stage.color)} />
 	</div>
@@ -214,7 +220,7 @@
 		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
 	>
 		<table
-			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:5px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
+			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:6px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
 			aria-label={stageName}
 		>
 			<colgroup>
@@ -339,7 +345,7 @@
 	@media (forced-colors: active) {
 		thead th:first-child :global(.stage-rule-ring),
 		[data-testid='stage-band'] :global(.stage-rule-ring) {
-			top: -5px;
+			top: -4px;
 		}
 	}
 
