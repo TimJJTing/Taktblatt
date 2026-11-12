@@ -25,6 +25,8 @@ import {
 	writeStoredPlan,
 	setTaskStatus,
 	openLinePlan,
+	openRoutePlan,
+	ganttRow,
 	openContinuationPlan,
 	expectCoveredCrossing,
 	expectLocalTap,
@@ -1527,4 +1529,26 @@ test('Preview and direct A4 and Letter PDFs keep solid break signs and cycle cas
 		await page.reload();
 		await expect(page.getByTestId('plan-heading')).toBeVisible();
 	}
+});
+
+test.describe('route paper isolation', () => {
+	test.use({ hasTouch: true });
+	test('Preview keeps normal status paint while the workspace route is active', async ({
+		page
+	}) => {
+		await openRoutePlan(page);
+		await ganttRow(page, 'Route parent').getByTestId('gantt-bar').tap();
+		await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
+		await expect(page.locator('[data-route-layer="ink"]')).not.toHaveCount(0);
+		// Menu clicks use the mouse. They preserve the touch candidate.
+		const preview = await openPreview(page);
+		await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
+		await expect(preview.getByTestId('sheet').first()).toBeVisible();
+		await expect(preview.locator('[data-route], [data-route-layer]')).toHaveCount(0);
+		const satisfied = preview
+			.locator('[data-testid="sheet-gantt-dependency"][data-from="up"][data-to="parent"]')
+			.first();
+		await expect(satisfied).toBeAttached();
+		await expectTokenPaint(satisfied, 'stroke', '--color-paper-ink-3', 0.4, true);
+	});
 });

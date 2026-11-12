@@ -42,6 +42,8 @@ export interface EdgeGeom extends EdgeRef {
 }
 
 export interface Junction {
+	// Stub: slice 4 implementation pending.
+	edges?: readonly string[];
 	key: string;
 	trunk: string;
 	point: Pt;

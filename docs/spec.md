@@ -456,6 +456,29 @@ The app keeps the expanded tasks, the Timeline settings and the layout settings 
   - The pinned section does not cover the Work plan content. In split view, sticky stage headers, table headers and label jumps in the Work plan use the top of the Work plan pane as their offset. With tabs, they use the bottom of the Timeline section.
   - The pin state does not change the sheets, pagination, Preview or print.
 
+#### Route focus
+
+- Mouse hover on a task line, point, Gantt label row or Work plan row lights its dependency route after 120 ms. Leaving the target clears its hover route at once. A different target starts a new delay.
+- Keyboard focus on a task line, point or Gantt label row lights its route at once. A Gantt focus target must match `:focus-visible`. Any focus inside a Work plan row also lights its route at once. This includes edit fields.
+- Focus inside floating content opened from a Work plan row counts as focus in that row. A popover or select belongs to its trigger's row, also when its content is in a portal outside the row. Moving focus between the row and its floating content keeps the row's route. Closing the content keeps the route if focus returns to that row; focus outside both clears that row's focus route.
+- A touch tap on a task line or point toggles its route at once. Touch leave does not clear it. A second tap on the same mark, a tap elsewhere or Esc clears the touch route. A touch tap on a label keeps its one-tap jump to the Work plan.
+- The open task dialog has first priority. Keyboard focus has next priority: a Gantt target that matches `:focus-visible`, or Work plan row focus caused by keyboard input. Below these, use the newest of hover, touch and Work plan row focus caused by pointer input. Active hover overrides pointer-caused row focus. When hover leaves, the route returns to the row if it still has focus. The dialog route stays until the dialog closes. After it closes, resolve the current input targets. Keyboard navigation between fields in one row uses keyboard priority. A key that does not move focus does not change that priority.
+- Esc clears only hover, touch and the pending hover timer. It never clears a focus route, including pointer-caused row focus. It does not move focus or stop an edit control or dialog from handling Esc.
+- Route focus does not change the immediate linked highlight or its scroll behavior. Route focus itself does not scroll.
+- The route follows effective dependencies in both directions. It includes inherited dependencies and stops each walk at a visited task. Cycles do not stop route focus.
+- A collapsed parent shows the union of its own route and the routes of all its hidden subtasks. A hidden subtask uses its visible parent row as its proxy. Expansion shows each task's own route again.
+- A drawn connector lights only when one of the dependency pairs that it represents belongs to one side of a focus task's route. A shortcut from the upstream side to the downstream side stays unlit. Route focus does not add connectors that the chart otherwise omits. Refer to ADR 19 for the algorithm.
+- If the route has no upstream or downstream tasks, the chart keeps its normal paint. It has no route dimming or lit overlay. The linked highlight still works.
+- The route updates when dependencies, dates, status or expanded rows change. It also updates while focus stays inside a Work plan edit field. If an input target's row is removed, clear its stale hover, touch or focus input, even if the task still exists. Removing a task clears its input and pending hover timer. Switching plans clears all route input. Undo does not restore cleared input.
+- Off-route task lines, station dots, taps and base connectors use one opaque 30 % color mix with the ground. For task lines and dots, use the stage color before the status or subtask mix. Do not multiply dimming levels or use element opacity.
+- Labels, ready lights, bands, the Today line and milestones never dim. Cycle connectors keep their warning color, dotted form and ground casing, also outside the route.
+- Lit noncycle connectors use full ink above base connectors and below cycle connectors. A separate 4 px ground casing lies below each lit noncycle connector. A satisfied connector on the route shows full ink. A lit cycle keeps its dotted warning form and existing casing. It gets no ink overlay. Base connector elements keep their identity, parent and order when route focus changes.
+- A junction ring on a lit connector uses full ink. An off-route ring uses one 30 % mix of secondary ink with the ground. A tap follows its source connector membership. Ground-filled holes stay opaque.
+- Route colors fade through `motionDuration(150)`. Reduced motion makes the fade immediate. The 120 ms pointer intent delay stays.
+- In forced colors, lit noncycle connectors, junction rings and taps use `Highlight`. Their casings and holes use `Canvas`. Other marks keep their normal system-color paint. Cycle connectors keep their warning treatment and distinct dotted form. Do not apply route color mixes in this mode.
+- Preview and print never apply route dimming or lit overlays. They keep the normal status paint. Shared signs use their `still` variant.
+- Route focus is visual only. Accessible names, descriptions and focus outlines do not change. Overlays and their casings are hidden from assistive technology. Route input is transient and is not saved in the plan or undo history.
+
 ### 5.5 Stage overview
 
 - The number of cards in a row depends on the width of the Stage overview section, not the viewport: three cards from 720 px, two cards from 480 px, one card below 480 px. More cards go to the next row. Cards in a row have the same height. The sheets keep three cards for each row.
@@ -682,14 +705,6 @@ Forward ports on the same row use a straight route. A hook at the left chart edg
 Riser slots keep their pitch spacing near the right chart edge. A riser can lie left of the out port inside the source task line. Its first segment runs backward under the task line because connectors are drawn below task lines. A tap marks where that riser leaves from under the source task line. It stays with the source row, above the line and below the station dots, inside the timeline area. This tap is exempt from ordinary junction clearance.
 
 Horizontal runs reserve their actual vertical position across both target sides. A third lane is tried before overflow. Hooks try the boundary lane first. Direct entries need no gutter lane. Hooks reserve their full run to the entry stub. A branch reserves the combined runs of all its sources. If all three lanes have conflicts, the branch reuses the near lane.
-
-## Future: route focus
-
-Route focus follows effective dependencies in both directions, including inherited dependencies. Each walk stops when it reaches a visited task. Cycles do not prevent the route from being shown. A connector belongs to the route when both ends are upstream of the focus or both ends are downstream, including the focused task on either side.
-
-Lit connectors paint above base connectors and below cycle connectors. A lit route has a 4 px ground casing below it. Base connectors stay in place when an overlay appears.
-
-Route focus uses a single 30 % color mix with the ground for off-route marks, including finished marks. It does not multiply this level by the status level. Preview and print never apply route dimming.
 
 ## Future: Kanban
 

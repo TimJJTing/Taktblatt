@@ -7,12 +7,22 @@
 	import { MemoryStorage } from '#lib/state/memory-storage.ts';
 	import Gantt from './Gantt.svelte';
 
-	let { workspace }: { workspace: Workspace } = $props();
+	let {
+		workspace,
+		editing = new EditingState(),
+		viewer: suppliedViewer
+	}: {
+		workspace: Workspace;
+		editing?: EditingState;
+		viewer?: ViewerState;
+	} = $props();
 	setWorkspace(untrack(() => workspace));
-	const viewer = new ViewerState(new MemoryStorage());
-	untrack(() => viewer.toggleExpanded(workspace.plan.id, 'parent'));
+	const viewer = untrack(() => suppliedViewer ?? new ViewerState(new MemoryStorage()));
+	untrack(() => {
+		if (!suppliedViewer) viewer.toggleExpanded(workspace.plan.id, 'parent');
+	});
 	setViewer(viewer);
-	setEditing(new EditingState());
+	setEditing(untrack(() => editing));
 </script>
 
 <Tooltip.Provider>

@@ -9,7 +9,12 @@
 		muted: boolean;
 		width: number;
 		strokeWidth?: number;
+		// Stub: slice 4 implementation pending.
+		tween?: GeometryTween<{ x: number; y: number }[]>;
+		// Stub: slice 4 implementation pending.
+		route?: 'lit' | 'off' | null;
 	}
+	// eslint-disable-next-line svelte/no-unused-props -- Stub: slice 4 implementation pending.
 	let { line, muted, width, strokeWidth = 2 }: Props = $props();
 	const points = (edge: EdgeGeom, extent: number) =>
 		edge.points.map((p) => ({ x: p.x.f * extent + p.x.px, y: p.y.px }));

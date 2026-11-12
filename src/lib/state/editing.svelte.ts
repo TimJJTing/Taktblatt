@@ -4,6 +4,7 @@
  */
 import { getContext, setContext } from 'svelte';
 import { motionDuration } from '#lib/motion.ts';
+import { RouteFocusState } from './route-focus.svelte.ts';
 
 /** The duration of the row flash, before motionDuration. The row-flash class uses it. */
 export const FLASH_MS = 1200;
@@ -18,6 +19,8 @@ function afterNextFrame(fn: () => void) {
 }
 
 export class EditingState {
+	// Stub: slice 4 implementation pending.
+	readonly routeFocus = new RouteFocusState();
 	/** The id of a new task. Its title starts in edit mode. */
 	newTaskId = $state<string | null>(null);
 	/** The id of a new remark section. Its title starts in edit mode. */

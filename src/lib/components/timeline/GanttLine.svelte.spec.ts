@@ -208,4 +208,30 @@ describe('GanttLine geometry and cycle paint', () => {
 		frame(120);
 		expect(casing.getAttribute('d')).toBe(path.getAttribute('d'));
 	});
+
+	it('dims an off-route satisfied base once and preserves cycle warning attributes', async () => {
+		const screen = await render(GanttLineTest, { line: line(), muted: true, route: 'off' });
+		frame(300);
+		const path = screen.container.querySelector<SVGPathElement>(
+			'[data-testid="gantt-dependency"]'
+		)!;
+		expect(path.getAttribute('data-route')).toBe('off');
+		expect(getComputedStyle(path).opacity).toBe('1');
+		const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		path.parentElement!.append(probe);
+		probe.style.stroke = 'color-mix(in oklab, currentColor 30%, var(--background, #FFFFFF))';
+		expect(getComputedStyle(path).stroke).toBe(getComputedStyle(probe).stroke);
+		probe.remove();
+		await screen.rerender({ line: line(0, true), route: 'off' });
+		frame(600);
+		await expect.poll(() => path.getAnimations().length).toBe(0);
+		expect(path.hasAttribute('data-route')).toBe(false);
+		expect(getComputedStyle(path).strokeDasharray.replaceAll(',', '')).toBe('1px 4px');
+		const warning = getComputedStyle(path).stroke;
+		await screen.rerender({ route: 'lit' });
+		frame(900);
+		expect(path.getAttribute('data-route')).toBe('lit');
+		expect(getComputedStyle(path).stroke).toBe(warning);
+		expect(screen.container.querySelectorAll('[data-route-layer="ink"]')).toHaveLength(0);
+	});
 });

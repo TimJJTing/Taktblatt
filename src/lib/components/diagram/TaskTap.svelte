@@ -2,12 +2,20 @@
 	import { untrack } from 'svelte';
 	import { GeometryTween } from './geometry-tween.svelte.ts';
 	import type { Junction } from '#lib/scene/types.ts';
+	// eslint-disable-next-line svelte/no-unused-props -- Stub: slice 4 implementation pending.
 	let {
 		tap,
 		width,
 		left,
 		still = false
-	}: { tap: Junction; width: number; left: number; still?: boolean } = $props();
+	}: {
+		tap: Junction;
+		width: number;
+		left: number;
+		still?: boolean;
+		// Stub: slice 4 implementation pending.
+		route?: 'lit' | 'off' | null;
+	} = $props();
 	const x = () => tap.point.x.f * width + tap.point.x.px;
 	const pos = new GeometryTween(
 		untrack(x),

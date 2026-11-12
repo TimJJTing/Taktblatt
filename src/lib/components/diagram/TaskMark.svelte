@@ -17,7 +17,10 @@
 		taps?: readonly Junction[];
 		still?: boolean;
 		subtask?: boolean;
+		// Stub: slice 4 implementation pending.
+		offRoute?: boolean;
 	}
+	// eslint-disable-next-line svelte/no-unused-props -- Stub: slice 4 implementation pending.
 	let {
 		geom,
 		box,

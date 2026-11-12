@@ -11,11 +11,13 @@ import {
 	writeStoredPlan,
 	openMenuWithKeyboard,
 	openLinePlan,
+	openRoutePlan,
 	ganttRow,
 	expectStationStatus,
 	setTaskStatus,
 	row,
-	samplePaint
+	samplePaint,
+	expectCyclePaint
 } from './helpers.ts';
 
 const menuButton = (page: Page) => page.getByTestId('app-menu');
@@ -353,3 +355,72 @@ for (const [system, app] of [
 		await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'canceled');
 	});
 }
+
+test('forced colors use Highlight and Canvas for route signs while cycles keep their form', async ({
+	page
+}) => {
+	await openRoutePlan(page);
+	await writeStoredPlan(page, (plan) => {
+		for (const task of plan.tasks) {
+			if (task.id === 'parent' || task.parentId === 'parent') {
+				task.start = '2027-01-20';
+				task.end = '2027-02-05';
+			}
+		}
+	});
+	await page.emulateMedia({ forcedColors: 'active' });
+	await ganttRow(page, 'Route parent').getByTestId('gantt-bar').hover();
+	await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
+	const ink = page.locator('[data-route-layer="ink"]').first();
+	const casing = page.locator('[data-route-layer="casing"]').first();
+	await expect(ink).toBeAttached();
+	for (const [path, token] of [
+		[ink, 'Highlight'],
+		[casing, 'Canvas']
+	] as const) {
+		await expect
+			.poll(async () => {
+				const paint = await samplePaint(path, 'stroke', token);
+				return paint.actual;
+			})
+			.toEqual((await samplePaint(path, 'stroke', token)).expected);
+		await expect(path).toHaveCSS('forced-color-adjust', 'none');
+	}
+	for (const sign of [
+		page.locator('[data-testid="gantt-junction"][data-route="lit"]').first(),
+		page.locator('[data-testid="gantt-tap"][data-route="lit"]').first()
+	]) {
+		await expect(sign).toBeAttached();
+		const circle = sign.locator('circle');
+		for (const [property, token] of [
+			['stroke', 'Highlight'],
+			['fill', 'Canvas']
+		] as const) {
+			await expect
+				.poll(() =>
+					circle.evaluate(
+						(element, { property, token }) => {
+							const probe = document.createElement('span');
+							probe.style.cssText = `forced-color-adjust:none;color:${token}`;
+							element.parentElement!.append(probe);
+							const expected = getComputedStyle(probe).color;
+							probe.remove();
+							return getComputedStyle(element).getPropertyValue(property) === expected;
+						},
+						{ property, token }
+					)
+				)
+				.toBe(true);
+		}
+	}
+	const ordinary = ganttRow(page, 'Route unrelated').locator('[data-gantt-line]');
+	const paint = await samplePaint(ordinary, 'background-color', 'CanvasText');
+	expect(paint.actual).toEqual(paint.expected);
+	const cycles = page.locator('[data-testid="gantt-dependency"][data-cycle="true"]');
+	await expect(cycles).toHaveCount(2);
+	for (const cycle of await cycles.all()) {
+		await expectCyclePaint(cycle);
+		await expect(cycle).not.toHaveAttribute('data-route');
+	}
+	await expect(page.locator('[data-route-layer="ink"][data-overlay-for^="cycle-"]')).toHaveCount(0);
+});

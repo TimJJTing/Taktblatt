@@ -69,3 +69,54 @@ describe('EditingState', () => {
 		expect(editing.flashId).toBeNull();
 	});
 });
+
+describe('EditingState route ownership', () => {
+	afterEach(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	});
+
+	it('gives the dialog priority, clears pointer fallback and ignores pointer input while open', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.focusEnter('field', 'row-field', 'keyboard');
+		editing.routeFocus.toggleTouch('touch', 'touch-mark');
+		editing.routeFocus.hoverEnter('pending', 'pending-mark');
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		editing.routeFocus.hoverEnter('other', 'other-mark');
+		editing.routeFocus.toggleTouch('other', 'other-mark');
+		vi.advanceTimersByTime(120);
+		expect(editing.routeId).toBe('dialog');
+		editing.detailsTaskId = null;
+		expect(editing.routeId).toBe('field');
+		editing.routeFocus.focusLeave('row-field');
+		expect(editing.routeId).toBeNull();
+	});
+
+	it('cancels an unopened hover intent so closing details cannot activate it later', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.hoverEnter('pending', 'pending-mark');
+		vi.advanceTimersByTime(119);
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		editing.detailsTaskId = null;
+		vi.advanceTimersByTime(500);
+		expect(editing.routeId).toBeNull();
+	});
+
+	it('resolves route input independently of the immediate linked highlight', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.highlightId = 'linked';
+		editing.routeFocus.hoverEnter('route', 'bar-route');
+		expect(editing.highlightId).toBe('linked');
+		vi.advanceTimersByTime(120);
+		expect(editing.routeId).toBe('route');
+		expect(editing.highlightId).toBe('linked');
+		editing.routeFocus.clearPointer();
+		expect(editing.routeId).toBeNull();
+		expect(editing.highlightId).toBe('linked');
+	});
+});

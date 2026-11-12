@@ -1,5 +1,31 @@
 /** Dependency routes use the effective graph, including inherited parent dependencies. */
 import { effectiveDependencies, type TaskIndex } from './derive.ts';
+import type { DependencyLine, GanttRow } from './gantt.ts';
+
+// Stub: slice 4 implementation pending.
+export interface EffectiveDependencyGraph {
+	upstream: ReadonlyMap<string, ReadonlySet<string>>;
+	downstream: ReadonlyMap<string, ReadonlySet<string>>;
+	pairs: readonly (readonly [string, string])[];
+}
+
+// Stub: slice 4 implementation pending.
+export function effectiveDependencyGraph(_index: TaskIndex): EffectiveDependencyGraph {
+	void _index;
+	return { upstream: new Map(), downstream: new Map(), pairs: [] };
+}
+
+// Stub: slice 4 implementation pending.
+export function routeFocusModel(
+	_graph: EffectiveDependencyGraph,
+	_index: TaskIndex,
+	_rows: readonly GanttRow[],
+	_lines: readonly DependencyLine[],
+	_focusId: string | null
+): { active: boolean; onRouteRowIds: Set<string>; litLineKeys: Set<string> } {
+	void [_graph, _index, _rows, _lines, _focusId];
+	return { active: false, onRouteRowIds: new Set(), litLineKeys: new Set() };
+}
 
 export interface DependencyRoute {
 	upstream: Set<string>;

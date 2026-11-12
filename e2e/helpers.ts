@@ -1802,3 +1802,83 @@ export async function openContinuationPlan(page: Page): Promise<void> {
 		}));
 	});
 }
+
+/** Load the branching route fixture. Keep route setup in one place. */
+export async function openRoutePlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-01-31' };
+		plan.stages = [{ ...plan.stages[0], color: 'blue', description: '' }];
+		plan.bands = [];
+		plan.milestones = [];
+		const base = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			owners: [],
+			deliverable: '',
+			note: '',
+			status: 'todo',
+			dependsOn: [],
+			start: '2027-01-02',
+			end: '2027-01-05'
+		};
+		plan.tasks = [
+			{ ...base, id: 'up', title: 'Route upstream', status: 'done' },
+			{ ...base, id: 'parent', title: 'Route parent', dependsOn: ['up'] },
+			{ ...base, id: 'child-a', title: 'Route child A', parentId: 'parent' },
+			{ ...base, id: 'child-b', title: 'Route child B', parentId: 'parent' },
+			{
+				...base,
+				id: 'down',
+				title: 'Route downstream',
+				dependsOn: ['parent', 'child-a', 'up'],
+				start: '2027-01-10',
+				end: '2027-01-15'
+			},
+			{
+				...base,
+				id: 'branch',
+				title: 'Route branch',
+				dependsOn: ['child-b'],
+				start: '2027-01-12',
+				end: '2027-01-17'
+			},
+			{
+				...base,
+				id: 'point',
+				title: 'Route point',
+				dependsOn: ['down'],
+				start: '2027-01-20',
+				end: null
+			},
+			{ ...base, id: 'other', title: 'Route unrelated' },
+			{ ...base, id: 'cycle-a', title: 'Route cycle A', dependsOn: ['cycle-b'] },
+			{
+				...base,
+				id: 'cycle-b',
+				title: 'Route cycle B',
+				dependsOn: ['cycle-a'],
+				start: '2027-01-21',
+				end: '2027-01-25'
+			}
+		].map((task, i) => ({
+			...task,
+			createdAt: new Date(Date.UTC(2027, 0, 1, 0, 0, i)).toISOString()
+		}));
+	});
+}
+
+/** Read row and edge route membership without including outgoing decorations. */
+export async function routeMembership(page: Page) {
+	return page.evaluate(() => ({
+		rows: [...document.querySelectorAll<HTMLElement>('[data-testid="gantt-row"][data-route="lit"]')]
+			.map((e) => e.dataset.taskId)
+			.sort(),
+		lines: [
+			...document.querySelectorAll<SVGElement>('[data-testid="gantt-dependency"][data-route="lit"]')
+		]
+			.map((e) => `${e.dataset.from}->${e.dataset.to}`)
+			.sort()
+	}));
+}
