@@ -241,6 +241,8 @@ The viewer state is for one browser only. It is not in the plan file. The export
 
 - the UI language;
 - the screen theme (`light`, `dark` or `system`);
+- the selected diagram view, shared by all plans;
+- the diagrams selected for print, shared by all plans;
 - the expanded tasks, for each plan (shared by the Gantt and the table);
 - the pinned state and the height of the Timeline section;
 - whether the Timeline legends are collapsed in split view;
@@ -252,6 +254,10 @@ The viewer state is for one browser only. It is not in the plan file. The export
 The app keeps the expanded tasks, the Timeline settings and the layout settings as `expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab`, `timelineCollapsed` and `timelineKeepOpen` under the key `taktblatt:ui`. `splitRatio` is the width of the left pane as a fraction of the split width, from 0 to 1. The default is 0.5. `narrowTab` is `plan` (the Overview tab) or `work-plan`. The default is `plan`. `timelineCollapsed` is a boolean. It records only a collapse by the user, not an automatic collapse (section 5.4). The default is `false`. `timelineKeepOpen` is a boolean. The default is `false`. An invalid or absent value of these four fields gives its default and does not reset the other fields. The app ignores the older field `narrowLegendsCollapsed` and does not write it again. The UI language is under `taktblatt:locale`. The screen theme is under `taktblatt:theme`.
 
 `timelineLegendsCollapsed` is the legend state in split view. An explicit stored boolean for it takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the split view legends start expanded and the Timeline section starts unpinned in split view. Unreadable or invalid viewer data gives these defaults.
+
+`diagramView` is the global diagram choice under `taktblatt:ui`. Its default is `gantt`. The view ids are `gantt`, `route-map` and `kanban`. Only registered views are available. An absent, invalid, unknown or unregistered value resolves to `gantt`. This fallback does not reset other viewer fields. A plan change, import or duplication does not change the choice. Refer to section 5.13.
+
+`printDiagrams` is the global print selection under `taktblatt:ui`. Its default is `[gantt]`. It is independent of `diagramView`. An absent or non-array value, including `null`, a scalar or an object, gives the default. In an array, retain only known registered string ids. Remove duplicate, unknown and unregistered ids. Use Gantt if no valid selection remains. This includes a stored Route map or Kanban selection when only Gantt is registered. These fallbacks preserve all other valid viewer preferences. Store the effective selection in print order. Refer to section 7. Neither field changes plan data, backup data, export data or undo history. Neither field requires a plan schema change. Both choices work after a reload, also offline.
 
 ### 4.5 Undo
 
@@ -603,6 +609,58 @@ The app shows its own overlay scrollbars. They look and work the same in all bro
 - **Print:** Preview sheets and printed sheets show no thumbs. The Preview dialog shows thumbs on its own scroll area, as other dialogs do.
 - **Parity:** the thumbs have the same look, sizes, timing and behavior in Chromium, Firefox and Safari (WebKit), on macOS, Windows, Linux, iOS and Android, in light and dark themes, and in the installed PWA, also offline. A system setting to always show native scrollbars does not show native scrollbars in these areas.
 
+### 5.13 Diagram views
+
+The Timeline section contains one diagram stage. It can show **Gantt**, **Route map** or **Kanban** when that view is registered. The section keeps its Timeline heading. Refer to [ADR 20](adr/0020-diagram-views.md). ADR 20 is Proposed until implementation is accepted.
+
+#### View switch
+
+- Put the view switch in the Timeline heading row, after the heading and before the pin and height controls. Use the same position in split view and with tabs. Show the choices in this order: Gantt, Route map, Kanban. Show only registered views.
+- When only Gantt is registered, hide the switch. It takes no space and has no focus stop. Keep the Gantt controls, geometry, legends, scroll behavior and interactions unchanged.
+- The switch is one radio group with the accessible name "Diagram view". Each choice has a visible, localized name and an `aria-checked` state. Only the selected choice is in the Tab order. Left and Up arrows select the previous choice. Right and Down arrows select the next choice. The arrows wrap. Home and End select the first and last choices. Enter, Space, a click or a tap selects a choice. A choice controls the named diagram region.
+- Hints use `Hint.svelte` (section 5.10). Decorative icons are hidden from assistive technology. Do not use native `title` attributes. Keep names and selection clear in forced colors.
+- All three view names, shared labels, region names and announcements come from messages in all four locale catalogs. Keep punctuation, word order and name substitution in messages.
+- The switch fits the available width. The heading controls can wrap on a narrow screen. They do not cause page overflow or cover the pin, height or collapse controls. Each choice has a target at least 24 px high.
+- Save the choice in `diagramView` (section 4.4). Gantt is always registered and is the fallback for an unavailable choice. Changing the view does not change the plan, expand state, open task dialog or undo history.
+
+#### Stage, identity and motion
+
+The motion rules below define the final Appendix C behavior. The stage implements the transition and scroll-container hooks. The FLIP flight layer and cross-router connector interpolation are not implemented yet. The hooks do not count as those implementations.
+
+- `DiagramStage` replaces the direct Gantt mount in the Timeline body. A registry supplies each view's screen renderer, scene adapter and paper adapter. Each view registers through its own module. Adding a view does not require changes to the switch, stage or shared print components.
+- One task has one stable task id in every view. Keep its station dot, stage color, status form and stage badge consistent (section 9.1). Task nodes are HTML. Edges and guides can be SVG. Each view supplies its intended task ids and a focus target for each visible task.
+- A view change uses one ease-out transition of `motionDuration(VIEW_MOTION_MS)`, with no stagger. `VIEW_MOTION_MS` is 300 ms. Tween the task box position, width, height and radius by task id. The station dot is the shared position cue. Fade outgoing view content during the first 40 % and incoming content during the last 40 %.
+- Tween connector points when both views use the same router. Otherwise fade the connectors out, move them and fade them in. Use a FLIP flight layer only when the source and destination are in different scroll containers. Flight copies are decorative and cannot receive input or focus. Do not use the View Transitions API.
+- A second switch continues from the current geometry. It does not jump to the first switch's start or leave an outgoing layer behind. Width measurement stays synchronous at mount. ResizeObserver applies a changed width directly. Width-only Gantt rerouting keeps the immediate update of section 8.
+- A task that has no destination node fades out in place. A subtask that becomes visible starts at its parent box. A parent can fade out while its subtask cards emerge from that box. A task with no dates uses its label position as the source position.
+- Reduced motion swaps views at once. It leaves no flight layer, delayed focus transfer or content fade. Preview and print have no view-change animation.
+
+#### View adapter motion hooks
+
+- Read current rendered geometry by task id. Supply a box (`x`, `y`, `w`, `h`, `radius`) or `null`, a station center and radius or `null`, and the label position. Sample running tweens at the current frame. Target scene boxes alone do not satisfy this contract.
+- Convert view-local points and boxes into stage CSS pixels. In the Gantt, convert the date area and sticky label area separately. Account for their origins, the stage origin and current scroll offsets. Refresh conversion on scroll, resize and each transition capture.
+- A task with no scene box retains its rendered label position. Use that position as its transition anchor. Do not create a station for a label-only task.
+- For an emerging subtask with no outgoing record, provide its parent id and the parent's current box and station anchor. If no parent box exists, use its label position. If neither is rendered, use the destination position and fade in. This origin does not change focus fallback.
+- Expose a router id and a pairwise compatibility flag. The flag is true only when both views agree on connector point counts and meanings. Supply current rendered connector points for compatible retargeting. A false flag identifies the deferred cross-router path.
+- Expose capture, apply, finish and cancel hooks. Capture the current frame before canceling interrupted motion. Apply converts stage geometry to the destination space. Finish and cancel clear temporary state. Expose each task's scroll-container identity, viewport bounds, current scroll offsets and focus-reveal hook. Mark transition and reveal scrolling as app scrolling.
+- Each view marks its task box, label, parent id and identity station with the `data-diagram-*` attributes of the view contract. The value of each of these marks is a task id. Each view also marks its scroll containers with an empty scroller mark, so the Timeline keeps their scroll offsets during a height transition. The stage reads the corner radius of a task box from the marked element. The stage reads those rendered nodes for current geometry, coordinate conversion, parent origins, lifecycle and scroll hooks. Removed nodes have no record. Preserve immediate width-only reroutes.
+
+#### Focus and route focus
+
+- If focus is on a task node when the view changes, move it to the same task id in the destination view. Reveal that target inside the diagram without hiding it under pinned content. Do not substitute a parent for a missing task. If that task has no focus target, move focus to the selected choice in the switch.
+- If the user changes the view from the switch, focus stays on that choice. Do not take focus from another control, a Work plan edit field or an open dialog. Move focus as soon as the destination has mounted, in the same task as the change. No user focus action can come between the change and the transfer.
+- One polite live region announces the localized view name after an effective view change, for example "Route map view". Announce only the final choice after an interrupted switch. Do not announce the initial mount or an unchanged choice. A fallback from a task to the switch uses this same announcement.
+- Route focus uses the single owner in `EditingState` (section 5.4 and ADR 19). A diagram uses `view(() => intendedIds)`, its `register()` cleanup and its scoped `target` action. It uses `data-route-target` with the task id and the existing keyboard and touch attributes. It does not add document listeners, input timers or another route owner.
+- Of the diagram targets, only the incoming view's intended targets accept new route input. Reconcile the outgoing intended ids before its exit DOM disappears. An outgoing or decorative node cannot retain stale hover, touch or focus input. Remove only that view's registrations on teardown. Do not dispose the shared owner. Work plan input and floating-content ownership continue to work with any diagram or without a mounted diagram.
+- Resolve route focus from current input after the switch. A task-id focus transfer becomes normal focus input in the new view. Do not copy outgoing hover or touch candidates to the new view. Keep the priority, timing, effective-dependency projection and clearing rules of section 5.4. Each view projects the route onto its own visible nodes and drawn edges. Route focus does not add missing connectors. Kanban's connector visibility belongs to its view specification.
+
+#### Layout and view actions
+
+- Pin, height, legends, collapse and Keep open belong to the Timeline section. Keep one set of these settings across views. The stored names `ganttPinned` and `ganttHeight` keep their existing meaning for the whole section. A view change does not reset them or save a separate height.
+- In split view, the pin and height limits of section 5.4 apply to the active diagram. When unpinned, a change in natural section height transitions through `motionDuration(ms)`. Diagram content scrolls inside the section when it does not fit. Keep focus visible.
+- With tabs, the same diagram stays above both Overview and Work plan. A workspace tab change does not select another diagram or create the stage again. Keep the existing handle, collapsed strip, legend rail, automatic collapse and focus rules. A diagram switch or a focus reveal is an app change, not a user scroll for automatic collapse or floating-island size.
+- A view can expose task actions through the existing command layer. The shared view contract does not require every view to be read-only and does not block later drag commands. The first Kanban view is read-only. Change status in the Work plan or task dialog. Drag between columns is later work.
+
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
@@ -630,21 +688,28 @@ Printed work tables use the Status header and the same four status icons in pape
 - The sheets use their own print blocks in `src/lib/components/print/`. The print blocks read the same store and the same domain helpers as the workspace. Refer to [ADR 8](adr/0008-print-blocks.md).
 - **Menu → Print…** opens the preview as a full-screen dialog. **Esc** closes it. The focus goes back to the Menu button. The workspace behind it is inert. No control in the app header or in the menus opens the print dialog directly. The print dialog opens from the **Print** button of the preview or from **Cmd/Ctrl+P**.
 - The preview has a **paper size** control (A4 or US Letter) and a **Print** button. The paper size is a plan setting (`paper`). The default is A4. A change is one undo step.
+- Put a **Diagrams to print** checkbox group in the Preview toolbar, after paper size and before Print. Each registered diagram has a visible, localized label. The control wraps on narrow screens and stays outside the sheets. Tab reaches each enabled checkbox. Space toggles it. The default is **Gantt only**, regardless of the active workspace view.
+- The print-group name, all three diagram names and the selection instruction use messages in all four locale catalogs. Keep punctuation and word order in messages.
+- The user can select any one, any two or all three registered diagrams. Keep at least one selected. Disable the sole selected checkbox and give the group the visible instruction "Select at least one diagram". Selecting another checkbox makes the first available again. When only Gantt is registered, hide this group and keep Gantt selected.
+- Save the choice as `printDiagrams` in local viewer state (section 4.4). A change rebuilds the Preview sheets at once, with no animation. It does not change plan data, paper size, the active workspace view or undo history. Direct print, including Cmd/Ctrl+P and the `beforeprint` fallback, uses the same stored selection.
+- Print diagrams in this fixed order: **Gantt**, **Route map**, **Kanban**. Skip unselected diagrams. The first selected diagram follows the header and objective. Finish that diagram and its legends before the next diagram starts on a new page. Put stage overview after the last diagram and its legends. Put the work plan on a new page, then remarks. Print the header, stage overview, work plan and remarks once.
+- Each selected diagram builds its own paper scene with paper metrics and its own split positions (`Scene.breaks`). Paginate each diagram at those positions. Do not use Gantt rows to split a different diagram. A continuation repeats that diagram's required heading and labels. Number all sheets in one sequence, with one total. A diagram's paper adapter can request landscape without changing the saved A4 or US Letter paper size. Its layout and repeated labels belong to that diagram's specification.
+- An orientation change always starts a new sheet. Header, stage overview, Work plan and remarks stay portrait. If the first diagram is landscape, start it on a new sheet after the header and objective. If the last diagram is landscape, start stage overview on a new portrait sheet. A diagram's legends use its orientation. These rules do not change Gantt-only pagination.
 - The **paginator** measures blocks and puts them on fixed sheets. It works the same in all browsers.
-  - Page 1 is the overview: header, objective, timeline, legends, stage overview.
+  - With the default Gantt-only selection, page 1 is the overview: header, objective, timeline, legends, stage overview. Keep the existing Gantt pagination.
   - When the Gantt has too many rows, it continues on the next pages. Each page repeats the month header. The milestone row shows on the first page only.
   - The work plan starts on a new page.
   - A stage header always stays with its first two rows (or with its only row). When a table continues on the next page, the table header repeats.
   - Remarks come after all stages.
   - Each page has the footer with "n / N".
-  - The paginator splits only between Gantt rows, table rows, rows of stage cards and rows of remark sections. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
+  - The paginator splits only at the selected diagram's split positions, or between table rows, rows of stage cards and rows of remark sections. Gantt split positions stay between rows. A block that is taller than a sheet gets its own sheet. The sheet clips the part that does not fit.
 - The labels and dates on the sheets use the UI language.
 - Complete dependency paths route after each fragment filters its rows and edges. Rows start at zero in each fragment. Only the first fragment includes the 22 px milestone row. The route uses the measured paper date-area width. Empty fragments and an unmeasured width have no connector paths.
 - Continuation positions come from one routing of the whole Gantt segment at the measured paper width. All fragments share this result. The selected riser slot and chart-edge clamp set the horizontal position. A change to paper width, date range or expanded tasks rebuilds the result. Complete dependencies still route within each fragment.
 - A dependency with both rows on a sheet connects their local ports. A dependency that crosses a sheet break has paired exit and entry stubs at the Gantt fragment edges. Each stub is 4 px long with a 2 px cross tick. Both stubs use the predecessor riser's horizontal position. Fragments between the endpoints show a pass-through at that position. The sheet break does not remove the dependency.
 - A continuation exit follows the dependency direction. It is at the bottom for a downward dependency and at the top for an upward dependency. Stubs and cross ticks are solid, including on cycles. Cycle connector bodies stay dotted and keep their ground casing.
 - A continuation source keeps one tap at the continuation riser when it leaves from under its task line. A local tap with the same identity does not add a second tap. Continuation entries reserve lanes against local connectors and other continuation trunks. Continuation junction rings require at least three path arms and the ordinary port clearance. Connectors stay within the fragment body and clear of the repeated month header. Refer to section 9.1 for the paper sizes.
-- Print (**Cmd/Ctrl+P** or the **Print** button of the preview) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. If the preview is not open, Cmd/Ctrl+P renders the sheets first and then opens the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
+- Print (**Cmd/Ctrl+P** or the **Print** button of the preview) always prints the paginated sheets with `@page { size: <paper>; margin: 0 }`. A landscape diagram uses a named page rule for the same paper size. If the preview is not open, Cmd/Ctrl+P renders the sheets first and then opens the print dialog. `beforeprint` is the fallback for other ways to print (for example the browser menu). The app removes the sheets on `afterprint` or when the print media ends, and at the next input of the user if neither comes. A render error gives an empty print, not an error page. The app never prints the workspace layout.
 - **Print expand state:** print uses the current expand state.
 - **Print today line:** the line uses the footer date. When the footer date is empty, it uses today.
 - Print has no animations, no controls and no scrollbar thumbs.

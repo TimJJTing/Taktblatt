@@ -19,6 +19,8 @@
 		subtask?: boolean;
 		route?: RoutePaint;
 		tapRoutes?: ReadonlyMap<string, RoutePaint>;
+		/** The task id for the diagram stage marks (`DIAGRAM_ATTR.station`). Absent on paper. */
+		taskId?: string;
 	}
 	let {
 		geom,
@@ -30,7 +32,8 @@
 		still = false,
 		subtask = false,
 		route = null,
-		tapRoutes
+		tapRoutes,
+		taskId
 	}: Props = $props();
 	const offRoute = $derived(route === 'off');
 	const ground = $derived(still ? '#FFFFFF' : 'var(--background, #FFFFFF)');
@@ -103,6 +106,7 @@
 		{#if station.r > 0 && (i === 0 || Math.abs(station.x - stations.current[0].x) > 1e-7 || Math.abs(station.r - stations.current[0].r) > 1e-7)}
 			<span
 				class="absolute top-1/2 flex -translate-y-1/2"
+				data-diagram-station={i === 0 ? taskId : undefined}
 				style:left={i === 0 ? '0px' : undefined}
 				style:right={i === 1 ? '0px' : undefined}
 				style:transform="translateX({i === 0

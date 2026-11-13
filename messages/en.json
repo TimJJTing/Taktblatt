@@ -301,5 +301,13 @@
 	"plans_backup_short": "Back up",
 	"menu_this_plan": "This plan",
 	"menu_print_hint": "Preview the sheets",
-	"menu_export_hint": "This plan as a file"
+	"menu_export_hint": "This plan as a file",
+	"diagram_print_group": "Diagrams to print",
+	"diagram_print_min": "Select at least one diagram",
+	"diagram_region": "{view} diagram",
+	"diagram_view_announcement": "{view} view",
+	"diagram_view_gantt": "Gantt",
+	"diagram_view_kanban": "Kanban",
+	"diagram_view_route_map": "Route map",
+	"diagram_view_switch": "Diagram view"
 }

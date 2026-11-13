@@ -24,10 +24,15 @@ import {
 	type GanttRow,
 	type MonthTick
 } from './gantt.ts';
+import { GANTT_VIEW_ID, type DiagramOrientation, type DiagramViewId } from './diagram.ts';
 import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.ts';
+
+export type { DiagramOrientation } from './diagram.ts';
 
 /** How a segment sits on the sheets. The paginator reads these values. */
 interface Placement {
+	/** The sheet orientation. Absent means portrait. An orientation change starts a new sheet. */
+	orientation?: DiagramOrientation;
 	/** The number of items that stay with the lead of the segment. */
 	keep: number;
 	/** The space above the segment, in CSS pixels. */
@@ -42,7 +47,8 @@ export interface HeaderSegment extends Placement {
 
 export interface GanttSegment extends Placement {
 	kind: 'gantt';
-	id: 'gantt';
+	/** `gantt`. The print model can prefix the id to keep it unique. */
+	id: string;
 	rows: GanttRow[];
 	lines: DependencyLine[];
 	ticks: MonthTick[];
@@ -54,7 +60,8 @@ export interface GanttSegment extends Placement {
 
 export interface LegendSegment extends Placement {
 	kind: 'legend';
-	id: 'legend-stages' | 'legend-milestones' | 'legend-bands';
+	/** For example `legend-stages`. The print model can prefix the id to keep it unique. */
+	id: string;
 	which: 'stages' | 'milestones' | 'bands';
 }
 
@@ -100,8 +107,39 @@ export interface RemarksSegment extends Placement {
 	rows: RemarkSection[][];
 }
 
+/**
+ * A generic diagram segment. A registered paper adapter builds it and renders it.
+ * `items` are the legal split positions: the paginator splits only between items.
+ * `data` is private to the adapter. The print model does not read it.
+ */
+export interface SceneSegment extends Placement {
+	kind: 'scene';
+	/** A stable id that is unique in the model, for example `route-map-scene`. */
+	id: string;
+	/** The id of the diagram view that renders the segment. */
+	diagram: DiagramViewId;
+	items: readonly unknown[];
+	data?: unknown;
+}
+
 export type Segment =
-	HeaderSegment | GanttSegment | LegendSegment | CardsSegment | StageSegment | RemarksSegment;
+	| HeaderSegment
+	| GanttSegment
+	| LegendSegment
+	| CardsSegment
+	| StageSegment
+	| RemarksSegment
+	| SceneSegment;
+
+/** The segment kinds that a diagram paper adapter can return. */
+export type DiagramSegment = GanttSegment | LegendSegment | SceneSegment;
+
+/** A diagram prepared for print: its id, orientation and segments, including its legends. */
+export interface PrintDiagram {
+	id: DiagramViewId;
+	orientation: DiagramOrientation;
+	segments: readonly DiagramSegment[];
+}
 
 /** The number of items of a segment. The paginator splits only between items. */
 export function itemCount(segment: Segment): number {
@@ -116,6 +154,8 @@ export function itemCount(segment: Segment): number {
 			return segment.rows.length;
 		case 'stage':
 			return Math.max(1, segment.rows.length);
+		case 'scene':
+			return segment.items.length;
 	}
 }
 
@@ -143,7 +183,21 @@ export function printToday(plan: Plan, today: ISODate): ISODate {
 	return plan.footer.date ?? today;
 }
 
-export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelInput): Segment[] {
+export interface PrintModelOptions extends PrintModelInput {
+	/**
+	 * The selected diagrams in print order, each prepared by its paper adapter.
+	 * The default is Gantt only.
+	 */
+	diagrams?: readonly PrintDiagram[];
+}
+
+/** The Gantt segment and its legends. The Gantt paper adapter uses this function. */
+export function ganttPrintSegments({
+	plan,
+	index,
+	isExpanded,
+	today
+}: PrintModelInput): DiagramSegment[] {
 	const win = plan.range;
 	const rows = ganttRows(
 		index,
@@ -151,8 +205,7 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 		isExpanded,
 		win
 	);
-	const segments: Segment[] = [
-		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false },
+	const segments: DiagramSegment[] = [
 		{
 			kind: 'gantt',
 			id: 'gantt',
@@ -195,6 +248,50 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 			breakBefore: false
 		});
 	}
+	return segments;
+}
+
+/** The id of the work-plan segment of a stage. */
+const stageSegmentId = (stage: Stage) => `stage-${stage.id}`;
+
+/**
+ * Builds the print blocks: header, the selected diagrams, stage cards, the work plan and remarks.
+ * Each diagram after the first starts on a new sheet. The segments of a diagram get its orientation.
+ * The paginator starts a new sheet at each orientation change.
+ */
+export function buildPrintModel(options: PrintModelOptions): Segment[] {
+	const { plan, index, isExpanded } = options;
+	const diagrams = options.diagrams ?? [
+		{ id: GANTT_VIEW_ID, orientation: 'portrait', segments: ganttPrintSegments(options) }
+	];
+	const segments: Segment[] = [
+		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false }
+	];
+	// Segment ids must be unique: the sheets key their blocks by id.
+	// A repeated id gets the diagram prefix, then a number if it is still taken.
+	// The shared segments come after the diagrams, but their ids are fixed. Reserve them first.
+	const seen = new Set([
+		'header',
+		'cards',
+		'remarks',
+		...plan.stages.map((stage) => stageSegmentId(stage))
+	]);
+	const uniqueId = (diagram: DiagramViewId, id: string) => {
+		let unique = seen.has(id) ? `${diagram}:${id}` : id;
+		for (let n = 2; seen.has(unique); n++) unique = `${diagram}:${id}:${n}`;
+		seen.add(unique);
+		return unique;
+	};
+	diagrams.forEach((diagram, i) => {
+		diagram.segments.forEach((segment, j) => {
+			segments.push({
+				...segment,
+				id: uniqueId(diagram.id, segment.id),
+				orientation: diagram.orientation,
+				breakBefore: segment.breakBefore || (i > 0 && j === 0)
+			});
+		});
+	});
 	segments.push({
 		kind: 'cards',
 		id: 'cards',
@@ -234,7 +331,7 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 		}
 		segments.push({
 			kind: 'stage',
-			id: `stage-${stage.id}`,
+			id: stageSegmentId(stage),
 			stage,
 			number: i + 1,
 			span: stageSpan(index, stage.id),

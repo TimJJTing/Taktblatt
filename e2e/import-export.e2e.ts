@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	importJson,
@@ -9,6 +8,7 @@ import {
 	openMenuWithKeyboard,
 	openPlans,
 	planIds,
+	readDownload,
 	row,
 	storedPlan
 } from './helpers.ts';
@@ -16,15 +16,6 @@ import {
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const isoDate = /\d{4}-\d{2}-\d{2}/;
-
-async function readDownload(page: Page, menuItem: string) {
-	await (menuItem === 'Back up all plans' ? openPlans(page) : openMenu(page));
-	const pending = page.waitForEvent('download');
-	await page.getByRole('menuitem', { name: menuItem }).click();
-	const download = await pending;
-	const text = await readFile((await download.path())!, 'utf8');
-	return { name: download.suggestedFilename(), file: JSON.parse(text) as Json };
-}
 
 async function exportedExample(page: Page) {
 	await openExample(page);

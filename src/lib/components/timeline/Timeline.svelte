@@ -1,5 +1,6 @@
 <!--
-	The timeline section: the heading, Gantt chart and three legends (stages, milestones, bands).
+	The timeline section: the heading, the diagram stage and three legends (stages, milestones, bands).
+	The view switch and the stage show the selected diagram (ADR 20). Gantt is the default.
 	Split view uses a pin and separator. Tabs use a tap and drag handle.
 	Tabs keep the legend rail below the chart and can collapse on user scroll.
 	One pointer owns a handle drag until release or cancellation.
@@ -29,7 +30,10 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Toggle } from '#lib/components/ui/toggle/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
+	import DiagramStage from '#lib/components/diagram/DiagramStage.svelte';
+	import DiagramViewSwitch from '#lib/components/diagram/DiagramViewSwitch.svelte';
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
+	import { DIAGRAM_ATTR } from '#lib/components/diagram/view-contract.ts';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.ts';
 	import { todayISO } from '#lib/domain/date.ts';
 	import { stageEdgeSegments } from '#lib/domain/stage-edge.ts';
@@ -37,7 +41,7 @@
 	import { formatDate, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Band, Milestone } from '#lib/domain/schema.ts';
-	import { motionDuration } from '#lib/motion.ts';
+	import { MOTION_SETTLE_MS, motionDuration } from '#lib/motion.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { cn } from '#lib/utils.ts';
 	import {
@@ -54,12 +58,13 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import BandDialog from './BandDialog.svelte';
-	import Gantt from './Gantt.svelte';
 	import GanttTween from './GanttTween.svelte';
 	import MilestoneDialog from './MilestoneDialog.svelte';
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
+	/** The id of the diagram region. The view switch controls it. */
+	const DIAGRAM_STAGE_ID = 'diagram-stage';
 	let milestone = $state<Milestone | null | undefined>(undefined);
 	let band = $state<Band | null | undefined>(undefined);
 	const milestones = $derived(orderedMilestones(ws.plan.milestones));
@@ -192,7 +197,7 @@
 	let heightInitialized = false;
 	let viewportInitialized = false;
 	$effect.pre(() => {
-		void [pinned, collapsed, expandedHeight, drag];
+		void [pinned, collapsed, expandedHeight, drag, viewer.diagramView];
 		if (panel) previousHeight = panel.getBoundingClientRect().height;
 	});
 
@@ -203,6 +208,8 @@
 		const owner = beginTimelineLayoutChange();
 		const release = () => endTimelineLayoutChange(owner);
 		const fixed = pinned;
+		// A view change can change the natural height of an unpinned section.
+		void viewer.diagramView;
 		// A hidden panel cannot measure its natural height or finish a transition.
 		if (!fixed && element.getClientRects().length === 0) {
 			element.style.height = 'auto';
@@ -232,7 +239,7 @@
 			// The measurement expands the scrollers, and the browser resets their offsets.
 			// Keep the offsets, so the content scrolls back with the animation and does not jump.
 			const scrollers = [
-				...element.querySelectorAll<HTMLElement>('[data-testid="gantt-scroller"]'),
+				...element.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.scroller}]`),
 				...(body ? [body] : [])
 			].map((scroller) => ({ scroller, top: scroller.scrollTop }));
 			if (!fixed) {
@@ -258,7 +265,7 @@
 			heightInitialized = true;
 		});
 		// Without a height transition, only the next layout frame needs scroll suppression.
-		if (transitioning) settleTimer = setTimeout(finish, duration + 32);
+		if (transitioning) settleTimer = setTimeout(finish, duration + MOTION_SETTLE_MS);
 		else finish();
 		function releaseHeight(event: TransitionEvent) {
 			if (event.target === element && event.propertyName === 'height') finish();
@@ -407,6 +414,7 @@
 				<h2 id="timeline-title" class="text-sm font-semibold tracking-wide uppercase">
 					{m.section_timeline()}
 				</h2>
+				<DiagramViewSwitch controls={DIAGRAM_STAGE_ID} />
 				{#if workspaceLayout.split}
 					<Hint text={m.gantt_pin()}>
 						{#snippet child({ props })}
@@ -502,7 +510,8 @@
 				style:--chart-min-height={`${MIN_CHART_HEIGHT}px`}
 				data-testid="timeline-body"
 			>
-				<Gantt
+				<DiagramStage
+					id={DIAGRAM_STAGE_ID}
 					{todayDate}
 					class={cn(
 						!workspaceLayout.split &&

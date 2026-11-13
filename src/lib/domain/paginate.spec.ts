@@ -21,7 +21,7 @@ const shape = (sheets: ReturnType<typeof paginate>) =>
 
 describe('paginate', () => {
 	it('returns one empty sheet for an empty plan', () => {
-		expect(paginate(100, [])).toEqual([{ number: 1, fragments: [] }]);
+		expect(paginate(100, [])).toEqual([{ number: 1, orientation: 'portrait', fragments: [] }]);
 	});
 
 	it('keeps the blocks of an empty segment on one sheet', () => {
@@ -230,5 +230,108 @@ describe('paginate', () => {
 			}
 			expect(used).toBeLessThanOrEqual(120);
 		}
+	});
+});
+
+describe('paginate with sheet orientation', () => {
+	const HEIGHTS = { portrait: 100, landscape: 60 };
+	const landscape = (id: string, patch: Partial<SegmentInput> = {}) =>
+		segment(id, { orientation: 'landscape', ...patch });
+	const orientations = (sheets: ReturnType<typeof paginate>) => sheets.map((s) => s.orientation);
+
+	it('tags portrait sheets when no segment asks for an orientation', () => {
+		const sheets = paginate(100, [segment('a', { items: [60, 60] })]);
+		expect(orientations(sheets)).toEqual(['portrait', 'portrait']);
+	});
+
+	it('starts a landscape diagram on a new sheet after the header', () => {
+		const sheets = paginate(HEIGHTS, [
+			segment('header', { items: [20] }),
+			landscape('board', { items: [20], gap: 10 })
+		]);
+		expect(shape(sheets)).toEqual(['header 0-1', 'board 0-1']);
+		expect(orientations(sheets)).toEqual(['portrait', 'landscape']);
+		expect(sheets[1].fragments[0].gap).toBe(0);
+	});
+
+	it('starts portrait content on a new sheet after a landscape diagram', () => {
+		const sheets = paginate(HEIGHTS, [
+			landscape('board', { items: [20] }),
+			landscape('board-key', { items: [10], gap: 5 }),
+			segment('cards', { items: [20], gap: 10 })
+		]);
+		expect(shape(sheets)).toEqual(['board 0-1 | board-key 0-1', 'cards 0-1']);
+		expect(orientations(sheets)).toEqual(['landscape', 'portrait']);
+	});
+
+	it('retags an empty first sheet instead of adding a sheet', () => {
+		const sheets = paginate(HEIGHTS, [landscape('board', { items: [20], breakBefore: true })]);
+		expect(shape(sheets)).toEqual(['board 0-1']);
+		expect(sheets).toHaveLength(1);
+		expect(sheets[0]).toMatchObject({ number: 1, orientation: 'landscape' });
+	});
+
+	it('uses the content height of each sheet orientation', () => {
+		const sheets = paginate(HEIGHTS, [
+			landscape('board', { items: [25, 25, 25, 25] }),
+			segment('cards', { items: [80] }),
+			segment('rows', { items: [45, 45] })
+		]);
+		// Landscape: 60 fits two items of 25. Portrait: 100 fits the 80 card row but not one row more.
+		expect(shape(sheets)).toEqual(['board 0-2', 'board 2-4 cont', 'cards 0-1', 'rows 0-2']);
+		expect(orientations(sheets)).toEqual(['landscape', 'landscape', 'portrait', 'portrait']);
+	});
+
+	it('applies a number content height to both orientations', () => {
+		const sheets = paginate(100, [
+			segment('header', { items: [20] }),
+			landscape('board', { items: [50, 50, 50] })
+		]);
+		expect(shape(sheets)).toEqual(['header 0-1', 'board 0-2', 'board 2-3 cont']);
+		expect(orientations(sheets)).toEqual(['portrait', 'landscape', 'landscape']);
+	});
+
+	it('numbers portrait and landscape sheets in one sequence', () => {
+		const sheets = paginate(HEIGHTS, [
+			segment('header', { items: [20] }),
+			segment('gantt', { items: [40, 40, 40] }),
+			landscape('board', { items: [30, 30, 30] }),
+			segment('cards', { items: [20] }),
+			segment('stage', { items: [30], breakBefore: true })
+		]);
+		expect(sheets.map((s) => s.number)).toEqual(sheets.map((_, i) => i + 1));
+		expect(orientations(sheets)).toEqual([
+			'portrait',
+			'portrait',
+			'landscape',
+			'landscape',
+			'portrait',
+			'portrait'
+		]);
+	});
+
+	it('splits a landscape scene only between its own items and keeps it off portrait sheets', () => {
+		const items = [12, 31, 8, 27, 19, 40, 5, 22];
+		const segments = [
+			segment('header', { items: [30] }),
+			landscape('board', { lead: 10, repeat: 6, items, keep: 2 }),
+			segment('cards', { items: [20] })
+		];
+		const sheets = paginate(HEIGHTS, segments);
+		const boardFragments = sheets.flatMap((s) =>
+			s.fragments.filter((f) => f.id === 'board').map((f) => ({ ...f, sheet: s }))
+		);
+		expect(boardFragments.length).toBeGreaterThan(1);
+		let next = 0;
+		for (const fragment of boardFragments) {
+			expect(fragment.sheet.orientation).toBe('landscape');
+			expect(fragment.sheet.fragments.every((f) => f.id === 'board')).toBe(true);
+			expect(fragment.from).toBe(next);
+			next = fragment.to;
+			const head = fragment.first ? 16 : 6;
+			const used = head + items.slice(fragment.from, fragment.to).reduce((n, h) => n + h, 0);
+			expect(used).toBeLessThanOrEqual(HEIGHTS.landscape);
+		}
+		expect(next).toBe(items.length);
 	});
 });

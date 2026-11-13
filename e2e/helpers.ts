@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { STAGE_COLORS } from '#lib/domain/palette.ts';
 
 // Read constants without loading Svelte state or its browser-build aliases in Playwright.
@@ -285,6 +286,17 @@ async function openScope(page: Page, scope: 'plans' | 'menu'): Promise<Locator> 
 	await expect(surface).toBeVisible();
 	await waitForAnimations(surface);
 	return surface;
+}
+
+/** Chooses an export or backup item and reads the downloaded JSON file. */
+export async function readDownload(page: Page, menuItem: string) {
+	await (menuItem === 'Back up all plans' ? openPlans(page) : openMenu(page));
+	const pending = page.waitForEvent('download');
+	await page.getByRole('menuitem', { name: menuItem }).click();
+	const download = await pending;
+	const text = await readFile((await download.path())!, 'utf8');
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return { name: download.suggestedFilename(), file: JSON.parse(text) as Record<string, any> };
 }
 
 /** Opens the This plan menu or sheet. */

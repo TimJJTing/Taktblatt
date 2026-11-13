@@ -22,3 +22,31 @@ export function isTextEditing(target: EventTarget | null): boolean {
 	}
 	return false;
 }
+
+/**
+ * The next choice of a roving radio group (one Tab stop, arrows move the selection).
+ * Right and Down go forward, Left and Up go back; both wrap. Home and End go to the first and
+ * last choice. Returns null for other keys and during text composition.
+ */
+export function radioGroupIndex(event: KeyboardEvent, index: number, count: number): number | null {
+	if (isComposing(event) || count === 0) return null;
+	switch (event.key) {
+		case 'ArrowRight':
+		case 'ArrowDown':
+			return (index + 1) % count;
+		case 'ArrowLeft':
+		case 'ArrowUp':
+			return (index - 1 + count) % count;
+		case 'Home':
+			return 0;
+		case 'End':
+			return count - 1;
+		default:
+			return null;
+	}
+}
+
+/** Focuses the radio choice at `index` in `group`. */
+export function focusRadio(group: ParentNode | null | undefined, index: number): void {
+	group?.querySelectorAll<HTMLElement>('[role="radio"]')[index]?.focus();
+}
