@@ -12,6 +12,7 @@ import {
 	expectPanelHeight,
 	expectView,
 	importJson,
+	MIN_CHART_HEIGHT,
 	openApp,
 	openExample,
 	openPlans,
@@ -19,7 +20,8 @@ import {
 	readDownload,
 	settledPanelHeight,
 	storedViewer,
-	waitForAnimations
+	waitForAnimations,
+	workspaceContent
 } from './helpers.ts';
 
 declare global {
@@ -261,6 +263,35 @@ test.describe('fixture views', () => {
 		expect(printed).toHaveLength(1);
 		expect(diagramOrder(printed[0])).toEqual(['gantt', 'test-board-scene']);
 		expect(printed[0].some((sheet) => sheet.orientation === 'landscape')).toBe(true);
+	});
+
+	test('with tabs, the view switch keeps the 24 pixel heading row @diagram-fixtures', async ({
+		page
+	}) => {
+		// The width keeps all choices on one line. On a narrower screen the choices can wrap.
+		await page.setViewportSize({ width: 800, height: 664 });
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await openExample(page);
+		await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+		await expect(page.getByTestId('diagram-view-switch')).toBeVisible();
+		await waitForAnimations(page.getByTestId('timeline-panel'));
+		const layout = () =>
+			page.getByTestId('timeline-panel').evaluate((panel, minimum) => {
+				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+				const heading = panel.querySelector('#timeline-title')!.parentElement!;
+				const toggle = panel.querySelector('[data-testid="timeline-keep-open"]')!;
+				const choices = panel.querySelector('[data-testid="diagram-view-switch"]')!;
+				const chart = panel.querySelector('[data-testid="gantt-scroller"]')!;
+				return {
+					heading: Math.round(heading.getBoundingClientRect().height),
+					switchFits: choices.getBoundingClientRect().height <= 24.5,
+					gap: Math.round(toggle.getBoundingClientRect().top - header.bottom),
+					chartMinimum: chart.getBoundingClientRect().height >= minimum - 1
+				};
+			}, MIN_CHART_HEIGHT);
+		await expect
+			.poll(layout)
+			.toEqual({ heading: 24, switchFits: true, gap: 16, chartMinimum: true });
 	});
 
 	test('focus moves to the same task id in the next view @diagram-fixtures', async ({ page }) => {
