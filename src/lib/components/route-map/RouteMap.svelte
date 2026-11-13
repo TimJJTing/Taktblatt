@@ -215,21 +215,29 @@
 			const last = members.at(-1);
 			const branch = last && layout.loops.find((loop) => loop.taskIds[0] === last.id);
 			const branchEnd = branch && stations.get(branch.taskIds.at(-1)!);
-			const x = branchEnd
+			const startX = branchEnd
 				? branchEnd.labelBox.x + branchEnd.labelBox.w + layout.clearance / 2
 				: last
 					? last.outPort.x
 					: 100;
-			return { id: stage.id, ids: last ? [last.id] : [], x, y: layout.stageYs[i] };
+			return {
+				id: stage.id,
+				ids: last ? [last.id] : [],
+				startX,
+				x: layout.terminusLeft - 24,
+				y: layout.stageYs[i]
+			};
 		})
 	);
-	let terminusTweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }>>());
+	let terminusTweens = $state.raw(
+		new Map<string, GeometryTween<{ startX: number; x: number; y: number }>>()
+	);
 	$effect(() => {
 		const previous = untrack(() => terminusTweens);
 		terminusTweens = new Map(
-			termini.map(({ id, x, y }) => {
-				const tween = previous.get(id) ?? new GeometryTween({ x, y });
-				tween.set({ x, y });
+			termini.map(({ id, startX, x, y }) => {
+				const tween = previous.get(id) ?? new GeometryTween({ startX, x, y });
+				tween.set({ startX, x, y });
 				return [id, tween];
 			})
 		);
@@ -299,7 +307,7 @@
 					{#each termini as terminus (terminus.id)}
 						{@const point = terminusTweens.get(terminus.id)?.current ?? terminus}
 						<path
-							d={`M ${point.x} ${point.y} h 20`}
+							d={`M ${point.startX} ${point.y} H ${point.x + 20}`}
 							fill="none"
 							stroke={lineColor(terminus.id, terminus.ids)}
 							stroke-width="2"

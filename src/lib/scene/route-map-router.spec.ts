@@ -28,6 +28,26 @@ describe('Route map routing', () => {
 		expectClearRoutes(layout, routes);
 	});
 
+	it('keeps every dependency outside the aligned terminus boxes', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'A', dependsOn: ['B'] }),
+				task({ id: 'B', stageId: 's2', dependsOn: ['A'] }),
+				task({ id: 'P', stageId: 's2' }),
+				task({ id: 'child', parentId: 'P', stageId: 's2' })
+			],
+			['s1', 's2', 's3']
+		);
+		const model = routeMapModel(plan, new Set(['P']));
+		const layout = routeMapLayout(model, screenMetrics);
+		const routes = routeMapRoutes(model, layout);
+		expect(routes).toHaveLength(2);
+		for (const route of routes) {
+			for (const point of route.points) expect(point.x).toBeLessThan(layout.terminusLeft);
+		}
+		expect(layout.terminusLeft).toBeGreaterThan(100);
+	});
+
 	it('keeps branches, transfers and backward cycles clear of unrelated labels', () => {
 		const plan = makePlan(
 			[

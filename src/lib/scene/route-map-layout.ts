@@ -36,6 +36,7 @@ export interface RouteMapLayout {
 	routing: ReadonlyMap<string, { fromX: number; toX: number; channelY: number }>;
 	width: number;
 	height: number;
+	terminusLeft: number;
 	stageYs: readonly number[];
 	loops: readonly { taskIds: readonly string[] }[];
 }
@@ -209,6 +210,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		routing,
 		width: x,
 		height: y,
+		terminusLeft: Math.max(x, 100) + 24,
 		stageYs,
 
 		loops: model.groups
