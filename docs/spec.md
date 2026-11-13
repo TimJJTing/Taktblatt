@@ -864,7 +864,7 @@ Implement the Appendix C contract through the shared stage of section 5.13. The 
 - `data-diagram-parent` on each subtask card box, with the parent id, for emerging subtasks.
 - `data-diagram-scroller`, empty, on the shared vertical region and on the horizontal strip.
 
-`captureGeometry()` in `diagram-motion.ts` reads these marks in the current frame, including running motion and all scroll offsets. A removed card has no record, so no teardown step is needed. Declare `motion: { routerId: 'kanban', connectorSchema: … }` in the view definition. The stage does not read these fields yet.
+`captureGeometry()` in `diagram-motion.ts` reads these marks in the current frame, including running motion and all scroll offsets. A removed card has no record, so no teardown step is needed. Declare `motion: { routerId: 'kanban', connectorSchema: 'kanban-v1' }` in the view definition. The stage does not read these fields yet.
 
 The shared stage on `main` already stacks the outgoing and incoming layers. It moves each task box by task id with FLIP, cross-fades the layers with `motionDuration(VIEW_MOTION_MS)` and recaptures the current frame on interruption (`DiagramStage.svelte`, `diagram-motion.ts`). It moves the real boxes; it makes no flight copies. Verify this landed motion with the Kanban scroller at nonzero vertical and horizontal offsets. The FLIP flight layer across scroll containers and cross-router fade/move/fade are deferred shared work (section 5.13). Request them from the shared motion and focus follow-up PR only if the verification shows clipping or another Appendix C failure. Kanban consumes a shared capability only after it merges to `main`.
 
