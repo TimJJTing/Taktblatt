@@ -17,9 +17,9 @@ ADR 20 owns the shared registry, stage, view preference, print selection, motion
 - The DOM geometry marks (`DIAGRAM_ATTR`), `captureGeometry()` and the scroll-container hooks (`diagram-motion.ts`).
 - The generic paper adapter (`DiagramPaperAdapter`) and `SceneSegment` print path.
 
-These parts are deferred shared work: the FLIP flight layer across scroll containers, cross-router connector motion, the close-time return-focus resolver and a per-view focus reveal. One shared motion and focus follow-up PR from `main` supplies them. Kanban consumes a capability only after it merges to `main`. Cross-column flights are not required.
+These parts are deferred shared work: the FLIP flight layer across scroll containers, cross-router connector motion, the close-time return-focus resolver and a per-view focus reveal. One open shared motion and focus follow-up PR (#57) from `main` supplies them. Kanban consumes a capability only after it merges to `main`. Cross-column flights are not required.
 
-Kanban and Route map have no technical dependency on each other. Either slice can merge first. The slice that merges second merges the latest `main` and runs `pnpm lint`, `pnpm check` and `pnpm test` again. A shared prerequisite PR, owned by the diagram-views owner, must merge before either slice registers its view. It makes the exact-view-set tests independent of the registered views, moves the E2E view helpers into `e2e/helpers.ts` and amends ADR 20 for either merge order.
+Kanban and Route map have no technical dependency on each other. Either slice can merge first. The slice that merges second merges the latest `main`, runs `pnpm lint`, `pnpm check`, `pnpm test:unit --run`, targeted E2E checks (`pnpm exec playwright test e2e/kanban.e2e.ts --trace off`) and `pnpm test:e2e:fixtures` again, and leaves the full E2E suite to CI. The shared prerequisite PR (#58) is merged on `main`. It made the exact-view-set tests independent of the registered views, moved `chooseView` and `expectView` into `e2e/helpers.ts`, replaced non-Gantt `Scene.breaks` references with `SceneSegment.items` and amended ADR 20 for either merge order.
 
 ## Proposed decision
 
@@ -66,7 +66,7 @@ Keep Appendix C's task-id box morph, station cue, current-frame retargeting, par
 
 Use a landscape adapter with four columns for A4 and US Letter. Use a separate paper scene in one `SceneSegment` with one item per complete card row. The paginator splits only between items. Render the board heading and column labels/counts as the repeat part, so that each continuation repeats them. Include all eligible leaves, not only the screen viewport. Short columns stay blank on later fragments. Use the board's leaf set independently of table expansion; no expansion preference changes. Keep paper static, without route lines or dimming.
 
-Reuse ADR 20's selection, generic scene segments, orientation changes, legends and shared page numbering. Declare the stage legend as `{ kind: 'legend', which: 'stages' }`. Draw any status key inside the Kanban scene segment; do not add a shared legend kind. A demonstrated gap in a generic hook goes to the shared prerequisite PR. Do not add a second print path. Use only `kanban_` locale keys for new board text. Insert them directly after `menu_this_plan`. The shared name `diagram_view_kanban` and the diagram announcements already exist on `main`.
+Reuse ADR 20's selection, generic scene segments, orientation changes, legends and shared page numbering. Declare the stage legend as `{ kind: 'legend', which: 'stages' }`. Draw any status key inside the Kanban scene segment; do not add a shared legend kind. A demonstrated gap in a generic hook goes to a shared PR from `main`, owned by the diagram-views owner. Do not add a second print path. Use only `kanban_` locale keys for new board text. Insert them directly after `menu_this_plan`. The shared name `diagram_view_kanban` and the diagram announcements already exist on `main`.
 
 ## Alternatives considered
 
@@ -77,7 +77,7 @@ Reuse ADR 20's selection, generic scene segments, orientation changes, legends a
 - **Drop into either derived column and accept whichever result occurs.** This can place a card outside the requested target. Validate the hypothetical shared state and reject an incompatible target.
 - **Enable drag in the first release.** The first release is read-only. Keep a command seam and defer gesture behavior, keyboard drops and announcements.
 - **Use independent vertical column scrollers.** Use shared vertical scrolling with sticky headings. Independent scrollers would add coordinate and cross-column flight requirements that v1 does not need.
-- **Implement local flight or print machinery.** This competes with ADR 20 and breaks strict shared-file ownership. Request the shared prerequisite instead.
+- **Implement local flight or print machinery.** This competes with ADR 20 and breaks strict shared-file ownership. Request a shared change from `main` instead.
 
 ## Consequences
 
