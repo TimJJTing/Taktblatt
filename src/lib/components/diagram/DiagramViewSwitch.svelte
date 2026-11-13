@@ -3,7 +3,7 @@
 	One radio group. Only the selected choice is in the Tab order. Arrows wrap; Home and End go
 	to the first and last choice. The switch is absent when only Gantt is registered.
 	The frame and the focus ring are inset outlines. They add no height to the heading row
-	(section 4.4), and the next row cannot cover them.
+	(section 5.4), and the next row cannot cover them.
 -->
 <script lang="ts" module>
 	import { focusRadio, radioGroupIndex } from '#lib/browser/keyboard.ts';
