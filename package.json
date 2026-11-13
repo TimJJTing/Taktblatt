@@ -17,7 +17,7 @@
 		"test:unit": "vitest",
 		"test": "pnpm test:unit --run && playwright test && pnpm test:e2e:fixtures",
 		"test:e2e": "playwright test",
-		"test:e2e:fixtures": "TAKTBLATT_DIAGRAM_FIXTURES=1 playwright test",
+		"test:e2e:fixtures": "playwright test --config playwright.fixtures.config.ts",
 		"e2e:install": "playwright install --with-deps chromium",
 		"browser": "playwright cli",
 		"browser:setup": "playwright cli install --skills=agents",

@@ -222,6 +222,7 @@
 							{color}
 							{width}
 							{taps}
+							taskId={row.id}
 						/>
 					</div>
 				{/snippet}

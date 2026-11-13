@@ -7,6 +7,7 @@
  * the remarks (items: rows of sections), or a single block such as the header (one item).
  * The paginator splits a segment only between items. It never splits an item.
  */
+import type { DiagramOrientation } from './diagram.ts';
 
 export interface SegmentInput {
 	/** A stable id for the segment. The renderer uses it to find the segment again. */
@@ -29,10 +30,8 @@ export interface SegmentInput {
 	/** Start the segment on a new sheet. */
 	breakBefore: boolean;
 	/** The sheet orientation. Absent means portrait. An orientation change starts a new sheet. */
-	orientation?: 'portrait' | 'landscape';
+	orientation?: DiagramOrientation;
 }
-
-type Orientation = 'portrait' | 'landscape';
 
 /** The content height of a sheet, for one orientation or for each orientation. */
 export type ContentHeight = number | { portrait: number; landscape: number };
@@ -54,7 +53,7 @@ export interface Fragment {
 export interface Sheet {
 	/** The sheet number, from 1. */
 	number: number;
-	orientation: 'portrait' | 'landscape';
+	orientation: DiagramOrientation;
 	fragments: Fragment[];
 }
 
@@ -69,12 +68,12 @@ const headHeight = (segment: SegmentInput, first: boolean) =>
  * The result always has one sheet or more.
  */
 export function paginate(contentHeight: ContentHeight, segments: readonly SegmentInput[]): Sheet[] {
-	const heightOf = (orientation: Orientation) =>
+	const heightOf = (orientation: DiagramOrientation) =>
 		typeof contentHeight === 'number' ? contentHeight : contentHeight[orientation];
-	const first = segments[0]?.orientation ?? 'portrait';
-	const sheets: Sheet[] = [{ number: 1, orientation: first, fragments: [] }];
+	const initial = segments[0]?.orientation ?? 'portrait';
+	const sheets: Sheet[] = [{ number: 1, orientation: initial, fragments: [] }];
 	let used = 0;
-	let orientation: Orientation = first;
+	let orientation: DiagramOrientation = initial;
 
 	const newSheet = () => {
 		sheets.push({ number: sheets.length + 1, orientation, fragments: [] });

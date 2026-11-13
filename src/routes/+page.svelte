@@ -17,11 +17,11 @@
 	import Remarks from '#lib/components/remarks/Remarks.svelte';
 	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
+	import { appViewRegistry, setViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.ts';
 	import { PreviewState, setPreview } from '#lib/state/preview.svelte.ts';
 	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.ts';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.ts';
-	import { appViewRegistry, setViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = setWorkspace(

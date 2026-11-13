@@ -11,6 +11,7 @@
 		"vite.config.ts",
 		"prettier.config.js",
 		"eslint.config.js",
-		"playwright.config.ts"
+		"playwright.config.ts",
+		"playwright.fixtures.config.ts"
 	]
 }

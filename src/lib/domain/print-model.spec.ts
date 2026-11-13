@@ -259,7 +259,7 @@ describe('buildPrintModel with selected diagrams', () => {
 		ORDER.filter((_, bit) => ((n + 1) >> bit) & 1)
 	);
 
-	it('keeps segment ids unique when a diagram repeats an id', () => {
+	it('keeps segment ids unique when diagrams repeat an id, also within one diagram', () => {
 		const model = buildPrintModel({
 			...input,
 			diagrams: [
@@ -267,13 +267,23 @@ describe('buildPrintModel with selected diagrams', () => {
 				{
 					id: 'test-list',
 					orientation: 'portrait',
-					segments: [scene('test-list', 'legend-stages', 2)]
+					segments: [
+						scene('test-list', 'legend-stages', 2),
+						scene('test-list', 'legend-stages', 1),
+						scene('test-list', 'header', 1)
+					]
 				}
 			]
 		});
 		const ids = model.map((segment) => segment.id);
 		expect(new Set(ids).size).toBe(ids.length);
-		expect(ids).toContain('test-list:legend-stages');
+		expect(ids).toEqual(
+			expect.arrayContaining([
+				'test-list:legend-stages',
+				'test-list:legend-stages:2',
+				'test-list:header'
+			])
+		);
 	});
 
 	it('returns the Gantt segment and its legends from ganttPrintSegments', () => {

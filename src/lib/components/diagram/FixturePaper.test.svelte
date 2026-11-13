@@ -3,8 +3,8 @@
 	Each fragment repeats its column header. Each item is one task row.
 -->
 <script lang="ts">
-	import type { DiagramPaperProps } from '#lib/components/diagram/view-contract.ts';
-	import type { FixtureTask } from './tasks.ts';
+	import type { FixtureTask } from './fixture-views.test-helper.ts';
+	import type { DiagramPaperProps } from './view-contract.ts';
 
 	let { segment, from, to, first }: DiagramPaperProps = $props();
 	const data = $derived(segment.data as { title: string });

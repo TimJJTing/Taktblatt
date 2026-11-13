@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Each record has a number, a status and a date. Write a new record when a decision changes. ADR 20 stays Proposed until implementation is accepted. The preliminary diagram-views PR owns the whole ADR index, including rows 21 and 22. The Route map and Kanban slices must not edit `docs/adr/README.md`.
+Each record has a number, a status and a date. Write a new record when a decision changes. ADR 20 stays Proposed until implementation is accepted.
 
 | No. | Title                                                                                            | Status                                                         | Date       |
 | --- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ---------- |

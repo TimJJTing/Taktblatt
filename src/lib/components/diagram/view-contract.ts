@@ -6,22 +6,14 @@
  * build time. This contract module and the registry are outside the discovery pattern.
  */
 import type { Component } from 'svelte';
-import type {
-	DiagramOrientation,
-	PrintModelInput,
-	SceneSegment,
-	Segment
-} from '#lib/domain/print-model.ts';
+import type { DiagramOrientation, DiagramViewId } from '#lib/domain/diagram.ts';
+import type { DiagramSegment, PrintModelInput, SceneSegment } from '#lib/domain/print-model.ts';
 import type { Band, Milestone } from '#lib/domain/schema.ts';
 
-/** A stable view id. The known ids are `gantt`, `route-map` and `kanban`. */
-export type DiagramViewId = string;
+export { GANTT_VIEW_ID, type DiagramOrientation, type DiagramViewId } from '#lib/domain/diagram.ts';
 
 /** The fixed display and print order of the known views. A lower number comes first. */
 export const VIEW_ORDER = { gantt: 0, 'route-map': 10, kanban: 20 } as const;
-
-/** Gantt is always registered. It is the fallback for an unavailable view. */
-export const GANTT_VIEW_ID = 'gantt';
 
 /**
  * The props of a screen renderer. The stage gives the same props to every view.
@@ -53,32 +45,51 @@ export interface DiagramPaperProps {
  * The paper adapter of a view. `segments` is pure: it reads the print input and returns the
  * diagram segments, including its legends. Segments of kind `scene` render with `component`.
  * Segments of the built-in kinds (for example `gantt` and `legend`) use the shared renderers.
+ * An adapter that returns `scene` segments must have a `component`. Without one, the sheet
+ * shows nothing for the segment and a development build logs an error.
  */
 export interface DiagramPaperAdapter {
 	/** The orientation of the diagram on the selected paper size. */
 	orientation: DiagramOrientation;
-	segments: (input: PrintModelInput) => Segment[];
+	segments: (input: PrintModelInput) => DiagramSegment[];
 	component?: Component<DiagramPaperProps>;
 }
 
 /**
- * Marks for the rendered task nodes of a view. The stage samples these elements for motion,
- * focus transfer and scroll reveal. The attribute value is the task id.
- * - `data-diagram-task`: the task box (bar, card or label-only node).
- * - `data-diagram-station`: inside a task box, the identity station dot, if the task has one.
- * - `data-diagram-label`: the rendered label of the task.
- * - `data-diagram-parent`: on a task box, the id of the parent task, for emerging subtasks.
+ * Marks for the rendered nodes of a view. The stage samples these elements for motion,
+ * focus transfer and scroll reveal. The value of `task`, `station`, `label` and `parent` is a
+ * task id.
+ * - `task`: the task box (bar, card or label-only node).
+ * - `station`: inside a task box, the identity station dot, if the task has one.
+ * - `label`: the rendered label of the task.
+ * - `parent`: on a task box, the id of the parent task, for emerging subtasks.
+ * - `scroller`: a scroll container of the view. The Timeline keeps its scroll offset during a
+ *   height transition. The value is empty.
  * A focus target uses the route-focus attributes: `data-route-target` and
- * `data-route-focus="keyboard"`.
+ * `data-route-focus="keyboard"` (`ROUTE_ATTR`).
+ * The stage itself sets `layer` (the layer key) and `view` (the view id) on each layer.
  */
 export const DIAGRAM_ATTR = {
 	task: 'data-diagram-task',
 	station: 'data-diagram-station',
 	label: 'data-diagram-label',
-	parent: 'data-diagram-parent'
+	parent: 'data-diagram-parent',
+	scroller: 'data-diagram-scroller',
+	layer: 'data-diagram-layer',
+	view: 'data-diagram-view'
 } as const;
 
-/** The motion description of a view. The stage reads current geometry from the rendered DOM. */
+/** The route-focus attributes of a keyboard focus target. Refer to the route-focus owner. */
+export const ROUTE_ATTR = {
+	target: 'data-route-target',
+	focus: 'data-route-focus'
+} as const;
+
+/**
+ * The motion description of a view. The stage reads current geometry from the rendered DOM.
+ * Reserved: no production code reads these fields yet. The deferred connector interpolation
+ * (docs/spec.md, section 5.13) uses them to find views that can tween connector points.
+ */
 export interface DiagramMotionInfo {
 	/** The id of the connector router. Views with the same router can tween connector points. */
 	routerId: string;

@@ -37,7 +37,6 @@
 		visibleBands,
 		visibleMilestones
 	} from '#lib/domain/gantt.ts';
-	import type { Band, Milestone } from '#lib/domain/schema.ts';
 	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
@@ -46,7 +45,8 @@
 	import { ganttScene } from '#lib/scene/gantt-scene.ts';
 	import { SCREEN_ROUTE_METRICS } from '#lib/scene/route-tracks.ts';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
-	import { getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
+	import { diagramRouteTargets } from '#lib/components/diagram/diagram-layer.ts';
+	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
@@ -61,15 +61,7 @@
 	} from './gantt-layout.ts';
 	import { MILESTONE_SYMBOLS } from './milestone-symbols.ts';
 
-	interface Props {
-		todayDate: string;
-		class?: string;
-		onBand: (band: Band) => void;
-		onMilestone: (milestone: Milestone) => void;
-		onReveal: (row: { top: number; bottom: number }) => void;
-	}
-
-	let { todayDate, class: className, onBand, onMilestone, onReveal }: Props = $props();
+	let { todayDate, class: className, onBand, onMilestone, onReveal }: DiagramViewProps = $props();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -86,12 +78,8 @@
 			win
 		)
 	);
-	const layer = getDiagramLayer();
 	// An outgoing stage layer has no intended ids, so its targets stop taking route input.
-	const routeTargets = editing.routeFocus.view(
-		() => new Set(layer.active ? rows.map((row) => row.id) : [])
-	);
-	onMount(routeTargets.register);
+	const routeTargets = diagramRouteTargets(() => rows.map((row) => row.id));
 	const lines = $derived(dependencyLines(ws.index, rows));
 	const graph = $derived(effectiveDependencyGraph(ws.index));
 	const routeModel = $derived(routeFocusModel(graph, ws.index, rows, lines, editing.routeId));
@@ -443,6 +431,7 @@
 		bind:this={scroller}
 		use:overlayScrollbar={{ axis: 'both' }}
 		class="min-h-0 flex-1 overflow-auto"
+		data-diagram-scroller
 		data-testid="gantt-scroller"
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->

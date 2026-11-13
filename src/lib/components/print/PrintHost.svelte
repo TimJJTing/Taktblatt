@@ -4,12 +4,12 @@
 	The Print button of the preview and Cmd/Ctrl+P render the sheets first (`PreviewState.print`). `beforeprint` is the
 	fallback for other ways to print. The host removes the sheets on `afterprint`.
 	It sets the page size of the print: `@page { size: <paper>; margin: 0 }`, and a named
-	landscape page rule for landscape diagram sheets.
+	landscape page rule that the landscape diagram sheets use.
 -->
 <script lang="ts">
 	import { getPreview } from '#lib/state/preview.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
-	import { PAPER } from './print-layout.ts';
+	import { LANDSCAPE_PAGE, PAPER } from './print-layout.ts';
 	import PreviewDialog from './PreviewDialog.svelte';
 	import Sheets from './Sheets.svelte';
 
@@ -20,7 +20,8 @@
 	// A landscape diagram uses the named page rule on the same paper size (ADR 20).
 	const pageRule = $derived(
 		`<style>@page { size: ${PAPER[ws.plan.paper].css}; margin: 0 } ` +
-			`@page taktblatt-landscape { size: ${PAPER[ws.plan.paper].css} landscape; margin: 0 }</style>`
+			`@page ${LANDSCAPE_PAGE} { size: ${PAPER[ws.plan.paper].css} landscape; margin: 0 } ` +
+			`@media print { .sheet[data-orientation='landscape'] { page: ${LANDSCAPE_PAGE} } }</style>`
 	);
 
 	// Fallback for a print that starts outside the app (browser menu): render in the event.

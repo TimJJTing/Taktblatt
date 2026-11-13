@@ -3,8 +3,20 @@
 	One radio group. Only the selected choice is in the Tab order. Arrows wrap; Home and End go
 	to the first and last choice. The switch is absent when only Gantt is registered.
 -->
+<script lang="ts" module>
+	import { focusRadio, radioGroupIndex } from '#lib/browser/keyboard.ts';
+
+	/** Focuses the selected choice of the switch that controls the region `controls`. */
+	export function focusSelectedChoice(controls: string): void {
+		document
+			.querySelector<HTMLElement>(
+				`[role="radio"][aria-controls="${CSS.escape(controls)}"][aria-checked="true"]`
+			)
+			?.focus();
+	}
+</script>
+
 <script lang="ts">
-	import { isComposing } from '#lib/browser/keyboard.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { cn } from '#lib/utils.ts';
@@ -23,35 +35,12 @@
 
 	let group = $state<HTMLDivElement | null>(null);
 
-	function select(index: number, focus: boolean) {
-		viewer.setDiagramView(views[index].id);
-		if (focus) group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[index]?.focus();
-	}
-
 	function onKeydown(event: KeyboardEvent, index: number) {
-		if (isComposing(event)) return;
-		const last = views.length - 1;
-		let next: number;
-		switch (event.key) {
-			case 'ArrowRight':
-			case 'ArrowDown':
-				next = index === last ? 0 : index + 1;
-				break;
-			case 'ArrowLeft':
-			case 'ArrowUp':
-				next = index === 0 ? last : index - 1;
-				break;
-			case 'Home':
-				next = 0;
-				break;
-			case 'End':
-				next = last;
-				break;
-			default:
-				return;
-		}
+		const next = radioGroupIndex(event, index, views.length);
+		if (next === null) return;
 		event.preventDefault();
-		select(next, true);
+		viewer.setDiagramView(views[next].id);
+		focusRadio(group, next);
 	}
 </script>
 
@@ -77,7 +66,7 @@
 						? 'bg-primary text-primary-foreground forced-colors:border-[Highlight]'
 						: 'text-muted-foreground hover:bg-accent hover:text-foreground'
 				)}
-				onclick={() => select(index, false)}
+				onclick={() => viewer.setDiagramView(view.id)}
 				onkeydown={(event) => onKeydown(event, index)}
 				data-testid="diagram-view-{view.id}"
 			>

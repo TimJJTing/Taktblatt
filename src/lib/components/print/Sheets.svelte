@@ -321,8 +321,8 @@
 			/* A little less than the page. This avoids an empty page from a rounding error. */
 			height: calc(var(--sheet-h) - 0.3mm);
 		}
+		/* PrintHost assigns the named landscape page to these sheets. */
 		.sheet[data-orientation='landscape'] {
-			page: taktblatt-landscape;
 			height: calc(var(--sheet-w) - 0.3mm);
 		}
 		.sheet:last-child {
