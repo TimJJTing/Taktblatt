@@ -270,7 +270,8 @@ describe('buildPrintModel with selected diagrams', () => {
 					segments: [
 						scene('test-list', 'legend-stages', 2),
 						scene('test-list', 'legend-stages', 1),
-						scene('test-list', 'header', 1)
+						scene('test-list', 'header', 1),
+						scene('test-list', 'stage-s1', 1)
 					]
 				}
 			]
@@ -281,7 +282,8 @@ describe('buildPrintModel with selected diagrams', () => {
 			expect.arrayContaining([
 				'test-list:legend-stages',
 				'test-list:legend-stages:2',
-				'test-list:header'
+				'test-list:header',
+				'test-list:stage-s1'
 			])
 		);
 	});

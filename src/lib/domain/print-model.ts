@@ -251,6 +251,9 @@ export function ganttPrintSegments({
 	return segments;
 }
 
+/** The id of the work-plan segment of a stage. */
+const stageSegmentId = (stage: Stage) => `stage-${stage.id}`;
+
 /**
  * Builds the print blocks: header, the selected diagrams, stage cards, the work plan and remarks.
  * Each diagram after the first starts on a new sheet. The segments of a diagram get its orientation.
@@ -266,7 +269,13 @@ export function buildPrintModel(options: PrintModelOptions): Segment[] {
 	];
 	// Segment ids must be unique: the sheets key their blocks by id.
 	// A repeated id gets the diagram prefix, then a number if it is still taken.
-	const seen = new Set(['header', 'cards', 'remarks']);
+	// The shared segments come after the diagrams, but their ids are fixed. Reserve them first.
+	const seen = new Set([
+		'header',
+		'cards',
+		'remarks',
+		...plan.stages.map((stage) => stageSegmentId(stage))
+	]);
 	const uniqueId = (diagram: DiagramViewId, id: string) => {
 		let unique = seen.has(id) ? `${diagram}:${id}` : id;
 		for (let n = 2; seen.has(unique); n++) unique = `${diagram}:${id}:${n}`;
@@ -322,7 +331,7 @@ export function buildPrintModel(options: PrintModelOptions): Segment[] {
 		}
 		segments.push({
 			kind: 'stage',
-			id: `stage-${stage.id}`,
+			id: stageSegmentId(stage),
 			stage,
 			number: i + 1,
 			span: stageSpan(index, stage.id),

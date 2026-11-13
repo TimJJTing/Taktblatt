@@ -52,6 +52,17 @@ function radiusOf(element: Element): number {
 }
 
 /**
+ * The box of an element in stage coordinates with its drawn corner radius.
+ * A fully round node (for example `rounded-full`) has a very large computed radius. The browser
+ * draws at most half the shorter side, so the box keeps that value.
+ */
+function boxOf(element: Element, origin: DOMRect): Box {
+	const rect = element.getBoundingClientRect();
+	const radius = Math.min(radiusOf(element), rect.width / 2, rect.height / 2);
+	return toStage(rect, origin, radius);
+}
+
+/**
  * Reads the current geometry of every rendered task in `root`.
  * A task with a label and no box keeps its label position. A task with neither has no record.
  */
@@ -69,7 +80,7 @@ export function captureGeometry(root: ParentNode, stage: Element): Map<string, T
 	for (const element of root.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.task}]`)) {
 		const id = element.getAttribute(DIAGRAM_ATTR.task)!;
 		const entry = record(id);
-		entry.box = toStage(element.getBoundingClientRect(), origin, radiusOf(element));
+		entry.box = boxOf(element, origin);
 		entry.parentId = element.getAttribute(DIAGRAM_ATTR.parent);
 		const station = element.querySelector(`[${DIAGRAM_ATTR.station}]`);
 		if (station) {
@@ -205,11 +216,10 @@ export function applyTransition(
 		const source = sourceBox(id, element.getAttribute(DIAGRAM_ATTR.parent), other);
 		if (!source) continue;
 		// Read the current frame before canceling the old flight, then the layout position.
-		const current =
-			before?.get(id)?.box ?? toStage(element.getBoundingClientRect(), origin, radiusOf(element));
+		const current = before?.get(id)?.box ?? boxOf(element, origin);
 		element[FLIGHT]?.cancel();
 		element[FLIGHT] = undefined;
-		const here = toStage(element.getBoundingClientRect(), origin, radiusOf(element));
+		const here = boxOf(element, origin);
 		const first = frameAt(direction === 'from' ? source : current, here);
 		const last = direction === 'from' ? null : frameAt(source, here);
 		if (!first && !last) continue;
