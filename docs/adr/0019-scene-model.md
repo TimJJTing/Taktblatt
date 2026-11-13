@@ -8,7 +8,7 @@ The Timeline has one diagram: the Gantt. Its geometry is spread across component
 
 The connector routing has known faults. `elbowPath` puts the vertical 6 px after the source end for every edge. Two predecessors that end on the same day draw one false merged line. The backward detour can run along a bar. `GanttLine.svelte` tweens only the endpoints, so the path changes shape during the tween.
 
-More diagrams come soon: a route map without a time axis, and a Kanban board (spec, "Future: Kanban"). Both show the same tasks as the Gantt. A switch between diagrams must animate, so that the eye can follow each task. If each view builds its own geometry, each view needs its own tweens, its own print code and its own routing. Then a switch between views has no common key.
+More diagrams come soon: a route map without a time axis, and a Kanban board (spec, "Kanban"). Both show the same tasks as the Gantt. A switch between diagrams must animate, so that the eye can follow each task. If each view builds its own geometry, each view needs its own tweens, its own print code and its own routing. Then a switch between views has no common key.
 
 ## Decision
 
@@ -130,6 +130,6 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 - Slice 4 (`feat/route-focus`) resolves shared route input, projects effective routes onto visible rows and existing lines, and adds screen-only lit overlays. It preserves stored dependency drawing rules and paper output.
 - **Superseded by ADR 20:** the earlier assignment of the view switch, `DiagramStage`, the first scene switch and generic scene print integration to Route map no longer applies. The preliminary `feat/diagram-views` PR owns these shared contracts and integration. It also owns the required Gantt and GanttRow motion-adapter hooks.
 - **Superseded by ADR 20:** the earlier assignment of the FLIP flight layer to Kanban no longer applies. The preliminary PR supplies transition and scroll-container hooks only. FLIP flight-layer and cross-router connector interpolation implementations are deferred. Each required shared implementation must merge in the preliminary PR or a follow-up shared PR before its consuming slice. Appendix C and spec section 5.13 retain the final motion target.
-- Route map and Kanban can implement in parallel against the shared contract. Route map merges before Kanban. Kanban updates to the merged Route map before final integration.
+- Route map and Kanban can implement in parallel against the shared contract. They can merge in either order. The slice that merges second merges `main` and runs the checks again (ADR 20).
 - Each graph algorithm in the router must stop on a cycle (ADR 13). A cycle edge gets a valid route.
 - The plan file and the schema do not change.
