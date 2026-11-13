@@ -14,10 +14,10 @@ import StageTest from './DiagramStage.test.svelte';
 import { fixtureView } from './fixture-views.test-helper.ts';
 import { createViewRegistry, type ViewRegistry } from './view-registry.ts';
 
-const motion = vi.hoisted(() => ({ reduced: false }));
+const motion = vi.hoisted(() => ({ reduced: false, duration: null as number | null }));
 vi.mock('#lib/motion.ts', async (original) => ({
 	...(await original<typeof import('#lib/motion.ts')>()),
-	motionDuration: (ms: number) => (motion.reduced ? 0 : ms)
+	motionDuration: (ms: number) => (motion.reduced ? 0 : (motion.duration ?? ms))
 }));
 
 const listView = fixtureView('test-list', { order: 15, label: 'Test list' });
@@ -41,6 +41,8 @@ beforeEach(() => {
 });
 afterEach(() => {
 	motion.reduced = false;
+	motion.duration = null;
+	vi.useRealTimers();
 	overwriteGetLocale(originalLocale);
 	vi.restoreAllMocks();
 });
@@ -207,8 +209,9 @@ describe('focus across a view change', () => {
 
 describe('view announcement', () => {
 	it('announces nothing on mount and only the final view after rapid changes', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		const { container, select, announcement } = await mount(threeViews());
-		await new Promise((resolve) => setTimeout(resolve, 400));
+		await vi.advanceTimersByTimeAsync(400);
 		expect(announcement()).toBe('');
 		const regions = container.querySelectorAll('[aria-live="polite"]');
 		expect(regions).toHaveLength(1);
@@ -216,12 +219,16 @@ describe('view announcement', () => {
 		const observer = new MutationObserver(() => said.push(regions[0].textContent ?? ''));
 		observer.observe(regions[0], { childList: true, characterData: true, subtree: true });
 		select('test-list');
-		await new Promise((resolve) => setTimeout(resolve, 40));
+		await tick();
+		await vi.advanceTimersByTimeAsync(40);
 		select('gantt');
-		await new Promise((resolve) => setTimeout(resolve, 40));
+		await tick();
+		await vi.advanceTimersByTimeAsync(40);
 		select('test-row');
-		await expect.poll(announcement).toBe('Test row view');
-		await new Promise((resolve) => setTimeout(resolve, 400));
+		await tick();
+		await tick();
+		await vi.advanceTimersByTimeAsync(400);
+		await tick();
 		observer.disconnect();
 		expect(announcement()).toBe('Test row view');
 		expect(said.filter((text) => text !== '')).toEqual(['Test row view']);
@@ -285,13 +292,19 @@ describe('view motion', () => {
 	});
 
 	it('continues from the current rendered frame when a change interrupts a change', async () => {
-		const { task, select, settled } = await mount(threeViews());
+		const { layer, task, select, settled } = await mount(threeViews());
+		motion.duration = 60_000;
 		select('test-list');
-		await new Promise((resolve) => setTimeout(resolve, 90));
+		await expect.poll(() => task('test-list', 'b')?.getAnimations().length ?? 0).toBeGreaterThan(0);
 		const flying = task('test-list', 'b')!;
+		for (const animation of flying.getAnimations()) {
+			animation.pause();
+			animation.currentTime = 20_000;
+		}
 		expect(flying.getAnimations().length, 'The first change is still in flight').toBeGreaterThan(0);
 		const before = flying.getBoundingClientRect();
 
+		motion.duration = null;
 		select('test-row');
 		await tick();
 		await tick();
@@ -301,6 +314,8 @@ describe('view motion', () => {
 		near(incoming!.getBoundingClientRect(), before);
 		// The interrupted outgoing box also continues from where it is. It does not jump back.
 		near(flying.getBoundingClientRect(), before);
+		// The first leaving layer started with the long test duration; finish its outro so settled() checks the second change.
+		for (const animation of layer('gantt')?.getAnimations() ?? []) animation.finish();
 		await settled();
 	});
 });
