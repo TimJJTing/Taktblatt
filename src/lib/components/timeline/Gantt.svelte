@@ -46,6 +46,7 @@
 	import { ganttScene } from '#lib/scene/gantt-scene.ts';
 	import { SCREEN_ROUTE_METRICS } from '#lib/scene/route-tracks.ts';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
+	import { getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
@@ -85,7 +86,11 @@
 			win
 		)
 	);
-	const routeTargets = editing.routeFocus.view(() => new Set(rows.map((row) => row.id)));
+	const layer = getDiagramLayer();
+	// An outgoing stage layer has no intended ids, so its targets stop taking route input.
+	const routeTargets = editing.routeFocus.view(
+		() => new Set(layer.active ? rows.map((row) => row.id) : [])
+	);
 	onMount(routeTargets.register);
 	const lines = $derived(dependencyLines(ws.index, rows));
 	const graph = $derived(effectiveDependencyGraph(ws.index));

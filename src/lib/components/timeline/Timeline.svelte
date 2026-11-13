@@ -1,5 +1,6 @@
 <!--
-	The timeline section: the heading, Gantt chart and three legends (stages, milestones, bands).
+	The timeline section: the heading, the diagram stage and three legends (stages, milestones, bands).
+	The view switch and the stage show the selected diagram (ADR 20). Gantt is the default.
 	Split view uses a pin and separator. Tabs use a tap and drag handle.
 	Tabs keep the legend rail below the chart and can collapse on user scroll.
 	One pointer owns a handle drag until release or cancellation.
@@ -54,7 +55,8 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import BandDialog from './BandDialog.svelte';
-	import Gantt from './Gantt.svelte';
+	import DiagramStage from '#lib/components/diagram/DiagramStage.svelte';
+	import DiagramViewSwitch from '#lib/components/diagram/DiagramViewSwitch.svelte';
 	import GanttTween from './GanttTween.svelte';
 	import MilestoneDialog from './MilestoneDialog.svelte';
 
@@ -192,7 +194,7 @@
 	let heightInitialized = false;
 	let viewportInitialized = false;
 	$effect.pre(() => {
-		void [pinned, collapsed, expandedHeight, drag];
+		void [pinned, collapsed, expandedHeight, drag, viewer.diagramView];
 		if (panel) previousHeight = panel.getBoundingClientRect().height;
 	});
 
@@ -203,6 +205,8 @@
 		const owner = beginTimelineLayoutChange();
 		const release = () => endTimelineLayoutChange(owner);
 		const fixed = pinned;
+		// A view change can change the natural height of an unpinned section.
+		void viewer.diagramView;
 		// A hidden panel cannot measure its natural height or finish a transition.
 		if (!fixed && element.getClientRects().length === 0) {
 			element.style.height = 'auto';
@@ -407,6 +411,7 @@
 				<h2 id="timeline-title" class="text-sm font-semibold tracking-wide uppercase">
 					{m.section_timeline()}
 				</h2>
+				<DiagramViewSwitch controls="diagram-stage" />
 				{#if workspaceLayout.split}
 					<Hint text={m.gantt_pin()}>
 						{#snippet child({ props })}
@@ -502,7 +507,8 @@
 				style:--chart-min-height={`${MIN_CHART_HEIGHT}px`}
 				data-testid="timeline-body"
 			>
-				<Gantt
+				<DiagramStage
+					id="diagram-stage"
 					{todayDate}
 					class={cn(
 						!workspaceLayout.split &&

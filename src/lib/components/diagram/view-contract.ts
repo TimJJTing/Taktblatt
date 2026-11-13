@@ -65,7 +65,7 @@ export interface DiagramPaperAdapter {
  * Marks for the rendered task nodes of a view. The stage samples these elements for motion,
  * focus transfer and scroll reveal. The attribute value is the task id.
  * - `data-diagram-task`: the task box (bar, card or label-only node).
- * - `data-diagram-station`: the identity station dot, if the task has one.
+ * - `data-diagram-station`: inside a task box, the identity station dot, if the task has one.
  * - `data-diagram-label`: the rendered label of the task.
  * - `data-diagram-parent`: on a task box, the id of the parent task, for emerging subtasks.
  * A focus target uses the route-focus attributes: `data-route-target` and

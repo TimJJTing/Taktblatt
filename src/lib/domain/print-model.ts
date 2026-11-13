@@ -149,6 +149,8 @@ export function itemCount(segment: Segment): number {
 			return segment.rows.length;
 		case 'stage':
 			return Math.max(1, segment.rows.length);
+		case 'scene':
+			return segment.items.length;
 	}
 }
 
@@ -176,7 +178,16 @@ export function printToday(plan: Plan, today: ISODate): ISODate {
 	return plan.footer.date ?? today;
 }
 
-export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelInput): Segment[] {
+export interface PrintModelOptions extends PrintModelInput {
+	/**
+	 * The selected diagrams in print order, each prepared by its paper adapter.
+	 * The default is Gantt only.
+	 */
+	diagrams?: readonly PrintDiagram[];
+}
+
+/** The Gantt segment and its legends. The Gantt paper adapter uses this function. */
+export function ganttPrintSegments({ plan, index, isExpanded, today }: PrintModelInput): Segment[] {
 	const win = plan.range;
 	const rows = ganttRows(
 		index,
@@ -185,7 +196,6 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 		win
 	);
 	const segments: Segment[] = [
-		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false },
 		{
 			kind: 'gantt',
 			id: 'gantt',
@@ -228,6 +238,31 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 			breakBefore: false
 		});
 	}
+	return segments;
+}
+
+/**
+ * Builds the print blocks: header, the selected diagrams, stage cards, the work plan and remarks.
+ * Each diagram after the first starts on a new sheet. The segments of a diagram get its orientation.
+ * The paginator starts a new sheet at each orientation change.
+ */
+export function buildPrintModel(options: PrintModelOptions): Segment[] {
+	const { plan, index, isExpanded } = options;
+	const diagrams = options.diagrams ?? [
+		{ id: 'gantt', orientation: 'portrait', segments: ganttPrintSegments(options) }
+	];
+	const segments: Segment[] = [
+		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false }
+	];
+	diagrams.forEach((diagram, i) => {
+		diagram.segments.forEach((segment, j) => {
+			segments.push({
+				...segment,
+				orientation: diagram.orientation,
+				breakBefore: segment.breakBefore || (i > 0 && j === 0)
+			});
+		});
+	});
 	segments.push({
 		kind: 'cards',
 		id: 'cards',

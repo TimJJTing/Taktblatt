@@ -1,5 +1,6 @@
 <!--
-	The preview: a read-only, full-screen view of the sheets. It has a paper size control and a Print button.
+	The preview: a read-only, full-screen view of the sheets. It has a paper size control, the
+	"Diagrams to print" group (only with more than one registered view) and a Print button.
 	It is a modal dialog. Esc closes it. The focus goes back to the Menu button.
 	The preview has no motion. In print, only the sheets show.
 
@@ -14,6 +15,9 @@
 	import { onMount } from 'svelte';
 	import { isComposing } from '#lib/browser/keyboard.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import { getViewRegistry } from '#lib/components/diagram/view-registry.ts';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { PAPER_SIZES, type PaperSize } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updatePlan } from '#lib/state/commands.ts';
@@ -24,6 +28,8 @@
 
 	const ws = getWorkspace();
 	const preview = getPreview();
+	const viewer = getViewer();
+	const views = getViewRegistry().views;
 
 	const LABELS: Record<PaperSize, () => string> = {
 		a4: m.paper_a4,
@@ -113,6 +119,36 @@
 				</button>
 			{/each}
 		</div>
+		{#if views.length > 1}
+			<div
+				role="group"
+				aria-label={m.diagram_print_group()}
+				aria-describedby={viewer.printDiagrams.length === 1 ? 'print-diagrams-min' : undefined}
+				class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+				data-testid="print-diagrams"
+			>
+				{#each views as view (view.id)}
+					{@const checked = viewer.printDiagrams.includes(view.id)}
+					{@const sole = checked && viewer.printDiagrams.length === 1}
+					<label class="flex min-h-6 items-center gap-1.5">
+						<Checkbox
+							{checked}
+							disabled={sole}
+							onCheckedChange={(value) => viewer.setPrintDiagram(view.id, value)}
+							data-testid="print-diagram-{view.id}"
+						/>
+						{view.label()}
+					</label>
+				{/each}
+				{#if viewer.printDiagrams.length === 1}
+					<span
+						id="print-diagrams-min"
+						class="text-muted-foreground"
+						data-testid="print-diagrams-min">{m.diagram_print_min()}</span
+					>
+				{/if}
+			</div>
+		{/if}
 		<Button size="sm" onclick={() => preview.print()} data-testid="preview-print">
 			<PrinterIcon aria-hidden="true" />{m.action_print()}
 		</Button>
