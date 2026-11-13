@@ -1,3 +1,5 @@
+const compareIds = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 import { dependencyWarnings, type DependencyEdge, type DependencyWarning } from './dependencies.ts';
 import { effectiveDependencies, indexTasks, stageProgress } from './derive.ts';
 import { lineKey } from './route.ts';
@@ -30,7 +32,7 @@ export interface RouteMapModel {
 
 export function routeMapModel(plan: Plan, expanded: ReadonlySet<string>): RouteMapModel {
 	const index = indexTasks(plan.tasks);
-	const tasks = [...plan.tasks].sort((a, b) => a.id.localeCompare(b.id));
+	const tasks = [...plan.tasks].sort((a, b) => compareIds(a.id, b.id));
 	const visible = tasks.filter((t) => t.parentId === null || expanded.has(t.parentId));
 	const ids = new Set(visible.map((t) => t.id));
 	const proxy = (id: string) => (ids.has(id) ? id : (index.byId.get(id)?.parentId ?? id));
@@ -59,7 +61,7 @@ export function routeMapModel(plan: Plan, expanded: ReadonlySet<string>): RouteM
 	const warnings = dependencyWarnings(index);
 	const effectivePairs = tasks
 		.flatMap((t) => [...effectiveDependencies(index, t.id)].map((from) => ({ from, to: t.id })))
-		.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+		.sort((a, b) => compareIds(a.from, b.from) || compareIds(a.to, b.to));
 	const edges = new Map<
 		string,
 		{ key: string; from: string; to: string; cycle: boolean; stored: DependencyEdge[] }
@@ -82,7 +84,7 @@ export function routeMapModel(plan: Plan, expanded: ReadonlySet<string>): RouteM
 		groups,
 		stages,
 		effectivePairs,
-		edges: [...edges.values()].sort((a, b) => a.key.localeCompare(b.key)),
+		edges: [...edges.values()].sort((a, b) => compareIds(a.key, b.key)),
 		warnings
 	};
 }

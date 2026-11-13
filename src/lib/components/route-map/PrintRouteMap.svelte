@@ -1,7 +1,7 @@
 <script lang="ts">
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
 	import StationDot from '#lib/components/diagram/StationDot.svelte';
-	import { stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, stagePaperColor } from '#lib/components/plan/colors.ts';
 	import type { DiagramPaperProps } from '#lib/components/diagram/view-contract.ts';
 	import type { RouteMapNode } from '#lib/domain/route-map.ts';
 	import { joinList } from '#lib/domain/format.ts';
@@ -44,6 +44,13 @@
 			)
 		].map(reference)
 	);
+	const paperLine = (stageId: string, ids: string[]) => {
+		const statuses = ids.map((id) => node(id)?.status);
+		const dim =
+			statuses.includes('canceled') ||
+			(statuses.length > 1 && statuses.every((status) => status === 'done'));
+		return `color-mix(in oklab, ${stagePaperColor(stage(stageId)!.color)} ${markColorLevel(dim ? 'done' : 'todo', 'line', false, true)}%, white)`;
+	};
 	const points = (line: readonly { x: number; y: number }[]) =>
 		line.map((p) => `${p.x},${p.y}`).join(' ');
 </script>
@@ -77,20 +84,47 @@
 				{/if}
 				<svg class="paper-lines" width={item.width} height={item.height} aria-hidden="true">
 					{#if stage(item.stageId)}
-						<line
-							x1="0"
-							x2={item.width}
-							y1={item.lineY}
-							y2={item.lineY}
-							stroke={stagePaperColor(stage(item.stageId)!.color)}
-						/>
+						{@const roots = item.stations.filter((station) => !node(station.id)?.parentId)}
+						{#if roots.length === 0}
+							<line
+								x1="0"
+								x2={item.width}
+								y1={item.lineY}
+								y2={item.lineY}
+								stroke={paperLine(item.stageId, [])}
+							/>
+						{:else}
+							{#each roots.slice(1) as station, i (station.id)}
+								<line
+									x1={roots[i].outPort.x}
+									x2={station.inPort.x}
+									y1={item.lineY}
+									y2={item.lineY}
+									stroke={paperLine(item.stageId, [roots[i].id, station.id])}
+								/>
+							{/each}
+							<line
+								x1="0"
+								x2={roots[0].inPort.x}
+								y1={item.lineY}
+								y2={item.lineY}
+								stroke={paperLine(item.stageId, [roots[0].id])}
+							/>
+							<line
+								x1={roots.at(-1)!.outPort.x}
+								x2={item.width}
+								y1={item.lineY}
+								y2={item.lineY}
+								stroke={paperLine(item.stageId, [roots.at(-1)!.id])}
+							/>
+						{/if}
 						{#each item.stations.filter((station) => node(station.id)?.parentId) as child (child.id)}
 							<line
 								x1={child.inPort.x + child.hitBox.w / 2}
 								x2={child.inPort.x + child.hitBox.w / 2}
 								y1={item.lineY}
 								y2={child.inPort.y}
-								stroke={stagePaperColor(stage(item.stageId)!.color)}
+								stroke={paperLine(item.stageId, [node(child.id)!.parentId!, child.id])}
 							/>
 						{/each}
 					{/if}
@@ -104,7 +138,9 @@
 						<polyline
 							points={points(edge.points)}
 							fill="none"
-							stroke="currentColor"
+							stroke={edge.cycle
+								? 'currentColor'
+								: `color-mix(in oklab, #505663 ${markColorLevel(node(edge.from)?.status ?? 'todo', 'connector', false, true)}%, white)`}
 							class={edge.cycle ? 'text-paper-warning' : undefined}
 							data-cycle={edge.cycle ? 'true' : undefined}
 							stroke-width={edge.cycle ? 2 : 1}
@@ -113,26 +149,6 @@
 						/>
 					{/each}
 				</svg>
-				{#each item.continuations as continuation, markerIndex (`${continuation.id}:${continuation.kind}`)}
-					{@const point =
-						continuation.kind === 'exit' ? continuation.points.at(-1)! : continuation.points[0]}
-					<span
-						class="continuation"
-						data-continuation={continuation.id}
-						data-direction={continuation.kind}
-						style:left={`${point.x}px`}
-						style:top={`${markerIndex * 10}px`}
-						style:transform={continuation.kind === 'entry' ? 'translateX(-100%)' : undefined}
-					>
-						{m.route_map_continuation({
-							pair: continuation.id,
-							direction: continuation.kind === 'exit' ? m.route_map_exit() : m.route_map_entry(),
-							reference: reference(
-								continuation.kind === 'exit' ? continuation.to : continuation.from
-							)
-						})}
-					</span>
-				{/each}
 				{#each item.stations as station (station.id)}
 					<div
 						class="paper-station"
@@ -161,6 +177,26 @@
 					</div>
 				{/each}
 			{/if}
+			{#if item.stageId && item.lineY === undefined && item.markers?.length && stage(item.stageId)}
+				<div class="stage-heading">{bounded(stage(item.stageId)!.title)}</div>
+			{/if}
+			{#each item.markers ?? [] as continuation, markerIndex (`${continuation.id}:${continuation.kind}`)}
+				{@const point =
+					continuation.kind === 'exit' ? continuation.points.at(-1)! : continuation.points[0]}
+				<span
+					class="continuation"
+					data-continuation={continuation.id}
+					data-direction={continuation.kind}
+					style:left={`${Math.max(0, Math.min(point.x, item.width - 80))}px`}
+					style:top={`${(item.markerY ?? 16) + markerIndex * 10}px`}
+				>
+					{m.route_map_continuation({
+						pair: continuation.id,
+						direction: continuation.kind === 'exit' ? m.route_map_exit() : m.route_map_entry(),
+						reference: reference(continuation.kind === 'exit' ? continuation.to : continuation.from)
+					})}
+				</span>
+			{/each}
 			{#each item.titles as title, titleIndex (titleIndex)}
 				<div class="title-line">
 					{m.route_map_title_continuation({ reference: title.reference, title: title.text })}
@@ -216,6 +252,8 @@
 		position: absolute;
 		font-size: 8px;
 		white-space: nowrap;
+		max-width: 100%;
+		overflow: hidden;
 	}
 	.title-line {
 		height: 16px;

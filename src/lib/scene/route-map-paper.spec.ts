@@ -97,6 +97,46 @@ function expectPairs(paper: RouteMapPaper) {
 }
 
 describe('Route map paper', () => {
+	it('reserves bounded marker rows for four by four continuations', () => {
+		const plan = makePlan(
+			[
+				...Array.from({ length: 4 }, (_, i) => task({ id: `a${i}`, title: 'A', stageId: 's1' })),
+				...Array.from({ length: 4 }, (_, i) =>
+					task({ id: `b${i}`, title: 'B', stageId: 's2', dependsOn: ['a0', 'a1', 'a2', 'a3'] })
+				)
+			],
+			['s1', 's2']
+		);
+		const paper = routeMapPaper(routeMapModel(plan, new Set()), metrics());
+		expectFits(paper, metrics());
+		expectPairs(paper);
+		expect(paper.segment.items.flatMap((item) => item.markers ?? [])).toHaveLength(32);
+		for (const item of paper.segment.items) {
+			if (item.markers?.length)
+				expect(item.height).toBeGreaterThanOrEqual((item.markerY ?? 0) + item.markers.length * 10);
+		}
+	});
+
+	it('splits dense panels before local channels are reused', () => {
+		const plan = makePlan(
+			Array.from({ length: 11 }, (_, i) =>
+				task({
+					id: `t${String(i).padStart(2, '0')}`,
+					title: 'A',
+					dependsOn: Array.from({ length: i }, (_, j) => `t${String(j).padStart(2, '0')}`)
+				})
+			)
+		);
+		const paper = routeMapPaper(routeMapModel(plan, new Set()), metrics());
+		expect(paper.panels.length).toBeGreaterThan(1);
+		for (const item of paper.segment.items) {
+			const channels = item.edges.map((edge) => edge.points[2].y);
+			expect(new Set(channels).size).toBe(channels.length);
+		}
+		expectFits(paper, metrics());
+		expectPairs(paper);
+	});
+
 	it('cuts measured whole columns on landscape A4 and Letter and keeps stable panel ids', () => {
 		const plan = makePlan(
 			Array.from({ length: 18 }, (_, i) =>

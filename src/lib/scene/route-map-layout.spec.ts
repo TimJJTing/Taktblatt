@@ -36,6 +36,11 @@ describe('Route map placement', () => {
 		expect(layout([...tasks].reverse())).toEqual(result);
 	});
 
+	it('orders canonically equivalent ids by code unit regardless of input order', () => {
+		const tasks = [task({ id: 'é' }), task({ id: 'e\u0301' })];
+		expect(layout(tasks)).toEqual(layout([...tasks].reverse()));
+	});
+
 	it('orders siblings by dependencies and uses child dates for the contracted parent', () => {
 		const result = layout(
 			[

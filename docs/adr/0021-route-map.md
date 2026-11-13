@@ -92,7 +92,7 @@ Mark rendered task boxes, stations, labels, parent ids and scroll containers wit
 
 Use one orientation in the first release: landscape for A4 and US Letter. Build a separate scene at readable paper metrics. Exclude route focus and tweens. The shared host retains selection, page order, orientation changes and page totals.
 
-Calculate usable diagram width from the selected paper size, margins, repeated labels and continuation gutters. The current shared adapter contract does not supply measured sheet or text dimensions. The adapter estimates text width. Lay out physical columns before panel assignment. Accumulate whole columns while they fit that width. Cut only at measured column boundaries. A dependency rank is not a physical cut position. Stack panels vertically. Publish each block between legal vertical splits as one `SceneSegment.items` entry. The sheets measure each rendered `data-item` height. No horizontal split axis is needed.
+Calculate usable diagram width from the selected paper size, margins, repeated labels and continuation gutters. The current shared adapter contract does not supply measured sheet or text dimensions. The adapter estimates text width. Lay out physical columns before panel assignment. Accumulate whole columns while they fit that width and the per-stage connector capacity. Cut only at measured column boundaries. A dependency rank is not a physical cut position. Stack panels vertically. Publish each block between legal vertical splits as one `SceneSegment.items` entry. The sheets measure each rendered `data-item` height. No horizontal split axis is needed.
 
 Derive stable column ids from station identities. Derive stable panel ids from ordered column ids and paper metrics. Equal inputs reproduce the ids after reload or input permutation. Keep each station on one panel. Let families split between columns or branch lanes.
 
@@ -100,7 +100,7 @@ Reflow a cell that exceeds panel width before assignment. Bound the station labe
 
 Use at most two lines for the station label. Keep it with the station. Allow legal breaks between continuation text lines. Repeat panel ids, stage text, headings and relevant parent labels. Put whole-stage progress at the final terminus.
 
-Use simple paired exit/entry ids for cross-panel and cross-sheet dependencies. Derive each pair from connector identity and boundary. Preserve direction and cycle forms. Detailed destination references, compact rank-based panel packing and automatic orientation choice are optional refinements.
+Reserve a heading row and bounded marker rows in splittable items. Use simple paired exit/entry ids for cross-panel and cross-sheet dependencies. Derive each pair from connector identity and boundary. Preserve direction and cycle forms. Detailed destination references, compact rank-based panel packing and automatic orientation choice are optional refinements.
 
 ### Ownership and delivery
 

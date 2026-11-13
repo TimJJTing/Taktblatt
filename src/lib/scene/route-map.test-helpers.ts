@@ -7,8 +7,7 @@ import type { RouteMapRoute } from './route-map-router.ts';
 export const task = (input: Partial<Task> & { id: string }) =>
 	makeTask({ createdAt: '2027-01-01T00:00:00.000Z', ...input });
 
-export const screenMetrics: RouteMapMetrics = {
-	stationSize: 12,
+export const screenMetrics: RouteMapMetrics & { measureText: (text: string) => number } = {
 	hitSize: 24,
 	labelWidth: 144,
 	labelHeight: 40,

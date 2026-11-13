@@ -7,6 +7,9 @@
 	import StationDot from '#lib/components/diagram/StationDot.svelte';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
+	import { readyLight } from '#lib/domain/derive.ts';
+	import { joinSentences } from '#lib/domain/format.ts';
+	import { uiIntl } from '#lib/ui-language.ts';
 	import type { RouteMapNode } from '#lib/domain/route-map.ts';
 	import type { Stage } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -55,6 +58,22 @@
 		}[node.status]()
 	);
 	const name = $derived(m.route_map_station_name({ task: title, stage: stage.title, status }));
+	const readiness = $derived(readyLight(ws.index.state.get(node.id)!.readiness));
+	const fullDescription = $derived(
+		joinSentences(
+			[
+				description,
+				readiness
+					? readiness.via === 'subtasks'
+						? m.ready_label_subtasks({ count: readiness.count })
+						: readiness.count
+							? m.ready_label({ count: readiness.count })
+							: m.ready_label_plain()
+					: ''
+			].filter(Boolean),
+			uiIntl()
+		)
+	);
 	const descriptionId = $props.id();
 	function click(event: MouseEvent) {
 		if (editing.routeFocus.lastPointerType === 'touch')
@@ -82,7 +101,7 @@
 		onpointerenter={(e) => hover(e, true)}
 		onpointerleave={(e) => hover(e, false)}
 	>
-		{#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
+		{#if fullDescription}<span id={descriptionId} class="sr-only">{fullDescription}</span>{/if}
 		<Hint text={name}>
 			{#snippet child({ props })}
 				<button
@@ -95,7 +114,7 @@
 					style:width="{geom.current.hitBox.w}px"
 					style:height="{geom.current.hitBox.h}px"
 					aria-label={name}
-					aria-describedby={description ? descriptionId : undefined}
+					aria-describedby={fullDescription ? descriptionId : undefined}
 					data-route-target={node.id}
 					data-route-focus="keyboard"
 					data-route-touch
@@ -128,7 +147,7 @@
 					data-route-target={node.id}
 					use:routeTarget={node.id}
 					aria-label={title}
-					aria-describedby={description ? descriptionId : undefined}
+					aria-describedby={fullDescription ? descriptionId : undefined}
 					data-diagram-label={node.id}
 					><span class="inline-flex items-baseline gap-1"
 						><ReadyDot readiness={ws.index.state.get(node.id)!.readiness} /><span

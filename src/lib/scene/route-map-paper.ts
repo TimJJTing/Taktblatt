@@ -9,6 +9,7 @@ import {
 import type { RouteMapRoute } from './route-map-router.ts';
 
 export interface RouteMapPaperMetrics extends RouteMapMetrics {
+	measureText: (text: string) => number;
 	sheetWidth: number;
 	sheetHeight: number;
 	margin: number;
@@ -40,6 +41,8 @@ export interface RouteMapPaperItem {
 	edges: readonly RouteMapRoute[];
 	continuations: readonly RouteMapContinuation[];
 	termini: readonly { stageId: string; toGo: number }[];
+	markers?: readonly RouteMapContinuation[];
+	markerY?: number;
 }
 export interface RouteMapPaper {
 	columns: readonly { id: string; width: number }[];
@@ -86,8 +89,22 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 	}));
 	const panels: { id: string; columnIds: string[] }[] = [];
 	let used = 0;
+	const stationByColumn = new Map(layout.stations.map((station) => [station.columnId, station]));
+	const capacity = Math.max(1, Math.floor((height / 2 - metrics.clearance * 2) / 6) + 1);
 	for (const column of columns) {
-		if (!panels.length || used + column.width > width) {
+		const candidate = [...(panels.at(-1)?.columnIds ?? []), column.id];
+		const ids = new Set(candidate.map((id) => stationByColumn.get(id)!.id));
+		const exceedsCapacity = model.stages.some(
+			(stage) =>
+				model.edges.filter(
+					(edge) =>
+						ids.has(edge.from) &&
+						ids.has(edge.to) &&
+						byId.get(edge.from)?.stageId === stage.id &&
+						byId.get(edge.to)?.stageId === stage.id
+				).length > capacity
+		);
+		if (!panels.length || used + column.width > width || exceedsCapacity) {
 			panels.push({ id: `panel:${column.id}:${width}:${height}`, columnIds: [] });
 			used = 0;
 		}
@@ -95,14 +112,13 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		used += column.width;
 	}
 	if (!panels.length) panels.push({ id: `panel:empty:${width}:${height}`, columnIds: [] });
-	const stationByColumn = new Map(layout.stations.map((station) => [station.columnId, station]));
 	const columnById = new Map(columns.map((column) => [column.id, column]));
 	const references = new Map(layout.stations.map((station, i) => [station.id, `R${i + 1}`]));
 	const items: RouteMapPaperItem[] = [];
 	const stationItems = new Map<string, RouteMapPaperItem>();
 	for (const panel of panels) {
 		const panelWidth = Math.max(
-			1,
+			panel.columnIds.length ? 1 : width,
 			panel.columnIds.reduce((sum, id) => sum + columnById.get(id)!.width, 0)
 		);
 		for (const stage of model.stages) {
@@ -116,7 +132,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				(localEdges.length + 1) * 6 + metrics.clearance + 24
 			);
 			const hit = Math.max(24, metrics.hitSize);
-			const y = trackHeight + metrics.clearance + hit / 2;
+			const y = 16 + trackHeight + metrics.clearance + hit / 2;
 			let offset = 0;
 			const positions = new Map<string, number>();
 			for (const id of panel.columnIds) {
@@ -158,7 +174,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				const target = placedById.get(edge.to)!;
 				const sx = source.outPort.x + metrics.clearance + 1;
 				const tx = target.inPort.x - metrics.clearance - 1;
-				const channel = Math.min(trackHeight - metrics.clearance, metrics.clearance + 6 * i);
+				const channel = 16 + metrics.clearance + 6 * i;
 				return {
 					...edge,
 					points: [
@@ -275,6 +291,37 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 	for (const item of items)
 		(item as { continuations: readonly RouteMapContinuation[] }).continuations =
 			continuations.get(item.id) ?? [];
+	// Keep marker rows in the band when they fit. Put the other rows in legal splits.
+	for (let i = items.length - 1; i >= 0; i--) {
+		const item = items[i];
+		const markers = item.continuations;
+		const inBand = Math.max(0, Math.floor((height - item.height) / 10));
+		if (inBand && markers.length) {
+			item.markerY = item.height;
+			item.markers = markers.slice(0, inBand);
+			item.height += item.markers.length * 10;
+		}
+		const count = Math.max(1, Math.floor((height - 16) / 10));
+		const extra: RouteMapPaperItem[] = [];
+		for (let start = Math.min(inBand, markers.length); start < markers.length; start += count) {
+			const rows = markers.slice(start, start + count);
+			extra.push({
+				id: `markers:${item.id}:${start}`,
+				panelId: item.panelId,
+				stageId: item.stageId,
+				width: item.width,
+				height: 16 + rows.length * 10,
+				stations: [],
+				titles: [],
+				edges: [],
+				continuations: [],
+				markers: rows,
+				markerY: 16,
+				termini: []
+			});
+		}
+		items.splice(i + 1, 0, ...extra);
+	}
 	for (const stage of model.stages) {
 		const band = items.findLast((item) => item.id.startsWith('band:') && item.stageId === stage.id);
 		if (band)

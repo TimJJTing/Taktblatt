@@ -1,3 +1,5 @@
+const compareIds = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 import type { RouteMapModel, RouteMapNode } from '#lib/domain/route-map.ts';
 
 export interface RouteMapPoint {
@@ -11,7 +13,6 @@ export interface RouteMapBox {
 	h: number;
 }
 export interface RouteMapMetrics {
-	stationSize: number;
 	hitSize: number;
 	labelWidth: number;
 	labelHeight: number;
@@ -19,7 +20,6 @@ export interface RouteMapMetrics {
 	stageGap: number;
 	laneGap: number;
 	clearance: number;
-	measureText: (text: string) => number;
 }
 export interface RouteMapStation {
 	id: string;
@@ -75,8 +75,8 @@ function order(
 		}
 	const compare = (a: RouteMapNode, b: RouteMapNode) =>
 		(a.start ?? '\uffff').localeCompare(b.start ?? '\uffff') ||
-		a.createdAt.localeCompare(b.createdAt) ||
-		a.id.localeCompare(b.id);
+		compareIds(a.createdAt, b.createdAt) ||
+		compareIds(a.id, b.id);
 	const groups = new Map<string, RouteMapNode[]>();
 	for (const node of nodes) {
 		const key = component.get(node.id)!;
@@ -89,7 +89,7 @@ function order(
 			key: [...members].sort(compare)[0],
 			rank: ranks.get(id)!
 		}))
-		.sort((a, b) => a.rank - b.rank || compare(a.key, b.key) || a.id.localeCompare(b.id))
+		.sort((a, b) => a.rank - b.rank || compare(a.key, b.key) || compareIds(a.id, b.id))
 		.flatMap(({ members, rank }) => members.map((node) => ({ node, rank })));
 }
 
@@ -113,7 +113,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 	const gutters: string[][] = Array.from({ length: entries.length + 1 }, () => []);
 	const channels: string[][] = Array.from({ length: model.stages.length + 1 }, () => []);
 	const routingIndices = new Map<string, { from: number; to: number; channel: number }>();
-	for (const edge of [...model.edges].sort((a, b) => a.key.localeCompare(b.key))) {
+	for (const edge of [...model.edges].sort((a, b) => compareIds(a.key, b.key))) {
 		const from = index.get(edge.from);
 		const to = index.get(edge.to);
 		if (from === undefined || to === undefined) continue;

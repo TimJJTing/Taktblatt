@@ -6,7 +6,7 @@
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
 	import { markColorLevel, stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
-	import { joinList } from '#lib/domain/format.ts';
+	import { joinList, joinSentences } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
 	import { routeMapModel } from '#lib/domain/route-map.ts';
@@ -34,15 +34,13 @@
 	);
 	const layout = $derived(
 		routeMapLayout(model, {
-			stationSize: 16,
 			hitSize: 28,
 			labelWidth: 120,
 			labelHeight: 36,
 			columnGap: 28,
 			stageGap: 130,
 			laneGap: 24,
-			clearance: 8,
-			measureText: (text) => text.length * 7
+			clearance: 8
 		})
 	);
 	const routes = $derived(routeMapRoutes(model, layout));
@@ -71,7 +69,7 @@
 			);
 		const predecessors = model.edges.filter((edge) => edge.to === id).map((edge) => edge.from);
 		const successors = model.edges.filter((edge) => edge.from === id).map((edge) => edge.to);
-		return joinList(
+		return joinSentences(
 			[
 				predecessors.length ? m.route_map_predecessors({ tasks: names(predecessors) }) : '',
 				successors.length ? m.route_map_successors({ tasks: names(successors) }) : '',
@@ -95,7 +93,11 @@
 							? m.dependency_warning_cycle()
 							: w.kind === 'subtask_scope'
 								? m.dependency_warning_subtask_scope()
-								: ''
+								: w.kind === 'date' && w.taskId === id
+									? m.dependency_warning({
+											task: ws.index.byId.get(w.dependencyId)?.title || m.route_map_untitled_task()
+										})
+									: ''
 					)
 			].filter(Boolean),
 			uiIntl()
@@ -290,6 +292,8 @@
 							fill="none"
 							stroke={lineColor(guide.stageId, guide.ids)}
 							stroke-width="2"
+							class="route-paint"
+							style:transition-duration={`${motionDuration(150)}ms`}
 						/>
 					{/each}
 					{#each termini as terminus (terminus.id)}
@@ -299,6 +303,8 @@
 							fill="none"
 							stroke={lineColor(terminus.id, terminus.ids)}
 							stroke-width="2"
+							class="route-paint"
+							style:transition-duration={`${motionDuration(150)}ms`}
 						/>
 					{/each}
 					{#each loops as loop (loop.key)}
@@ -307,6 +313,8 @@
 							fill="none"
 							stroke={lineColor(loop.stageId, loop.ids)}
 							stroke-width="1"
+							class="route-paint"
+							style:transition-duration={`${motionDuration(150)}ms`}
 						/>
 					{/each}
 					{#each routes as edge (edge.key)}
@@ -390,9 +398,12 @@
 </div>
 
 <style>
+	.route-paint,
+	.dependency {
+		transition-property: stroke;
+	}
 	.dependency {
 		stroke-width: 2;
-		transition-property: stroke;
 	}
 	@media (forced-colors: active) {
 		.cycle-casing {

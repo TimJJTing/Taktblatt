@@ -19,7 +19,6 @@ export const view: DiagramViewDefinition = {
 			);
 			const letter = plan.paper === 'letter';
 			const paper = routeMapPaper(model, {
-				stationSize: 12,
 				hitSize: 24,
 				labelWidth: 144,
 				labelHeight: 40,
