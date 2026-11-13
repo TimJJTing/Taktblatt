@@ -93,7 +93,8 @@ test('retains done-300 with equal cards, an unbroken title, sticky headings and 
 		new RegExp(`^Open task details for ${'W'.repeat(512)}`)
 	);
 	await action(page, 'D150').hover();
-	await expect(page.getByRole('tooltip')).toContainText('W'.repeat(512));
+	// The shared tooltip content has no tooltip role. Use its slot, as e2e/tooltips.e2e.ts does.
+	await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('W'.repeat(512));
 
 	await vertical(page).hover();
 	await page.mouse.wheel(0, 100000);
