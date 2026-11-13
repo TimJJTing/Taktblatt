@@ -187,7 +187,7 @@ export class ViewerState {
 	}
 
 	/** Puts back the expanded tasks of a plan. Use it after `forgetPlan`, for example on Undo. */
-	restorePlan(planId: string, ids: readonly DiagramViewId[]): void {
+	restorePlan(planId: string, ids: readonly string[]): void {
 		if (ids.length === 0) return;
 		this.expanded = { ...this.expanded, [planId]: [...ids] };
 		this.save();

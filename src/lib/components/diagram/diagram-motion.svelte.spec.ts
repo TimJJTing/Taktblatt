@@ -79,6 +79,15 @@ describe('motion adapter hooks', () => {
 		expect([...records.keys()].sort()).toEqual(['a', 'b']);
 	});
 
+	it('captureGeometry keeps the drawn radius of a fully round box', () => {
+		const find = build(`
+			<div id="stage" style="position: fixed; left: 0; top: 0; width: 400px; height: 200px">
+				<div data-diagram-task="pill" style="position: absolute; width: 80px; height: 20px; border-radius: 9999px"></div>
+			</div>`);
+		const box = captureGeometry(find('#stage'), find('#stage')).get('pill')!.box!;
+		expect(box.radius).toBe(10);
+	});
+
 	it('sourceBox uses the own box, then the own label, then the parent, else nothing', () => {
 		const box: Box = { x: 1, y: 2, w: 3, h: 4, radius: 1 };
 		const parentBox: Box = { x: 10, y: 20, w: 30, h: 40, radius: 0 };
