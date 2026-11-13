@@ -59,23 +59,28 @@
 	const layerElement = (key: number) =>
 		stage?.querySelector<HTMLElement>(`[data-diagram-layer="${key}"]`) ?? null;
 
+	/**
+	 * The task id of the focused stage node. Focus on another stage control (for example a
+	 * milestone) gives 'switch': that control leaves with the outgoing view.
+	 */
 	function focusedTask(): string | 'switch' | null {
 		const focused = document.activeElement;
 		if (!stage || !(focused instanceof Element) || !stage.contains(focused)) return null;
 		return focused.closest('[data-route-target]')?.getAttribute('data-route-target') ?? 'switch';
 	}
 
+	/** The task box if it takes focus, else the task label, else a keyboard route target. */
 	function focusTarget(root: HTMLElement, taskId: string): HTMLElement | null {
-		const selector = `[data-route-target="${CSS.escape(taskId)}"]`;
+		const id = CSS.escape(taskId);
 		const focusable = 'button, [tabindex]:not([tabindex="-1"])';
-		const box = root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.task}="${CSS.escape(taskId)}"]`);
-		if (box?.matches(focusable)) return box;
-		for (const element of root.querySelectorAll<HTMLElement>(selector)) {
-			if (element.matches(focusable)) return element;
-			const inner = element.querySelector<HTMLElement>(focusable);
-			if (inner) return inner;
-		}
-		return null;
+		const candidates = [
+			root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.task}="${id}"]`),
+			root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.label}="${id}"]`),
+			...root.querySelectorAll<HTMLElement>(
+				`[data-route-target="${id}"][data-route-focus="keyboard"]`
+			)
+		];
+		return candidates.find((element) => element?.matches(focusable)) ?? null;
 	}
 
 	function focusSwitch() {
@@ -84,10 +89,15 @@
 			?.focus();
 	}
 
-	function announce(label: string) {
+	let announced = untrack(() => active.id);
+
+	function announce(view: string) {
 		clearTimeout(announceTimer);
-		// Rapid changes announce only the final view.
+		// Rapid changes announce only the final view. A return to the announced view is no change.
 		announceTimer = setTimeout(() => {
+			if (view === announced) return;
+			announced = view;
+			const label = registry.get(view)?.label() ?? view;
 			announcement = '';
 			void tick().then(() => (announcement = m.diagram_view_announcement({ view: label })));
 		}, 150);
@@ -131,9 +141,15 @@
 		];
 		await tick();
 		const incoming = layerElement(key);
-		if (stage && incoming) {
+		// Measure the destination before any transform: the FLIP start frame moves the boxes.
+		const destination = stage && incoming ? captureGeometry(incoming, stage) : null;
+		const target = pendingFocus;
+		pendingFocus = null;
+		const focusElement =
+			target && target !== 'switch' && incoming ? focusTarget(incoming, target) : null;
+		const reveal = focusElement?.getBoundingClientRect();
+		if (stage && incoming && destination) {
 			animations = applyTransition(incoming, stage, outgoing, duration, 'from');
-			const destination = captureGeometry(incoming, stage);
 			for (const layer of layers) {
 				const element = layer.leaving ? layerElement(layer.key) : null;
 				if (element) {
@@ -144,19 +160,13 @@
 		// The outgoing layers lost route input above. Now their DOM can exit.
 		layers = layers.filter((layer) => !layer.leaving);
 
-		const target = pendingFocus;
-		pendingFocus = null;
-		if (target && incoming) {
-			const element = target === 'switch' ? null : focusTarget(incoming, target);
-			if (element) {
-				element.focus({ preventScroll: true });
-				const rect = element.getBoundingClientRect();
-				onReveal({ top: rect.top, bottom: rect.bottom });
-			} else {
-				focusSwitch();
-			}
+		if (focusElement && reveal) {
+			focusElement.focus({ preventScroll: true });
+			onReveal({ top: reveal.top, bottom: reveal.bottom });
+		} else if (target) {
+			focusSwitch();
 		}
-		announce(registry.get(view)?.label() ?? view);
+		announce(view);
 	}
 
 	// A later user focus action cancels a pending transfer.
@@ -196,7 +206,7 @@
 	{id}
 	role="region"
 	aria-label={m.diagram_region({ view: active.label() })}
-	class={cn('relative flex min-w-0 flex-1 flex-col', className)}
+	class={cn('relative flex min-h-21 min-w-0 flex-1 flex-col', className)}
 	data-testid="diagram-stage"
 	data-view={active.id}
 >
@@ -204,7 +214,7 @@
 		{@const view = registry.get(layer.view) ?? registry.get(GANTT_VIEW_ID)!}
 		<div
 			class={cn(
-				'flex min-w-0 flex-1 flex-col',
+				'flex min-h-0 min-w-0 flex-1 flex-col',
 				layer.leaving && 'pointer-events-none absolute inset-x-0 top-0'
 			)}
 			inert={layer.leaving}

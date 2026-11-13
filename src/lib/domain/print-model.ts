@@ -254,13 +254,19 @@ export function buildPrintModel(options: PrintModelOptions): Segment[] {
 	const segments: Segment[] = [
 		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false }
 	];
+	// Segment ids must be unique. A diagram that repeats an id gets its own prefix.
+	const seen = new Set(segments.map((segment) => segment.id));
 	diagrams.forEach((diagram, i) => {
 		diagram.segments.forEach((segment, j) => {
+			const id = seen.has(segment.id) ? `${diagram.id}:${segment.id}` : segment.id;
+			seen.add(id);
+			// A prefixed id is a plain string. The renderers read `kind`, not the literal id.
 			segments.push({
 				...segment,
+				id,
 				orientation: diagram.orientation,
 				breakBefore: segment.breakBefore || (i > 0 && j === 0)
-			});
+			} as Segment);
 		});
 	});
 	segments.push({

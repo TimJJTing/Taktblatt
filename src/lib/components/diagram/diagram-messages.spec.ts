@@ -26,13 +26,15 @@ describe('shared diagram messages', () => {
 		);
 	});
 
-	it.each(LOCALES)('exist with the same parameters in %s', (locale) => {
-		const messages = catalog(locale);
-		for (const [key, text] of source) {
-			const translated = messages[key];
-			expect(typeof translated, key).toBe('string');
-			expect((translated as string).trim(), key).not.toBe('');
-			expect(params(translated as string), key).toEqual(params(text as string));
+	it('exist with the same parameters in every catalog', () => {
+		for (const locale of LOCALES) {
+			const messages = catalog(locale);
+			for (const [key, text] of source) {
+				const translated = messages[key];
+				expect(typeof translated, key).toBe('string');
+				expect((translated as string).trim(), key).not.toBe('');
+				expect(params(translated as string), key).toEqual(params(text as string));
+			}
 		}
 	});
 });

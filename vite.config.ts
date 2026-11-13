@@ -13,7 +13,7 @@ import type { Plugin } from 'vite';
 function diagramViewFixtures(): Plugin {
 	const id = 'virtual:diagram-view-fixtures';
 	const resolved = `\0${id}`;
-	const enabled = process.env.TAKTBLATT_DIAGRAM_FIXTURES === '1';
+	const enabled = fixtureBuild;
 	return {
 		name: 'taktblatt-diagram-view-fixtures',
 		resolveId: (source) => (source === id ? resolved : undefined),
@@ -26,6 +26,8 @@ function diagramViewFixtures(): Plugin {
 	};
 }
 
+const fixtureBuild = process.env.TAKTBLATT_DIAGRAM_FIXTURES === '1';
+
 export default defineConfig({
 	plugins: [
 		diagramViewFixtures(),
@@ -36,7 +38,12 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter({ fallback: '404.html' })
+			// A fixture build uses its own output, so it never replaces the production build.
+			...(fixtureBuild ? { outDir: '.svelte-kit-fixtures' } : {}),
+			adapter: adapter({
+				fallback: '404.html',
+				pages: fixtureBuild ? 'build-fixtures' : 'build'
+			})
 		}),
 		paraglideVitePlugin({ project: './project.inlang' })
 	],

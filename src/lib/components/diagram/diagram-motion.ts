@@ -167,10 +167,10 @@ export function applyTransition(
 		const sy = here.h > 0 && source.h > 0 ? source.h / here.h : 1;
 		if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.01) continue;
 		const moved = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
-		const frames =
-			direction === 'from'
-				? [{ transform: moved }, { transform: 'none' }]
-				: [{ transform: 'none' }, { transform: moved }];
+		// The keyframes carry the origin, so no inline style stays after the animation.
+		const still = { transform: 'none', transformOrigin: '0 0' };
+		const shifted = { transform: moved, transformOrigin: '0 0' };
+		const frames = direction === 'from' ? [shifted, still] : [still, shifted];
 		element[FLIGHT]?.cancel();
 		const animation = element.animate(frames, {
 			duration,
@@ -178,7 +178,6 @@ export function applyTransition(
 			fill: direction === 'toward' ? 'forwards' : 'none',
 			composite: 'add'
 		});
-		element.style.transformOrigin = '0 0';
 		element[FLIGHT] = animation;
 		animations.push(animation);
 	}

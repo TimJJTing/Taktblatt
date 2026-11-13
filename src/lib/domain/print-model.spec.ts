@@ -259,6 +259,23 @@ describe('buildPrintModel with selected diagrams', () => {
 		ORDER.filter((_, bit) => ((n + 1) >> bit) & 1)
 	);
 
+	it('keeps segment ids unique when a diagram repeats an id', () => {
+		const model = buildPrintModel({
+			...input,
+			diagrams: [
+				diagrams.gantt(),
+				{
+					id: 'test-list',
+					orientation: 'portrait',
+					segments: [scene('test-list', 'legend-stages', 2)]
+				}
+			]
+		});
+		const ids = model.map((segment) => segment.id);
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(ids).toContain('test-list:legend-stages');
+	});
+
 	it('returns the Gantt segment and its legends from ganttPrintSegments', () => {
 		expect(ganttPrintSegments(input).map((s) => s.id)).toEqual(['gantt', 'legend-stages']);
 		plan.milestones = [
