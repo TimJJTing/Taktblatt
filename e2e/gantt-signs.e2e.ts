@@ -19,7 +19,8 @@ import {
 	todayTagGeometry,
 	waitForAnimations,
 	waitForFrames,
-	writeStoredPlan
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 for (const width of [1800, 390]) {
@@ -65,7 +66,7 @@ test('headings, split legends, tabs rail and paper use matching badges after a k
 	const picker = stage(page, 0).getByTestId('stage-color');
 	await picker.focus();
 	await picker.press('Enter');
-	const palette = page.getByRole('radiogroup');
+	const palette = stageColorPalette(page);
 	await expect(palette).toBeVisible();
 	await waitForAnimations(page.locator('[data-slot="popover-content"]'));
 	await page.keyboard.press('End');

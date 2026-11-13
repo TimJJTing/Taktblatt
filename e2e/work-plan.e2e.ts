@@ -17,7 +17,8 @@ import {
 	setTaskStatus,
 	selectTab,
 	groupScroller,
-	writeStoredPlan
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 test.describe('work plan', () => {
@@ -379,7 +380,7 @@ test.describe('work plan', () => {
 		try {
 			expect(await monitor.evaluate(({ baseline }) => baseline)).toBeGreaterThan(0);
 			await swatch.click();
-			const palette = page.getByRole('radiogroup');
+			const palette = stageColorPalette(page);
 			const content = page.locator('[data-slot="popover-content"]');
 			await expect(palette).toBeVisible();
 			await expect(palette.getByRole('radio', { checked: true })).toBeFocused();
