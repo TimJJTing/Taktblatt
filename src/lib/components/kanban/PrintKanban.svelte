@@ -100,6 +100,7 @@
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
-		min-height: 2.5em;
+		line-height: 1.25;
+		min-height: 2lh;
 	}
 </style>

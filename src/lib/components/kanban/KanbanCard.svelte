@@ -172,7 +172,8 @@
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
-		min-height: 2.5em;
+		line-height: 1.25rem;
+		min-height: 2lh;
 	}
 	.card {
 		transition-property: border-color;

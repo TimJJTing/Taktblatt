@@ -808,7 +808,7 @@ Show the parent title on subtask cards. Always show eligible subtasks, regardles
 
 Use one shared vertical scroll region for all four columns. Column headings and counts are sticky at the top of that region. There are no independent column scrollers. Use the shared Timeline height and viewport limits. With automatic height, use the tallest column's content height, capped by the shared Timeline limit; do not add a per-view saved height. Use the existing overlay scrollbar. Done retains all eligible cards in the shared scroll region. Do not archive, cap, collapse, virtualize or add "Show more" in this slice. Canceled items remain available in the Work plan and Task details.
 
-Keep the four columns in their fixed order in one horizontally scrolling board strip. Do not stack columns or add status tabs. Each column keeps its minimum width, capped by the available strip width when that width is less than `16rem`. The board must not make the page wider. Horizontal touch movement scrolls the strip; vertical movement scrolls the whole board. A gesture must not start a card drag. Keyboard focus reveals the target column and card. A route-focus change alone does not scroll.
+Keep the four columns in their fixed order in one horizontally scrolling board strip. Do not stack columns or add status tabs. Each column keeps its minimum width, capped by the available strip width when that width is less than `16rem`. The board must not make the page wider. Keep the horizontal scrollbar at the bottom of the visible board. Horizontal touch movement scrolls the strip; vertical movement scrolls the whole board. A gesture must not start a card drag. Keyboard focus reveals the target column and card. A route-focus change alone does not scroll.
 
 Keep the shared vertical offset and horizontal strip offset while the mounted stage stays active, including workspace tab changes and resizes. Clamp offsets when content shrinks. Offsets are transient, not saved plan or viewer fields. A plan change resets them. A view remount may start at the top unless a task-focus transfer must reveal another card. Keep the same diagram above Overview and Work plan with tabs. Reuse the shared pin, height, collapse, Keep open and legend controls. Do not add another Timeline stage or tab bar.
 
@@ -860,7 +860,7 @@ Reveal a keyboard target inside the board's own vertical region and horizontal s
 
 Two reveal capabilities are shared work from the shared motion and focus follow-up PR: a per-view reveal inside the view's own scroller after a view switch, and an "app scrolling" classification for reveal scrolling. Kanban does not patch the stage to supply them.
 
-Retain focus by task id when status changes move a card. If a focused card disappears without an open dialog, move focus to the next card in its former column, then the previous card, then the selected diagram choice. A diagram switch uses section 5.13's task-id transfer and missing-target fallback instead.
+Retain focus by task id when status changes move a card. If a focused card disappears without an open dialog, move focus to the next surviving card in its former column, then the previous surviving card in that column, then the selected diagram choice. Do not select a card that moved to another column. A diagram switch uses section 5.13's task-id transfer and missing-target fallback instead.
 
 Use localized names for column sections, the shared vertical scroll region and the horizontal strip. Include the full task title, stored status label, derived board column, stage and parent context in each main action's accessible name. Do not repeat the status when its column has the same label. Put complete owner and date values and the shared ready explanation in its accessible description.
 
@@ -890,7 +890,7 @@ Use `motionDuration(GEOMETRY_MOTION_MS)` for board reorder and column changes af
 
 ### Required implementation fixtures
 
-The following are planned acceptance checks, not results of this documentation task:
+Use the following fixtures for acceptance checks:
 
 - **All-Done stress board:** One stage has 300 childless `done` tasks, ids `D001`–`D300`, in deterministic traversal order. There are no other tasks or dependencies. Counts are Blocked 0, Todo 0, In progress 0 and Done 300. All four sticky headings remain available. Reach `D001` and `D300` by pointer scrolling and keyboard navigation in the shared region. Every screen card has the same `11rem` height. Preview and printed A4/Letter output contain each of the 300 ids exactly once across complete-card fragments, with no omission, duplicate or split card; repeat counts on every fragment. This is a nonempty all-Done board, not the no-task or all-canceled state.
 - **Unbroken title:** In that board, give `D150` a title of 512 consecutive `W` characters. It wraps or breaks within the two reserved title lines, never widens its column or grows its card, and keeps its full accessible name and hint. Paper keeps its fixed 34 mm height and complete pagination.
@@ -916,7 +916,7 @@ Preview, its Print button, Cmd/Ctrl+P and browser print fallback must use the sa
 
 Use new `kanban_` keys for Kanban-specific column names, counts, empty states, card summaries, parent context, missing fields, action names and future rejection text. Reuse existing status, date, stage, ready-light and task-dialog messages where they already express the same text. The shared view name `diagram_view_kanban` and the diagram announcements already exist on `main` as `diagram_` keys. Do not duplicate or edit them.
 
-During implementation, insert a sorted `kanban_` block on the lines directly after `menu_this_plan` in each of `en`, `de`, `ja` and `zh-TW`. Do not change the anchor line. Do not append at the end of a file, sort or move other keys, or commit `src/lib/paraglide/`. Put word order and punctuation in messages, and use `joinList()` for owner lists. Regenerate Paraglide with `pnpm i18n`; do not edit generated files. This documentation pass changes no message catalog.
+The sorted `kanban_` block follows `menu_this_plan` in each of `en`, `de`, `ja` and `zh-TW`. Put word order and punctuation in messages, and use `joinList()` for owner lists. Regenerate Paraglide with `pnpm i18n`; do not edit generated files.
 
 ### Delivery and shared prerequisites
 

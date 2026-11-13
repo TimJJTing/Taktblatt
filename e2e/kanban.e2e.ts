@@ -129,6 +129,7 @@ test('retains done-300 with equal cards, an unbroken title, sticky headings and 
 test('keeps a horizontal board strip inside a narrow page', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await load(page, done300(true));
+	await page.getByTestId('timeline-keep-open').click();
 	await waitForAnimations(page.locator('#timeline'));
 	await expect
 		.poll(() =>
@@ -141,8 +142,28 @@ test('keeps a horizontal board strip inside a narrow page', async ({ page }) => 
 		.poll(() => strip(page).evaluate((element) => element.scrollWidth > element.clientWidth))
 		.toBe(true);
 	await strip(page).hover();
-	await page.mouse.wheel(10000, 0);
+	await page.mouse.wheel(100, 0);
 	await expect.poll(() => strip(page).evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+	const thumb = board(page).locator('[data-overlay-thumb="x"]');
+	const thumbAtBottom = () =>
+		board(page).evaluate((element) => {
+			const thumb = element.querySelector<HTMLElement>('[data-overlay-thumb="x"]')!;
+			const bounds = element.getBoundingClientRect();
+			const bar = thumb.getBoundingClientRect();
+			return bar.bottom <= bounds.bottom && bar.bottom >= bounds.bottom - 12;
+		});
+	await expect.poll(thumbAtBottom).toBe(true);
+	const beforeDrag = await strip(page).evaluate((element) => element.scrollLeft);
+	const bounds = (await thumb.boundingBox())!;
+	await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(bounds.x + bounds.width / 2 + 50, bounds.y + bounds.height / 2);
+	await page.mouse.up();
+	await expect
+		.poll(() => strip(page).evaluate((element) => element.scrollLeft))
+		.toBeGreaterThan(beforeDrag);
+	await vertical(page).evaluate((element) => (element.scrollTop = 1000));
+	await expect.poll(thumbAtBottom).toBe(true);
 	await keyboardFocus(page, action(page, 'D001'));
 	await expect(action(page, 'D001')).toBeInViewport();
 	await page.keyboard.press('End');
@@ -460,6 +481,33 @@ test('retains station focus across an undone column move and falls back after re
 	await page.keyboard.press('ControlOrMeta+Shift+z');
 	await expect(action(page, 'A')).toHaveCount(0);
 	await expect(action(page, 'B')).toBeFocused();
+});
+
+test('returns focus to the view choice when a removed card has no survivors in its column', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await load(
+		page,
+		makePlan([
+			kanbanTask('U'),
+			kanbanTask('A', { dependsOn: ['U'] }),
+			kanbanTask('B', { dependsOn: ['A'] })
+		])
+	);
+	await expect(column(page, 'blocked').locator('[data-diagram-task]')).toHaveCount(2);
+	await action(page, 'A').click();
+	const dialog = page.getByTestId('task-dialog');
+	await setTaskStatus(page, dialog, 'canceled');
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect(action(page, 'A')).toHaveCount(1);
+	await keyboardFocus(page, station(page, 'A'));
+	await page.keyboard.press('ControlOrMeta+Shift+z');
+	await expect(action(page, 'A')).toHaveCount(0);
+	await expect(column(page, 'todo').locator('[data-diagram-task="B"]')).toHaveCount(1);
+	await expect(page.getByTestId('diagram-view-kanban')).toBeFocused();
 });
 
 test('updates the connector as another card reorders its focused endpoint', async ({ page }) => {

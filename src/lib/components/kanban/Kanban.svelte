@@ -38,7 +38,7 @@
 		)
 	);
 	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, s.color])));
-	let root: HTMLElement;
+	let root = $state<HTMLElement>(undefined!);
 	let vertical: HTMLDivElement;
 	let strip: HTMLDivElement;
 	let geometry = $state.raw(new Map<string, KanbanCardGeometry>());
@@ -239,8 +239,9 @@
 			return;
 		}
 		if (!id || !root?.contains(active)) return;
-		const prior = old.find((c) => c.includes(id));
-		if (!prior) return;
+		const priorColumn = old.findIndex((c) => c.includes(id));
+		if (priorColumn < 0) return;
+		const prior = old[priorColumn];
 		const nextIds = current.flat();
 		if (nextIds.includes(id) && current.some((c, i) => c.includes(id) && !old[i]?.includes(id))) {
 			tick().then(() => {
@@ -254,7 +255,7 @@
 		} else if (!nextIds.includes(id) && !editing.detailsTaskId) {
 			const index = prior.indexOf(id);
 			const fallback = [...prior.slice(index + 1), ...prior.slice(0, index).reverse()].find(
-				(candidate) => nextIds.includes(candidate)
+				(candidate) => current[priorColumn].includes(candidate)
 			);
 			tick().then(() => {
 				if (fallback) {
@@ -290,7 +291,7 @@
 	>
 		<div
 			bind:this={strip}
-			use:overlayScrollbar={{ axis: 'x' }}
+			use:overlayScrollbar={{ axis: 'x', host: root }}
 			onscroll={measure}
 			role="region"
 			aria-label={m.kanban_strip()}
@@ -353,6 +354,11 @@
 </div>
 
 <style>
+	:global([data-testid='kanban'] > [data-overlay-scrollbar]:has([data-overlay-thumb='x'])) {
+		top: 0 !important;
+		height: 100% !important;
+	}
+
 	@media (forced-colors: active) {
 		.cycle-casing {
 			forced-color-adjust: none;
