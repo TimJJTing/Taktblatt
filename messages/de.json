@@ -301,5 +301,13 @@
 	"plans_backup_short": "Sichern",
 	"menu_this_plan": "Dieser Plan",
 	"menu_print_hint": "Blätter in der Vorschau",
-	"menu_export_hint": "Dieser Plan als Datei"
+	"menu_export_hint": "Dieser Plan als Datei",
+	"diagram_print_group": "Zu druckende Diagramme",
+	"diagram_print_min": "Mindestens ein Diagramm auswählen",
+	"diagram_region": "Diagramm {view}",
+	"diagram_view_announcement": "Ansicht {view}",
+	"diagram_view_gantt": "Gantt",
+	"diagram_view_kanban": "Kanban",
+	"diagram_view_route_map": "Linienplan",
+	"diagram_view_switch": "Diagrammansicht"
 }

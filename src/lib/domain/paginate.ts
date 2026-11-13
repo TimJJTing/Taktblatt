@@ -28,7 +28,12 @@ export interface SegmentInput {
 	gap: number;
 	/** Start the segment on a new sheet. */
 	breakBefore: boolean;
+	/** The sheet orientation. Absent means portrait. An orientation change starts a new sheet. */
+	orientation?: 'portrait' | 'landscape';
 }
+
+/** The content height of a sheet, for one orientation or for each orientation. */
+export type ContentHeight = number | { portrait: number; landscape: number };
 
 /** A part of a segment on one sheet. */
 export interface Fragment {
@@ -47,6 +52,7 @@ export interface Fragment {
 export interface Sheet {
 	/** The sheet number, from 1. */
 	number: number;
+	orientation: 'portrait' | 'landscape';
 	fragments: Fragment[];
 }
 

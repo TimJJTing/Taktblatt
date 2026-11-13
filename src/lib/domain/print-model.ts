@@ -26,8 +26,13 @@ import {
 } from './gantt.ts';
 import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.ts';
 
+/** The orientation of a sheet. Shared plan content is always portrait. */
+export type DiagramOrientation = 'portrait' | 'landscape';
+
 /** How a segment sits on the sheets. The paginator reads these values. */
 interface Placement {
+	/** The sheet orientation. Absent means portrait. An orientation change starts a new sheet. */
+	orientation?: DiagramOrientation;
 	/** The number of items that stay with the lead of the segment. */
 	keep: number;
 	/** The space above the segment, in CSS pixels. */
@@ -100,8 +105,36 @@ export interface RemarksSegment extends Placement {
 	rows: RemarkSection[][];
 }
 
+/**
+ * A generic diagram segment. A registered paper adapter builds it and renders it.
+ * `items` are the legal split positions: the paginator splits only between items.
+ * `data` is private to the adapter. The print model does not read it.
+ */
+export interface SceneSegment extends Placement {
+	kind: 'scene';
+	/** A stable id that is unique in the model, for example `route-map-scene`. */
+	id: string;
+	/** The id of the diagram view that renders the segment. */
+	diagram: string;
+	items: readonly unknown[];
+	data?: unknown;
+}
+
 export type Segment =
-	HeaderSegment | GanttSegment | LegendSegment | CardsSegment | StageSegment | RemarksSegment;
+	| HeaderSegment
+	| GanttSegment
+	| LegendSegment
+	| CardsSegment
+	| StageSegment
+	| RemarksSegment
+	| SceneSegment;
+
+/** A diagram prepared for print: its id, orientation and segments, including its legends. */
+export interface PrintDiagram {
+	id: string;
+	orientation: DiagramOrientation;
+	segments: readonly Segment[];
+}
 
 /** The number of items of a segment. The paginator splits only between items. */
 export function itemCount(segment: Segment): number {

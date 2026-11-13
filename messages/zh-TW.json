@@ -301,5 +301,13 @@
 	"plans_backup_short": "備份",
 	"menu_this_plan": "此計畫",
 	"menu_print_hint": "預覽頁面",
-	"menu_export_hint": "將此計畫儲存為檔案"
+	"menu_export_hint": "將此計畫儲存為檔案",
+	"diagram_print_group": "要列印的圖表",
+	"diagram_print_min": "請至少選擇一個圖表",
+	"diagram_region": "{view}圖表",
+	"diagram_view_announcement": "{view}檢視",
+	"diagram_view_gantt": "甘特圖",
+	"diagram_view_kanban": "看板",
+	"diagram_view_route_map": "路線圖",
+	"diagram_view_switch": "圖表檢視"
 }
