@@ -120,15 +120,18 @@
 		// A plain map: a local snapshot, not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const outgoing = new Map<string, TaskGeometry>();
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const frames = new Map<number, Map<string, TaskGeometry>>();
 		for (const layer of layers) {
 			const element = layerElement(layer.key);
 			if (!element || !stage) continue;
-			for (const [task, geometry] of captureGeometry(element, stage)) {
+			const frame = captureGeometry(element, stage);
+			frames.set(layer.key, frame);
+			for (const [task, geometry] of frame) {
 				if (!layer.leaving || !outgoing.has(task)) outgoing.set(task, geometry);
 			}
 		}
-		stopTransition(animations);
-		animations = [];
+		// Running flights stay: applyTransition continues each box from its current frame.
 		const focus = focusedTask();
 		// A switch action keeps focus on the switch. Focus elsewhere is not taken.
 		pendingFocus = focus;
@@ -149,11 +152,21 @@
 			target && target !== 'switch' && incoming ? focusTarget(incoming, target) : null;
 		const reveal = focusElement?.getBoundingClientRect();
 		if (stage && incoming && destination) {
-			animations = applyTransition(incoming, stage, outgoing, duration, 'from');
+			animations = animations.filter((animation) => animation.playState !== 'idle');
+			animations.push(...applyTransition(incoming, stage, outgoing, duration, 'from'));
 			for (const layer of layers) {
 				const element = layer.leaving ? layerElement(layer.key) : null;
 				if (element) {
-					animations.push(...applyTransition(element, stage, destination, duration, 'toward'));
+					animations.push(
+						...applyTransition(
+							element,
+							stage,
+							destination,
+							duration,
+							'toward',
+							frames.get(layer.key)
+						)
+					);
 				}
 			}
 		}

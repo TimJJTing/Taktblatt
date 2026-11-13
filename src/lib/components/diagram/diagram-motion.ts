@@ -141,17 +141,37 @@ export function scrollContainerOf(element: Element, stage: Element): ScrollConta
 const FLIGHT = Symbol('diagram-flight');
 type Flying = HTMLElement & { [FLIGHT]?: Animation };
 
+/** The transform that draws a box laid out at `here` at `box` instead. */
+function offset(box: Box, here: Box): string | null {
+	const dx = box.x - here.x;
+	const dy = box.y - here.y;
+	const sx = here.w > 0 && box.w > 0 ? box.w / here.w : 1;
+	const sy = here.h > 0 && box.h > 0 ? box.h / here.h : 1;
+	if (
+		Math.abs(dx) < 0.5 &&
+		Math.abs(dy) < 0.5 &&
+		Math.abs(sx - 1) < 0.01 &&
+		Math.abs(sy - 1) < 0.01
+	)
+		return null;
+	return `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+}
+
 /**
  * Apply: moves each task box of `root` from its source to its rendered position (FLIP).
- * `toward` reverses the motion for outgoing boxes: they move from their place to the destination.
- * Returns the started animations. Duration 0 starts nothing.
+ * `toward` moves outgoing boxes from their current frame to the destination.
+ * A box in flight continues from its current rendered frame: the hook reads that frame,
+ * cancels the old flight, and starts the new one there. Returns the started animations.
+ * Duration 0 starts nothing.
  */
 export function applyTransition(
 	root: ParentNode,
 	stage: Element,
 	other: ReadonlyMap<string, TaskGeometry>,
 	duration: number,
-	direction: 'from' | 'toward'
+	direction: 'from' | 'toward',
+	/** For `toward`: the frame captured before the change, if the layout has changed since. */
+	before?: ReadonlyMap<string, TaskGeometry>
 ): Animation[] {
 	if (duration <= 0) return [];
 	const origin = stage.getBoundingClientRect();
@@ -160,23 +180,25 @@ export function applyTransition(
 		const id = element.getAttribute(DIAGRAM_ATTR.task)!;
 		const source = sourceBox(id, element.getAttribute(DIAGRAM_ATTR.parent), other);
 		if (!source) continue;
-		const here = toStage(element.getBoundingClientRect(), origin);
-		const dx = source.x - here.x;
-		const dy = source.y - here.y;
-		const sx = here.w > 0 && source.w > 0 ? source.w / here.w : 1;
-		const sy = here.h > 0 && source.h > 0 ? source.h / here.h : 1;
-		if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.01) continue;
-		const moved = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
-		// The keyframes carry the origin, so no inline style stays after the animation.
-		const still = { transform: 'none', transformOrigin: '0 0' };
-		const shifted = { transform: moved, transformOrigin: '0 0' };
-		const frames = direction === 'from' ? [shifted, still] : [still, shifted];
+		// Read the current frame before canceling the old flight, then the layout position.
+		const current = before?.get(id)?.box ?? toStage(element.getBoundingClientRect(), origin);
 		element[FLIGHT]?.cancel();
-		const animation = element.animate(frames, {
+		element[FLIGHT] = undefined;
+		const here = toStage(element.getBoundingClientRect(), origin);
+		const first = offset(direction === 'from' ? source : current, here);
+		const last = direction === 'from' ? null : offset(source, here);
+		if (first === last) continue;
+		// The keyframes carry the origin, so no inline style stays after the animation.
+		const frame = (transform: string | null) => ({
+			transform: transform ?? 'none',
+			transformOrigin: '0 0'
+		});
+		const animation = element.animate([frame(first), frame(last)], {
 			duration,
 			easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
-			fill: direction === 'toward' ? 'forwards' : 'none',
-			composite: 'add'
+			// Replace, not add: an added transform-origin would sum with the default 50 % 50 %.
+			// Task boxes position with `translate` and `left`, not with `transform`.
+			fill: direction === 'toward' ? 'forwards' : 'none'
 		});
 		element[FLIGHT] = animation;
 		animations.push(animation);
