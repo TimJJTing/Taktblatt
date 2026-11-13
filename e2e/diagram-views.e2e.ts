@@ -8,7 +8,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
 	chooseView,
-	diagramStage as stage,
+	diagramStage,
 	expectPanelHeight,
 	expectView,
 	importJson,
@@ -76,7 +76,7 @@ test.describe('production build', () => {
 			)
 		);
 		await openExample(page);
-		await expect(stage(page)).toHaveAttribute('data-view', 'gantt');
+		await expect(diagramStage(page)).toHaveAttribute('data-view', 'gantt');
 		await expect(page.getByTestId('gantt')).toBeVisible();
 		await expect(page.getByTestId('fixture-task')).toHaveCount(0);
 		for (const id of FIXTURE_VIEWS) {
@@ -93,9 +93,8 @@ test.describe('production build', () => {
 		}
 		const layout = await sheetLayout(page);
 		expect(diagramOrder(layout)).toEqual(['gantt']);
-		const gantt = layout.filter((sheet) => sheet.fragments.includes('gantt'));
-		expect(gantt.length).toBeGreaterThan(0);
-		expect(gantt.every((sheet) => sheet.orientation === 'portrait')).toBe(true);
+		// The default print selection is Gantt alone, so all sheets are portrait.
+		expect(layout.every((sheet) => sheet.orientation === 'portrait')).toBe(true);
 	});
 
 	test('export and backup files do not contain the diagram preferences', async ({ page }) => {
@@ -212,7 +211,8 @@ test.describe('fixture views', () => {
 		await expect
 			.poll(async () => diagramOrder(await sheetLayout(page)))
 			.toEqual(['gantt', 'test-list-scene', 'test-board-scene']);
-		expect(known((await storedViewer(page)).printDiagrams)).toEqual(KNOWN_VIEWS);
+		// Other real views are not selected by default, so the stored selection is exact.
+		expect((await storedViewer(page)).printDiagrams).toEqual(KNOWN_VIEWS);
 
 		const layout = await sheetLayout(page);
 		for (const sheet of layout) {

@@ -7,7 +7,8 @@ import {
 	waitForAnimations,
 	ganttRow,
 	openLinePlan,
-	openPreview
+	openPreview,
+	stageColorPalette
 } from './helpers.ts';
 
 const tooltips = (page: Page) => page.locator('[data-slot="tooltip-content"]');
@@ -125,7 +126,7 @@ test.describe('hints show in a tooltip', () => {
 	test('a stage color swatch names its in-use state', async ({ page }) => {
 		await openExample(page);
 		await stage(page, 0).getByTestId('stage-color').click();
-		const group = page.getByRole('radiogroup');
+		const group = stageColorPalette(page);
 		await expect(group).toBeVisible();
 		await waitForAnimations(page.locator('[data-slot="popover-content"]'));
 		// "Grow" uses amber. No stage uses violet.

@@ -1966,3 +1966,10 @@ export async function chooseView(page: Page, id: string): Promise<void> {
 	await page.getByTestId(`diagram-view-${id}`).click();
 	await expectView(page, id);
 }
+
+/**
+ * The stage color palette in the open popover. The scope keeps it separate from other radio
+ * groups, for example the diagram view switch.
+ */
+export const stageColorPalette = (page: Page) =>
+	page.locator('[data-slot="popover-content"]').getByRole('radiogroup');
