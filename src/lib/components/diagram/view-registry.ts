@@ -20,8 +20,10 @@ export interface ViewRegistry {
 	readonly views: readonly DiagramViewDefinition[];
 	/** The view ids in display and print order. */
 	readonly ids: readonly DiagramViewId[];
-	get(id: string): DiagramViewDefinition | undefined;
-	has(id: string): boolean;
+	get(id: DiagramViewId): DiagramViewDefinition | undefined;
+	has(id: DiagramViewId): boolean;
+	/** The view with this id, else Gantt. */
+	resolve(id: DiagramViewId): DiagramViewDefinition;
 }
 
 /**
@@ -29,14 +31,15 @@ export interface ViewRegistry {
  * It throws on a duplicate id or when Gantt is missing.
  */
 export function createViewRegistry(definitions: readonly DiagramViewDefinition[]): ViewRegistry {
-	const byId = new Map<string, DiagramViewDefinition>();
+	const byId = new Map<DiagramViewId, DiagramViewDefinition>();
 	for (const definition of definitions) {
 		if (byId.has(definition.id)) {
 			throw new Error(`Duplicate diagram view id: ${definition.id}`);
 		}
 		byId.set(definition.id, definition);
 	}
-	if (!byId.has(GANTT_VIEW_ID)) throw new Error('The Gantt diagram view is not registered');
+	const gantt = byId.get(GANTT_VIEW_ID);
+	if (!gantt) throw new Error('The Gantt diagram view is not registered');
 	const views = [...byId.values()].sort(
 		(a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 	);
@@ -45,7 +48,8 @@ export function createViewRegistry(definitions: readonly DiagramViewDefinition[]
 		views,
 		ids,
 		get: (id) => byId.get(id),
-		has: (id) => byId.has(id)
+		has: (id) => byId.has(id),
+		resolve: (id) => byId.get(id) ?? gantt
 	};
 }
 

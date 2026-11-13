@@ -2,7 +2,7 @@ import '../../../routes/layout.css';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { userEvent } from 'vitest/browser';
-import { testView } from '#lib/components/diagram/test-views.ts';
+import { fixtureView } from '#lib/components/diagram/fixture-views.test-helper.ts';
 import { createViewRegistry, type ViewRegistry } from '#lib/components/diagram/view-registry.ts';
 import { view as ganttView } from '#lib/components/timeline/diagram-view.ts';
 import { makeTask } from '#lib/domain/test-helpers.ts';
@@ -12,8 +12,8 @@ import { ViewerState } from '#lib/state/viewer.svelte.ts';
 import { Workspace } from '#lib/state/workspace.svelte.ts';
 import PreviewTest from './PreviewDialog.test.svelte';
 
-const listView = testView('test-list', { order: 15, label: 'Test list' });
-const boardView = testView('test-board', {
+const listView = fixtureView('test-list', { order: 15, label: 'Test list' });
+const boardView = fixtureView('test-board', {
 	order: 25,
 	label: 'Test board',
 	orientation: 'landscape'

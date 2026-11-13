@@ -24,10 +24,10 @@ import {
 	type GanttRow,
 	type MonthTick
 } from './gantt.ts';
+import { GANTT_VIEW_ID, type DiagramOrientation, type DiagramViewId } from './diagram.ts';
 import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.ts';
 
-/** The orientation of a sheet. Shared plan content is always portrait. */
-export type DiagramOrientation = 'portrait' | 'landscape';
+export type { DiagramOrientation } from './diagram.ts';
 
 /** How a segment sits on the sheets. The paginator reads these values. */
 interface Placement {
@@ -47,7 +47,8 @@ export interface HeaderSegment extends Placement {
 
 export interface GanttSegment extends Placement {
 	kind: 'gantt';
-	id: 'gantt';
+	/** `gantt`. The print model can prefix the id to keep it unique. */
+	id: string;
 	rows: GanttRow[];
 	lines: DependencyLine[];
 	ticks: MonthTick[];
@@ -59,7 +60,8 @@ export interface GanttSegment extends Placement {
 
 export interface LegendSegment extends Placement {
 	kind: 'legend';
-	id: 'legend-stages' | 'legend-milestones' | 'legend-bands';
+	/** For example `legend-stages`. The print model can prefix the id to keep it unique. */
+	id: string;
 	which: 'stages' | 'milestones' | 'bands';
 }
 
@@ -115,7 +117,7 @@ export interface SceneSegment extends Placement {
 	/** A stable id that is unique in the model, for example `route-map-scene`. */
 	id: string;
 	/** The id of the diagram view that renders the segment. */
-	diagram: string;
+	diagram: DiagramViewId;
 	items: readonly unknown[];
 	data?: unknown;
 }
@@ -129,11 +131,14 @@ export type Segment =
 	| RemarksSegment
 	| SceneSegment;
 
+/** The segment kinds that a diagram paper adapter can return. */
+export type DiagramSegment = GanttSegment | LegendSegment | SceneSegment;
+
 /** A diagram prepared for print: its id, orientation and segments, including its legends. */
 export interface PrintDiagram {
-	id: string;
+	id: DiagramViewId;
 	orientation: DiagramOrientation;
-	segments: readonly Segment[];
+	segments: readonly DiagramSegment[];
 }
 
 /** The number of items of a segment. The paginator splits only between items. */
@@ -187,7 +192,12 @@ export interface PrintModelOptions extends PrintModelInput {
 }
 
 /** The Gantt segment and its legends. The Gantt paper adapter uses this function. */
-export function ganttPrintSegments({ plan, index, isExpanded, today }: PrintModelInput): Segment[] {
+export function ganttPrintSegments({
+	plan,
+	index,
+	isExpanded,
+	today
+}: PrintModelInput): DiagramSegment[] {
 	const win = plan.range;
 	const rows = ganttRows(
 		index,
@@ -195,7 +205,7 @@ export function ganttPrintSegments({ plan, index, isExpanded, today }: PrintMode
 		isExpanded,
 		win
 	);
-	const segments: Segment[] = [
+	const segments: DiagramSegment[] = [
 		{
 			kind: 'gantt',
 			id: 'gantt',
@@ -249,24 +259,28 @@ export function ganttPrintSegments({ plan, index, isExpanded, today }: PrintMode
 export function buildPrintModel(options: PrintModelOptions): Segment[] {
 	const { plan, index, isExpanded } = options;
 	const diagrams = options.diagrams ?? [
-		{ id: 'gantt', orientation: 'portrait', segments: ganttPrintSegments(options) }
+		{ id: GANTT_VIEW_ID, orientation: 'portrait', segments: ganttPrintSegments(options) }
 	];
 	const segments: Segment[] = [
 		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false }
 	];
-	// Segment ids must be unique. A diagram that repeats an id gets its own prefix.
-	const seen = new Set(segments.map((segment) => segment.id));
+	// Segment ids must be unique: the sheets key their blocks by id.
+	// A repeated id gets the diagram prefix, then a number if it is still taken.
+	const seen = new Set(['header', 'cards', 'remarks']);
+	const uniqueId = (diagram: DiagramViewId, id: string) => {
+		let unique = seen.has(id) ? `${diagram}:${id}` : id;
+		for (let n = 2; seen.has(unique); n++) unique = `${diagram}:${id}:${n}`;
+		seen.add(unique);
+		return unique;
+	};
 	diagrams.forEach((diagram, i) => {
 		diagram.segments.forEach((segment, j) => {
-			const id = seen.has(segment.id) ? `${diagram.id}:${segment.id}` : segment.id;
-			seen.add(id);
-			// A prefixed id is a plain string. The renderers read `kind`, not the literal id.
 			segments.push({
 				...segment,
-				id,
+				id: uniqueId(diagram.id, segment.id),
 				orientation: diagram.orientation,
 				breakBefore: segment.breakBefore || (i > 0 && j === 0)
-			} as Segment);
+			});
 		});
 	});
 	segments.push({

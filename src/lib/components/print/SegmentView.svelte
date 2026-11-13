@@ -32,6 +32,14 @@
 	const Paper = $derived(
 		segment.kind === 'scene' ? registry.get(segment.diagram)?.paper.component : undefined
 	);
+	// A scene without a paper renderer prints nothing. Tell the developer of the view.
+	$effect(() => {
+		if (import.meta.env.DEV && segment.kind === 'scene' && !Paper) {
+			console.error(
+				`Diagram view "${segment.diagram}" printed scene "${segment.id}" without a paper renderer`
+			);
+		}
+	});
 </script>
 
 {#if segment.kind === 'header'}

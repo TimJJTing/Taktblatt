@@ -6,6 +6,9 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import type { Plugin } from 'vite';
 
+/** The build-time flag of the fixture build. `playwright.fixtures.config.ts` sets it. */
+const fixtureBuild = process.env.TAKTBLATT_DIAGRAM_FIXTURES === '1';
+
 /**
  * Test-only diagram views (ADR 20). Only the build-time flag TAKTBLATT_DIAGRAM_FIXTURES=1 imports
  * them. Without the flag, the module exports an empty list and the build has no fixture code.
@@ -13,20 +16,17 @@ import type { Plugin } from 'vite';
 function diagramViewFixtures(): Plugin {
 	const id = 'virtual:diagram-view-fixtures';
 	const resolved = `\0${id}`;
-	const enabled = fixtureBuild;
 	return {
 		name: 'taktblatt-diagram-view-fixtures',
 		resolveId: (source) => (source === id ? resolved : undefined),
 		load: (source) => {
 			if (source !== resolved) return undefined;
-			return enabled
+			return fixtureBuild
 				? "export { fixtures } from '/e2e/fixtures/diagram-views/index.ts';"
 				: 'export const fixtures = [];';
 		}
 	};
 }
-
-const fixtureBuild = process.env.TAKTBLATT_DIAGRAM_FIXTURES === '1';
 
 export default defineConfig({
 	plugins: [

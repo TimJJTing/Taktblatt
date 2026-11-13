@@ -14,7 +14,7 @@
 		beginTimelineLayoutChange,
 		endTimelineLayoutChange
 	} from '#lib/components/app/app-layout.svelte.ts';
-	import { VIEW_MOTION_MS, motionDuration } from '#lib/motion.ts';
+	import { MOTION_SETTLE_MS, VIEW_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { cn } from '#lib/utils.ts';
@@ -25,7 +25,13 @@
 		type TaskGeometry
 	} from './diagram-motion.ts';
 	import DiagramStageLayer from './DiagramStageLayer.svelte';
-	import { DIAGRAM_ATTR, GANTT_VIEW_ID, type DiagramViewProps } from './view-contract.ts';
+	import { focusSelectedChoice } from './DiagramViewSwitch.svelte';
+	import {
+		DIAGRAM_ATTR,
+		ROUTE_ATTR,
+		type DiagramViewId,
+		type DiagramViewProps
+	} from './view-contract.ts';
 	import { getViewRegistry } from './view-registry.ts';
 
 	interface Props extends DiagramViewProps {
@@ -37,11 +43,14 @@
 
 	const registry = getViewRegistry();
 	const viewer = getViewer();
-	const active = $derived(registry.get(viewer.diagramView) ?? registry.get(GANTT_VIEW_ID)!);
+	const active = $derived(registry.resolve(viewer.diagramView));
+
+	/** The delay before the announcement. Rapid changes announce only the final view. */
+	const ANNOUNCE_DELAY_MS = 150;
 
 	interface Layer {
 		key: number;
-		view: string;
+		view: DiagramViewId;
 		leaving: boolean;
 	}
 
@@ -53,11 +62,9 @@
 	let announceTimer: ReturnType<typeof setTimeout> | undefined;
 	let layoutToken: symbol | undefined;
 	let layoutTimer: ReturnType<typeof setTimeout> | undefined;
-	/** The task id whose focus moves to the incoming view, or 'switch'. */
-	let pendingFocus: string | null = null;
 
 	const layerElement = (key: number) =>
-		stage?.querySelector<HTMLElement>(`[data-diagram-layer="${key}"]`) ?? null;
+		stage?.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.layer}="${key}"]`) ?? null;
 
 	/**
 	 * The task id of the focused stage node. Focus on another stage control (for example a
@@ -66,7 +73,7 @@
 	function focusedTask(): string | 'switch' | null {
 		const focused = document.activeElement;
 		if (!stage || !(focused instanceof Element) || !stage.contains(focused)) return null;
-		return focused.closest('[data-route-target]')?.getAttribute('data-route-target') ?? 'switch';
+		return focused.closest(`[${ROUTE_ATTR.target}]`)?.getAttribute(ROUTE_ATTR.target) ?? 'switch';
 	}
 
 	/** The task box if it takes focus, else the task label, else a keyboard route target. */
@@ -77,21 +84,15 @@
 			root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.task}="${id}"]`),
 			root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.label}="${id}"]`),
 			...root.querySelectorAll<HTMLElement>(
-				`[data-route-target="${id}"][data-route-focus="keyboard"]`
+				`[${ROUTE_ATTR.target}="${id}"][${ROUTE_ATTR.focus}="keyboard"]`
 			)
 		];
 		return candidates.find((element) => element?.matches(focusable)) ?? null;
 	}
 
-	function focusSwitch() {
-		document
-			.querySelector<HTMLElement>(`[role="radio"][aria-controls="${id}"][aria-checked="true"]`)
-			?.focus();
-	}
-
 	let announced = untrack(() => active.id);
 
-	function announce(view: string) {
+	function announce(view: DiagramViewId) {
 		clearTimeout(announceTimer);
 		// Rapid changes announce only the final view. A return to the announced view is no change.
 		announceTimer = setTimeout(() => {
@@ -100,7 +101,7 @@
 			const label = registry.get(view)?.label() ?? view;
 			announcement = '';
 			void tick().then(() => (announcement = m.diagram_view_announcement({ view: label })));
-		}, 150);
+		}, ANNOUNCE_DELAY_MS);
 	}
 
 	function markLayoutChange(duration: number) {
@@ -111,10 +112,10 @@
 		layoutTimer = setTimeout(() => {
 			endTimelineLayoutChange(token);
 			if (layoutToken === token) layoutToken = undefined;
-		}, duration + 32);
+		}, duration + MOTION_SETTLE_MS);
 	}
 
-	async function change(view: string) {
+	async function change(view: DiagramViewId) {
 		const duration = motionDuration(VIEW_MOTION_MS);
 		// Capture the current frame before canceling interrupted motion.
 		// A plain map: a local snapshot, not reactive state.
@@ -132,9 +133,9 @@
 			}
 		}
 		// Running flights stay: applyTransition continues each box from its current frame.
-		const focus = focusedTask();
 		// A switch action keeps focus on the switch. Focus elsewhere is not taken.
-		pendingFocus = focus;
+		// The transfer happens one microtask later, so no user focus action can come between.
+		const target = focusedTask();
 		markLayoutChange(duration);
 
 		const key = nextKey++;
@@ -146,13 +147,12 @@
 		const incoming = layerElement(key);
 		// Measure the destination before any transform: the FLIP start frame moves the boxes.
 		const destination = stage && incoming ? captureGeometry(incoming, stage) : null;
-		const target = pendingFocus;
-		pendingFocus = null;
 		const focusElement =
 			target && target !== 'switch' && incoming ? focusTarget(incoming, target) : null;
 		const reveal = focusElement?.getBoundingClientRect();
 		if (stage && incoming && destination) {
-			animations = animations.filter((animation) => animation.playState !== 'idle');
+			// Keep only flights in progress. Finished and canceled ones hold removed elements.
+			animations = animations.filter((animation) => animation.playState === 'running');
 			animations.push(...applyTransition(incoming, stage, outgoing, duration, 'from'));
 			for (const layer of layers) {
 				const element = layer.leaving ? layerElement(layer.key) : null;
@@ -177,14 +177,9 @@
 			focusElement.focus({ preventScroll: true });
 			onReveal({ top: reveal.top, bottom: reveal.bottom });
 		} else if (target) {
-			focusSwitch();
+			focusSelectedChoice(id);
 		}
 		announce(view);
-	}
-
-	// A later user focus action cancels a pending transfer.
-	function onFocusIn() {
-		pendingFocus = null;
 	}
 
 	let shown = untrack(() => active.id);
@@ -202,6 +197,7 @@
 		if (layoutToken) endTimelineLayoutChange(layoutToken);
 	});
 
+	// Svelte calls a transition with the node, so the parameter must exist. The fade does not use it.
 	function layerFade(_node: Element) {
 		void _node;
 		// Outgoing content fades in the first 40 %, incoming content in the last 40 %.
@@ -211,8 +207,6 @@
 		};
 	}
 </script>
-
-<svelte:document onfocusin={onFocusIn} />
 
 <div
 	bind:this={stage}
@@ -224,7 +218,7 @@
 	data-view={active.id}
 >
 	{#each layers as layer (layer.key)}
-		{@const view = registry.get(layer.view) ?? registry.get(GANTT_VIEW_ID)!}
+		{@const view = registry.resolve(layer.view)}
 		<div
 			class={cn(
 				'flex min-h-0 min-w-0 flex-1 flex-col',

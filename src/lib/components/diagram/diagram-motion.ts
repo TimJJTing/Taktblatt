@@ -141,8 +141,18 @@ export function scrollContainerOf(element: Element, stage: Element): ScrollConta
 const FLIGHT = Symbol('diagram-flight');
 type Flying = HTMLElement & { [FLIGHT]?: Animation };
 
-/** The transform that draws a box laid out at `here` at `box` instead. */
-function offset(box: Box, here: Box): string | null {
+/** A FLIP frame: the transform and corner radius that draw a box laid out at `here` at `box`. */
+type Frame = {
+	transform: string;
+	borderRadius: string;
+	transformOrigin: string;
+};
+
+/**
+ * The frame that draws the box laid out at `here` at `box` instead, or null when they are equal.
+ * The scale also scales the corners, so the radius is divided by the scale on each axis.
+ */
+function frameAt(box: Box, here: Box): Frame | null {
 	const dx = box.x - here.x;
 	const dy = box.y - here.y;
 	const sx = here.w > 0 && box.w > 0 ? box.w / here.w : 1;
@@ -151,14 +161,28 @@ function offset(box: Box, here: Box): string | null {
 		Math.abs(dx) < 0.5 &&
 		Math.abs(dy) < 0.5 &&
 		Math.abs(sx - 1) < 0.01 &&
-		Math.abs(sy - 1) < 0.01
+		Math.abs(sy - 1) < 0.01 &&
+		Math.abs(box.radius - here.radius) < 0.5
 	)
 		return null;
-	return `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+	return {
+		transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
+		borderRadius: `${box.radius / sx}px / ${box.radius / sy}px`,
+		// The keyframes carry the origin, so no inline style stays after the animation.
+		transformOrigin: '0 0'
+	};
 }
+
+/** The frame of the box at its own layout position. */
+const rest = (here: Box): Frame => ({
+	transform: 'none',
+	borderRadius: `${here.radius}px`,
+	transformOrigin: '0 0'
+});
 
 /**
  * Apply: moves each task box of `root` from its source to its rendered position (FLIP).
+ * It tweens the position, the width, the height and the corner radius.
  * `toward` moves outgoing boxes from their current frame to the destination.
  * A box in flight continues from its current rendered frame: the hook reads that frame,
  * cancels the old flight, and starts the new one there. Returns the started animations.
@@ -181,24 +205,20 @@ export function applyTransition(
 		const source = sourceBox(id, element.getAttribute(DIAGRAM_ATTR.parent), other);
 		if (!source) continue;
 		// Read the current frame before canceling the old flight, then the layout position.
-		const current = before?.get(id)?.box ?? toStage(element.getBoundingClientRect(), origin);
+		const current =
+			before?.get(id)?.box ?? toStage(element.getBoundingClientRect(), origin, radiusOf(element));
 		element[FLIGHT]?.cancel();
 		element[FLIGHT] = undefined;
-		const here = toStage(element.getBoundingClientRect(), origin);
-		const first = offset(direction === 'from' ? source : current, here);
-		const last = direction === 'from' ? null : offset(source, here);
-		if (first === last) continue;
-		// The keyframes carry the origin, so no inline style stays after the animation.
-		const frame = (transform: string | null) => ({
-			transform: transform ?? 'none',
-			transformOrigin: '0 0'
-		});
-		const animation = element.animate([frame(first), frame(last)], {
+		const here = toStage(element.getBoundingClientRect(), origin, radiusOf(element));
+		const first = frameAt(direction === 'from' ? source : current, here);
+		const last = direction === 'from' ? null : frameAt(source, here);
+		if (!first && !last) continue;
+		const animation = element.animate([first ?? rest(here), last ?? rest(here)], {
 			duration,
 			easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
-			// Replace, not add: an added transform-origin would sum with the default 50 % 50 %.
-			// Task boxes position with `translate` and `left`, not with `transform`.
 			fill: direction === 'toward' ? 'forwards' : 'none'
+			// The default composite is replace. An added transform-origin would sum with the
+			// default 50 % 50 %. Task boxes position with `translate` and `left`, not `transform`.
 		});
 		element[FLIGHT] = animation;
 		animations.push(animation);

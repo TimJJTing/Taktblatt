@@ -42,6 +42,8 @@ describe('createViewRegistry', () => {
 		expect(registry.get('kanban')).toBeUndefined();
 		expect(registry.has('gantt')).toBe(true);
 		expect(registry.has('kanban')).toBe(false);
+		expect(registry.resolve('list')).toBe(list);
+		expect(registry.resolve('kanban')).toBe(registry.get('gantt'));
 	});
 });
 

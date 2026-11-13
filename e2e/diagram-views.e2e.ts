@@ -4,9 +4,6 @@
  * Tests tagged @diagram-fixtures need the build with TAKTBLATT_DIAGRAM_FIXTURES=1. That build adds
  * the test-only views `test-list` (portrait) and `test-board` (landscape).
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	expectPanelHeight,
@@ -107,19 +104,22 @@ test.describe('production build', () => {
 		}
 	});
 
-	test('the build output contains no fixture code', () => {
-		const root = fileURLToPath(new URL('../build', import.meta.url));
-		const files = (function walk(dir: string): string[] {
-			return readdirSync(dir).flatMap((name) => {
-				const path = join(dir, name);
-				return statSync(path).isDirectory() ? walk(path) : [path];
-			});
-		})(root);
-		expect(files.length).toBeGreaterThan(0);
-		for (const file of files) {
-			const text = readFileSync(file, 'latin1');
+	// The served code, not the build directory: a reused server can serve an older build.
+	test('the served app code contains no fixture code', async ({ page }) => {
+		const bodies: Promise<{ url: string; text: string }>[] = [];
+		page.on('response', (response) => {
+			const type = response.request().resourceType();
+			if (['script', 'stylesheet', 'document'].includes(type) && response.ok()) {
+				bodies.push(response.text().then((text) => ({ url: response.url(), text })));
+			}
+		});
+		await openExample(page);
+		await openPreview(page);
+		const files = await Promise.all(bodies);
+		expect(files.some((file) => file.url.endsWith('.js'))).toBe(true);
+		for (const { url, text } of files) {
 			for (const marker of ['Test board', 'Test list', 'fixture-task']) {
-				expect(text.includes(marker), `${file} contains ${marker}`).toBe(false);
+				expect(text.includes(marker), `${url} contains ${marker}`).toBe(false);
 			}
 		}
 	});

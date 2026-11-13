@@ -30,7 +30,10 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { Toggle } from '#lib/components/ui/toggle/index.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
+	import DiagramStage from '#lib/components/diagram/DiagramStage.svelte';
+	import DiagramViewSwitch from '#lib/components/diagram/DiagramViewSwitch.svelte';
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
+	import { DIAGRAM_ATTR } from '#lib/components/diagram/view-contract.ts';
 	import { stageColorVar, bandTintVar } from '#lib/components/plan/colors.ts';
 	import { todayISO } from '#lib/domain/date.ts';
 	import { stageEdgeSegments } from '#lib/domain/stage-edge.ts';
@@ -38,7 +41,7 @@
 	import { formatDate, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Band, Milestone } from '#lib/domain/schema.ts';
-	import { motionDuration } from '#lib/motion.ts';
+	import { MOTION_SETTLE_MS, motionDuration } from '#lib/motion.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { cn } from '#lib/utils.ts';
 	import {
@@ -55,13 +58,13 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import BandDialog from './BandDialog.svelte';
-	import DiagramStage from '#lib/components/diagram/DiagramStage.svelte';
-	import DiagramViewSwitch from '#lib/components/diagram/DiagramViewSwitch.svelte';
 	import GanttTween from './GanttTween.svelte';
 	import MilestoneDialog from './MilestoneDialog.svelte';
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
+	/** The id of the diagram region. The view switch controls it. */
+	const DIAGRAM_STAGE_ID = 'diagram-stage';
 	let milestone = $state<Milestone | null | undefined>(undefined);
 	let band = $state<Band | null | undefined>(undefined);
 	const milestones = $derived(orderedMilestones(ws.plan.milestones));
@@ -236,7 +239,7 @@
 			// The measurement expands the scrollers, and the browser resets their offsets.
 			// Keep the offsets, so the content scrolls back with the animation and does not jump.
 			const scrollers = [
-				...element.querySelectorAll<HTMLElement>('[data-testid="gantt-scroller"]'),
+				...element.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.scroller}]`),
 				...(body ? [body] : [])
 			].map((scroller) => ({ scroller, top: scroller.scrollTop }));
 			if (!fixed) {
@@ -262,7 +265,7 @@
 			heightInitialized = true;
 		});
 		// Without a height transition, only the next layout frame needs scroll suppression.
-		if (transitioning) settleTimer = setTimeout(finish, duration + 32);
+		if (transitioning) settleTimer = setTimeout(finish, duration + MOTION_SETTLE_MS);
 		else finish();
 		function releaseHeight(event: TransitionEvent) {
 			if (event.target === element && event.propertyName === 'height') finish();
@@ -411,7 +414,7 @@
 				<h2 id="timeline-title" class="text-sm font-semibold tracking-wide uppercase">
 					{m.section_timeline()}
 				</h2>
-				<DiagramViewSwitch controls="diagram-stage" />
+				<DiagramViewSwitch controls={DIAGRAM_STAGE_ID} />
 				{#if workspaceLayout.split}
 					<Hint text={m.gantt_pin()}>
 						{#snippet child({ props })}
@@ -508,7 +511,7 @@
 				data-testid="timeline-body"
 			>
 				<DiagramStage
-					id="diagram-stage"
+					id={DIAGRAM_STAGE_ID}
 					{todayDate}
 					class={cn(
 						!workspaceLayout.split &&

@@ -13,15 +13,15 @@
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onMount } from 'svelte';
-	import { isComposing } from '#lib/browser/keyboard.ts';
+	import { focusRadio, isComposing, radioGroupIndex } from '#lib/browser/keyboard.ts';
+	import { getViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
-	import { getViewRegistry } from '#lib/components/diagram/view-registry.ts';
-	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { PAPER_SIZES, type PaperSize } from '#lib/domain/schema.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { updatePlan } from '#lib/state/commands.ts';
 	import { getPreview } from '#lib/state/preview.svelte.ts';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
 	import Sheets from './Sheets.svelte';
@@ -30,6 +30,8 @@
 	const preview = getPreview();
 	const viewer = getViewer();
 	const views = getViewRegistry().views;
+	/** One diagram is selected. Its box cannot be cleared. */
+	const soleSelection = $derived(viewer.printDiagrams.length === 1);
 
 	const LABELS: Record<PaperSize, () => string> = {
 		a4: m.paper_a4,
@@ -50,31 +52,11 @@
 
 	/** Arrow keys, Home and End select and focus a paper size, like the stage color picker. */
 	function onPaperKeydown(event: KeyboardEvent, size: PaperSize) {
-		if (isComposing(event)) return;
-		const index = PAPER_SIZES.indexOf(size);
-		const last = PAPER_SIZES.length - 1;
-		let next: number;
-		switch (event.key) {
-			case 'ArrowRight':
-			case 'ArrowDown':
-				next = index === last ? 0 : index + 1;
-				break;
-			case 'ArrowLeft':
-			case 'ArrowUp':
-				next = index === 0 ? last : index - 1;
-				break;
-			case 'Home':
-				next = 0;
-				break;
-			case 'End':
-				next = last;
-				break;
-			default:
-				return;
-		}
+		const next = radioGroupIndex(event, PAPER_SIZES.indexOf(size), PAPER_SIZES.length);
+		if (next === null) return;
 		event.preventDefault();
 		updatePlan(ws, { paper: PAPER_SIZES[next] });
-		group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+		focusRadio(group, next);
 	}
 </script>
 
@@ -123,13 +105,13 @@
 			<div
 				role="group"
 				aria-label={m.diagram_print_group()}
-				aria-describedby={viewer.printDiagrams.length === 1 ? 'print-diagrams-min' : undefined}
+				aria-describedby={soleSelection ? 'print-diagrams-min' : undefined}
 				class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
 				data-testid="print-diagrams"
 			>
 				{#each views as view (view.id)}
 					{@const checked = viewer.printDiagrams.includes(view.id)}
-					{@const sole = checked && viewer.printDiagrams.length === 1}
+					{@const sole = checked && soleSelection}
 					<label class="flex min-h-6 items-center gap-1.5">
 						<Checkbox
 							{checked}
@@ -140,7 +122,7 @@
 						{view.label()}
 					</label>
 				{/each}
-				{#if viewer.printDiagrams.length === 1}
+				{#if soleSelection}
 					<span
 						id="print-diagrams-min"
 						class="text-muted-foreground"
