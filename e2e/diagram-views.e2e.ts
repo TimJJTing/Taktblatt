@@ -1,12 +1,16 @@
 /**
  * Diagram views (ADR 20, docs/spec.md 5.13 and 7).
- * Untagged tests check the normal production build: it has Gantt alone.
+ * Untagged tests check the normal production build. It has Gantt and the other real views, but no
+ * fixture views. The tests do not assert the exact set, count or full order of the real views.
  * Tests tagged @diagram-fixtures need the build with TAKTBLATT_DIAGRAM_FIXTURES=1. That build adds
  * the test-only views `test-list` (portrait) and `test-board` (landscape).
  */
 import { expect, test, type Page } from '@playwright/test';
 import {
+	chooseView,
+	diagramStage as stage,
 	expectPanelHeight,
+	expectView,
 	importJson,
 	openApp,
 	openExample,
@@ -25,7 +29,19 @@ declare global {
 }
 
 const DIAGRAM_FRAGMENTS = ['gantt', 'test-list-scene', 'test-board-scene'];
-const stage = (page: Page) => page.getByTestId('diagram-stage');
+/** Gantt and the fixture views. The fixture tests ignore the other real views. */
+const KNOWN_VIEWS = ['gantt', 'test-list', 'test-board'];
+const FIXTURE_VIEWS = ['test-list', 'test-board'];
+const known = (ids: readonly string[]) => ids.filter((id) => KNOWN_VIEWS.includes(id));
+
+/** The view ids of the view switch choices, in display order. */
+const viewChoices = (page: Page) =>
+	page
+		.getByTestId('diagram-view-switch')
+		.getByRole('radio')
+		.evaluateAll((items) =>
+			items.map((item) => item.getAttribute('data-testid')!.replace('diagram-view-', ''))
+		);
 
 /** The fragments of each sheet in the page, in sheet order. */
 const sheetLayout = (page: Page) =>
@@ -44,20 +60,8 @@ const diagramOrder = (layout: { fragments: string[] }[]) => [
 	)
 ];
 
-/** Selects a view in the switch and waits until the stage has one settled layer. */
-async function chooseView(page: Page, id: string) {
-	await page.getByTestId(`diagram-view-${id}`).click();
-	await expectView(page, id);
-}
-
-async function expectView(page: Page, id: string) {
-	await expect(stage(page)).toHaveAttribute('data-view', id);
-	await expect(page.getByTestId(`diagram-view-${id}`)).toHaveAttribute('aria-checked', 'true');
-	await expect(stage(page).locator('[data-diagram-layer]')).toHaveCount(1);
-}
-
 test.describe('production build', () => {
-	test('has Gantt alone and ignores stored fixture views', async ({ page }) => {
+	test('ignores stored fixture views and prints Gantt in portrait', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 900 });
 		await openApp(page);
 		await page.evaluate(() =>
@@ -72,20 +76,26 @@ test.describe('production build', () => {
 			)
 		);
 		await openExample(page);
-		await expect(page.getByTestId('diagram-view-switch')).toHaveCount(0);
 		await expect(stage(page)).toHaveAttribute('data-view', 'gantt');
 		await expect(page.getByTestId('gantt')).toBeVisible();
 		await expect(page.getByTestId('fixture-task')).toHaveCount(0);
+		for (const id of FIXTURE_VIEWS) {
+			await expect(page.getByTestId(`diagram-view-${id}`)).toHaveCount(0);
+		}
 		// The invalid view fields do not reset the other viewer fields.
 		await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
 		await expectPanelHeight(page, 0.45 * 900);
 		expect(await storedViewer(page)).toMatchObject({ ganttHeight: 0.45, ganttPinned: true });
 
 		const preview = await openPreview(page);
-		await expect(preview.getByTestId('print-diagrams')).toHaveCount(0);
+		for (const id of FIXTURE_VIEWS) {
+			await expect(preview.getByTestId(`print-diagram-${id}`)).toHaveCount(0);
+		}
 		const layout = await sheetLayout(page);
 		expect(diagramOrder(layout)).toEqual(['gantt']);
-		expect(layout.every((sheet) => sheet.orientation === 'portrait')).toBe(true);
+		const gantt = layout.filter((sheet) => sheet.fragments.includes('gantt'));
+		expect(gantt.length).toBeGreaterThan(0);
+		expect(gantt.every((sheet) => sheet.orientation === 'portrait')).toBe(true);
 	});
 
 	test('export and backup files do not contain the diagram preferences', async ({ page }) => {
@@ -131,8 +141,14 @@ test.describe('fixture views', () => {
 	}) => {
 		await openExample(page);
 		const file = (await readDownload(page, 'Export this plan')).file;
-		const choices = page.getByTestId('diagram-view-switch').getByRole('radio');
-		await expect(choices).toHaveText(['Gantt', 'Test list', 'Test board']);
+		await expect.poll(async () => known(await viewChoices(page))).toEqual(KNOWN_VIEWS);
+		for (const [id, name] of [
+			['gantt', 'Gantt'],
+			['test-list', 'Test list'],
+			['test-board', 'Test board']
+		]) {
+			await expect(page.getByTestId(`diagram-view-${id}`)).toHaveText(name);
+		}
 		await expectView(page, 'gantt');
 
 		await chooseView(page, 'test-list');
@@ -196,7 +212,7 @@ test.describe('fixture views', () => {
 		await expect
 			.poll(async () => diagramOrder(await sheetLayout(page)))
 			.toEqual(['gantt', 'test-list-scene', 'test-board-scene']);
-		expect((await storedViewer(page)).printDiagrams).toEqual(['gantt', 'test-list', 'test-board']);
+		expect(known((await storedViewer(page)).printDiagrams)).toEqual(KNOWN_VIEWS);
 
 		const layout = await sheetLayout(page);
 		for (const sheet of layout) {

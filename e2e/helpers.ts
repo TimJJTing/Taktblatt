@@ -1947,3 +1947,22 @@ export async function holdAnimationFrames(page: Page) {
 			})
 	};
 }
+
+/** The diagram stage of the Timeline. */
+export const diagramStage = (page: Page) => page.getByTestId('diagram-stage');
+
+/**
+ * Checks that the stage shows one settled layer of a diagram view and that the view switch
+ * marks this view as selected.
+ */
+export async function expectView(page: Page, id: string): Promise<void> {
+	await expect(diagramStage(page)).toHaveAttribute('data-view', id);
+	await expect(page.getByTestId(`diagram-view-${id}`)).toHaveAttribute('aria-checked', 'true');
+	await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+}
+
+/** Selects a diagram view in the view switch and waits until the stage has one settled layer. */
+export async function chooseView(page: Page, id: string): Promise<void> {
+	await page.getByTestId(`diagram-view-${id}`).click();
+	await expectView(page, id);
+}
