@@ -22,4 +22,4 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 16  | [Split workspace with pane scrolling](0016-split-workspace.md)                                   | Accepted (amended by ADR 17)                    | 2026-11-09 |
 | 17  | [Menus by scope, bottom sheets on touch, and the narrow Timeline handle](0017-menus-by-scope.md) | Accepted                                        | 2026-11-10 |
 | 18  | [Overlay scrollbar](0018-overlay-scrollbar.md)                                                   | Accepted                                        | 2026-11-11 |
-| 19  | [Scene model and shared diagram layer](0019-scene-model.md)                                      | Accepted; Amended 2026-11-12 (slice 3)          | 2026-11-11 |
+| 19  | [Scene model and shared diagram layer](0019-scene-model.md)                                      | Accepted; Amended 2026-11-13 (slices 3 and 4)   | 2026-11-11 |

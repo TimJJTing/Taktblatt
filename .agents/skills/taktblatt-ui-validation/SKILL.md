@@ -27,6 +27,9 @@ For changed controls, check accessible names, keyboard activation, focus placeme
 
 Use these rules when writing or running interaction checks:
 
+- For hover-intent checks, move the real pointer and wait past the hover timers: 300 ms cold rest, 120 ms warm switch and 250 ms leave grace. Do not use the Playwright clock, because it also stops animation-frame tweens.
+- Check hover on the full Gantt row, including the label cell and the empty timeline band. Sweeps across rows must keep the route and the dim until the pointer rests. In forced colors, check that the highlighted label cell uses `Highlight` and `HighlightText`.
+- For `:focus-visible` checks, use `keyboard.press('Tab')` to move focus. `locator.focus()` does not set `:focus-visible`.
 - In calendar tests, select a date different from the initial date. Derive local-date expectations from the browser date.
 - In history tests, start with empty history and check both Undo and Redo.
 - Wait for focus and animation completion before asserting popover state.

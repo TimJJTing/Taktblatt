@@ -7,17 +7,25 @@
 <script lang="ts">
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
-	import { tick, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
+	import { SvelteMap } from 'svelte/reactivity';
 	import {
 		isTimelinePinned,
 		workspaceLayout,
 		pinnedTimeline
 	} from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
+	import {
+		bandFill,
+		bandTintVar,
+		stageColorVar,
+		type RoutePaint
+	} from '#lib/components/plan/colors.ts';
 	import { isFinished } from '#lib/domain/derive.ts';
+	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
+	import type { EdgeGeom, Junction } from '#lib/scene/types.ts';
 	import { cn } from '#lib/utils.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
@@ -77,7 +85,14 @@
 			win
 		)
 	);
+	const routeTargets = editing.routeFocus.view(() => new Set(rows.map((row) => row.id)));
+	onMount(routeTargets.register);
 	const lines = $derived(dependencyLines(ws.index, rows));
+	const graph = $derived(effectiveDependencyGraph(ws.index));
+	const routeModel = $derived(routeFocusModel(graph, ws.index, rows, lines, editing.routeId));
+	const routePaint = (lit: boolean): RoutePaint =>
+		routeModel.active ? (lit ? 'lit' : 'off') : null;
+
 	const ticks = $derived(monthTicks(win));
 	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(visibleBands(win, ws.plan.bands));
@@ -138,6 +153,67 @@
 				a.key.localeCompare(b.key)
 		)
 	);
+	const edgePoints = (line: EdgeGeom, width: number) =>
+		line.points.map((p) => ({ x: p.x.f * width + p.x.px, y: p.y.px }));
+	let edgeTweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }[]>>());
+	$effect(() => {
+		const targets = scene.geometry.edges;
+		const width = timelineWidth;
+		const previous = untrack(() => edgeTweens);
+		edgeTweens = new Map(
+			targets.map((line) => {
+				const points = edgePoints(line, width);
+				const tween = previous.get(line.key) ?? new GeometryTween(points, width);
+				tween.set(points, { width });
+				return [line.key, tween];
+			})
+		);
+	});
+	const litEdges = $derived(
+		sortedEdges.filter((line) => !line.cycle && routeModel.litLineKeys.has(line.key))
+	);
+	const firstCycle = $derived(sortedEdges.find((line) => line.cycle)?.key);
+	const edgePath = (line: EdgeGeom) =>
+		(edgeTweens.get(line.key)?.current ?? edgePoints(line, timelineWidth))
+			.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`)
+			.join(' ');
+	const lineWidth = (line: EdgeGeom) =>
+		sourceRows.get(line.from)!.level === 1 && sourceRows.get(line.to)!.level === 1 ? 1.5 : 2;
+	const tapMembers = $derived.by(() => {
+		const members = new SvelteMap<string, SvelteMap<string, string[]>>();
+		for (const edge of scene.geometry.edges) {
+			let sources = members.get(edge.trunk);
+			if (!sources) members.set(edge.trunk, (sources = new SvelteMap()));
+			let keys = sources.get(edge.from);
+			if (!keys) sources.set(edge.from, (keys = []));
+			keys.push(edge.key);
+		}
+		return members;
+	});
+	function junctionPaint(junction: Junction) {
+		const members =
+			junction.kind === 'tap'
+				? (tapMembers.get(junction.trunk)?.get(junction.source!) ?? [])
+				: (junction.edges ?? []);
+		return routePaint(members.some((key) => routeModel.litLineKeys.has(key)));
+	}
+	const tapRoutes = $derived(
+		new Map(
+			scene.geometry.junctions
+				.filter((j) => j.kind === 'tap')
+				.flatMap((j) => {
+					const paint = junctionPaint(j);
+					return paint ? [[j.key, paint] as const] : [];
+				})
+		)
+	);
+	function routeFade(_node: Element, { casing = false } = {}) {
+		return {
+			duration: motionDuration(150),
+			css: (t: number) =>
+				`stroke: color-mix(in oklab, var(${casing ? '--route-ground' : '--route-ink'}) ${t * 100}%, transparent)`
+		};
+	}
 	function measureTimeline(element: HTMLElement) {
 		const measure = () => {
 			const next = element.clientWidth;
@@ -167,6 +243,134 @@
 			ownHighlight = null;
 		}
 	}
+
+	let hoveredRow: HTMLElement | null = null;
+	let hoverChart: HTMLElement | null = null;
+	let hoverFrame: number | undefined;
+	let hoverPoint = { x: 0, y: 0 };
+	function setHoveredRow(row: HTMLElement | null) {
+		if (row === hoveredRow) return;
+		if (hoveredRow) {
+			editing.routeFocus.hoverLeave(editing.routeFocus.tokenFor(hoveredRow));
+			onHighlight(hoveredRow.dataset.routeTarget!, false);
+		}
+		hoveredRow = row;
+		if (row) {
+			editing.routeFocus.hoverEnter(row.dataset.routeTarget!, editing.routeFocus.tokenFor(row));
+			onHighlight(row.dataset.routeTarget!, true);
+		}
+	}
+
+	function updateChartHover(chart: HTMLElement) {
+		if (!scroller) return;
+		const view = scroller.getBoundingClientRect();
+		const bounds = chart.getBoundingClientRect();
+		let next: HTMLElement | null = null;
+		// The sticky header can cover rows after a vertical scroll.
+		if (
+			hoverPoint.x >= view.left &&
+			hoverPoint.x < view.right &&
+			hoverPoint.y >=
+				Math.max(view.top + HEADER_HEIGHT, bounds.top + HEADER_HEIGHT + MILESTONE_ROW_HEIGHT) &&
+			hoverPoint.y < view.bottom
+		) {
+			// Read the animated row positions before updating highlight paint.
+			for (const row of chart.querySelectorAll<HTMLElement>(
+				'[data-route-target]:not([data-route-focus])'
+			)) {
+				if (!sourceRows.has(row.dataset.routeTarget!)) continue;
+				const rect = row.getBoundingClientRect();
+				if (
+					hoverPoint.x >= rect.left &&
+					hoverPoint.x < rect.right &&
+					hoverPoint.y >= rect.top &&
+					hoverPoint.y < rect.bottom
+				) {
+					next = row;
+					break;
+				}
+			}
+		}
+		setHoveredRow(next);
+	}
+
+	function chartPointerMove(event: PointerEvent) {
+		if (event.pointerType === 'touch') return;
+		hoverPoint = { x: event.clientX, y: event.clientY };
+		hoverChart = event.currentTarget as HTMLElement;
+		scheduleChartHover();
+	}
+
+	function scheduleChartHover() {
+		if (!hoverChart || hoverFrame !== undefined) return;
+		hoverFrame = requestAnimationFrame(() => {
+			hoverFrame = undefined;
+			if (hoverChart) updateChartHover(hoverChart);
+		});
+	}
+
+	function chartPointerDown(event: PointerEvent) {
+		if (event.pointerType === 'touch' || hoverFrame === undefined) return;
+		// Apply pending hover before a chevron click clears its linked highlight.
+		cancelAnimationFrame(hoverFrame);
+		hoverFrame = undefined;
+		hoverPoint = { x: event.clientX, y: event.clientY };
+		updateChartHover(event.currentTarget as HTMLElement);
+	}
+
+	function clearChartHover() {
+		if (hoverFrame !== undefined) cancelAnimationFrame(hoverFrame);
+		hoverFrame = undefined;
+		hoverChart = null;
+		setHoveredRow(null);
+	}
+	function chartPointerLeave(event: PointerEvent) {
+		if (event.pointerType !== 'touch') clearChartHover();
+	}
+	let hoverPlanId = untrack(() => ws.plan.id);
+	$effect(() => {
+		const planId = ws.plan.id;
+		const currentRows = sourceRows;
+		untrack(() => {
+			if (planId !== hoverPlanId) clearChartHover();
+			else {
+				if (hoveredRow && !currentRows.has(hoveredRow.dataset.routeTarget!)) setHoveredRow(null);
+				scheduleChartHover();
+			}
+			hoverPlanId = planId;
+		});
+	});
+	onMount(() => {
+		const observer = new ResizeObserver(scheduleChartHover);
+		observer.observe(scroller!);
+		observer.observe(scroller!.firstElementChild!);
+		const rowsObserver = new MutationObserver((changes) => {
+			if (
+				changes.some(
+					(change) =>
+						change.type === 'childList' ||
+						(change.target instanceof HTMLElement &&
+							change.target.matches('[data-route-target]:not([data-route-focus])'))
+				)
+			)
+				scheduleChartHover();
+		});
+		rowsObserver.observe(scroller!, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ['style']
+		});
+		window.addEventListener('scroll', scheduleChartHover, true);
+		window.addEventListener('resize', scheduleChartHover);
+		return () => {
+			observer.disconnect();
+			rowsObserver.disconnect();
+			window.removeEventListener('scroll', scheduleChartHover, true);
+			window.removeEventListener('resize', scheduleChartHover);
+			clearChartHover();
+		};
+	});
 
 	$effect(() => {
 		const id = editing.highlightId;
@@ -230,6 +434,33 @@
 	}
 </script>
 
+{#snippet routeOverlays()}
+	<g aria-hidden="true" class="route-overlays">
+		{#each litEdges as line (line.key)}
+			<path
+				d={edgePath(line)}
+				fill="none"
+				stroke="var(--route-ground)"
+				stroke-width="4"
+				aria-hidden="true"
+				data-overlay-for={line.key}
+				data-route-layer="casing"
+				transition:routeFade={{ casing: true }}
+			/>
+			<path
+				d={edgePath(line)}
+				fill="none"
+				stroke="var(--route-ink)"
+				stroke-width={lineWidth(line)}
+				aria-hidden="true"
+				data-overlay-for={line.key}
+				data-route-layer="ink"
+				transition:routeFade
+			/>
+		{/each}
+	</g>
+{/snippet}
+
 <div
 	role="group"
 	aria-label={m.gantt_label()}
@@ -245,7 +476,14 @@
 		class="min-h-0 flex-1 overflow-auto"
 		data-testid="gantt-scroller"
 	>
-		<div class="relative" style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="relative"
+			style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)"
+			onpointerdown={chartPointerDown}
+			onpointermove={chartPointerMove}
+			onpointerleave={chartPointerLeave}
+		>
 			<div class="sticky top-0 z-20 flex border-b bg-background" style:height="{HEADER_HEIGHT}px">
 				<div
 					class="sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center border-r bg-background px-1"
@@ -310,12 +548,15 @@
 			<div class="pointer-events-none relative z-[1]" style:height="{bodyHeight.current}px">
 				{#each rows as row (row.id)}
 					<GanttRow
+						routeTarget={routeTargets.target}
 						{row}
 						geom={marks.get(row.id)!}
 						width={timelineWidth}
 						taps={scene.geometry.junctions.filter((j) => j.kind === 'tap' && j.source === row.id)}
 						color={colors.get(row.stageId) ?? 'currentColor'}
 						highlighted={editing.highlightId === row.id}
+						route={routePaint(routeModel.onRouteRowIds.has(row.id))}
+						{tapRoutes}
 						onJump={jump}
 						{onHighlight}
 					/>
@@ -378,21 +619,35 @@
 					aria-hidden="true"
 				>
 					{#each sortedEdges as line (line.key)}
+						{#if line.key === firstCycle}{@render routeOverlays()}{/if}
 						<GanttLine
 							{line}
+							tween={edgeTweens.get(line.key) ?? { current: edgePoints(line, timelineWidth) }}
 							muted={isFinished(sourceRows.get(line.from)!.status)}
-							width={timelineWidth}
-							strokeWidth={sourceRows.get(line.from)!.level === 1 &&
-							sourceRows.get(line.to)!.level === 1
-								? 1.5
-								: 2}
+							route={routePaint(routeModel.litLineKeys.has(line.key))}
+							strokeWidth={lineWidth(line)}
 						/>
 					{/each}
+					{#if firstCycle === undefined}{@render routeOverlays()}{/if}
 					{#each scene.geometry.junctions.filter((j) => j.kind === 'junction') as junction (junction.key)}
-						<DiagramRing {junction} width={timelineWidth} />
+						<DiagramRing {junction} width={timelineWidth} route={junctionPaint(junction)} />
 					{/each}
 				</svg>
 			</div>
 		</div>
 	</div>
 </div>
+
+<style>
+	.route-overlays {
+		--route-ink: var(--foreground);
+		--route-ground: var(--background, #ffffff);
+	}
+	@media (forced-colors: active) {
+		.route-overlays {
+			forced-color-adjust: none;
+			--route-ink: Highlight;
+			--route-ground: Canvas;
+		}
+	}
+</style>

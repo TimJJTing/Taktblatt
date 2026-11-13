@@ -1,28 +1,20 @@
 <script lang="ts">
 	import type { TaskStatus } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
-	import { markColorLevel } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, type RoutePaint } from '#lib/components/plan/colors.ts';
 	interface Props {
 		status: TaskStatus;
 		color: string;
 		size?: number;
 		inset?: number;
 		still?: boolean;
-		offRoute?: boolean;
+		route?: RoutePaint;
 		label?: string;
 	}
-	let {
-		status,
-		color,
-		size = 8,
-		inset = 1,
-		still = false,
-		offRoute = false,
-		label
-	}: Props = $props();
+	let { status, color, size = 8, inset = 1, still = false, route = null, label }: Props = $props();
 	const ground = $derived(still ? '#FFFFFF' : 'var(--background, #FFFFFF)');
 	const ink = $derived(
-		`color-mix(in oklab, ${color} ${markColorLevel(status, 'dot', offRoute, still)}%, ${ground})`
+		`color-mix(in oklab, ${color} ${markColorLevel(status, 'dot', route === 'off', still)}%, ${ground})`
 	);
 	const hole = $derived(Math.max(0, size / 2 - inset));
 </script>

@@ -1533,18 +1533,19 @@ export async function expectMilestoneRing(container: Locator, exactSize = true):
 	}
 }
 
-/** Compares effective paint, including ancestor opacity, with a theme token. */
+/** Compare effective paint with a token. Use mixSpace for a color mix instead of alpha. */
 export async function expectTokenPaint(
 	target: Locator,
 	property: 'color' | 'stroke' | 'fill' | 'background-color' | 'border-left-color',
 	token: string,
 	strength = 1,
-	paper = false
+	paper = false,
+	mixSpace?: 'oklab'
 ): Promise<void> {
 	await expect
 		.poll(() =>
 			target.evaluate(
-				(element, { property, token, strength, paper }) => {
+				(element, { property, token, strength, paper, mixSpace }) => {
 					const style = getComputedStyle(element);
 					const probe = document.createElement('span');
 					probe.style.color = `var(${token})`;
@@ -1552,6 +1553,9 @@ export async function expectTokenPaint(
 					const ink = getComputedStyle(probe).color;
 					probe.style.color = `var(${paper ? '--color-paper' : '--background'})`;
 					const ground = getComputedStyle(probe).color;
+					if (mixSpace)
+						probe.style.color = `color-mix(in ${mixSpace}, ${ink} ${strength * 100}%, ${ground})`;
+					const expectedInk = mixSpace ? getComputedStyle(probe).color : ink;
 					probe.remove();
 					const canvas = document.createElement('canvas');
 					canvas.width = canvas.height = 1;
@@ -1571,10 +1575,10 @@ export async function expectTokenPaint(
 						opacity *= Number(getComputedStyle(node).opacity);
 					}
 					const actual = sample(style.getPropertyValue(property), opacity);
-					const expected = sample(ink, strength);
+					const expected = sample(expectedInk, mixSpace ? 1 : strength);
 					return actual.every((channel, index) => Math.abs(channel - expected[index]) <= 2);
 				},
-				{ property, token, strength, paper }
+				{ property, token, strength, paper, mixSpace }
 			)
 		)
 		.toBe(true);
@@ -1801,4 +1805,133 @@ export async function openContinuationPlan(page: Page): Promise<void> {
 			createdAt: new Date(Date.UTC(2030, 0, 1, 0, 0, i)).toISOString()
 		}));
 	});
+}
+
+/** Load the branching route fixture. Keep route setup in one place. */
+export async function openRoutePlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-01-31' };
+		plan.stages = [{ ...plan.stages[0], color: 'blue', description: '' }];
+		plan.bands = [];
+		plan.milestones = [];
+		const base = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			owners: [],
+			deliverable: '',
+			note: '',
+			status: 'todo',
+			dependsOn: [],
+			start: '2027-01-02',
+			end: '2027-01-05'
+		};
+		plan.tasks = [
+			{ ...base, id: 'up', title: 'Route upstream', status: 'done' },
+			{ ...base, id: 'parent', title: 'Route parent', dependsOn: ['up'] },
+			{ ...base, id: 'child-a', title: 'Route child A', parentId: 'parent' },
+			{ ...base, id: 'child-b', title: 'Route child B', parentId: 'parent' },
+			{
+				...base,
+				id: 'down',
+				title: 'Route downstream',
+				dependsOn: ['parent', 'child-a', 'up'],
+				start: '2027-01-10',
+				end: '2027-01-15'
+			},
+			{
+				...base,
+				id: 'branch',
+				title: 'Route branch',
+				dependsOn: ['child-b'],
+				start: '2027-01-12',
+				end: '2027-01-17'
+			},
+			{
+				...base,
+				id: 'point',
+				title: 'Route point',
+				dependsOn: ['down'],
+				start: '2027-01-20',
+				end: null
+			},
+			{ ...base, id: 'other', title: 'Route unrelated' },
+			{ ...base, id: 'cycle-a', title: 'Route cycle A', dependsOn: ['cycle-b'] },
+			{
+				...base,
+				id: 'cycle-b',
+				title: 'Route cycle B',
+				dependsOn: ['cycle-a'],
+				start: '2027-01-21',
+				end: '2027-01-25'
+			}
+		].map((task, i) => ({
+			...task,
+			createdAt: new Date(Date.UTC(2027, 0, 1, 0, 0, i)).toISOString()
+		}));
+	});
+}
+
+/** Read row and edge route membership without including outgoing decorations. */
+export async function routeMembership(page: Page) {
+	return page.evaluate(() => ({
+		rows: [...document.querySelectorAll<HTMLElement>('[data-testid="gantt-row"][data-route="lit"]')]
+			.map((e) => e.dataset.taskId)
+			.sort(),
+		lines: [
+			...document.querySelectorAll<SVGElement>('[data-testid="gantt-dependency"][data-route="lit"]')
+		]
+			.map((e) => `${e.dataset.from}->${e.dataset.to}`)
+			.sort()
+	}));
+}
+
+/** Hold frame callbacks until release. Keep cancellation active while frames are held. */
+export async function holdAnimationFrames(page: Page) {
+	type FrameWindow = Window & {
+		heldTestFrames?: {
+			request: typeof requestAnimationFrame;
+			cancel: typeof cancelAnimationFrame;
+			callbacks: Map<number, FrameRequestCallback>;
+			cancelled: number;
+		};
+	};
+	await page.evaluate(() => {
+		const target = window as FrameWindow;
+		const state = {
+			request: window.requestAnimationFrame,
+			cancel: window.cancelAnimationFrame,
+			callbacks: new Map<number, FrameRequestCallback>(),
+			cancelled: 0
+		};
+		target.heldTestFrames = state;
+		let nextId = -1;
+		window.requestAnimationFrame = (callback) => {
+			const id = nextId--;
+			state.callbacks.set(id, callback);
+			return id;
+		};
+		window.cancelAnimationFrame = (id) => {
+			if (state.callbacks.delete(id)) state.cancelled++;
+			else state.cancel.call(window, id);
+		};
+	});
+	return {
+		state: () =>
+			page.evaluate(() => {
+				const state = (window as FrameWindow).heldTestFrames!;
+				return { pending: state.callbacks.size, cancelled: state.cancelled };
+			}),
+		release: () =>
+			page.evaluate(() => {
+				const target = window as FrameWindow;
+				const state = target.heldTestFrames;
+				if (!state) return;
+				window.requestAnimationFrame = state.request;
+				window.cancelAnimationFrame = state.cancel;
+				delete target.heldTestFrames;
+				for (const callback of state.callbacks.values()) callback(performance.now());
+			})
+	};
 }

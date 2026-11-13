@@ -1,3 +1,4 @@
+import { HOVER_COLD_MS, HOVER_GRACE_MS } from './route-focus.svelte.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditingState, FLASH_MS } from './editing.svelte.ts';
 
@@ -67,5 +68,96 @@ describe('EditingState', () => {
 		// Completing the full duration for 't3' clears flashId.
 		vi.advanceTimersByTime(FLASH_MS);
 		expect(editing.flashId).toBeNull();
+	});
+});
+
+describe('EditingState route ownership', () => {
+	afterEach(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	});
+
+	it('gives the dialog priority, clears pointer fallback and ignores pointer input while open', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.focusEnter('field', 'row-field', 'keyboard');
+		editing.routeFocus.toggleTouch('touch', 'touch-mark');
+		editing.routeFocus.hoverEnter('pending', 'pending-mark');
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		editing.routeFocus.hoverEnter('other', 'other-mark');
+		editing.routeFocus.toggleTouch('other', 'other-mark');
+		vi.advanceTimersByTime(HOVER_COLD_MS);
+		expect(editing.routeId).toBe('dialog');
+		editing.detailsTaskId = null;
+		expect(editing.routeId).toBe('field');
+		editing.routeFocus.focusLeave('row-field');
+		expect(editing.routeId).toBeNull();
+	});
+
+	it('cancels an unopened hover intent so closing details cannot activate it later', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.hoverEnter('pending', 'pending-mark');
+		vi.advanceTimersByTime(HOVER_COLD_MS - 1);
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		editing.detailsTaskId = null;
+		vi.advanceTimersByTime(HOVER_COLD_MS + HOVER_GRACE_MS);
+		expect(editing.routeId).toBeNull();
+	});
+
+	it('clears shown hover and a pending switch when details open', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.hoverEnter('shown', 'bar-shown');
+		vi.advanceTimersByTime(HOVER_COLD_MS);
+		expect(editing.routeId).toBe('shown');
+		editing.routeFocus.hoverLeave('bar-shown');
+		editing.routeFocus.hoverEnter('waiting', 'bar-waiting');
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		expect(vi.getTimerCount()).toBe(0);
+		editing.detailsTaskId = null;
+		expect(editing.routeId).toBeNull();
+		vi.advanceTimersByTime(HOVER_COLD_MS + HOVER_GRACE_MS);
+		expect(editing.routeId).toBeNull();
+		editing.routeFocus.hoverEnter('waiting', 'bar-waiting');
+		vi.advanceTimersByTime(HOVER_COLD_MS - 1);
+		expect(editing.routeId).toBeNull();
+		vi.advanceTimersByTime(1);
+		expect(editing.routeId).toBe('waiting');
+	});
+
+	it('cancels running leave grace when details open and keeps it cleared after close', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.routeFocus.hoverEnter('shown', 'bar-shown');
+		vi.advanceTimersByTime(HOVER_COLD_MS);
+		editing.routeFocus.hoverLeave('bar-shown');
+		vi.advanceTimersByTime(HOVER_GRACE_MS - 1);
+		expect(editing.routeId).toBe('shown');
+		expect(vi.getTimerCount()).toBe(1);
+		editing.openDetails('dialog', null);
+		expect(editing.routeId).toBe('dialog');
+		expect(vi.getTimerCount()).toBe(0);
+		editing.detailsTaskId = null;
+		expect(editing.routeId).toBeNull();
+		vi.advanceTimersByTime(HOVER_COLD_MS + HOVER_GRACE_MS);
+		expect(editing.routeId).toBeNull();
+	});
+
+	it('resolves route input independently of the immediate linked highlight', () => {
+		vi.useFakeTimers();
+		const editing = new EditingState();
+		editing.highlightId = 'linked';
+		editing.routeFocus.hoverEnter('route', 'bar-route');
+		expect(editing.highlightId).toBe('linked');
+		vi.advanceTimersByTime(HOVER_COLD_MS);
+		expect(editing.routeId).toBe('route');
+		expect(editing.highlightId).toBe('linked');
+		editing.routeFocus.clearPointer();
+		expect(editing.routeId).toBeNull();
+		expect(editing.highlightId).toBe('linked');
 	});
 });

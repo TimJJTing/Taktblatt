@@ -50,6 +50,7 @@
 	const ws = getWorkspace();
 	const viewer = getViewer();
 	const editing = getEditing();
+	const routeTarget = editing.routeFocus.target;
 
 	const tasks = $derived(ws.index.stageTasks.get(stage.id) ?? []);
 	const progress = $derived(stageProgress(ws.index, stage.id));
@@ -247,6 +248,8 @@
 						<tr
 							data-grid-row
 							data-task-id={rowTask.id}
+							data-route-target={rowTask.id}
+							use:routeTarget={rowTask.id}
 							class={cn(
 								'border-b transition-colors',
 								rowTask.parentId !== null ? 'border-border/50' : 'border-border',
@@ -258,10 +261,24 @@
 							style:animation-duration={editing.flashId === rowTask.id
 								? `${motionDuration(FLASH_MS)}ms`
 								: undefined}
-							onpointerenter={() => (editing.highlightId = rowTask.id)}
-							onpointerleave={() =>
-								editing.highlightId === rowTask.id && (editing.highlightId = null)}
-							onfocusin={() => (editing.highlightId = rowTask.id)}
+							onpointerenter={(event) => {
+								editing.highlightId = rowTask.id;
+								editing.routeFocus.hoverEnter(
+									rowTask.id,
+									editing.routeFocus.tokenFor(event.currentTarget),
+									event.pointerType
+								);
+							}}
+							onpointerleave={(event) => {
+								if (editing.highlightId === rowTask.id) editing.highlightId = null;
+								editing.routeFocus.hoverLeave(
+									editing.routeFocus.tokenFor(event.currentTarget),
+									event.pointerType
+								);
+							}}
+							onfocusin={() => {
+								editing.highlightId = rowTask.id;
+							}}
 							animate:flip={{ duration: flipDuration, easing: cubicOut }}
 							data-testid="task-row"
 						>

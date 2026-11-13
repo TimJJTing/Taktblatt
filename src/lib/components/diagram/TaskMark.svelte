@@ -7,7 +7,7 @@
 	import type { Junction } from '#lib/scene/types.ts';
 	import type { TaskStatus } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
-	import { markColorLevel, subtaskFill } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, subtaskFill, type RoutePaint } from '#lib/components/plan/colors.ts';
 	interface Props {
 		geom: GanttMarkGeom;
 		box: { x0: number; x1: number };
@@ -17,6 +17,8 @@
 		taps?: readonly Junction[];
 		still?: boolean;
 		subtask?: boolean;
+		route?: RoutePaint;
+		tapRoutes?: ReadonlyMap<string, RoutePaint>;
 	}
 	let {
 		geom,
@@ -26,14 +28,19 @@
 		width,
 		taps = [],
 		still = false,
-		subtask = false
+		subtask = false,
+		route = null,
+		tapRoutes
 	}: Props = $props();
+	const offRoute = $derived(route === 'off');
 	const ground = $derived(still ? '#FFFFFF' : 'var(--background, #FFFFFF)');
 	const base = $derived(
-		subtask && status !== 'done' && status !== 'canceled' ? subtaskFill(color, ground) : color
+		!(offRoute && !still) && subtask && status !== 'done' && status !== 'canceled'
+			? subtaskFill(color, ground)
+			: color
 	);
 	const ink = $derived(
-		`color-mix(in oklab, ${base} ${markColorLevel(status, 'line', false, still)}%, ${ground})`
+		`color-mix(in oklab, ${base} ${markColorLevel(status, 'line', offRoute, still)}%, ${ground})`
 	);
 	// Keep two stable slots. A short bar merges them into one centered station.
 	const stationTargets = (g: GanttMarkGeom) => {
@@ -85,7 +92,13 @@
 				: '0px'}
 		></div>
 	{/if}
-	{#each taps as tap (tap.key)}<TaskTap {tap} {width} left={box.x0} {still} />{/each}
+	{#each taps as tap (tap.key)}<TaskTap
+			{tap}
+			{width}
+			left={box.x0}
+			{still}
+			route={tapRoutes?.get(tap.key)}
+		/>{/each}
 	{#each stations.current as station, i (i)}
 		{#if station.r > 0 && (i === 0 || Math.abs(station.x - stations.current[0].x) > 1e-7 || Math.abs(station.r - stations.current[0].r) > 1e-7)}
 			<span
@@ -96,7 +109,7 @@
 					? Math.max(0, station.x - box.x0 - station.r)
 					: -Math.max(0, box.x1 - station.x - station.r)}px)"
 			>
-				<StationDot {status} {color} size={station.r * 2} inset={station.inset} {still} />
+				<StationDot {route} {status} {color} size={station.r * 2} inset={station.inset} {still} />
 			</span>
 		{/if}
 	{/each}

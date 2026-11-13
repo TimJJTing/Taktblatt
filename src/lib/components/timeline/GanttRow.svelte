@@ -9,6 +9,8 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
+	import type { Action } from 'svelte/action';
+	import type { RoutePaint } from '#lib/components/plan/colors.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
@@ -19,6 +21,7 @@
 	import type { GanttRow } from '#lib/domain/gantt.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
@@ -27,17 +30,34 @@
 
 	interface Props {
 		row: GanttRow;
+		routeTarget: Action<HTMLElement, string>;
 		geom: GanttMarkGeom;
 		width: number;
 		taps: readonly Junction[];
 		/** The stage color as a CSS value. */
 		color: string;
 		highlighted: boolean;
+		route?: RoutePaint;
+		tapRoutes?: ReadonlyMap<string, RoutePaint>;
 		onJump: (id: string) => void;
 		onHighlight: (id: string, on: boolean) => void;
 	}
 
-	let { row, geom, width, taps, color, highlighted, onJump, onHighlight }: Props = $props();
+	let {
+		row,
+		routeTarget,
+		geom,
+		width,
+		taps,
+		color,
+		highlighted,
+		onJump,
+		onHighlight,
+		route = null,
+		tapRoutes
+	}: Props = $props();
+	const editing = getEditing();
+	const targetId = $props.id();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -81,34 +101,47 @@
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 
-	const showRowId = $props.id();
+	const showRowId = `${targetId}-show`;
 	const showRow = $derived(m.gantt_show_row({ task: titleText }));
 
-	const hover = {
-		onpointerenter: () => onHighlight(row.id, true),
-		onpointerleave: () => onHighlight(row.id, false),
+	const focusInput = {
 		onfocusin: () => onHighlight(row.id, true),
 		onfocusout: () => onHighlight(row.id, false)
 	};
+	function markClick(event: MouseEvent) {
+		if (editing.routeFocus.lastPointerType === 'touch')
+			editing.routeFocus.toggleTouch(
+				row.id,
+				editing.routeFocus.tokenFor(event.currentTarget as Element)
+			);
+	}
 </script>
 
 <div
 	class="pointer-events-none absolute inset-x-0 flex"
 	style:top="{y.current}px"
 	style:height="{ROW_HEIGHT}px"
+	data-route-target={row.id}
+	use:routeTarget={row.id}
 	data-testid="gantt-row"
 	data-task-id={row.id}
 	data-highlighted={highlighted || undefined}
+	data-route={route ?? undefined}
 	transition:fade={{ duration: motionDuration(150) }}
 >
 	<div
 		class={cn(
 			'pointer-events-auto sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center gap-1 border-r px-1 transition-colors',
-			highlighted ? 'bg-accent' : 'bg-background',
+			highlighted
+				? 'bg-accent forced-colors:bg-[Highlight] forced-colors:text-[HighlightText] forced-colors:forced-color-adjust-none forced-colors:[&_button]:text-inherit'
+				: 'bg-background',
 			subtask && 'pl-6'
 		)}
 		style:transition-duration={colorDuration}
-		{...hover}
+		data-route-target={row.id}
+		data-route-focus="keyboard"
+		use:routeTarget={row.id}
+		{...focusInput}
 	>
 		{#if row.isParent}
 			<button
@@ -160,22 +193,33 @@
 				{#snippet child({ props })}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
-						{...mergeProps(props, hover)}
+						{...mergeProps(props, focusInput, { onclick: markClick })}
 						role="img"
 						tabindex="0"
 						aria-label={markName}
-						class={cn(
-							'pointer-events-auto absolute top-1/2 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							highlighted && 'ring-2 ring-ring/70'
-						)}
+						class="pointer-events-auto absolute top-1/2 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
 						style:left="{x.current.x0}px"
 						style:width="{x.current.x1 - x.current.x0}px"
 						style:height="{x.current.height}px"
+						data-route-target={row.id}
+						data-route-focus="keyboard"
+						data-route-touch
+						use:routeTarget={row.id}
 						data-testid={mark.kind === 'bar' ? 'gantt-bar' : 'gantt-point'}
 						data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
 						data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}
 					>
-						<TaskMark {subtask} {geom} box={x.current} status={row.status} {color} {width} {taps} />
+						<TaskMark
+							{route}
+							{tapRoutes}
+							{subtask}
+							{geom}
+							box={x.current}
+							status={row.status}
+							{color}
+							{width}
+							{taps}
+						/>
 					</div>
 				{/snippet}
 			</Hint>
