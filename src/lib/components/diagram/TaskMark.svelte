@@ -103,6 +103,7 @@
 		{#if station.r > 0 && (i === 0 || Math.abs(station.x - stations.current[0].x) > 1e-7 || Math.abs(station.r - stations.current[0].r) > 1e-7)}
 			<span
 				class="absolute top-1/2 flex -translate-y-1/2"
+				data-diagram-station={i === 0 || undefined}
 				style:left={i === 0 ? '0px' : undefined}
 				style:right={i === 1 ? '0px' : undefined}
 				style:transform="translateX({i === 0

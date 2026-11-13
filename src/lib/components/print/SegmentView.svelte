@@ -2,10 +2,12 @@
 	One fragment of a print segment: a block, or some items of a block.
 	The paginator measures it off-screen with all items. The sheets show it with the items of one sheet.
 	Both use this component, so the heights match.
+	A scene segment delegates to the paper adapter of its registered view.
 -->
 <script lang="ts">
 	import type { GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
 	import type { Segment } from '#lib/domain/print-model.ts';
+	import { getViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import PrintCards from './PrintCards.svelte';
 	import PrintGantt from './PrintGantt.svelte';
 	import PrintHeader from './PrintHeader.svelte';
@@ -24,6 +26,12 @@
 	}
 
 	let { segment, from, to, first, width, paper }: Props = $props();
+
+	const registry = getViewRegistry();
+	// A generic scene segment renders with the paper adapter of its view (ADR 20).
+	const Paper = $derived(
+		segment.kind === 'scene' ? registry.get(segment.diagram)?.paper.component : undefined
+	);
 </script>
 
 {#if segment.kind === 'header'}
@@ -36,6 +44,8 @@
 	<PrintCards {segment} {from} {to} {first} />
 {:else if segment.kind === 'stage'}
 	<PrintStage {segment} {from} {to} {first} />
-{:else}
+{:else if segment.kind === 'remarks'}
 	<PrintRemarks {segment} {from} {to} {first} />
+{:else if Paper}
+	<Paper {segment} {from} {to} {first} {width} />
 {/if}

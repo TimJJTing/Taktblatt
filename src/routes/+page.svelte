@@ -21,12 +21,14 @@
 	import { PreviewState, setPreview } from '#lib/state/preview.svelte.ts';
 	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.ts';
 	import { setViewer, ViewerState } from '#lib/state/viewer.svelte.ts';
+	import { appViewRegistry, setViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import { setWorkspace, Workspace } from '#lib/state/workspace.svelte.ts';
 
 	const ws = setWorkspace(
 		new Workspace(localStorage, () => toast.warning(m.toast_cycle_created()))
 	);
-	setViewer(new ViewerState(localStorage));
+	const views = setViewRegistry(appViewRegistry());
+	setViewer(new ViewerState(localStorage, views.ids));
 	const editing = setEditing(new EditingState());
 	onMount(() => editing.routeFocus.attach(ws));
 	const preview = setPreview(new PreviewState());

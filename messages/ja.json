@@ -301,5 +301,13 @@
 	"plans_backup_short": "バックアップ",
 	"menu_this_plan": "この計画",
 	"menu_print_hint": "シートをプレビュー",
-	"menu_export_hint": "この計画をファイルに保存"
+	"menu_export_hint": "この計画をファイルに保存",
+	"diagram_print_group": "印刷する図",
+	"diagram_print_min": "図を1つ以上選択してください",
+	"diagram_region": "{view}の図",
+	"diagram_view_announcement": "{view}表示",
+	"diagram_view_gantt": "ガント",
+	"diagram_view_kanban": "カンバン",
+	"diagram_view_route_map": "路線図",
+	"diagram_view_switch": "図の表示"
 }

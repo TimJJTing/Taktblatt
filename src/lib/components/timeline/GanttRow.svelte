@@ -181,6 +181,7 @@
 						muted && 'text-muted-foreground line-through decoration-muted-foreground/50'
 					)}
 					aria-describedby={showRowId}
+					data-diagram-label={row.id}
 					data-testid="gantt-label">{titleText}</button
 				>
 			{/snippet}
@@ -205,6 +206,8 @@
 						data-route-focus="keyboard"
 						data-route-touch
 						use:routeTarget={row.id}
+						data-diagram-task={row.id}
+						data-diagram-parent={row.parentId ?? undefined}
 						data-testid={mark.kind === 'bar' ? 'gantt-bar' : 'gantt-point'}
 						data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
 						data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}

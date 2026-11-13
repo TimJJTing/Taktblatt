@@ -4,9 +4,33 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+import type { Plugin } from 'vite';
+
+/**
+ * Test-only diagram views (ADR 20). Only the build-time flag TAKTBLATT_DIAGRAM_FIXTURES=1 imports
+ * them. Without the flag, the module exports an empty list and the build has no fixture code.
+ */
+function diagramViewFixtures(): Plugin {
+	const id = 'virtual:diagram-view-fixtures';
+	const resolved = `\0${id}`;
+	const enabled = fixtureBuild;
+	return {
+		name: 'taktblatt-diagram-view-fixtures',
+		resolveId: (source) => (source === id ? resolved : undefined),
+		load: (source) => {
+			if (source !== resolved) return undefined;
+			return enabled
+				? "export { fixtures } from '/e2e/fixtures/diagram-views/index.ts';"
+				: 'export const fixtures = [];';
+		}
+	};
+}
+
+const fixtureBuild = process.env.TAKTBLATT_DIAGRAM_FIXTURES === '1';
 
 export default defineConfig({
 	plugins: [
+		diagramViewFixtures(),
 		tailwindcss(),
 		sveltekit({
 			compilerOptions: {
@@ -14,7 +38,12 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter({ fallback: '404.html' })
+			// A fixture build uses its own output, so it never replaces the production build.
+			...(fixtureBuild ? { outDir: '.svelte-kit-fixtures' } : {}),
+			adapter: adapter({
+				fallback: '404.html',
+				pages: fixtureBuild ? 'build-fixtures' : 'build'
+			})
 		}),
 		paraglideVitePlugin({ project: './project.inlang' })
 	],

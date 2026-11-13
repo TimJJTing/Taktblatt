@@ -20,8 +20,29 @@ const ViewerSchema = v.object({
 	ganttHeight: v.optional(
 		v.pipe(v.number(), v.minValue(0), v.maxValue(GANTT_HEIGHT.max)),
 		GANTT_HEIGHT.default
-	)
+	),
+	// The registry validates the ids after parsing. Refer to `resolveDiagramView`.
+	diagramView: v.fallback(v.optional(v.string()), undefined),
+	printDiagrams: v.fallback(v.optional(v.array(v.unknown())), undefined)
 });
+
+/** The fallback diagram view. Gantt is always registered. */
+const GANTT = 'gantt';
+
+/** Resolves a stored view id. An unknown or unregistered id gives Gantt. */
+export function resolveDiagramView(value: unknown, ids: readonly string[]): string {
+	return typeof value === 'string' && ids.includes(value) ? value : GANTT;
+}
+
+/**
+ * Resolves a stored print selection. Keeps registered string ids once, in registry order.
+ * A missing, non-array or empty selection gives Gantt only.
+ */
+export function resolvePrintDiagrams(value: unknown, ids: readonly string[]): string[] {
+	if (!Array.isArray(value)) return [GANTT];
+	const selected = ids.filter((id) => value.includes(id));
+	return selected.length > 0 ? selected : [GANTT];
+}
 
 type ViewerData = v.InferOutput<typeof ViewerSchema>;
 
@@ -38,8 +59,18 @@ export class ViewerState {
 	timelineKeepOpen = $state(false);
 	/** The pinned Timeline section height, as a fraction of the viewport height. */
 	ganttHeight = $state<number>(GANTT_HEIGHT.default);
+	/** The diagram in the Timeline section, shared by all plans. */
+	diagramView = $state(GANTT);
+	/** The diagrams to print, in print order, shared by all plans. */
+	printDiagrams = $state<string[]>([GANTT]);
 
-	constructor(private readonly storage: Storage) {
+	/**
+	 * @param viewIds The registered diagram view ids in display and print order.
+	 */
+	constructor(
+		private readonly storage: Storage,
+		private readonly viewIds: readonly string[] = [GANTT]
+	) {
 		let data: ViewerData = v.parse(ViewerSchema, {});
 		try {
 			const raw = storage.getItem(KEYS.viewer);
@@ -57,6 +88,8 @@ export class ViewerState {
 		this.timelineLegendsCollapsed = data.timelineLegendsCollapsed ?? data.ganttPinned;
 		this.timelineKeepOpen = data.timelineKeepOpen;
 		this.ganttHeight = data.ganttHeight;
+		this.diagramView = resolveDiagramView(data.diagramView, viewIds);
+		this.printDiagrams = resolvePrintDiagrams(data.printDiagrams, viewIds);
 	}
 
 	private save(): void {
@@ -68,7 +101,9 @@ export class ViewerState {
 			timelineCollapsed: this.timelineCollapsed,
 			timelineLegendsCollapsed: this.timelineLegendsCollapsed,
 			timelineKeepOpen: this.timelineKeepOpen,
-			ganttHeight: this.ganttHeight
+			ganttHeight: this.ganttHeight,
+			diagramView: this.diagramView,
+			printDiagrams: [...this.printDiagrams]
 		};
 		this.storage.setItem(KEYS.viewer, JSON.stringify(data));
 	}
@@ -125,6 +160,29 @@ export class ViewerState {
 
 	setGanttHeight(fraction: number): void {
 		this.ganttHeight = Math.min(GANTT_HEIGHT.max, Math.max(0, fraction));
+		this.save();
+	}
+
+	/** Selects the diagram view. An unregistered id does nothing. */
+	setDiagramView(id: string): void {
+		if (!this.viewIds.includes(id) || this.diagramView === id) return;
+		this.diagramView = id;
+		this.save();
+	}
+
+	/** Adds or removes a diagram from print. The last selected diagram stays. */
+	setPrintDiagram(id: string, selected: boolean): void {
+		if (!this.viewIds.includes(id)) return;
+		const next = selected
+			? resolvePrintDiagrams([...this.printDiagrams, id], this.viewIds)
+			: this.printDiagrams.filter((item) => item !== id);
+		if (next.length === 0) return;
+		if (
+			next.length === this.printDiagrams.length &&
+			next.every((item, i) => item === this.printDiagrams[i])
+		)
+			return;
+		this.printDiagrams = next;
 		this.save();
 	}
 

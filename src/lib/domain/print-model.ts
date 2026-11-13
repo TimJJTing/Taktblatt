@@ -26,8 +26,13 @@ import {
 } from './gantt.ts';
 import type { Band, Milestone, Plan, RemarkSection, Stage, Task } from './schema.ts';
 
+/** The orientation of a sheet. Shared plan content is always portrait. */
+export type DiagramOrientation = 'portrait' | 'landscape';
+
 /** How a segment sits on the sheets. The paginator reads these values. */
 interface Placement {
+	/** The sheet orientation. Absent means portrait. An orientation change starts a new sheet. */
+	orientation?: DiagramOrientation;
 	/** The number of items that stay with the lead of the segment. */
 	keep: number;
 	/** The space above the segment, in CSS pixels. */
@@ -100,8 +105,36 @@ export interface RemarksSegment extends Placement {
 	rows: RemarkSection[][];
 }
 
+/**
+ * A generic diagram segment. A registered paper adapter builds it and renders it.
+ * `items` are the legal split positions: the paginator splits only between items.
+ * `data` is private to the adapter. The print model does not read it.
+ */
+export interface SceneSegment extends Placement {
+	kind: 'scene';
+	/** A stable id that is unique in the model, for example `route-map-scene`. */
+	id: string;
+	/** The id of the diagram view that renders the segment. */
+	diagram: string;
+	items: readonly unknown[];
+	data?: unknown;
+}
+
 export type Segment =
-	HeaderSegment | GanttSegment | LegendSegment | CardsSegment | StageSegment | RemarksSegment;
+	| HeaderSegment
+	| GanttSegment
+	| LegendSegment
+	| CardsSegment
+	| StageSegment
+	| RemarksSegment
+	| SceneSegment;
+
+/** A diagram prepared for print: its id, orientation and segments, including its legends. */
+export interface PrintDiagram {
+	id: string;
+	orientation: DiagramOrientation;
+	segments: readonly Segment[];
+}
 
 /** The number of items of a segment. The paginator splits only between items. */
 export function itemCount(segment: Segment): number {
@@ -116,6 +149,8 @@ export function itemCount(segment: Segment): number {
 			return segment.rows.length;
 		case 'stage':
 			return Math.max(1, segment.rows.length);
+		case 'scene':
+			return segment.items.length;
 	}
 }
 
@@ -143,7 +178,16 @@ export function printToday(plan: Plan, today: ISODate): ISODate {
 	return plan.footer.date ?? today;
 }
 
-export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelInput): Segment[] {
+export interface PrintModelOptions extends PrintModelInput {
+	/**
+	 * The selected diagrams in print order, each prepared by its paper adapter.
+	 * The default is Gantt only.
+	 */
+	diagrams?: readonly PrintDiagram[];
+}
+
+/** The Gantt segment and its legends. The Gantt paper adapter uses this function. */
+export function ganttPrintSegments({ plan, index, isExpanded, today }: PrintModelInput): Segment[] {
 	const win = plan.range;
 	const rows = ganttRows(
 		index,
@@ -152,7 +196,6 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 		win
 	);
 	const segments: Segment[] = [
-		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false },
 		{
 			kind: 'gantt',
 			id: 'gantt',
@@ -195,6 +238,37 @@ export function buildPrintModel({ plan, index, isExpanded, today }: PrintModelIn
 			breakBefore: false
 		});
 	}
+	return segments;
+}
+
+/**
+ * Builds the print blocks: header, the selected diagrams, stage cards, the work plan and remarks.
+ * Each diagram after the first starts on a new sheet. The segments of a diagram get its orientation.
+ * The paginator starts a new sheet at each orientation change.
+ */
+export function buildPrintModel(options: PrintModelOptions): Segment[] {
+	const { plan, index, isExpanded } = options;
+	const diagrams = options.diagrams ?? [
+		{ id: 'gantt', orientation: 'portrait', segments: ganttPrintSegments(options) }
+	];
+	const segments: Segment[] = [
+		{ kind: 'header', id: 'header', keep: 1, gap: 0, breakBefore: false }
+	];
+	// Segment ids must be unique. A diagram that repeats an id gets its own prefix.
+	const seen = new Set(segments.map((segment) => segment.id));
+	diagrams.forEach((diagram, i) => {
+		diagram.segments.forEach((segment, j) => {
+			const id = seen.has(segment.id) ? `${diagram.id}:${segment.id}` : segment.id;
+			seen.add(id);
+			// A prefixed id is a plain string. The renderers read `kind`, not the literal id.
+			segments.push({
+				...segment,
+				id,
+				orientation: diagram.orientation,
+				breakBefore: segment.breakBefore || (i > 0 && j === 0)
+			} as Segment);
+		});
+	});
 	segments.push({
 		kind: 'cards',
 		id: 'cards',
