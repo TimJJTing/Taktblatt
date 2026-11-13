@@ -3,7 +3,14 @@ import { makePlan } from '#lib/domain/test-helpers.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapLayout } from './route-map-layout.ts';
 import { routeMapRoutes } from './route-map-router.ts';
-import { clearancePlan, expectClearRoutes, screenMetrics, task } from './route-map.test-helpers.ts';
+import {
+	clearancePlan,
+	expectClearRoutes,
+	largePlan,
+	screenMetrics,
+	shuffled,
+	task
+} from './route-map.test-helpers.ts';
 
 describe('Route map routing', () => {
 	it('bypasses the intermediate A/B/C station, label and focus outline', () => {
@@ -46,6 +53,19 @@ describe('Route map routing', () => {
 		expectClearRoutes(layout, routes);
 		expect(routeMapRoutes(model, layout)).toEqual(routes);
 	});
+	it('keeps the large fixture deterministic and routes every stored dependency', () => {
+		const plan = largePlan();
+		const model = routeMapModel(plan, new Set());
+		const layout = routeMapLayout(model, screenMetrics);
+		const routes = routeMapRoutes(model, layout);
+		expect(new Set(layout.stations.map((station) => station.id)).size).toBe(120);
+		expect(routes.flatMap((route) => route.stored)).toHaveLength(200);
+		expectClearRoutes(layout, routes);
+		const other = routeMapModel(shuffled(plan), new Set());
+		expect(routeMapLayout(other, screenMetrics)).toEqual(layout);
+		expect(routeMapRoutes(other, layout)).toEqual(routes);
+	}, 20000);
+
 	it('routes a sibling diamond independently of the decorative family loop', () => {
 		const plan = makePlan([
 			task({ id: 'P' }),

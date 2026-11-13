@@ -60,8 +60,6 @@ describe('Route map model', () => {
 		]);
 		const model = routeMapModel(plan, new Set(['P']));
 		expect(model.nodes.find((n) => n.id === 'doneFamily')).toMatchObject({ status: 'done' });
-		expect(model.nodes.find((n) => n.id === 'S')).toMatchObject({ ready: false });
-		expect(model.nodes.find((n) => n.id === 'down')).toMatchObject({ ready: true });
 	});
 
 	it('proxies hidden predecessors, omits hidden dependents and inherited duplicates', () => {

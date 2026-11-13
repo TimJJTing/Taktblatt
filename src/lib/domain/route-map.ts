@@ -9,7 +9,6 @@ export interface RouteMapNode {
 	parentId: string | null;
 	title: string;
 	status: TaskStatus;
-	ready: boolean;
 	start: string | null;
 	createdAt: string;
 }
@@ -43,7 +42,6 @@ export function routeMapModel(plan: Plan, expanded: ReadonlySet<string>): RouteM
 			parentId: t.parentId,
 			title: t.title,
 			status: state.eff.status,
-			ready: state.readiness.kind === 'ready',
 			start: state.eff.start,
 			createdAt: t.createdAt
 		};

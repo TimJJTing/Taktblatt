@@ -24,7 +24,7 @@ export function routeMapRoutes(
 					{ x: track.toX, y: to.inPort.y },
 					to.inPort
 				]
-			: [from.outPort, to.inPort];
+			: [from.outPort, from.outPort, from.outPort, to.inPort, to.inPort, to.inPort];
 		return [{ ...edge, points }];
 	});
 }

@@ -53,6 +53,26 @@ describe('Route map placement', () => {
 		expect(result.loops[0].taskIds.slice().sort()).toEqual(['P', 'S', 'T']);
 	});
 
+	it('keeps cyclic components together and puts children on a lower branch', () => {
+		const result = layout(
+			[
+				task({ id: 'A', start: '2027-01-01', dependsOn: ['Z'] }),
+				task({ id: 'M', start: '2027-01-02' }),
+				task({ id: 'Z', start: '2027-01-03', dependsOn: ['A'] }),
+				task({ id: 'child', parentId: 'A' })
+			],
+			new Set(['A'])
+		);
+		expect(result.stations.filter((s) => s.id !== 'child').map((s) => s.id)).toEqual([
+			'A',
+			'Z',
+			'M'
+		]);
+		expect(result.stations.find((s) => s.id === 'child')!.inPort.y).toBeGreaterThan(
+			result.stations.find((s) => s.id === 'A')!.inPort.y
+		);
+	});
+
 	it('terminates on grouping-only cycles with stable geometry and stage order', () => {
 		const plan = groupingPlan();
 		const original = structuredClone(plan);

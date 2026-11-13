@@ -165,6 +165,39 @@ describe('Route map paper', () => {
 		expect(paper.segment.items.length).toBeGreaterThan(2);
 	});
 
+	it('keeps explicit title breaks in separate physical rows', () => {
+		const title = 'First line\n\n' + 'Long line '.repeat(40);
+		const paper = routeMapPaper(
+			routeMapModel(makePlan([task({ id: 'multiline', title })]), new Set()),
+			metrics()
+		);
+		const rows = paper.segment.items
+			.flatMap((item) => item.titles)
+			.filter((row) => row.taskId === 'multiline');
+		expect(rows.slice(0, 2).map((row) => row.text)).toEqual(['First line', '']);
+		expect(rows.every((row) => !row.text.includes('\n'))).toBe(true);
+	});
+
+	it('places each stage on its own line and expanded children on a branch', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'parent', stageId: 's1' }),
+				task({ id: 'child', stageId: 's1', parentId: 'parent' }),
+				task({ id: 'other', stageId: 's2' })
+			],
+			['s1', 's2']
+		);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(['parent'])), metrics());
+		for (const item of paper.segment.items.filter((item) => item.lineY !== undefined)) {
+			for (const station of item.stations) {
+				const node = plan.tasks.find((task) => task.id === station.id)!;
+				expect(node.stageId).toBe(item.stageId);
+				if (node.parentId) expect(station.inPort.y).toBeGreaterThan(item.lineY!);
+				else expect(station.inPort.y).toBe(item.lineY);
+			}
+		}
+	});
+
 	it('splits a large expanded family into legal cells and prints whole-stage progress once', () => {
 		const plan = makePlan(
 			[

@@ -32,6 +32,7 @@ export interface RouteMapPaperItem {
 	id: string;
 	panelId: string;
 	stageId?: string;
+	lineY?: number;
 	width: number;
 	height: number;
 	stations: readonly RouteMapPaperStation[];
@@ -49,14 +50,19 @@ export interface RouteMapPaper {
 function wrap(text: string, width: number, measure: (text: string) => number): string[] {
 	const result: string[] = [];
 	let line = '';
-	for (const char of text) {
+	for (const char of text.replace(/\r\n?/g, '\n')) {
+		if (char === '\n') {
+			result.push(line);
+			line = '';
+			continue;
+		}
 		if (line && measure(line + char) > width) {
 			result.push(line);
 			line = '';
 		}
 		line += char;
 	}
-	if (line) result.push(line);
+	if (line || text.endsWith('\n')) result.push(line);
 	return result;
 }
 export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetrics): RouteMapPaper {
@@ -105,7 +111,10 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				.filter((station) => byId.get(station.id)!.stageId === stage.id);
 			const ids = new Set(stations.map((station) => station.id));
 			const localEdges = model.edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to));
-			const trackHeight = Math.min(height / 2, (localEdges.length + 1) * 6 + metrics.clearance);
+			const trackHeight = Math.min(
+				height / 2,
+				(localEdges.length + 1) * 6 + metrics.clearance + 24
+			);
 			const hit = Math.max(24, metrics.hitSize);
 			const y = trackHeight + metrics.clearance + hit / 2;
 			let offset = 0;
@@ -122,7 +131,9 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					metrics.labelWidth,
 					column.width - 2 * metrics.clearance - metrics.columnGap
 				);
-				const hitBox = { x: x - hit / 2, y: y - hit / 2, w: hit, h: hit };
+				const stationY =
+					y + (byId.get(station.id)!.parentId ? hit + metrics.labelHeight + metrics.clearance : 0);
+				const hitBox = { x: x - hit / 2, y: stationY - hit / 2, w: hit, h: hit };
 				return {
 					...station,
 					reference: references.get(station.id)!,
@@ -133,12 +144,12 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					hitBox,
 					labelBox: {
 						x: x - labelWidth / 2,
-						y: y + hit / 2,
+						y: stationY + hit / 2,
 						w: labelWidth,
 						h: metrics.labelHeight
 					},
-					inPort: { x: x - hit / 2, y },
-					outPort: { x: x + hit / 2, y }
+					inPort: { x: x - hit / 2, y: stationY },
+					outPort: { x: x + hit / 2, y: stationY }
 				};
 			});
 			const placedById = new Map(placed.map((station) => [station.id, station]));
@@ -152,10 +163,10 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					...edge,
 					points: [
 						source.outPort,
-						{ x: sx, y },
+						{ x: sx, y: source.outPort.y },
 						{ x: sx, y: channel },
 						{ x: tx, y: channel },
-						{ x: tx, y },
+						{ x: tx, y: target.inPort.y },
 						target.inPort
 					]
 				};
@@ -164,8 +175,18 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				id: `band:${panel.id}:${stage.id}`,
 				panelId: panel.id,
 				stageId: stage.id,
+				lineY: y,
 				width: panelWidth,
-				height: Math.min(height, y + hit / 2 + metrics.labelHeight + metrics.clearance),
+				height: Math.min(
+					height,
+					y +
+						hit / 2 +
+						metrics.labelHeight +
+						metrics.clearance +
+						(placed.some((station) => byId.get(station.id)!.parentId)
+							? hit + metrics.labelHeight + metrics.clearance
+							: 0)
+				),
 				stations: placed,
 				titles: [],
 				edges,
@@ -190,6 +211,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					items.push({
 						id: `title:${station.id}:${start}`,
 						panelId: panel.id,
+						stageId: stage.id,
 						width,
 						height: titles.length * metrics.lineHeight,
 						stations: [],
@@ -204,9 +226,12 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 	}
 	const continuations = new Map(items.map((item) => [item.id, [] as RouteMapContinuation[]]));
 	const bandByPanelStage = new Map(
-		items.filter((item) => item.stageId).map((item) => [`${item.panelId}:${item.stageId}`, item])
+		items
+			.filter((item) => item.id.startsWith('band:'))
+			.map((item) => [`${item.panelId}:${item.stageId}`, item])
 	);
 	const panelIndex = new Map(panels.map((panel, i) => [panel.id, i]));
+	let pairNumber = 0;
 	for (const edge of model.edges) {
 		const from = stationItems.get(edge.from),
 			to = stationItems.get(edge.to);
@@ -227,7 +252,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 			const left = path[i],
 				right = path[i + 1];
 			const boundary = `${left.id}:${right.id}`;
-			const id = `continuation:${edge.key}:${i}`;
+			const id = `C${++pairNumber}`;
 			const exit =
 				i === 0
 					? [source.outPort, { x: source.outPort.x + metrics.clearance, y: source.outPort.y }]
@@ -250,26 +275,12 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 	for (const item of items)
 		(item as { continuations: readonly RouteMapContinuation[] }).continuations =
 			continuations.get(item.id) ?? [];
-	// Put each terminus after the final band and title continuations of its stage.
-	for (const stage of [...model.stages].reverse()) {
-		const last = items.findLastIndex(
-			(item) =>
-				item.stations.some((station) => byId.get(station.id)?.stageId === stage.id) ||
-				item.titles.some((title) => byId.get(title.taskId)?.stageId === stage.id)
-		);
-		const at = last < 0 ? items.length : last + 1;
-		const panelId = last < 0 ? panels[panels.length - 1].id : items[last].panelId;
-		items.splice(at, 0, {
-			id: `terminus:${stage.id}`,
-			panelId,
-			width: Math.max(1, width),
-			height: metrics.lineHeight,
-			stations: [],
-			titles: [],
-			edges: [],
-			continuations: [],
-			termini: [{ stageId: stage.id, toGo: stage.toGo }]
-		});
+	for (const stage of model.stages) {
+		const band = items.findLast((item) => item.id.startsWith('band:') && item.stageId === stage.id);
+		if (band)
+			(band as { termini: RouteMapPaperItem['termini'] }).termini = [
+				{ stageId: stage.id, toGo: stage.toGo }
+			];
 	}
 
 	return {

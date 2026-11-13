@@ -5,7 +5,7 @@
 	import { diagramRouteTargets } from '#lib/components/diagram/diagram-layer.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
-	import { stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { joinList } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
@@ -21,6 +21,8 @@
 	import RouteMapStation from './RouteMapStation.svelte';
 
 	let { class: className }: DiagramViewProps = $props();
+	const instanceId = $props.id();
+	let root: HTMLDivElement;
 	const ws = getWorkspace();
 	const viewer = getViewer();
 	const editing = getEditing();
@@ -59,7 +61,7 @@
 		routeFocusModel(effectiveDependencyGraph(ws.index), ws.index, rows, routes, editing.routeId)
 	);
 	const paint = (lit: boolean): RoutePaint => (focus.active ? (lit ? 'lit' : 'off') : null);
-	const width = $derived(Math.max(300, layout.width));
+	const width = $derived(Math.max(300, layout.width + 180));
 	const height = $derived(Math.max(160, layout.height));
 	function directions(id: string) {
 		const names = (ids: string[]) =>
@@ -72,24 +74,52 @@
 		return joinList(
 			[
 				predecessors.length ? m.route_map_predecessors({ tasks: names(predecessors) }) : '',
-				successors.length ? m.route_map_successors({ tasks: names(successors) }) : ''
+				successors.length ? m.route_map_successors({ tasks: names(successors) }) : '',
+				nodes.get(id)?.parentId
+					? m.route_map_subtask_of({
+							task: nodes.get(nodes.get(id)!.parentId!)?.title || m.route_map_untitled_task()
+						})
+					: '',
+				...model.warnings
+					.filter((w) =>
+						model.edges.some(
+							(edge) =>
+								(edge.from === id || edge.to === id) &&
+								edge.stored.some(
+									(stored) => stored.taskId === w.taskId && stored.dependencyId === w.dependencyId
+								)
+						)
+					)
+					.map((w) =>
+						w.kind === 'cycle'
+							? m.dependency_warning_cycle()
+							: w.kind === 'subtask_scope'
+								? m.dependency_warning_subtask_scope()
+								: ''
+					)
 			].filter(Boolean),
 			uiIntl()
 		);
 	}
-	const groups = $derived(layout.stations.filter((s) => !nodes.get(s.id)?.parentId));
+	const groups = $derived(
+		model.stages.flatMap((stage) =>
+			layout.stations.filter(
+				(s) => nodes.get(s.id)?.stageId === stage.id && !nodes.get(s.id)?.parentId
+			)
+		)
+	);
 	$effect.pre(() => {
 		const visible = new Set(model.nodes.map((node) => node.id));
 		const active = document.activeElement;
 		if (!(active instanceof HTMLElement)) return;
-		const target = active.closest<HTMLElement>('[data-diagram-task]');
-		const id = target?.dataset.diagramTask;
+		const target = active.closest<HTMLElement>('[data-route-map-task]');
+		const id = target?.dataset.routeMapTask;
 		if (!id || visible.has(id)) return;
-		const parent = target.dataset.diagramParent;
+		const parent = target.dataset.routeMapParent;
 		void tick().then(() => {
 			const replacement =
 				parent &&
-				document.querySelector<HTMLElement>(
+				root.querySelector<HTMLElement>(
 					`button[data-route-target="${CSS.escape(parent)}"][data-route-focus="keyboard"]`
 				);
 			(
@@ -97,54 +127,112 @@
 			)?.focus();
 		});
 	});
-	const childId = (id: string) => `route-map-family-${id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+	const childId = (id: string) =>
+		`${instanceId}-family-${Array.from(id, (c) => c.codePointAt(0)!.toString(16)).join('-')}`;
 	const guides = $derived.by(() =>
-		model.stages.flatMap((stage) => {
+		model.stages.flatMap((stage, i) => {
 			const members = layout.stations.filter(
-				(station) => nodes.get(station.id)?.stageId === stage.id
+				(station) => nodes.get(station.id)?.stageId === stage.id && !nodes.get(station.id)?.parentId
 			);
-			return members.slice(1).map((station, i) => ({
-				key: `${stage.id}:${members[i].id}:${station.id}`,
+			if (!members.length)
+				return [
+					{
+						key: `${stage.id}:empty`,
+						stageId: stage.id,
+						ids: [] as string[],
+						points: [
+							{ x: 8, y: layout.stageYs[i] },
+							{ x: 100, y: layout.stageYs[i] }
+						]
+					}
+				];
+
+			return members.slice(1).map((station, j) => ({
+				key: `${stage.id}:${members[j].id}:${station.id}`,
 				stageId: stage.id,
-				points: [members[i].outPort, station.inPort]
+				ids: [members[j].id, station.id],
+				points: [members[j].outPort, station.inPort]
 			}));
 		})
 	);
 	const loops = $derived.by(() =>
 		layout.loops.flatMap((loop) => {
 			const parent = stations.get(loop.taskIds[0]);
-			const last = stations.get(loop.taskIds.at(-1)!);
+			const children = loop.taskIds
+				.slice(1)
+				.map((id) => stations.get(id))
+				.filter((s) => s !== undefined);
+			const last = children.at(-1);
 			if (!parent || !last) return [];
-			const y =
-				Math.max(parent.labelBox.y + parent.labelBox.h, last.labelBox.y + last.labelBox.h) + 10;
+			const x1 = parent.labelBox.x + parent.labelBox.w + layout.clearance / 2,
+				x2 = last.labelBox.x + last.labelBox.w + layout.clearance / 2;
+			const stageId = nodes.get(parent.id)!.stageId;
+			const first = children[0];
 			return [
 				{
-					key: loop.taskIds.join(':'),
-					stageId: nodes.get(parent.id)!.stageId,
+					key: `${parent.id}:branch-start`,
+					stageId,
+					ids: [parent.id, first.id],
 					points: [
 						parent.outPort,
-						{ x: parent.outPort.x + 8, y },
-						{ x: last.inPort.x - 8, y },
-						last.inPort
+						{ x: x1, y: parent.outPort.y },
+						{ x: x1, y: first.inPort.y },
+						first.inPort
 					]
+				},
+				...children.slice(1).map((child, i) => ({
+					key: `${parent.id}:branch:${children[i].id}:${child.id}`,
+					stageId,
+					ids: [children[i].id, child.id],
+					points: [children[i].outPort, child.inPort]
+				})),
+				{
+					key: `${parent.id}:branch-end`,
+					stageId,
+					ids: [last.id],
+					points: [last.outPort, { x: x2, y: last.outPort.y }, { x: x2, y: parent.outPort.y }]
 				}
 			];
 		})
 	);
-	let stageTweens = $state.raw(new Map<string, GeometryTween<number>>());
+	function lineColor(stageId: string, ids: readonly string[]) {
+		const statuses = ids.map((id) => nodes.get(id)?.status);
+		const dim =
+			statuses.includes('canceled') ||
+			(statuses.length > 1 && statuses.every((status) => status === 'done'));
+		const off = focus.active && (!ids.length || !ids.every((id) => focus.onRouteRowIds.has(id)));
+		const level = markColorLevel(dim ? 'done' : 'todo', 'line', off);
+		return `color-mix(in oklab, ${stageColorVar(stages.get(stageId)!.color)} ${level}%, var(--background, #FFFFFF))`;
+	}
+
+	const termini = $derived(
+		model.stages.map((stage, i) => {
+			const members = layout.stations.filter(
+				(station) => nodes.get(station.id)?.stageId === stage.id && !nodes.get(station.id)?.parentId
+			);
+			const last = members.at(-1);
+			const branch = last && layout.loops.find((loop) => loop.taskIds[0] === last.id);
+			const branchEnd = branch && stations.get(branch.taskIds.at(-1)!);
+			const x = branchEnd
+				? branchEnd.labelBox.x + branchEnd.labelBox.w + layout.clearance / 2
+				: last
+					? last.outPort.x
+					: 100;
+			return { id: stage.id, ids: last ? [last.id] : [], x, y: layout.stageYs[i] };
+		})
+	);
+	let terminusTweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }>>());
 	$effect(() => {
-		const stages = model.stages;
-		const ys = layout.stageYs;
-		const previous = untrack(() => stageTweens);
-		stageTweens = new Map(
-			stages.map((stage, i) => {
-				const y = Math.max(0, (ys[i] ?? 0) - 38);
-				const tween = previous.get(stage.id) ?? new GeometryTween(y);
-				tween.set(y);
-				return [stage.id, tween];
+		const previous = untrack(() => terminusTweens);
+		terminusTweens = new Map(
+			termini.map(({ id, x, y }) => {
+				const tween = previous.get(id) ?? new GeometryTween({ x, y });
+				tween.set({ x, y });
+				return [id, tween];
 			})
 		);
 	});
+
 	let decorationTweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }[]>>());
 	$effect(() => {
 		const next = [...guides, ...loops];
@@ -165,8 +253,7 @@
 			next.map((edge) => {
 				const points = [...edge.points];
 				const tween = previous.get(edge.key) ?? new GeometryTween(points);
-				const previousLength = untrack(() => previous.get(edge.key)?.current.length);
-				tween.set(points, { snap: previousLength !== points.length });
+				tween.set(points);
 				return [edge.key, tween];
 			})
 		);
@@ -176,6 +263,7 @@
 </script>
 
 <div
+	bind:this={root}
 	class={cn('flex min-h-21 min-w-0 flex-1 flex-col rounded-md border bg-background', className)}
 	data-testid="route-map"
 >
@@ -200,7 +288,16 @@
 							data-testid="route-map-guide"
 							d={path(decorationTweens.get(guide.key)?.current ?? guide.points)}
 							fill="none"
-							stroke={stageColorVar(stages.get(guide.stageId)!.color)}
+							stroke={lineColor(guide.stageId, guide.ids)}
+							stroke-width="2"
+						/>
+					{/each}
+					{#each termini as terminus (terminus.id)}
+						{@const point = terminusTweens.get(terminus.id)?.current ?? terminus}
+						<path
+							d={`M ${point.x} ${point.y} h 20`}
+							fill="none"
+							stroke={lineColor(terminus.id, terminus.ids)}
 							stroke-width="2"
 						/>
 					{/each}
@@ -208,9 +305,8 @@
 						<path
 							d={path(decorationTweens.get(loop.key)?.current ?? loop.points)}
 							fill="none"
-							stroke={stageColorVar(stages.get(loop.stageId)!.color)}
+							stroke={lineColor(loop.stageId, loop.ids)}
 							stroke-width="1"
-							stroke-dasharray="3 3"
 						/>
 					{/each}
 					{#each routes as edge (edge.key)}
@@ -220,26 +316,37 @@
 								fill="none"
 								stroke="var(--background)"
 								stroke-width="5"
+								class="cycle-casing"
 							/>
 						{/if}
 						<path
 							data-testid="route-map-dependency"
 							data-from={edge.from}
 							data-to={edge.to}
-							data-route={paint(focus.litLineKeys.has(edge.key)) ?? undefined}
+							data-route={edge.cycle
+								? paint(focus.litLineKeys.has(edge.key)) === 'lit'
+									? 'lit'
+									: undefined
+								: (paint(focus.litLineKeys.has(edge.key)) ?? undefined)}
 							d={path(tweens.get(edge.key)?.current ?? edge.points)}
 							fill="none"
 							class="dependency"
 							class:cycle={edge.cycle}
+							stroke={edge.cycle
+								? 'var(--destructive)'
+								: `color-mix(in oklab, ${paint(focus.litLineKeys.has(edge.key)) === 'lit' ? 'var(--foreground)' : 'var(--muted-foreground)'} ${markColorLevel(nodes.get(edge.from)?.status ?? 'todo', 'connector', paint(focus.litLineKeys.has(edge.key)) === 'off')}%, var(--background, #FFFFFF))`}
+							stroke-dasharray={edge.cycle ? '1 4' : undefined}
+							stroke-linecap={edge.cycle ? 'round' : undefined}
 							style:transition-duration={`${motionDuration(150)}ms`}
 						/>
 					{/each}
 				</svg>
 				{#each model.stages as stage, i (stage.id)}
+					{@const point = terminusTweens.get(stage.id)?.current ?? termini[i]}
 					<div
-						class="absolute left-0 z-10 flex items-center gap-1 text-xs"
-						style:top="{stageTweens.get(stage.id)?.current ??
-							Math.max(0, (layout.stageYs[i] ?? 0) - 38)}px"
+						class="absolute z-10 flex items-center gap-1 text-xs"
+						style:left="{point.x + 24}px"
+						style:top="{point.y - 10}px"
 					>
 						<StageBadge color={stages.get(stage.id)!.color} label={stages.get(stage.id)!.title} />
 						<span class="whitespace-nowrap">{m.route_map_to_go({ count: stage.toGo })}</span>
@@ -284,20 +391,14 @@
 
 <style>
 	.dependency {
-		stroke: var(--muted-foreground);
 		stroke-width: 2;
-		transition-property: stroke, opacity;
-	}
-	.dependency[data-route='lit'] {
-		stroke: var(--foreground);
-	}
-	.dependency[data-route='off'] {
-		opacity: 0.25;
-	}
-	.dependency.cycle {
-		stroke-dasharray: 4 3;
+		transition-property: stroke;
 	}
 	@media (forced-colors: active) {
+		.cycle-casing {
+			forced-color-adjust: none;
+			stroke: Canvas;
+		}
 		.dependency {
 			forced-color-adjust: none;
 			stroke: CanvasText;

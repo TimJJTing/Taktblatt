@@ -33,7 +33,6 @@ export interface RouteMapStation {
 export interface RouteMapLayout {
 	stations: readonly RouteMapStation[];
 	clearance: number;
-	guides: readonly { stageId: string; points: readonly RouteMapPoint[] }[];
 	routing: ReadonlyMap<string, { fromX: number; toX: number; channelY: number }>;
 	width: number;
 	height: number;
@@ -74,15 +73,24 @@ function order(
 				to = component.get(p.to);
 			if (from && to && from !== to) ranks.set(to, Math.max(ranks.get(to)!, ranks.get(from)! + 1));
 		}
-	return nodes
-		.map((node) => ({ node, rank: ranks.get(component.get(node.id)!)! }))
-		.sort(
-			(a, b) =>
-				a.rank - b.rank ||
-				(a.node.start ?? '\uffff').localeCompare(b.node.start ?? '\uffff') ||
-				a.node.createdAt.localeCompare(b.node.createdAt) ||
-				a.node.id.localeCompare(b.node.id)
-		);
+	const compare = (a: RouteMapNode, b: RouteMapNode) =>
+		(a.start ?? '\uffff').localeCompare(b.start ?? '\uffff') ||
+		a.createdAt.localeCompare(b.createdAt) ||
+		a.id.localeCompare(b.id);
+	const groups = new Map<string, RouteMapNode[]>();
+	for (const node of nodes) {
+		const key = component.get(node.id)!;
+		groups.set(key, [...(groups.get(key) ?? []), node]);
+	}
+	return [...groups.entries()]
+		.map(([id, members]) => ({
+			id,
+			members: members.sort(compare),
+			key: [...members].sort(compare)[0],
+			rank: ranks.get(id)!
+		}))
+		.sort((a, b) => a.rank - b.rank || compare(a.key, b.key) || a.id.localeCompare(b.id))
+		.flatMap(({ members, rank }) => members.map((node) => ({ node, rank })));
 }
 
 export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): RouteMapLayout {
@@ -114,6 +122,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		const straight =
 			from < to &&
 			fromStage === toStage &&
+			Boolean(entries[from].node.parentId) === Boolean(entries[to].node.parentId) &&
 			!entries
 				.slice(from + 1, to)
 				.some((entry) => entry.node.stageId === entries[from].node.stageId);
@@ -144,19 +153,24 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 	}
 	const channelStarts: number[] = [];
 	const stageYs: number[] = [];
-	const bandHeight = hit + metrics.labelHeight + 2 * metrics.clearance;
+	const branchOffset = hit + metrics.labelHeight + 2 * metrics.clearance + metrics.laneGap;
+	const hasBranches = model.nodes.some((node) => node.parentId !== null);
+	const bandHeight =
+		hit + metrics.labelHeight + 2 * metrics.clearance + 24 + (hasBranches ? branchOffset : 0);
 	let y = 0;
 	for (let i = 0; i <= model.stages.length; i++) {
 		channelStarts.push(y);
 		y += gapSize(channels[i].length, Math.max(metrics.laneGap, metrics.stageGap - bandHeight));
 		if (i < model.stages.length) {
-			stageYs.push(y + metrics.clearance + hit / 2);
+			stageYs.push(y + metrics.clearance + 24 + hit / 2);
 			y += bandHeight;
 		}
 	}
 	const stations: RouteMapStation[] = entries.map((entry, i) => {
 		const centerX = centers[i];
-		const centerY = stageYs[stageIndex.get(entry.node.stageId) ?? 0] ?? metrics.clearance + hit / 2;
+		const centerY =
+			(stageYs[stageIndex.get(entry.node.stageId) ?? 0] ?? metrics.clearance + hit / 2) +
+			(entry.node.parentId ? branchOffset : 0);
 		return {
 			id: entry.node.id,
 			columnId: entry.node.id,
@@ -196,14 +210,13 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		width: x,
 		height: y,
 		stageYs,
-		guides: model.stages.map((stage) => ({
-			stageId: stage.id,
-			points: stations
-				.filter((station) => entries[index.get(station.id)!].node.stageId === stage.id)
-				.map((station) => ({ x: station.inPort.x + hit / 2, y: station.inPort.y }))
-		})),
+
 		loops: model.groups
-			.map((g) => ({ taskIds: g.taskIds.filter((id) => index.has(id)) }))
+			.map((g) => ({
+				taskIds: entries
+					.filter((entry) => g.taskIds.includes(entry.node.id))
+					.map((entry) => entry.node.id)
+			}))
 			.filter((g) => g.taskIds.length > 1)
 	};
 }

@@ -75,6 +75,8 @@
 	<div
 		class="contents"
 		role="group"
+		data-route-map-task={node.id}
+		data-route-map-parent={node.parentId ?? undefined}
 		data-route-target={node.id}
 		use:routeTarget={node.id}
 		onpointerenter={(e) => hover(e, true)}
@@ -118,48 +120,53 @@
 				<button
 					{...mergeProps(props, { onclick: () => editing.openDetails(node.id, button) })}
 					type="button"
-					class="absolute z-10 line-clamp-2 rounded-sm text-center text-xs focus-visible:outline-2 focus-visible:outline-ring"
+					class="absolute z-10 rounded-sm text-center text-xs focus-visible:outline-2 focus-visible:outline-ring"
 					style:left="{geom.current.labelBox.x}px"
 					style:top="{geom.current.labelBox.y}px"
 					style:width="{geom.current.labelBox.w}px"
 					style:max-height="{geom.current.labelBox.h}px"
-					data-diagram-label={node.id}>{title}</button
+					data-route-target={node.id}
+					use:routeTarget={node.id}
+					aria-label={title}
+					aria-describedby={description ? descriptionId : undefined}
+					data-diagram-label={node.id}
+					><span class="inline-flex items-baseline gap-1"
+						><ReadyDot readiness={ws.index.state.get(node.id)!.readiness} /><span
+							class="line-clamp-2">{title}</span
+						></span
+					></button
 				>
 			{/snippet}
 		</Hint>
-	</div>
-	<div
-		class="pointer-events-none absolute z-10"
-		style:left="{geom.current.hitBox.x - 8}px"
-		style:top="{geom.current.hitBox.y}px"
-	>
-		<ReadyDot readiness={ws.index.state.get(node.id)!.readiness} />
-	</div>
-	{#if hasChildren}
-		<button
-			type="button"
-			class="absolute z-10 flex size-6 items-center justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
-			style:left="{geom.current.hitBox.x + geom.current.hitBox.w}px"
-			style:top="{geom.current.hitBox.y}px"
-			aria-label={expanded
-				? m.route_map_hide_subtasks({ task: title })
-				: m.route_map_show_subtasks({ task: title })}
-			aria-expanded={expanded}
-			aria-controls={controls}
-			onclick={() => viewer.toggleExpanded(ws.plan.id, node.id)}
-		>
-			<span
-				aria-hidden="true"
-				style:transition-duration={`${motionDuration(200)}ms`}
-				class:rotate-90={expanded}
-				class="transition-transform">›</span
+		{#if hasChildren}
+			<button
+				type="button"
+				class="absolute z-10 flex size-6 items-center justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+				style:left="{geom.current.labelBox.x}px"
+				style:top="{geom.current.hitBox.y - 24}px"
+				data-route-target={node.id}
+				use:routeTarget={node.id}
+				aria-label={expanded
+					? m.route_map_hide_subtasks({ task: title })
+					: m.route_map_show_subtasks({ task: title })}
+				aria-expanded={expanded}
+				aria-controls={controls}
+				onclick={() => viewer.toggleExpanded(ws.plan.id, node.id)}
 			>
-		</button>
-		<span
-			class="pointer-events-none absolute text-xs text-muted-foreground"
-			style:left="{geom.current.hitBox.x + geom.current.hitBox.w + 22}px"
-			style:top="{geom.current.hitBox.y + 6}px"
-			>{m.route_map_subtask_count({ count: ws.index.children.get(node.id)?.length ?? 0 })}</span
-		>
-	{/if}
+				<span
+					aria-hidden="true"
+					style:transition-duration={`${motionDuration(200)}ms`}
+					class:rotate-90={expanded}
+					class="transition-transform">›</span
+				>
+			</button>
+			<span
+				class="pointer-events-none absolute truncate text-xs text-muted-foreground"
+				style:left="{geom.current.labelBox.x + 24}px"
+				style:width="{geom.current.labelBox.w - 24}px"
+				style:top="{geom.current.hitBox.y - 19}px"
+				>{m.route_map_subtask_count({ count: ws.index.children.get(node.id)?.length ?? 0 })}</span
+			>
+		{/if}
+	</div>
 </div>
