@@ -36,7 +36,7 @@
 		line.map((p) => `${p.x},${p.y}`).join(' ');
 </script>
 
-<div data-fragment="route-map-scene">
+<div>
 	<div data-part="repeat" class="border-b border-paper-rule pb-1 text-xs font-semibold">
 		{m.diagram_view_route_map()}
 		{#if headings.length}<span class="font-normal"> — {joinList(headings, uiIntl())}</span>{/if}

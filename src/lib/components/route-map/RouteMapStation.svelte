@@ -72,60 +72,62 @@
 </script>
 
 <div class="contents">
-	{#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
-	<Hint text={name}>
-		{#snippet child({ props })}
-			<button
-				{...mergeProps(props, { onclick: click })}
-				bind:this={button}
-				type="button"
-				class="absolute z-10 flex items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-				style:left="{geom.current.hitBox.x}px"
-				style:top="{geom.current.hitBox.y}px"
-				style:width="{geom.current.hitBox.w}px"
-				style:height="{geom.current.hitBox.h}px"
-				aria-label={name}
-				aria-describedby={description ? descriptionId : undefined}
-				data-route-target={node.id}
-				data-route-focus="keyboard"
-				data-route-touch
-				use:routeTarget={node.id}
-				data-diagram-task={node.id}
-				data-diagram-parent={node.parentId ?? undefined}
-				data-route={route ?? undefined}
-				onpointerenter={(e) => hover(e, true)}
-				onpointerleave={(e) => hover(e, false)}
-			>
-				<span data-diagram-station={node.id} class="flex"
-					><StationDot
-						status={node.status}
-						color={stageColorVar(stage.color)}
-						size={hasChildren ? 16 : 12}
-						{route}
-					/></span
+	<div
+		class="contents"
+		role="group"
+		data-route-target={node.id}
+		use:routeTarget={node.id}
+		onpointerenter={(e) => hover(e, true)}
+		onpointerleave={(e) => hover(e, false)}
+	>
+		{#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
+		<Hint text={name}>
+			{#snippet child({ props })}
+				<button
+					{...mergeProps(props, { onclick: click })}
+					bind:this={button}
+					type="button"
+					class="absolute z-10 flex items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+					style:left="{geom.current.hitBox.x}px"
+					style:top="{geom.current.hitBox.y}px"
+					style:width="{geom.current.hitBox.w}px"
+					style:height="{geom.current.hitBox.h}px"
+					aria-label={name}
+					aria-describedby={description ? descriptionId : undefined}
+					data-route-target={node.id}
+					data-route-focus="keyboard"
+					data-route-touch
+					use:routeTarget={node.id}
+					data-diagram-task={node.id}
+					data-diagram-parent={node.parentId ?? undefined}
+					data-route={route ?? undefined}
 				>
-			</button>
-		{/snippet}
-	</Hint>
-	<Hint text={title}>
-		{#snippet child({ props })}
-			<button
-				{...mergeProps(props, { onclick: () => editing.openDetails(node.id, button) })}
-				type="button"
-				class="absolute z-10 line-clamp-2 rounded-sm text-center text-xs focus-visible:outline-2 focus-visible:outline-ring"
-				style:left="{geom.current.labelBox.x}px"
-				style:top="{geom.current.labelBox.y}px"
-				style:width="{geom.current.labelBox.w}px"
-				style:max-height="{geom.current.labelBox.h}px"
-				data-diagram-label={node.id}
-				data-route-target={node.id}
-				data-route-focus="keyboard"
-				use:routeTarget={node.id}
-				onpointerenter={(e) => hover(e, true)}
-				onpointerleave={(e) => hover(e, false)}>{title}</button
-			>
-		{/snippet}
-	</Hint>
+					<span data-diagram-station={node.id} class="flex"
+						><StationDot
+							status={node.status}
+							color={stageColorVar(stage.color)}
+							size={hasChildren ? 16 : 12}
+							{route}
+						/></span
+					>
+				</button>
+			{/snippet}
+		</Hint>
+		<Hint text={title} side="bottom">
+			{#snippet child({ props })}
+				<button
+					{...mergeProps(props, { onclick: () => editing.openDetails(node.id, button) })}
+					type="button"
+					class="absolute z-10 line-clamp-2 rounded-sm text-center text-xs focus-visible:outline-2 focus-visible:outline-ring"
+					style:left="{geom.current.labelBox.x}px"
+					style:top="{geom.current.labelBox.y}px"
+					style:width="{geom.current.labelBox.w}px"
+					style:max-height="{geom.current.labelBox.h}px"
+					data-diagram-label={node.id}>{title}</button
+				>
+			{/snippet}
+		</Hint>
+	</div>
 	<div
 		class="pointer-events-none absolute z-10"
 		style:left="{geom.current.hitBox.x - 8}px"

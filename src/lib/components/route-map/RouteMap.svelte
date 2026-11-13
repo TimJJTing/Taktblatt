@@ -165,7 +165,8 @@
 			next.map((edge) => {
 				const points = [...edge.points];
 				const tween = previous.get(edge.key) ?? new GeometryTween(points);
-				tween.set(points, { snap: previous.get(edge.key)?.current.length !== points.length });
+				const previousLength = untrack(() => previous.get(edge.key)?.current.length);
+				tween.set(points, { snap: previousLength !== points.length });
 				return [edge.key, tween];
 			})
 		);
