@@ -1,6 +1,6 @@
 # 21. Route map
 
-Status: Proposed design with decided rules D50–D52 (2026-11-13). Those rules are settled. The remaining defaults need review. Keep the overall design Proposed until acceptance. This record does not claim implementation.
+Status: Proposed (2026-11-13). This record does not claim implementation.
 
 Extends [ADR 19](0019-scene-model.md) through [ADR 20](0020-diagram-views.md). Applies [ADR 13](0013-cycles-are-warnings.md) and [ADR 14](0014-subtasks-depend-only-on-siblings.md). [Section 5.14](../spec.md#514-route-map) defines the behavior and the terms rank, column and panel.
 
@@ -12,9 +12,9 @@ Plans can have undated tasks, cycles and legacy external subtask dependencies. N
 
 Draft PR #50, `feat/diagram-views`, owns the shared stage, registration, motion, viewer preferences and print host. The Route map adds local adapters through reserved paths. A documented hook does not prove that its implementation is ready.
 
-## Decided rules
+## Rules
 
-### Local placement and router (D52)
+### Local placement and router
 
 Use a Route map placement algorithm and router under the reserved `src/lib/scene/route-map-*.ts` paths. Keep Gantt's `routeTracks()` unchanged. Do not extend it or use adapter lane allocation to claim compatible six-point paths.
 
@@ -22,7 +22,7 @@ Report router compatibility false for Gantt ↔ Route map. Consume the shared cr
 
 Treat stations and label boxes as obstacles. Reserve focus-outline clearance too. Test stations A, B and C in that physical order on one line. Add an A → C dependency. Its path must bypass B and B's label. Add separate label-obstacle assertions for branch and transfer routes.
 
-### Stored cycle warning identity (D52)
+### Stored cycle warning identity
 
 Read `dependencyWarnings(index)`. Key cycle flags by the stored `(taskId, dependencyId)` identity. Retain represented stored identities after projection. OR their flags when connectors merge under `lineKey()`.
 
@@ -30,25 +30,25 @@ Use strongly connected components (SCCs) for layout only. Do not derive warnings
 
 Test the ADR 13 example in both expand states. P depends on X. X depends on S. S is P's child. S inherits P's dependency on X. `dependencyWarnings()` therefore marks the stored P-depends-on-X identity, as well as X-depends-on-S. Preserve both flags. When S is hidden, project it to P for X's visible connector. Do not create a stored S-depends-on-X identity.
 
-### Bounded paper labels (D52)
+### Bounded paper labels
 
 Keep a bounded label beside each paper station. Give it a stable task reference. If the full title exceeds that bound, print the full title in a separate text continuation with the same reference.
 
 The continuation can split between measured lines across sheets. It must wrap inside unbroken words. Preserve the complete title in reading order. The station and its bounded label stay together. Impose no schema title limit.
 
-### Progress (D51)
+### Progress
 
 Calculate **N to go** as `stageProgress(index, stageId).total - stageProgress(index, stageId).done`. Count top-level tasks by effective status. An open parent counts once. Expanding it does not change N. Done and canceled tasks do not add to N.
 
-One open parent with three open children and one open standalone task gives **2 to go**. An empty stage, all-canceled standalone work and an all-canceled family each give zero. This interpretation is decided. It needs no further product confirmation.
+One open parent with three open children and one open standalone task gives **2 to go**. An empty stage, all-canceled standalone work and an all-canceled family each give zero. The user chose this progress rule.
 
-### Task dialog activation (D50)
+### Task dialog activation
 
 Station click or Enter/Space opens the task dialog through `EditingState.openDetails(taskId, stationElement)`. Title activation uses the same path. Focus returns to that station. A touch tap on the mark toggles the route under section 5.4. A title tap opens the dialog. The separate parent chevron only expands or collapses.
 
-The dialog currently focuses the stored `EditingState.detailsReturnFocus` element. Reuse it while the station exists. If tests show that a replaced or removed station needs shared resolution by task id, request exactly that dialog-return hook from PR #50. Include the proposed missing-target fallback. Do not request a Work plan jump callback. Gantt retains its jump behavior.
+The dialog currently focuses the stored `EditingState.detailsReturnFocus` element. Reuse it while the station exists. If tests show that a replaced or removed station needs shared resolution by task id, request exactly that dialog-return hook from PR #50. Include the missing-target fallback in section 5.14. Do not request a Work plan jump callback. Gantt retains its jump behavior.
 
-## Proposed defaults
+## Layout and integration
 
 ### First-release layout
 
@@ -78,13 +78,13 @@ Plan + TaskIndex + expand state
 
 Keep domain and scene code pure. Put locale formatting, DOM measurement and input registration in the UI layer. Reuse `StationDot`, `StageBadge`, `lineKey()` and `routeFocusModel()`. Use HTML controls and labels with SVG routes and guides.
 
-Use the single D44 owner in `EditingState`. Register intended ids and scoped targets. Remove only this view's registrations. Keep shared hover timing, touch rules, floating ownership and dialog priority. Do not copy stale input across a view switch.
+Use the single route-focus owner in `EditingState` from [ADR 20](0020-diagram-views.md#viewer-state-and-route-focus). Register intended ids and scoped targets. Remove only this view's registrations. Keep shared hover timing, touch rules, floating ownership and dialog priority. Do not copy stale input across a view switch.
 
 A collapsed route is the union of the parent and hidden children. Guides use endpoint membership for route paint. Grouping strokes use visible-member membership. Neither receives dependency lit overlays. Route focus cannot invent connectors.
 
 Use native button and Tab behavior. Keep full accessible names and text dependency descriptions. Preserve status shapes in forced colors and cycle dots in grayscale. Use Hint rather than native title. Labels and ready lights never dim.
 
-Keep station elements stable for dialog return. As a proposed fallback, focus a visible parent when collapse hides a child. After deletion, use a surviving parent or the selected switch choice. Test direct child focus and dialog return in both cases.
+Keep station elements stable for dialog return. Focus a visible parent when collapse hides a child. After deletion, use a surviving parent or the selected switch choice. Test direct child focus and dialog return in both cases.
 
 Report current rendered geometry by task id, including running tweens. Supply label-only origins, parent origins, conversion, lifecycle and scroller hooks. Recapture before canceling motion. Use shared FLIP for different scrollers and the shared cross-router path for incompatible routers. Use `motionDuration()` for all motion.
 
@@ -96,7 +96,7 @@ Measure usable diagram width after margins, repeated labels and continuation gut
 
 Derive stable column ids from station identities. Derive stable panel ids from ordered column ids and paper metrics. Equal inputs reproduce the ids after reload or input permutation. Keep each station on one panel. Let families split between columns or branch lanes.
 
-Reflow a cell that exceeds panel width before assignment. Bound the station label and wrap at arbitrary word positions. Use the decided text continuation for excess full-title text. Put excess route gutters in extra lanes. Use a bounded reflow procedure. Every resulting cell must fit usable sheet width and height without clipping or scaling.
+Reflow a cell that exceeds panel width before assignment. Bound the station label and wrap at arbitrary word positions. Use the text continuation for excess full-title text. Put excess route gutters in extra lanes. Use a bounded reflow procedure. Every resulting cell must fit usable sheet width and height without clipping or scaling.
 
 Use at most two lines for the station label. Keep it with the station. Allow legal breaks between continuation text lines. Repeat panel ids, stage text, headings and relevant parent labels. Put whole-stage progress at the final terminus.
 
@@ -112,11 +112,11 @@ Shared implementation prerequisites merge first. Route map merges before Kanban.
 
 ## Alternatives considered
 
-- **Reuse or extend `routeTracks()`.** D52 selects local routing. Gantt has different obstacle and point semantics. Shared cross-router motion supplies the transition.
-- **Warn from SCC endpoint membership.** This can lose stored parent warnings from inherited child edges. It can also warn on grouping-only cycles. D52 selects `dependencyWarnings()` by stored identity.
-- **Count open leaves.** D51 selects top-level progress to match `stageProgress()`.
-- **Jump to Work plan on activation.** D50 selects the task dialog and station focus return.
-- **Unbounded full titles beside stations.** A label can exceed sheet height. D52 selects bounded labels and splittable full-title continuations.
+- **Reuse or extend `routeTracks()`.** Use local routing. Gantt has different obstacle and point semantics. Shared cross-router motion supplies the transition.
+- **Warn from SCC endpoint membership.** This can lose stored parent warnings from inherited child edges. It can also warn on grouping-only cycles. Use `dependencyWarnings()` by stored identity.
+- **Count open leaves.** Count top-level tasks to match `stageProgress()`.
+- **Jump to Work plan on activation.** Open the task dialog and return focus to the station.
+- **Unbounded full titles beside stations.** A label can exceed sheet height. Use bounded labels and splittable full-title continuations.
 - **Force-directed placement or a layout package.** These add constraints or dependencies. Reconsider only if local deterministic routing cannot meet clearance.
 - **Shrink the map to one paper width.** This reduces readability. Measured panels preserve text size and the existing vertical split contract.
 
@@ -124,7 +124,7 @@ Shared implementation prerequisites merge first. Route map merges before Kanban.
 
 - Placement and routing stay local. Gantt routing does not change. The shared incompatible-router transition is a delivery gate.
 - Warning identity survives inheritance, projection and merging. Layout cycles remain separate from warnings.
-- Progress and activation are settled by D50–D51. They are not open product questions.
+- The user chose top-level progress and task dialog activation with station focus return.
 - Wide maps require scrolling and paper panels. Large families and arbitrary titles require measured, splittable paper output.
 - The minimal first release uses fixed spacing, simple lanes, one paper orientation and paired continuation ids. Packing and destination-detail refinements can follow later.
 - Shared adapter readiness and required deferred motion remain integration gates. This documentation does not mark them complete.
