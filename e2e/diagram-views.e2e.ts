@@ -266,10 +266,16 @@ test.describe('fixture views', () => {
 					active?.getAttribute('data-diagram-task')
 				];
 			});
+		const names: Record<string, string> = {
+			'test-list': 'Test list view',
+			'test-board': 'Test board view',
+			gantt: 'Gantt view'
+		};
 		for (const view of ['test-list', 'test-board', 'gantt']) {
 			await activate(view);
 			await expect.poll(focusedTask).toEqual([view, id]);
+			// Each settled change announces its view. Rapid changes back to the announced view do not.
+			await expect(page.getByTestId('diagram-view-announcement')).toHaveText(names[view]);
 		}
-		await expect(page.getByTestId('diagram-view-announcement')).toHaveText('Gantt view');
 	});
 });
