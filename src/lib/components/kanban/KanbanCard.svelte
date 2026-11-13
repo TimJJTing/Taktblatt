@@ -77,6 +77,7 @@
 </script>
 
 <div
+	role="group"
 	class="card relative flex h-44 min-w-0 flex-col gap-1 overflow-hidden rounded-md border bg-background p-2 pl-3 text-sm"
 	style:border-left="4px solid {rule}"
 	style:transition-duration="{motionDuration(150)}ms"
@@ -84,6 +85,17 @@
 	data-diagram-parent={card.parentId ?? undefined}
 	data-route-target={card.id}
 	use:target={card.id}
+	onpointerenter={(event) =>
+		editing.routeFocus.hoverEnter(
+			card.id,
+			editing.routeFocus.tokenFor(event.currentTarget),
+			event.pointerType
+		)}
+	onpointerleave={(event) =>
+		editing.routeFocus.hoverLeave(
+			editing.routeFocus.tokenFor(event.currentTarget),
+			event.pointerType
+		)}
 >
 	<div class="flex min-w-0 items-start gap-1">
 		<Hint text={title}
@@ -150,7 +162,7 @@
 			</div>{/snippet}</Hint
 	>
 	<div class="h-5 truncate text-xs text-muted-foreground">{dates}</div>
-	<span id={descId} class="sr-only">{owners}. {dates}. {readiness}</span>
+	<span id={descId} class="sr-only">{m.kanban_card_description({ owners, dates, readiness })}</span>
 </div>
 
 <style>

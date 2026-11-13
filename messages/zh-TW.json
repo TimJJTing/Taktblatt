@@ -302,6 +302,7 @@
 	"menu_this_plan": "此計畫",
 	"kanban_blocked": "受阻",
 	"kanban_card_action": "開啟 {task} 的工作詳情。{context}",
+	"kanban_card_description": "{owners}。{dates}。{readiness}",
 	"kanban_column_empty": "此欄沒有工作",
 	"kanban_empty_canceled": "所有工作均已取消。請在工作計畫中查看。",
 	"kanban_empty_tasks": "尚無工作。",

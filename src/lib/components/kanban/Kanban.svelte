@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { workspaceLayout } from '#lib/components/app/app-layout.svelte.ts';
@@ -19,6 +20,7 @@
 	import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.ts';
 	import KanbanColumn from './KanbanColumn.svelte';
 	let { class: className, onReveal }: DiagramViewProps = $props();
+	const clipId = $props.id();
 	const ws = getWorkspace();
 	const editing = getEditing();
 	const board = $derived(kanbanBoard(ws.plan, ws.index));
@@ -43,6 +45,12 @@
 	let viewport = $state.raw<KanbanRect>({ x: 0, y: 0, w: 0, h: 0 });
 	const scene = $derived(kanbanScene({ edges, route, cards: geometry, viewport }));
 	let frame = 0;
+	let motionFrame = 0;
+	const animations = new SvelteMap<string, Animation>();
+	function sampleMotion() {
+		measure();
+		if (animations.size) motionFrame = requestAnimationFrame(sampleMotion);
+	}
 	let scrollTop = $state(0);
 	function measure() {
 		if (vertical) scrollTop = vertical.scrollTop;
@@ -95,6 +103,9 @@
 			observer.disconnect();
 			window.removeEventListener('resize', measure);
 			cancelAnimationFrame(frame);
+			cancelAnimationFrame(motionFrame);
+			for (const animation of animations.values()) animation.cancel();
+			animations.clear();
 		};
 	});
 	// Offset positions describe layout without the stage's temporary transforms.
@@ -111,7 +122,7 @@
 		return { x, y };
 	}
 	function reveal(id: string) {
-		const action = root.querySelector<HTMLElement>(`[data-diagram-label="${CSS.escape(id)}"]`);
+		const action = root.querySelector<HTMLElement>(`[data-diagram-task="${CSS.escape(id)}"]`);
 		if (!action) return;
 		const position = layoutPosition(action);
 		const verticalPosition = layoutPosition(vertical);
@@ -138,7 +149,7 @@
 	function revealFocused(event: FocusEvent) {
 		const target = event.target;
 		if (!(target instanceof HTMLElement) || !target.matches(':focus-visible')) return;
-		const id = target.dataset.diagramLabel;
+		const id = target.closest<HTMLElement>('[data-diagram-task]')?.dataset.diagramTask;
 		if (id) reveal(id);
 	}
 	function navigate(event: KeyboardEvent, id: string) {
@@ -172,39 +183,53 @@
 	let previous = untrack(() => board.columns.map((c) => c.cards.map((card) => card.id)));
 	let planId = untrack(() => ws.plan.id);
 	$effect.pre(() => {
-		const oldColumns = previous;
 		const columns = board.columns.map((column) => column.cards.map((card) => card.id));
 		if (!root) return;
 		const before = new SvelteMap<string, DOMRect>();
 		for (const node of root.querySelectorAll<HTMLElement>('[data-diagram-task]')) {
 			before.set(node.dataset.diagramTask!, node.getBoundingClientRect());
 		}
+		untrack(() => {
+			for (const animation of animations.values()) animation.cancel();
+			animations.clear();
+		});
 		tick().then(() => {
 			const duration = motionDuration(GEOMETRY_MOTION_MS);
-			if (!duration) return;
-			for (const [index, column] of columns.entries()) {
-				for (const id of column) {
-					if (oldColumns[index]?.includes(id)) continue;
-					const node = root.querySelector<HTMLElement>(`[data-diagram-task="${CSS.escape(id)}"]`);
-					const old = before.get(id);
-					if (!node || !old) continue;
-					const next = node.getBoundingClientRect();
-					node.animate(
-						[
-							{ transform: `translate(${old.left - next.left}px, ${old.top - next.top}px)` },
-							{ transform: 'translate(0, 0)' }
-						],
-						{ duration, easing: 'ease-out' }
-					);
-				}
+			if (!root || !duration) {
+				measure();
+				return;
 			}
+			for (const id of columns.flat()) {
+				const node = root.querySelector<HTMLElement>(`[data-diagram-task="${CSS.escape(id)}"]`);
+				const old = before.get(id);
+				if (!node || !old) continue;
+				const next = node.getBoundingClientRect();
+				const x = old.left - next.left,
+					y = old.top - next.top;
+				if (!x && !y) continue;
+				const animation = node.animate(
+					[{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }],
+					{ duration, easing: 'ease-out' }
+				);
+				animations.set(id, animation);
+				const finish = () => {
+					if (animations.get(id) === animation) animations.delete(id);
+					measure();
+				};
+				animation.onfinish = finish;
+				animation.oncancel = finish;
+			}
+			cancelAnimationFrame(motionFrame);
+			sampleMotion();
 		});
 	});
 	$effect.pre(() => {
 		const current = board.columns.map((c) => c.cards.map((card) => card.id));
 		const nextPlan = ws.plan.id;
 		const active = document.activeElement as HTMLElement | null;
-		const id = active?.dataset.diagramLabel;
+		const card = active?.closest<HTMLElement>('[data-diagram-task]');
+		const id = card?.dataset.diagramTask;
+		const station = !!active?.hasAttribute('data-route-touch');
 		const old = previous;
 		previous = current;
 		if (planId !== nextPlan) {
@@ -220,7 +245,9 @@
 		if (nextIds.includes(id) && current.some((c, i) => c.includes(id) && !old[i]?.includes(id))) {
 			tick().then(() => {
 				root
-					.querySelector<HTMLElement>(`[data-diagram-label="${CSS.escape(id)}"]`)
+					.querySelector<HTMLElement>(
+						`[data-diagram-task="${CSS.escape(id)}"] ${station ? '[data-route-touch]' : '[data-diagram-label]'}`
+					)
 					?.focus({ preventScroll: true });
 				reveal(id);
 			});
@@ -268,11 +295,12 @@
 			role="region"
 			aria-label={m.kanban_strip()}
 			class="relative z-[1] min-w-0 overflow-x-auto"
+			style:container-type="inline-size"
 			style:--kanban-scroll-top="{scrollTop}px"
 			data-testid="kanban-strip"
 			data-diagram-scroller
 		>
-			<div class="flex min-w-max" style="--column-width: max(16rem, 25%);">
+			<div class="flex min-w-max" style="--column-width: min(100cqw, max(16rem, 25cqw));">
 				{#each board.columns as column (column.id)}<div
 						class="w-(--column-width) min-w-0 border-r last:border-r-0"
 					>
@@ -292,23 +320,43 @@
 	</div>
 	<svg class="pointer-events-none absolute inset-0 z-0 size-full" aria-hidden="true"
 		><defs
-			><clipPath id="kanban-clip"
+			><clipPath id={clipId}
 				><rect x={viewport.x} y={viewport.y} width={viewport.w} height={viewport.h} /></clipPath
 			></defs
-		><g clip-path="url(#kanban-clip)"
+		><g clip-path={`url(#${clipId})`}
 			>{#each scene.paths as path (path.key)}{@const d = path.points
 					.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`)
-					.join(' ')}<path {d} fill="none" stroke="var(--background)" stroke-width="4" /><path
-					{d}
-					fill="none"
-					stroke="var(--foreground)"
-					stroke-width="2"
-					stroke-dasharray={path.cycle ? '2 3' : undefined}
-					data-testid="kanban-dependency"
-					data-from={path.from}
-					data-to={path.to}
-					data-cycle={path.cycle ? 'true' : undefined}
-				/>{/each}</g
+					.join(' ')}<g transition:fade={{ duration: motionDuration(150) }}>
+					<path
+						{d}
+						class:cycle-casing={path.cycle}
+						fill="none"
+						stroke="var(--background)"
+						stroke-width="4"
+					/>
+					<path
+						{d}
+						class:text-destructive={path.cycle}
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-dasharray={path.cycle ? '1 4' : undefined}
+						stroke-linecap={path.cycle ? 'round' : undefined}
+						data-testid="kanban-dependency"
+						data-from={path.from}
+						data-to={path.to}
+						data-cycle={path.cycle ? 'true' : undefined}
+					/>
+				</g>{/each}</g
 		></svg
 	>
 </div>
+
+<style>
+	@media (forced-colors: active) {
+		.cycle-casing {
+			forced-color-adjust: none;
+			stroke: Canvas;
+		}
+	}
+</style>

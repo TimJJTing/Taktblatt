@@ -3,10 +3,14 @@
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
 	import StationDot from '#lib/components/diagram/StationDot.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { stagePaperColor } from '#lib/components/plan/colors.ts';
+	import { markColorLevel, stagePaperColor } from '#lib/components/plan/colors.ts';
 	import { joinList } from '#lib/domain/format.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import type { KanbanPaperData, KanbanPaperRow } from '#lib/scene/kanban-paper.ts';
+	import {
+		KANBAN_PAPER_METRICS,
+		type KanbanPaperData,
+		type KanbanPaperRow
+	} from '#lib/scene/kanban-paper.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { cardDates } from './card-text.ts';
@@ -39,8 +43,9 @@
 						ws.plan.stages.find((s) => s.id === card.stageId)?.color ?? 'blue'}
 					<div
 						class="flex min-w-0 flex-col gap-0.5 overflow-hidden rounded-sm border p-1 text-[9px]"
-						style:height="34mm"
-						style:border-left="4px solid {stagePaperColor(color)}"
+						style:height="{KANBAN_PAPER_METRICS.cardHeight}px"
+						style:border-left="4px solid color-mix(in oklab, {stagePaperColor(color)}
+						{markColorLevel(card.status, 'line', false, true)}%, #FFFFFF)"
 						data-testid="sheet-kanban-card"
 						data-task-id={card.id}
 						aria-label={joinList(

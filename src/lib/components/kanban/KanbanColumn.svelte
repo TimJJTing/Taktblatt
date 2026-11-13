@@ -1,9 +1,7 @@
 <script lang="ts">
-	import { flip } from 'svelte/animate';
 	import type { Action } from 'svelte/action';
 	import type { BoardColumn } from '#lib/domain/derive.ts';
 	import type { StageColor } from '#lib/domain/palette.ts';
-	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import type { KanbanCard } from '#lib/scene/kanban-board.ts';
 	import { kanbanColumnLabel } from '#lib/scene/kanban-paper.ts';
@@ -34,10 +32,7 @@
 		{kanbanColumnLabel(column.id)} <span data-testid="kanban-count">{column.count}</span>
 	</h3>
 	<ul class="flex flex-col gap-2 p-1">
-		{#each column.cards as card (card.id)}<li
-				class="min-w-0"
-				animate:flip={{ duration: motionDuration(GEOMETRY_MOTION_MS) }}
-			>
+		{#each column.cards as card (card.id)}<li class="min-w-0">
 				<KanbanCardView
 					{card}
 					color={colors.get(card.stageId) ?? 'blue'}

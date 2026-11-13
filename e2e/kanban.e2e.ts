@@ -157,6 +157,23 @@ test('keeps a horizontal board strip inside a narrow page', async ({ page }) => 
 		.toBe(true);
 });
 
+test('fits a whole column when the board strip is narrower than 16rem', async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await load(page, makePlan([kanbanTask('A')]));
+	await board(page).evaluate((element) => (element.style.maxWidth = '200px'));
+	await expect
+		.poll(() =>
+			strip(page).evaluate((element) => {
+				const column = element.querySelector<HTMLElement>('[data-column="todo"]')!;
+				return column.getBoundingClientRect().width <= element.clientWidth + 1;
+			})
+		)
+		.toBe(true);
+	await expect
+		.poll(() => strip(page).evaluate((element) => element.scrollWidth > element.clientWidth))
+		.toBe(true);
+});
+
 test('Preview paginates each Done id once with repeated counts on landscape A4 and Letter', async ({
 	page
 }) => {
@@ -224,6 +241,31 @@ test('Preview paginates each Done id once with repeated counts on landscape A4 a
 	await page.emulateMedia({ media: 'screen' });
 });
 
+test('prints a pale Done stage rule while retaining the solid station dot', async ({ page }) => {
+	await load(page, makePlan([kanbanTask('open'), kanbanTask('done', { status: 'done' })]));
+	const preview = await openPreview(page);
+	await preview.getByTestId('print-diagram-kanban').click();
+	const open = preview.locator(
+		'[data-fragment="kanban-scene"] [data-testid="sheet-kanban-card"][data-task-id="open"]'
+	);
+	const done = preview.locator(
+		'[data-fragment="kanban-scene"] [data-testid="sheet-kanban-card"][data-task-id="done"]'
+	);
+	await expect(open).toHaveCount(1);
+	await expect(done).toHaveCount(1);
+	const paint = (selector: typeof open) =>
+		selector.evaluate((element) => ({
+			rule: getComputedStyle(element).borderLeftColor,
+			dot: getComputedStyle(element.querySelector('svg.station-dot')!).color,
+			circles: element.querySelectorAll('svg.station-dot circle').length
+		}));
+	const openPaint = await paint(open);
+	const donePaint = await paint(done);
+	expect(donePaint.rule).not.toBe(openPaint.rule);
+	expect(donePaint.dot).toBe(openPaint.dot);
+	expect(donePaint.circles).toBe(1);
+});
+
 test('opens Task details and returns focus to the same main action on Escape', async ({ page }) => {
 	await load(page, makePlan([kanbanTask('A', { title: 'Review' })]));
 	await action(page, 'A').click();
@@ -263,9 +305,28 @@ test('keeps unrelated cycle connectors hidden until their own route is focused',
 		.toEqual(['X->Y', 'Y->X']);
 	for (const line of await lines.all()) {
 		await expect(line).toHaveAttribute('data-cycle', 'true');
-		await expect(line).not.toHaveCSS('stroke-dasharray', 'none');
+		await expect(line).toHaveCSS('stroke-dasharray', '1px, 4px');
+		await expect(line).toHaveCSS('stroke-linecap', 'round');
 	}
 	await expect(page.getByTestId('task-dialog')).toHaveCount(0);
+});
+
+test('hovering the whole card activates its route and moving between its actions retains it', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1800 });
+	await load(page, unrelatedCycle());
+	const lines = board(page).getByTestId('kanban-dependency');
+	await page.mouse.move(0, 0);
+	await expect(lines).toHaveCount(0);
+	await action(page, 'A').hover();
+	await expect(lines).toHaveCount(1);
+	await expect(lines.first()).toHaveAttribute('data-from', 'A');
+	await station(page, 'A').hover();
+	await page.waitForTimeout(350);
+	await expect(lines).toHaveCount(1);
+	await page.mouse.move(0, 0);
+	await expect(lines).toHaveCount(0);
 });
 
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
@@ -345,6 +406,97 @@ test('a dialog status edit moves the card to the new column without reloading', 
 	await expect(column(page, 'todo').locator('[data-diagram-task="A"]')).toHaveCount(0);
 	await expectCounts(page, [0, 0, 0, 1]);
 	await expect(dialog).toBeVisible();
+});
+
+test('reveals an offscreen station target when keyboard focus reaches it', async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await load(page, done300());
+	await keyboardFocus(page, action(page, 'D150'));
+	await vertical(page).evaluate((element) => (element.scrollTop = 0));
+	await page.keyboard.press('Tab');
+	await expect(station(page, 'D150')).toBeFocused();
+	await expect
+		.poll(() => vertical(page).evaluate((element) => element.scrollTop))
+		.toBeGreaterThan(0);
+	await expect(station(page, 'D150')).toBeInViewport();
+	await expect
+		.poll(() =>
+			board(page).evaluate((root) => {
+				const station = root
+					.querySelector('[data-diagram-station="D150"]')!
+					.getBoundingClientRect();
+				const heading = root
+					.querySelector('[data-testid="kanban-heading"]')!
+					.getBoundingClientRect();
+				return station.top >= heading.bottom - 1;
+			})
+		)
+		.toBe(true);
+});
+
+test('retains station focus across an undone column move and falls back after removal', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await load(page, makePlan([kanbanTask('A'), kanbanTask('B')]));
+	await action(page, 'A').click();
+	const dialog = page.getByTestId('task-dialog');
+	await setTaskStatus(page, dialog, 'done');
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await keyboardFocus(page, station(page, 'A'));
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect(column(page, 'todo').locator('[data-diagram-task="A"]')).toHaveCount(1);
+	await expect(station(page, 'A')).toBeFocused();
+	await expect(station(page, 'A')).toBeInViewport();
+
+	await action(page, 'A').click();
+	await setTaskStatus(page, dialog, 'canceled');
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect(action(page, 'A')).toHaveCount(1);
+	await keyboardFocus(page, station(page, 'A'));
+	await page.keyboard.press('ControlOrMeta+Shift+z');
+	await expect(action(page, 'A')).toHaveCount(0);
+	await expect(action(page, 'B')).toBeFocused();
+});
+
+test('updates the connector as another card reorders its focused endpoint', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await page.setViewportSize({ width: 1440, height: 1800 });
+	await load(
+		page,
+		makePlan([kanbanTask('B'), kanbanTask('C'), kanbanTask('D', { dependsOn: ['C'] })])
+	);
+	await action(page, 'B').click();
+	const dialog = page.getByTestId('task-dialog');
+	await setTaskStatus(page, dialog, 'done');
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await keyboardFocus(page, station(page, 'C'));
+	const line = board(page).getByTestId('kanban-dependency');
+	await expect(line).toHaveCount(1);
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect
+		.poll(() => card(page, 'C').evaluate((node) => node.getAnimations().length))
+		.toBeGreaterThan(0);
+	await waitForAnimations(board(page));
+	await expect
+		.poll(() =>
+			board(page).evaluate((root) => {
+				const path = root.querySelector<SVGPathElement>('[data-testid="kanban-dependency"]')!;
+				const dot = root.querySelector<HTMLElement>('[data-diagram-station="C"]')!;
+				const base = root.getBoundingClientRect();
+				const rect = dot.getBoundingClientRect();
+				const point = path.getPointAtLength(0);
+				return Math.hypot(
+					point.x + base.left - rect.left - rect.width / 2,
+					point.y + base.top - rect.top - rect.height / 2
+				);
+			})
+		)
+		.toBeLessThan(2);
 });
 
 test('keeps Kanban, dialog edits and Preview available after an offline reload', async ({

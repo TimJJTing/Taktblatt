@@ -302,6 +302,7 @@
 	"menu_this_plan": "This plan",
 	"kanban_blocked": "Blocked",
 	"kanban_card_action": "Open task details for {task}. {context}",
+	"kanban_card_description": "{owners}. {dates}. {readiness}",
 	"kanban_column_empty": "No tasks in this column",
 	"kanban_empty_canceled": "All tasks are canceled. Find them in the Work plan.",
 	"kanban_empty_tasks": "No tasks yet.",

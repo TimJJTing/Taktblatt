@@ -112,6 +112,19 @@ describe('Kanban leaf projection', () => {
 });
 
 describe('eligible Kanban edges', () => {
+	it('marks inherited effective edges that participate in a cycle', () => {
+		const plan = makePlan([
+			kanbanTask('P', { dependsOn: ['X'] }),
+			kanbanTask('C', { parentId: 'P' }),
+			kanbanTask('X', { dependsOn: ['C'] })
+		]);
+		expect(kanbanEdges(indexTasks(plan.tasks), new Set(['C', 'X']))).toEqual(
+			expect.arrayContaining([
+				{ from: 'X', to: 'C', key: lineKey('X', 'C'), cycle: true },
+				{ from: 'C', to: 'X', key: lineKey('C', 'X'), cycle: true }
+			])
+		);
+	});
 	it('does not substitute children for an isolated parent endpoint', () => {
 		const plan = isolatedParent();
 		expect(kanbanEdges(indexTasks(plan.tasks), new Set(['C1', 'C2', 'U']))).toEqual([]);

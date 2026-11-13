@@ -302,6 +302,7 @@
 	"menu_this_plan": "Dieser Plan",
 	"kanban_blocked": "Blockiert",
 	"kanban_card_action": "Aufgabendetails für {task} öffnen. {context}",
+	"kanban_card_description": "{owners}. {dates}. {readiness}",
 	"kanban_column_empty": "Keine Aufgaben in dieser Spalte",
 	"kanban_empty_canceled": "Alle Aufgaben sind abgebrochen. Sie stehen im Arbeitsplan.",
 	"kanban_empty_tasks": "Noch keine Aufgaben.",

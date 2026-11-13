@@ -5,7 +5,7 @@ import {
 	type Readiness,
 	type TaskIndex
 } from '#lib/domain/derive.ts';
-import { dependencyEdgeKey, dependencyWarnings } from '#lib/domain/dependencies.ts';
+import { reaches } from '#lib/domain/dependencies.ts';
 import { effectiveDependencyGraph, lineKey } from '#lib/domain/route.ts';
 import type { Plan, Task, TaskStatus } from '#lib/domain/schema.ts';
 import type { EdgeRef } from './types.ts';
@@ -72,17 +72,12 @@ export function kanbanBoard(plan: Plan, index: TaskIndex = indexTasks(plan.tasks
 	};
 }
 export function kanbanEdges(index: TaskIndex, leafIds: ReadonlySet<string>): EdgeRef[] {
-	const cycles = new Set(
-		dependencyWarnings(index)
-			.filter((w) => w.kind === 'cycle')
-			.map((w) => dependencyEdgeKey(w.taskId, w.dependencyId))
-	);
 	return effectiveDependencyGraph(index)
 		.pairs.filter(([from, to]) => leafIds.has(from) && leafIds.has(to))
 		.map(([from, to]) => ({
 			from,
 			to,
 			key: lineKey(from, to),
-			cycle: cycles.has(dependencyEdgeKey(to, from))
+			cycle: reaches(index, from, to)
 		}));
 }
