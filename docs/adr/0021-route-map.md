@@ -10,7 +10,7 @@ R11 requires a map with no time axis or duration. A stage is a line. A task is a
 
 Plans can have undated tasks, cycles and legacy external subtask dependencies. Nested subtasks are invalid input. The schema requires top-level parents. The layout must preserve this data contract.
 
-Draft PR #50, `feat/diagram-views`, owns the shared stage, registration, motion, viewer preferences and print host. The Route map adds local adapters through reserved paths. A documented hook does not prove that its implementation is ready.
+The diagram-views change (PR #50) merged to `main`. It supplies the shared stage, registry, view contract, motion hooks, viewer preferences and print host. The shared diagram-views owner (ADR 20) owns later shared changes through a shared prerequisite PR and a shared follow-up PR from `main`. The Route map adds local adapters through reserved paths. A documented hook does not prove that its implementation is ready.
 
 ## Rules
 
@@ -18,7 +18,7 @@ Draft PR #50, `feat/diagram-views`, owns the shared stage, registration, motion,
 
 Use a Route map placement algorithm and router under the reserved `src/lib/scene/route-map-*.ts` paths. Keep Gantt's `routeTracks()` unchanged. Do not extend it or use adapter lane allocation to claim compatible six-point paths.
 
-Report router compatibility false for Gantt ↔ Route map. Consume the shared cross-router transition. The shared implementation must merge before use. The Route map does not own a private replacement for shared motion.
+Declare `motion: { routerId: 'route-map', connectorSchema: 'route-map-v1' }`, so `routersCompatible()` with Gantt is false. Consume the shared cross-router transition from the shared follow-up PR. That implementation must merge to `main` before use. The Route map does not own a private replacement for shared motion.
 
 Treat stations and label boxes as obstacles. Reserve focus-outline clearance too. Test stations A, B and C in that physical order on one line. Add an A → C dependency. Its path must bypass B and B's label. Add separate label-obstacle assertions for branch and transfer routes.
 
@@ -46,7 +46,7 @@ One open parent with three open children and one open standalone task gives **2 
 
 Station click or Enter/Space opens the task dialog through `EditingState.openDetails(taskId, stationElement)`. Title activation uses the same path. Focus returns to that station. A touch tap on the mark toggles the route under section 5.4. A title tap opens the dialog. The separate parent chevron only expands or collapses.
 
-The dialog currently focuses the stored `EditingState.detailsReturnFocus` element. Reuse it while the station exists. If tests show that a replaced or removed station needs shared resolution by task id, request exactly that dialog-return hook from PR #50. Include the missing-target fallback in section 5.14. Do not request a Work plan jump callback. Gantt retains its jump behavior.
+The dialog currently focuses the stored `EditingState.detailsReturnFocus` element. Reuse it while the station exists. The shared follow-up PR adds a close-time return-focus resolver in `TaskDialog.svelte` and `EditingState`. It finds the current station by task id. Consume it after it merges to `main`; do not patch it locally. Include the missing-target fallback in section 5.14. Do not request a Work plan jump callback. Gantt retains its jump behavior.
 
 ## Layout and integration
 
@@ -86,13 +86,13 @@ Use native button and Tab behavior. Keep full accessible names and text dependen
 
 Keep station elements stable for dialog return. Focus a visible parent when collapse hides a child. After deletion, use a surviving parent or the selected switch choice. Test direct child focus and dialog return in both cases.
 
-Report current rendered geometry by task id, including running tweens. Supply label-only origins, parent origins, conversion, lifecycle and scroller hooks. Recapture before canceling motion. Use shared FLIP for different scrollers and the shared cross-router path for incompatible routers. Use `motionDuration()` for all motion.
+Mark rendered task boxes, stations, labels, parent ids and scroll containers with the `DIAGRAM_ATTR` marks. The stage samples them for current-frame geometry, including running tweens and label-only origins. Supply connector geometry to the connector-geometry hook that the shared follow-up adds. Use the shared FLIP flight layer for different scrollers and the shared cross-router path for incompatible routers after they merge. Use `motionDuration()` for all motion.
 
 ### Paper layout
 
 Use one orientation in the first release: landscape for A4 and US Letter. Build a separate scene at readable paper metrics. Exclude route focus and tweens. The shared host retains selection, page order, orientation changes and page totals.
 
-Measure usable diagram width after margins, repeated labels and continuation gutters. Lay out physical columns before panel assignment. Accumulate whole columns while they fit that width. Cut only at measured column boundaries. A dependency rank is not a physical cut position. Stack panels vertically and publish legal `Scene.breaks`. No horizontal Scene axis is needed.
+Measure usable diagram width after margins, repeated labels and continuation gutters. Lay out physical columns before panel assignment. Accumulate whole columns while they fit that width. Cut only at measured column boundaries. A dependency rank is not a physical cut position. Stack panels vertically. Publish each block between legal vertical splits as one `SceneSegment.items` entry. The sheets measure each rendered `data-item` height. No horizontal split axis is needed.
 
 Derive stable column ids from station identities. Derive stable panel ids from ordered column ids and paper metrics. Equal inputs reproduce the ids after reload or input permutation. Keep each station on one panel. Let families split between columns or branch lanes.
 
@@ -104,11 +104,11 @@ Use simple paired exit/entry ids for cross-panel and cross-sheet dependencies. D
 
 ### Ownership and delivery
 
-Use only reserved Route map source paths and `route_map_` keys. PR #50 owns shared names, regions, announcements and print-selection text. German uses **Streckennetz**. Japanese **路線図** and Traditional Chinese **路線圖** remain naming proposals for that owner.
+Use only reserved Route map source paths and `route_map_` keys. The shared `diagram_` keys own names, regions, announcements and print-selection text. German uses the shared name **Linienplan** (`diagram_view_route_map`), because the map is schematic, not geographic. English **Route map**, Japanese **路線図** and Traditional Chinese **路線圖** already exist.
 
-Keep schema and storage unchanged. Register through `src/lib/components/route-map/diagram-view.ts`. Edit no shared registry, viewer, Timeline, Gantt or print source in this slice. The local plan classifies shared requests as existing PR #50 obligations, concrete extensions or conditional additions. Request a specific helper only when a named test needs it.
+Keep schema and storage unchanged. Register through `src/lib/components/route-map/diagram-view.ts` with `order: VIEW_ORDER['route-map']`. Edit no shared registry, view contract, viewer, Timeline, Gantt, print, domain or state source, `e2e/helpers.ts` or build configuration in this slice. A demonstrated gap goes to the shared prerequisite PR or the shared follow-up PR from `main`.
 
-Shared implementation prerequisites merge first. Route map merges before Kanban. Verify owned-key completeness in all four locales. Validate workspace, Preview, print and installed PWA, including offline, during implementation acceptance.
+The shared prerequisite PR merges before this slice registers its view. It makes the shared view-set tests independent of the real views and moves `chooseView` and `expectView` into `e2e/helpers.ts`. Route map and Kanban can merge in either order. The slice that merges second merges the latest `main`, runs the checks again and adds the Route map ↔ Kanban switch and mixed-print checks in its own E2E file. Route map tests assert only Route map and Gantt, never the exact set, count or full order of real views. This slice does not edit `docs/adr/README.md`. Verify owned-key completeness in all four locales. Validate workspace, Preview, print and installed PWA, including offline, during implementation acceptance.
 
 ## Alternatives considered
 
@@ -118,7 +118,7 @@ Shared implementation prerequisites merge first. Route map merges before Kanban.
 - **Jump to Work plan on activation.** Open the task dialog and return focus to the station.
 - **Unbounded full titles beside stations.** A label can exceed sheet height. Use bounded labels and splittable full-title continuations.
 - **Force-directed placement or a layout package.** These add constraints or dependencies. Reconsider only if local deterministic routing cannot meet clearance.
-- **Shrink the map to one paper width.** This reduces readability. Measured panels preserve text size and the existing vertical split contract.
+- **Shrink the map to one paper width.** This reduces readability. Measured panels preserve text size and the existing vertical split contract of `SceneSegment.items`.
 
 ## Consequences
 
