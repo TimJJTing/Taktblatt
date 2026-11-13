@@ -10,7 +10,7 @@ R11 requires a map with no time axis or duration. A stage is a line. A task is a
 
 Plans can have undated tasks, cycles and legacy external subtask dependencies. Nested subtasks are invalid input. The schema requires top-level parents. The layout must preserve this data contract.
 
-The diagram-views change (PR #50) merged to `main`. It supplies the shared stage, registry, view contract, motion hooks, viewer preferences and print host. The shared diagram-views owner (ADR 20) owns later shared changes through a shared prerequisite PR and a shared follow-up PR from `main`. The Route map adds local adapters through reserved paths. A documented hook does not prove that its implementation is ready.
+The diagram-views change (PR #50) and the shared prerequisite PR (PR #58) are merged on `main`. They supply the shared stage, registry, view contract, motion hooks, viewer preferences, print host, view-set-independent shared tests and shared E2E helpers (`chooseView` and `expectView`). The shared diagram-views owner (ADR 20) owns later shared changes through a shared follow-up PR from `main`. The Route map adds local adapters through reserved paths. A documented hook does not prove that its implementation is ready.
 
 ## Rules
 
@@ -106,9 +106,9 @@ Use simple paired exit/entry ids for cross-panel and cross-sheet dependencies. D
 
 Use only reserved Route map source paths and `route_map_` keys. The shared `diagram_` keys own names, regions, announcements and print-selection text. German uses the shared name **Linienplan** (`diagram_view_route_map`), because the map is schematic, not geographic. English **Route map**, Japanese **路線図** and Traditional Chinese **路線圖** already exist.
 
-Keep schema and storage unchanged. Register through `src/lib/components/route-map/diagram-view.ts` with `order: VIEW_ORDER['route-map']`. Edit no shared registry, view contract, viewer, Timeline, Gantt, print, domain or state source, `e2e/helpers.ts` or build configuration in this slice. A demonstrated gap goes to the shared prerequisite PR or the shared follow-up PR from `main`.
+Keep schema and storage unchanged. Register through `src/lib/components/route-map/diagram-view.ts` with `order: VIEW_ORDER['route-map']`. Edit no shared registry, view contract, viewer, Timeline, Gantt, print, domain or state source, `e2e/helpers.ts` or build configuration in this slice. Any demonstrated gap goes to a shared PR from `main` (ADR 20), such as the open shared follow-up PR.
 
-The shared prerequisite PR merges before this slice registers its view. It makes the shared view-set tests independent of the real views and moves `chooseView` and `expectView` into `e2e/helpers.ts`. Route map and Kanban can merge in either order. The slice that merges second merges the latest `main`, runs the checks again and adds the Route map ↔ Kanban switch and mixed-print checks in its own E2E file. Route map tests assert only Route map and Gantt, never the exact set, count or full order of real views. This slice does not edit `docs/adr/README.md`. Verify owned-key completeness in all four locales. Validate workspace, Preview, print and installed PWA, including offline, during implementation acceptance.
+The shared prerequisite PR (PR #58) is merged on `main`. It made the shared view-set tests independent of the real views, moved `chooseView` and `expectView` into `e2e/helpers.ts` and amended ADR 20 for either merge order. Route map and Kanban can merge in either order. The slice that merges second merges the latest `main`, runs the checks again and adds the Route map ↔ Kanban switch and mixed-print checks in its own E2E file. Route map tests assert only Route map and Gantt, never the exact set, count or full order of real views. This slice does not edit `docs/adr/README.md`. Verify owned-key completeness in all four locales. Validate workspace, Preview, print and installed PWA, including offline, during implementation acceptance.
 
 ## Alternatives considered
 
@@ -127,5 +127,5 @@ The shared prerequisite PR merges before this slice registers its view. It makes
 - The user chose top-level progress and task dialog activation with station focus return.
 - Wide maps require scrolling and paper panels. Large families and arbitrary titles require measured, splittable paper output.
 - The minimal first release uses fixed spacing, simple lanes, one paper orientation and paired continuation ids. Packing and destination-detail refinements can follow later.
-- Shared adapter readiness and required deferred motion remain integration gates. This documentation does not mark them complete.
+- Required deferred motion and focus capabilities from the shared follow-up PR remain integration gates. This documentation does not mark them complete.
 - Export, storage and offline data contracts stay unchanged.
