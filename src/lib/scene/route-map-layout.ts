@@ -33,7 +33,11 @@ export interface RouteMapStation {
 export interface RouteMapLayout {
 	stations: readonly RouteMapStation[];
 	clearance: number;
-	guides: readonly { stageId: string }[];
+	guides: readonly { stageId: string; points: readonly RouteMapPoint[] }[];
+	routing: ReadonlyMap<string, { fromX: number; toX: number; channelY: number }>;
+	width: number;
+	height: number;
+	stageYs: readonly number[];
 	loops: readonly { taskIds: readonly string[] }[];
 }
 
@@ -89,54 +93,117 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		to: parent.get(p.to) ?? p.to
 	}));
 	const ordered = order(roots, groupPairs);
-	const stations: RouteMapStation[] = [];
-	const cellWidth =
-		Math.max(metrics.labelWidth, metrics.hitSize, 24) + metrics.columnGap + 2 * metrics.clearance;
-	const hit = Math.max(24, metrics.hitSize);
-	let column = 0;
-	const stageIndex = new Map(model.stages.map((s, i) => [s.id, i]));
-	const stageHeight = Math.max(
-		metrics.stageGap,
-		metrics.labelHeight + hit + metrics.laneGap + 2 * metrics.clearance
-	);
-	for (const entry of ordered) {
-		const children = order(
+	const entries = ordered.flatMap((entry) => [
+		entry,
+		...order(
 			model.nodes.filter((n) => n.parentId === entry.node.id),
 			model.effectivePairs
-		);
-		for (const [i, item] of [entry, ...children].entries()) {
-			const x = metrics.clearance + column * cellWidth + metrics.labelWidth / 2;
-			const y =
-				metrics.clearance +
-				model.edges.length +
-				1 +
-				(stageIndex.get(item.node.stageId) ?? 0) * stageHeight +
-				(i ? metrics.laneGap : 0) +
-				hit / 2;
-			const hitBox = { x: x - hit / 2, y: y - hit / 2, w: hit, h: hit };
-			stations.push({
-				id: item.node.id,
-				columnId: item.node.id,
-				rank: item.rank,
-				hitBox,
-				labelBox: {
-					x: x - metrics.labelWidth / 2,
-					y: y + hit / 2,
-					w: metrics.labelWidth,
-					h: metrics.labelHeight
-				},
-				inPort: { x: x - hit / 2, y },
-				outPort: { x: x + hit / 2, y }
-			});
-			column++;
+		)
+	]);
+	const index = new Map(entries.map((entry, i) => [entry.node.id, i]));
+	const stageIndex = new Map(model.stages.map((stage, i) => [stage.id, i]));
+	const gutters: string[][] = Array.from({ length: entries.length + 1 }, () => []);
+	const channels: string[][] = Array.from({ length: model.stages.length + 1 }, () => []);
+	const routingIndices = new Map<string, { from: number; to: number; channel: number }>();
+	for (const edge of [...model.edges].sort((a, b) => a.key.localeCompare(b.key))) {
+		const from = index.get(edge.from);
+		const to = index.get(edge.to);
+		if (from === undefined || to === undefined) continue;
+		const fromStage = stageIndex.get(entries[from].node.stageId) ?? 0;
+		const toStage = stageIndex.get(entries[to].node.stageId) ?? 0;
+		const straight =
+			from < to &&
+			fromStage === toStage &&
+			!entries
+				.slice(from + 1, to)
+				.some((entry) => entry.node.stageId === entries[from].node.stageId);
+		if (straight) continue;
+		const fromGutter = from + 1;
+		const toGutter = to;
+		const channel = from < to ? toStage : fromStage + 1;
+		gutters[fromGutter].push(edge.key + ':out');
+		gutters[toGutter].push(edge.key + ':in');
+		channels[channel].push(edge.key);
+		routingIndices.set(edge.key, { from: fromGutter, to: toGutter, channel });
+	}
+	const pitch = 6;
+	const gapSize = (count: number, minimum: number) =>
+		Math.max(minimum, count * pitch + 2 * metrics.clearance);
+	const hit = Math.max(24, metrics.hitSize);
+	const cellWidth = Math.max(metrics.labelWidth, hit) + 2 * metrics.clearance;
+	const gutterStarts: number[] = [];
+	const centers: number[] = [];
+	let x = 0;
+	for (let i = 0; i <= entries.length; i++) {
+		gutterStarts.push(x);
+		x += gapSize(gutters[i].length, metrics.columnGap);
+		if (i < entries.length) {
+			centers.push(x + cellWidth / 2);
+			x += cellWidth;
 		}
+	}
+	const channelStarts: number[] = [];
+	const stageYs: number[] = [];
+	const bandHeight = hit + metrics.labelHeight + 2 * metrics.clearance;
+	let y = 0;
+	for (let i = 0; i <= model.stages.length; i++) {
+		channelStarts.push(y);
+		y += gapSize(channels[i].length, Math.max(metrics.laneGap, metrics.stageGap - bandHeight));
+		if (i < model.stages.length) {
+			stageYs.push(y + metrics.clearance + hit / 2);
+			y += bandHeight;
+		}
+	}
+	const stations: RouteMapStation[] = entries.map((entry, i) => {
+		const centerX = centers[i];
+		const centerY = stageYs[stageIndex.get(entry.node.stageId) ?? 0] ?? metrics.clearance + hit / 2;
+		return {
+			id: entry.node.id,
+			columnId: entry.node.id,
+			rank: entry.rank,
+			hitBox: { x: centerX - hit / 2, y: centerY - hit / 2, w: hit, h: hit },
+			labelBox: {
+				x: centerX - metrics.labelWidth / 2,
+				y: centerY + hit / 2,
+				w: metrics.labelWidth,
+				h: metrics.labelHeight
+			},
+			inPort: { x: centerX - hit / 2, y: centerY },
+			outPort: { x: centerX + hit / 2, y: centerY }
+		};
+	});
+	const routing = new Map<string, { fromX: number; toX: number; channelY: number }>();
+	for (const [key, track] of routingIndices) {
+		routing.set(key, {
+			fromX:
+				gutterStarts[track.from] +
+				metrics.clearance +
+				(gutters[track.from].indexOf(key + ':out') + 0.5) * pitch,
+			toX:
+				gutterStarts[track.to] +
+				metrics.clearance +
+				(gutters[track.to].indexOf(key + ':in') + 0.5) * pitch,
+			channelY:
+				channelStarts[track.channel] +
+				metrics.clearance +
+				(channels[track.channel].indexOf(key) + 0.5) * pitch
+		});
 	}
 	return {
 		stations,
 		clearance: metrics.clearance,
-		guides: model.stages.map((s) => ({ stageId: s.id })),
+		routing,
+		width: x,
+		height: y,
+		stageYs,
+		guides: model.stages.map((stage) => ({
+			stageId: stage.id,
+			points: stations
+				.filter((station) => entries[index.get(station.id)!].node.stageId === stage.id)
+				.map((station) => ({ x: station.inPort.x + hit / 2, y: station.inPort.y }))
+		})),
 		loops: model.groups
-			.map((g) => ({ taskIds: g.taskIds.filter((id) => stations.some((s) => s.id === id)) }))
+			.map((g) => ({ taskIds: g.taskIds.filter((id) => index.has(id)) }))
 			.filter((g) => g.taskIds.length > 1)
 	};
 }

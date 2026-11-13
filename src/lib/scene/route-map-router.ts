@@ -10,25 +10,21 @@ export function routeMapRoutes(
 	layout: RouteMapLayout
 ): readonly RouteMapRoute[] {
 	const stations = new Map(layout.stations.map((s) => [s.id, s]));
-	return model.edges.flatMap((edge, i) => {
-		const from = stations.get(edge.from),
-			to = stations.get(edge.to);
+	return model.edges.flatMap((edge) => {
+		const from = stations.get(edge.from);
+		const to = stations.get(edge.to);
 		if (!from || !to) return [];
-		const x1 = from.labelBox.x + from.labelBox.w + layout.clearance;
-		const x2 = to.labelBox.x - layout.clearance;
-		const y = Math.min(...layout.stations.map((s) => s.hitBox.y)) - layout.clearance - 1 - i;
-		return [
-			{
-				...edge,
-				points: [
+		const track = layout.routing.get(edge.key);
+		const points = track
+			? [
 					from.outPort,
-					{ x: x1, y: from.outPort.y },
-					{ x: x1, y },
-					{ x: x2, y },
-					{ x: x2, y: to.inPort.y },
+					{ x: track.fromX, y: from.outPort.y },
+					{ x: track.fromX, y: track.channelY },
+					{ x: track.toX, y: track.channelY },
+					{ x: track.toX, y: to.inPort.y },
 					to.inPort
 				]
-			}
-		];
+			: [from.outPort, to.inPort];
+		return [{ ...edge, points }];
 	});
 }

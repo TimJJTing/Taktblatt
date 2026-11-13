@@ -1,6 +1,6 @@
 # 21. Route map
 
-Status: Proposed (2026-11-13). This record does not claim implementation.
+Status: Proposed (2026-11-13). The Route map is implemented.
 
 Extends [ADR 19](0019-scene-model.md) through [ADR 20](0020-diagram-views.md). Applies [ADR 13](0013-cycles-are-warnings.md) and [ADR 14](0014-subtasks-depend-only-on-siblings.md). [Section 5.14](../spec.md#514-route-map) defines the behavior and the terms rank, column and panel.
 
@@ -58,7 +58,7 @@ Use horizontal lines in stage order. Use generous fixed spacing and simple branc
 2. Contract each parent and its children into one layout group. Preserve all task ids. Build group links from effective pairs.
 3. Condense SCCs. Assign dependency ranks. Break available-group ties by effective start, creation time and task id. Missing dates sort last. Use sorted member keys for each component and stable key order within it.
 4. Allocate columns in that stable order. Give independent same-stage tasks separate positions. Reserve group and label widths before placing successors. Apply the same ordering to the sibling graph inside an expanded parent.
-5. Reserve station and label obstacles. Route local dependencies around them. Put backward edges in return gutters. Keep stage guides and membership loops outside dependency identity.
+5. Reserve station and label obstacles. Route dependencies through vertical gutters and horizontal channels between stage bands. Give connectors separate tracks. Put backward edges in return gutters. Keep stage guides and membership loops outside dependency identity.
 
 All walks must terminate. Input array order, previous coordinates and random seeds must not affect geometry. Reload, undo and redo reproduce the same scene for equal inputs.
 
@@ -92,7 +92,7 @@ Mark rendered task boxes, stations, labels, parent ids and scroll containers wit
 
 Use one orientation in the first release: landscape for A4 and US Letter. Build a separate scene at readable paper metrics. Exclude route focus and tweens. The shared host retains selection, page order, orientation changes and page totals.
 
-Measure usable diagram width after margins, repeated labels and continuation gutters. Lay out physical columns before panel assignment. Accumulate whole columns while they fit that width. Cut only at measured column boundaries. A dependency rank is not a physical cut position. Stack panels vertically. Publish each block between legal vertical splits as one `SceneSegment.items` entry. The sheets measure each rendered `data-item` height. No horizontal split axis is needed.
+Calculate usable diagram width from the selected paper size, margins, repeated labels and continuation gutters. The current shared adapter contract does not supply measured sheet or text dimensions. The adapter estimates text width. Lay out physical columns before panel assignment. Accumulate whole columns while they fit that width. Cut only at measured column boundaries. A dependency rank is not a physical cut position. Stack panels vertically. Publish each block between legal vertical splits as one `SceneSegment.items` entry. The sheets measure each rendered `data-item` height. No horizontal split axis is needed.
 
 Derive stable column ids from station identities. Derive stable panel ids from ordered column ids and paper metrics. Equal inputs reproduce the ids after reload or input permutation. Keep each station on one panel. Let families split between columns or branch lanes.
 

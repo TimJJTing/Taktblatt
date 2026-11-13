@@ -31,6 +31,7 @@ export interface RouteMapContinuation extends RouteMapEdge {
 export interface RouteMapPaperItem {
 	id: string;
 	panelId: string;
+	stageId?: string;
 	width: number;
 	height: number;
 	stations: readonly RouteMapPaperStation[];
@@ -64,14 +65,14 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 	const height =
 		metrics.sheetHeight - 2 * metrics.margin - metrics.headerHeight - metrics.footerHeight;
 	const layout = routeMapLayout(model, metrics);
-	const byId = new Map(model.nodes.map((n) => [n.id, n]));
-	const columns = layout.stations.map((s) => ({
-		id: s.columnId,
+	const byId = new Map(model.nodes.map((node) => [node.id, node]));
+	const columns = layout.stations.map((station) => ({
+		id: station.columnId,
 		width: Math.min(
 			width,
 			Math.max(
-				metrics.hitSize + 2 * metrics.clearance,
-				Math.min(metrics.labelWidth, metrics.measureText(byId.get(s.id)!.title)) +
+				metrics.hitSize + 2 * metrics.clearance + metrics.columnGap,
+				Math.min(metrics.labelWidth, metrics.measureText(byId.get(station.id)!.title)) +
 					2 * metrics.clearance +
 					metrics.columnGap
 			)
@@ -88,111 +89,189 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		used += column.width;
 	}
 	if (!panels.length) panels.push({ id: `panel:empty:${width}:${height}`, columnIds: [] });
+	const stationByColumn = new Map(layout.stations.map((station) => [station.columnId, station]));
+	const columnById = new Map(columns.map((column) => [column.id, column]));
+	const references = new Map(layout.stations.map((station, i) => [station.id, `R${i + 1}`]));
 	const items: RouteMapPaperItem[] = [];
 	const stationItems = new Map<string, RouteMapPaperItem>();
-	const mutableContinuations = new Map<string, RouteMapContinuation[]>();
-	for (const [i, station] of layout.stations.entries()) {
-		const panel = panels.find((p) => p.columnIds.includes(station.columnId))!;
-		const column = columns[i];
-		const node = byId.get(station.id)!;
-		const reference = `R${i + 1}`;
-		const labelWidth = Math.min(metrics.labelWidth, column.width - 2 * metrics.clearance);
-		const hit = Math.max(24, metrics.hitSize);
-		const x = metrics.clearance + (column.width - 2 * metrics.clearance) / 2;
-		const y = metrics.clearance + hit / 2;
-		const hitBox = { x: x - hit / 2, y: y - hit / 2, w: hit, h: hit };
-		const labelBox = {
-			x: x - labelWidth / 2,
-			y: y + hit / 2,
-			w: labelWidth,
-			h: metrics.labelHeight
-		};
-		const lines = wrap(node.title, labelWidth, metrics.measureText);
-		const paperStation = {
-			...station,
-			reference,
-			labelLines: lines.slice(0, 2),
-			hitBox,
-			labelBox,
-			inPort: { x: hitBox.x, y },
-			outPort: { x: hitBox.x + hit, y }
-		};
-		const item: RouteMapPaperItem = {
-			id: `station:${station.id}`,
-			panelId: panel.id,
-			width: column.width,
-			height: Math.min(height, labelBox.y + labelBox.h + metrics.clearance),
-			stations: [paperStation],
-			titles: [],
-			edges: [],
-			continuations: [],
-			termini: []
-		};
-		items.push(item);
-		stationItems.set(station.id, item);
-		mutableContinuations.set(item.id, []);
-		if (lines.length > 2) {
-			const titleLines = wrap(node.title, width, metrics.measureText);
-			const count = Math.max(1, Math.floor(height / metrics.lineHeight));
-			for (let start = 0; start < titleLines.length; start += count) {
-				const titles = titleLines
-					.slice(start, start + count)
-					.map((text) => ({ taskId: station.id, reference, text }));
-				items.push({
-					id: `title:${station.id}:${start}`,
-					panelId: panel.id,
-					width,
-					height: titles.length * metrics.lineHeight,
-					stations: [],
-					titles,
-					edges: [],
-					continuations: [],
-					termini: []
-				});
+	for (const panel of panels) {
+		const panelWidth = Math.max(
+			1,
+			panel.columnIds.reduce((sum, id) => sum + columnById.get(id)!.width, 0)
+		);
+		for (const stage of model.stages) {
+			const stations = panel.columnIds
+				.map((id) => stationByColumn.get(id)!)
+				.filter((station) => byId.get(station.id)!.stageId === stage.id);
+			const ids = new Set(stations.map((station) => station.id));
+			const localEdges = model.edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to));
+			const trackHeight = Math.min(height / 2, (localEdges.length + 1) * 6 + metrics.clearance);
+			const hit = Math.max(24, metrics.hitSize);
+			const y = trackHeight + metrics.clearance + hit / 2;
+			let offset = 0;
+			const positions = new Map<string, number>();
+			for (const id of panel.columnIds) {
+				const column = columnById.get(id)!;
+				positions.set(id, offset + column.width / 2);
+				offset += column.width;
+			}
+			const placed: RouteMapPaperStation[] = stations.map((station) => {
+				const column = columnById.get(station.columnId)!;
+				const x = positions.get(station.columnId)!;
+				const labelWidth = Math.min(
+					metrics.labelWidth,
+					column.width - 2 * metrics.clearance - metrics.columnGap
+				);
+				const hitBox = { x: x - hit / 2, y: y - hit / 2, w: hit, h: hit };
+				return {
+					...station,
+					reference: references.get(station.id)!,
+					labelLines: wrap(byId.get(station.id)!.title, labelWidth, metrics.measureText).slice(
+						0,
+						2
+					),
+					hitBox,
+					labelBox: {
+						x: x - labelWidth / 2,
+						y: y + hit / 2,
+						w: labelWidth,
+						h: metrics.labelHeight
+					},
+					inPort: { x: x - hit / 2, y },
+					outPort: { x: x + hit / 2, y }
+				};
+			});
+			const placedById = new Map(placed.map((station) => [station.id, station]));
+			const edges = localEdges.map((edge, i) => {
+				const source = placedById.get(edge.from)!;
+				const target = placedById.get(edge.to)!;
+				const sx = source.outPort.x + metrics.clearance + 1;
+				const tx = target.inPort.x - metrics.clearance - 1;
+				const channel = Math.min(trackHeight - metrics.clearance, metrics.clearance + 6 * i);
+				return {
+					...edge,
+					points: [
+						source.outPort,
+						{ x: sx, y },
+						{ x: sx, y: channel },
+						{ x: tx, y: channel },
+						{ x: tx, y },
+						target.inPort
+					]
+				};
+			});
+			const item: RouteMapPaperItem = {
+				id: `band:${panel.id}:${stage.id}`,
+				panelId: panel.id,
+				stageId: stage.id,
+				width: panelWidth,
+				height: Math.min(height, y + hit / 2 + metrics.labelHeight + metrics.clearance),
+				stations: placed,
+				titles: [],
+				edges,
+				continuations: [],
+				termini: []
+			};
+			items.push(item);
+			for (const station of placed) stationItems.set(station.id, item);
+			for (const station of placed) {
+				const title = byId.get(station.id)!.title;
+				if (wrap(title, station.labelBox.w, metrics.measureText).length <= 2) continue;
+				const lines = wrap(
+					title,
+					Math.max(1, width - metrics.measureText(`${station.reference} `)),
+					metrics.measureText
+				);
+				const count = Math.max(1, Math.floor(height / metrics.lineHeight));
+				for (let start = 0; start < lines.length; start += count) {
+					const titles = lines
+						.slice(start, start + count)
+						.map((text) => ({ taskId: station.id, reference: station.reference, text }));
+					items.push({
+						id: `title:${station.id}:${start}`,
+						panelId: panel.id,
+						width,
+						height: titles.length * metrics.lineHeight,
+						stations: [],
+						titles,
+						edges: [],
+						continuations: [],
+						termini: []
+					});
+				}
 			}
 		}
 	}
+	const continuations = new Map(items.map((item) => [item.id, [] as RouteMapContinuation[]]));
+	const bandByPanelStage = new Map(
+		items.filter((item) => item.stageId).map((item) => [`${item.panelId}:${item.stageId}`, item])
+	);
+	const panelIndex = new Map(panels.map((panel, i) => [panel.id, i]));
 	for (const edge of model.edges) {
 		const from = stationItems.get(edge.from),
 			to = stationItems.get(edge.to);
-		if (!from || !to) continue;
-		const source = from.stations[0],
-			target = to.stations[0];
-		const boundary = `${from.id}:${to.id}`,
-			id = `continuation:${edge.key}`;
-		mutableContinuations.get(from.id)!.push({
-			...edge,
-			id,
-			boundary,
-			kind: 'exit',
-			points: [source.outPort, { x: from.width, y: source.outPort.y }]
-		});
-		mutableContinuations.get(to.id)!.push({
-			...edge,
-			id,
-			boundary,
-			kind: 'entry',
-			points: [{ x: 0, y: target.inPort.y }, target.inPort]
-		});
+		if (!from || !to || from === to) continue;
+		const source = from.stations.find((station) => station.id === edge.from)!;
+		const target = to.stations.find((station) => station.id === edge.to)!;
+		const start = panelIndex.get(from.panelId)!,
+			end = panelIndex.get(to.panelId)!;
+		const step = Math.sign(end - start);
+		const path: RouteMapPaperItem[] = [from];
+		if (step) {
+			for (let i = start + step; i !== end; i += step) {
+				path.push(bandByPanelStage.get(`${panels[i].id}:${from.stageId}`)!);
+			}
+		}
+		path.push(to);
+		for (let i = 0; i < path.length - 1; i++) {
+			const left = path[i],
+				right = path[i + 1];
+			const boundary = `${left.id}:${right.id}`;
+			const id = `continuation:${edge.key}:${i}`;
+			const exit =
+				i === 0
+					? [source.outPort, { x: source.outPort.x + metrics.clearance, y: source.outPort.y }]
+					: [
+							{ x: step < 0 ? 1 : left.width - 1, y: 0 },
+							{ x: step < 0 ? 0 : left.width, y: 0 }
+						];
+			const entry =
+				i === path.length - 2
+					? [{ x: target.inPort.x - metrics.clearance, y: target.inPort.y }, target.inPort]
+					: [
+							{ x: step < 0 ? right.width : 0, y: 0 },
+							{ x: step < 0 ? right.width - 1 : 1, y: 0 }
+						];
+			continuations.get(left.id)!.push({ ...edge, id, boundary, kind: 'exit', points: exit });
+			continuations.get(right.id)!.push({ ...edge, id, boundary, kind: 'entry', points: entry });
+		}
 	}
+
 	for (const item of items)
 		(item as { continuations: readonly RouteMapContinuation[] }).continuations =
-			mutableContinuations.get(item.id) ?? [];
-	const finalPanel = panels[panels.length - 1];
-	items.push({
-		id: 'termini',
-		panelId: finalPanel.id,
-		width: Math.max(1, width),
-		height: Math.min(
-			height,
-			Math.max(metrics.lineHeight, model.stages.length * metrics.lineHeight)
-		),
-		stations: [],
-		titles: [],
-		edges: [],
-		continuations: [],
-		termini: model.stages.map((s) => ({ stageId: s.id, toGo: s.toGo }))
-	});
+			continuations.get(item.id) ?? [];
+	// Put each terminus after the final band and title continuations of its stage.
+	for (const stage of [...model.stages].reverse()) {
+		const last = items.findLastIndex(
+			(item) =>
+				item.stations.some((station) => byId.get(station.id)?.stageId === stage.id) ||
+				item.titles.some((title) => byId.get(title.taskId)?.stageId === stage.id)
+		);
+		const at = last < 0 ? items.length : last + 1;
+		const panelId = last < 0 ? panels[panels.length - 1].id : items[last].panelId;
+		items.splice(at, 0, {
+			id: `terminus:${stage.id}`,
+			panelId,
+			width: Math.max(1, width),
+			height: metrics.lineHeight,
+			stations: [],
+			titles: [],
+			edges: [],
+			continuations: [],
+			termini: [{ stageId: stage.id, toGo: stage.toGo }]
+		});
+	}
+
 	return {
 		columns,
 		panels,
