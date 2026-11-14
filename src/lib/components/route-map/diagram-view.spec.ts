@@ -11,7 +11,7 @@ describe('Route map registration', () => {
 		expect(view.id).toBe('route-map');
 		expect(view.order).toBe(VIEW_ORDER['route-map']);
 		expect(view.paper.orientation).toBe('landscape');
-		expect(view.motion).toEqual({ routerId: 'route-map', connectorSchema: 'route-map-v1' });
+		expect(view.motion).toEqual({ routerId: 'route-map', connectorSchema: 'route-map-v3' });
 		expect(routersCompatible(gantt.motion, view.motion)).toBe(false);
 		expect(routersCompatible(view.motion, gantt.motion)).toBe(false);
 		expect(registry.ids.indexOf('route-map')).toBeGreaterThan(registry.ids.indexOf('gantt'));

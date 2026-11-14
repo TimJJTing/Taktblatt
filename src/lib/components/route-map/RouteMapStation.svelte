@@ -4,22 +4,29 @@
 	import type { Action } from 'svelte/action';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import StationDot from '#lib/components/diagram/StationDot.svelte';
+	import RouteMapStationGlyph from './RouteMapStationGlyph.svelte';
+	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
+	import { taskStatusLabel } from '#lib/components/task/task-status.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { readyLight } from '#lib/domain/derive.ts';
-	import { joinSentences } from '#lib/domain/format.ts';
+	import { formatRangeDisplay, joinSentences } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { RouteMapNode } from '#lib/domain/route-map.ts';
 	import type { Stage } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import type { RouteMapStation } from '#lib/scene/route-map-layout.ts';
+	import type { RouteMapSign, RouteMapStation } from '#lib/scene/route-map-layout.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
+	import RouteMapTerminus from './RouteMapTerminus.svelte';
+	import RouteMapInterchange from './RouteMapInterchange.svelte';
+
 	let {
+		sign,
+		stages,
 		node,
 		station,
 		stage,
@@ -28,8 +35,11 @@
 		hasChildren,
 		expanded,
 		controls,
-		description
+		description,
+		onTitleHeight
 	}: {
+		sign?: RouteMapSign;
+		stages: ReadonlyMap<string, Stage>;
 		node: RouteMapNode;
 		station: RouteMapStation;
 		stage: Stage;
@@ -39,6 +49,7 @@
 		expanded: boolean;
 		controls: string;
 		description: string;
+		onTitleHeight?: (id: string, height: number) => void;
 	} = $props();
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -58,11 +69,38 @@
 		}[node.status]()
 	);
 	const name = $derived(m.route_map_station_name({ task: title, stage: stage.title, status }));
+	const dateHint = $derived(
+		m.gantt_bar({
+			task: title,
+			dates: formatRangeDisplay(
+				ws.index.state.get(node.id)?.eff.start ?? null,
+				ws.index.state.get(node.id)?.eff.end ?? null,
+				uiIntl()
+			)
+		})
+	);
+	let titleContent: HTMLSpanElement;
+	$effect(() => {
+		const element = titleContent;
+		if (!element) return;
+		const update = () =>
+			onTitleHeight?.(
+				node.id,
+				Math.max(16, Math.min(32, Math.ceil(element.getBoundingClientRect().height)))
+			);
+		const observer = new ResizeObserver(update);
+		observer.observe(element);
+		update();
+		return () => observer.disconnect();
+	});
 	const readiness = $derived(readyLight(ws.index.state.get(node.id)!.readiness));
 	const fullDescription = $derived(
 		joinSentences(
 			[
 				description,
+				hasChildren
+					? m.route_map_subtask_count({ count: ws.index.children.get(node.id)?.length ?? 0 })
+					: '',
 				readiness
 					? readiness.via === 'subtasks'
 						? m.ready_label_subtasks({ count: readiness.count })
@@ -102,7 +140,7 @@
 		onpointerleave={(e) => hover(e, false)}
 	>
 		{#if fullDescription}<span id={descriptionId} class="sr-only">{fullDescription}</span>{/if}
-		<Hint text={name}>
+		<Hint text={dateHint}>
 			{#snippet child({ props })}
 				<button
 					{...mergeProps(props, { onclick: click })}
@@ -114,20 +152,25 @@
 					style:width="{geom.current.hitBox.w}px"
 					style:height="{geom.current.hitBox.h}px"
 					aria-label={name}
-					aria-describedby={fullDescription ? descriptionId : undefined}
+					aria-describedby={[props['aria-describedby'], fullDescription ? descriptionId : undefined]
+						.filter(Boolean)
+						.join(' ') || undefined}
 					data-route-target={node.id}
 					data-route-focus="keyboard"
 					data-route-touch
 					use:routeTarget={node.id}
 					data-diagram-task={node.id}
+					data-column={station.column}
 					data-diagram-parent={node.parentId ?? undefined}
 					data-route={route ?? undefined}
 				>
-					<span data-diagram-station={node.id} class="flex"
-						><StationDot
-							status={node.status}
+					{#if sign?.kind === 'terminus'}<RouteMapTerminus
+							{sign}
+						/>{:else if sign}<RouteMapInterchange {sign} {stages} />{/if}
+					<span data-diagram-station={node.id} class="relative flex"
+						><RouteMapStationGlyph
 							color={stageColorVar(stage.color)}
-							size={hasChildren ? 16 : 12}
+							size={node.parentId ? 6 : hasChildren ? 10 : 8}
 							{route}
 						/></span
 					>
@@ -139,53 +182,67 @@
 				<button
 					{...mergeProps(props, { onclick: () => editing.openDetails(node.id, button) })}
 					type="button"
-					class="absolute z-10 rounded-sm text-center text-xs focus-visible:outline-2 focus-visible:outline-ring"
+					class="absolute z-10 rounded-sm text-center text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring"
 					style:left="{geom.current.labelBox.x}px"
 					style:top="{geom.current.labelBox.y}px"
 					style:width="{geom.current.labelBox.w}px"
-					style:max-height="{geom.current.labelBox.h}px"
+					style:max-height="{geom.current.labelBox.h - (hasChildren ? 24 : 0)}px"
 					data-route-target={node.id}
 					use:routeTarget={node.id}
 					aria-label={title}
-					aria-describedby={fullDescription ? descriptionId : undefined}
+					aria-describedby={[props['aria-describedby'], fullDescription ? descriptionId : undefined]
+						.filter(Boolean)
+						.join(' ') || undefined}
 					data-diagram-label={node.id}
-					><span class="inline-flex items-baseline gap-1"
-						><ReadyDot readiness={ws.index.state.get(node.id)!.readiness} /><span
-							class="line-clamp-2">{title}</span
-						></span
-					></button
 				>
+					<span class="inline-flex max-w-full items-start justify-center gap-1">
+						<Hint text={taskStatusLabel(node.status)} focusable={false}>
+							{#snippet child({ props })}<span
+									{...props}
+									data-route-map-status={node.status}
+									role="img"
+									aria-label={taskStatusLabel(node.status)}
+									class="mt-0.5 flex shrink-0"
+									><TaskStatusIcon status={node.status} class="size-3" /></span
+								>{/snippet}
+						</Hint>
+						<ReadyDot readiness={ws.index.state.get(node.id)!.readiness} />
+						<span bind:this={titleContent} class="line-clamp-2 min-w-0 leading-4">{title}</span>
+					</span>
+				</button>
 			{/snippet}
 		</Hint>
 		{#if hasChildren}
-			<button
-				type="button"
-				class="absolute z-10 flex size-6 items-center justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+			<div
+				data-route-map-controls={node.id}
+				class="absolute z-10 flex h-6 items-center justify-center gap-0 text-xs text-muted-foreground"
 				style:left="{geom.current.labelBox.x}px"
-				style:top="{geom.current.hitBox.y - 24}px"
-				data-route-target={node.id}
-				use:routeTarget={node.id}
-				aria-label={expanded
-					? m.route_map_hide_subtasks({ task: title })
-					: m.route_map_show_subtasks({ task: title })}
-				aria-expanded={expanded}
-				aria-controls={controls}
-				onclick={() => viewer.toggleExpanded(ws.plan.id, node.id)}
+				style:top="{geom.current.labelBox.y + geom.current.labelBox.h - 24}px"
+				style:width="{geom.current.labelBox.w}px"
 			>
-				<span
-					aria-hidden="true"
-					style:transition-duration={`${motionDuration(200)}ms`}
-					class:rotate-90={expanded}
-					class="transition-transform">›</span
+				<span class="pointer-events-none w-4 text-center"
+					>{ws.index.children.get(node.id)?.length ?? 0}</span
 				>
-			</button>
-			<span
-				class="pointer-events-none absolute truncate text-xs text-muted-foreground"
-				style:left="{geom.current.labelBox.x + 24}px"
-				style:width="{geom.current.labelBox.w - 24}px"
-				style:top="{geom.current.hitBox.y - 19}px"
-				>{m.route_map_subtask_count({ count: ws.index.children.get(node.id)?.length ?? 0 })}</span
-			>
+				<button
+					type="button"
+					class="flex size-6 shrink-0 items-center justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+					data-route-target={node.id}
+					use:routeTarget={node.id}
+					aria-label={expanded
+						? m.route_map_hide_subtasks({ task: title })
+						: m.route_map_show_subtasks({ task: title })}
+					aria-expanded={expanded}
+					aria-controls={controls}
+					onclick={() => viewer.toggleExpanded(ws.plan.id, node.id)}
+				>
+					<span
+						aria-hidden="true"
+						style:transition-duration={`${motionDuration(200)}ms`}
+						class:rotate-90={expanded}
+						class="transition-transform">›</span
+					>
+				</button>
+			</div>
 		{/if}
 	</div>
 </div>

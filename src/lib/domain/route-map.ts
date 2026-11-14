@@ -58,7 +58,12 @@ export function routeMapModel(plan: Plan, expanded: ReadonlySet<string>): RouteM
 		const p = stageProgress(index, s.id);
 		return { id: s.id, toGo: p.total - p.done };
 	});
-	const warnings = dependencyWarnings(index);
+	const warnings = dependencyWarnings(index).sort(
+		(a, b) =>
+			compareIds(a.kind, b.kind) ||
+			compareIds(a.taskId, b.taskId) ||
+			compareIds(a.dependencyId, b.dependencyId)
+	);
 	const effectivePairs = tasks
 		.flatMap((t) => [...effectiveDependencies(index, t.id)].map((from) => ({ from, to: t.id })))
 		.sort((a, b) => compareIds(a.from, b.from) || compareIds(a.to, b.to));
