@@ -24,5 +24,5 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 18  | [Overlay scrollbar](0018-overlay-scrollbar.md)                                                   | Accepted                                                       | 2026-11-11 |
 | 19  | [Scene model and shared diagram layer](0019-scene-model.md)                                      | Accepted; amended (slices 3, 4); delivery superseded by ADR 20 | 2026-11-11 |
 | 20  | [Diagram views and print selection](0020-diagram-views.md)                                       | Proposed                                                       | 2026-11-13 |
-| 21  | [Route map](0021-route-map.md)                                                                   | Proposed                                                       | —          |
+| 21  | [Route map](0021-route-map.md)                                                                   | Accepted                                                       | 2026-11-14 |
 | 22  | [Kanban](0022-kanban.md)                                                                         | Proposed                                                       | —          |

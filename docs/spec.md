@@ -661,6 +661,96 @@ The motion rules below define the final Appendix C behavior. The stage implement
 - With tabs, the same diagram stays above both Overview and Work plan. A workspace tab change does not select another diagram or create the stage again. Keep the existing handle, collapsed strip, legend rail, automatic collapse and focus rules. A diagram switch or a focus reveal is an app change, not a user scroll for automatic collapse or floating-island size.
 - A view can expose task actions through the existing command layer. The shared view contract does not require every view to be read-only and does not block later drag commands. The first Kanban view is read-only. Change status in the Work plan or task dialog. Drag between columns is later work.
 
+### 5.14 Route map
+
+The Route map is a metro-style stage workflow without a time scale. [ADR 21](adr/0021-route-map.md) records its architecture.
+
+#### Workflow and dependency meaning
+
+The Route map shows a stage workflow as a thick colored metro line. Date order connects tasks in the stage, including tasks with no dependency between them. Unrelated same-stage tasks remain connected, including D—E when E has no dependency on D. A thick segment alone is not proof of a stored dependency. Do not add a duplicate thin dependency link between same-stage tasks already represented by the metro workflow.
+
+Include all tasks. Readiness and status do not remove tasks or change workflow connections. Keep done, canceled, in-progress, ready and blocked tasks. Use the existing expansion state to show or hide children.
+
+Dates order unconstrained tasks. There is no time axis, duration scale or proportional date spacing. Preserve the Berlin S-Bahn visual direction: substantial 45° runs, smooth turns and few bends. Stage color identifies membership. A stage does not require one fixed horizontal row.
+
+Keep these relations separate:
+
+- **Stage workflow:** thick stage-color lines derived from task order. They can connect unrelated tasks. They do not change stored dependencies, readiness or cycle warnings.
+- **Dependency:** stored relations remain distinct from workflow order. Ordinary same-stage dependencies use colored workflow rails without duplicate thin links. Cross-stage and exceptional dependencies use thin links. Cycle links retain the established dotted warning paint. Keep existing projection and legacy-edge handling.
+- **Family:** the existing parent/subtask relation. Expansion preserves the parent task identity and shows a distinct family branch. Membership does not create a stored dependency. Same-stage dependency forks determine the workflow branches within their scope.
+
+Project a hidden predecessor child to its visible parent. Merge equal visible dependency endpoint pairs with `lineKey()` and retain all stored `(taskId, dependencyId)` identities. Omit hidden dependent children and duplicate inherited connectors. Effective dependencies still determine readiness and route reachability. Preserve legacy external child dependencies and their scope warnings.
+
+Cross-stage dependencies remain thin links. Routes have no direction arrowhead or chevron.
+
+#### Branch priority
+
+Families and same-stage dependency forks create branches. Date overlap alone does not create a branch. The workflow is derived; it adds no stored relation.
+
+Same-stage dependencies determine colored workflow forks and joins. For A → B and A → C, fork from A to B and C. Join branches at their shared dependent. Do not add B—C only because C has a later date. Dependencies take priority when dates conflict. Use date order for unconstrained tasks. Keep unrelated same-stage D—E connected. Do not repeat same-stage rails with thin links.
+
+Use this deterministic derivation:
+
+1. Build the ordinary same-stage dependency graph before adding workflow order. Work within top-level stage tasks or siblings of one parent. Eligible ordinary edges exclude cycle, proxy and legacy external-child links, which remain thin exceptions. Keep every stored dependency identity separate from synthetic adjacency. Condense strongly connected components for placement only; do not infer warning paint from that condensation.
+2. Order the resulting directed acyclic graph with Kahn's algorithm. Among currently eligible tasks, use effective start date, then `createdAt`, then task id. Put undated tasks last. A dependency must precede its dependent even when their dates disagree. Sort stable identities within a layout component so equal inputs and shuffled arrays give equal results.
+3. Draw ordinary same-stage dependency forks and joins as colored rails. Add synthetic workflow adjacency from the preceding task in this order only when the receiving task has zero eligible ordinary same-stage predecessors in that scope. Never insert adjacency into `dependsOn`, readiness, warning data or dependency route identities. Check the actual dependency graph and existing workflow adjacency before adding an edge; do not close a cycle. Thin exceptional predecessors do not prevent date-order workflow adjacency.
+4. Keep exceptional and cross-stage links thin. A same-stage dependency that skips another station still gets its own colored route around that station; it must not silently connect the intervening task. Use bounded return routing for exceptional backward or cycle links. Cycle warning identity comes only from stored warnings.
+5. Apply the same separation to expanded families. Keep the parent visible and stable where geometry permits. Draw the membership branch from the parent and route stored sibling dependencies independently of membership. Do not add an inherited dependency connector merely because a child is visible.
+
+For the diamond A → B, A → C, B → D, C → D, followed by unrelated E, the colored rails are A—B, A—C, B—D, C—D and D—E. There is no B—C rail and no duplicate thin link. Keep this result when B has an earlier date than A. D—E has no stored dependency identity.
+
+Use workflow endpoints for Berlin termini and cross-stage transfer endpoints for capsules. A capsule takes precedence when both apply. Keep a distinct family branch and the existing Berlin sign forms. A dependency-degree rule alone does not define a workflow endpoint. These signs and the derived workflow require no schema change.
+
+#### Signs, labels and layout constraints
+
+- Station dots are neutral with respect to task status. Do not encode Todo, In progress, Done or Canceled in their fill, slash or inner shape. Put the existing status icon beside the task name, outside the station glyph. Give the icon an accessible status label and an existing `Hint`; use no native `title`. Use the same status icon beside the name on paper. This Route map rule is an exception to the status-bearing station signs in section 9.
+- Preserve stage colors, `StageBadge`, shared Gantt line paint and accessible interactions where they fit the confirmed meaning. Neutral station glyphs must remain visible on workflow lines in every status.
+- Use the Berlin terminus and interchange forms at workflow endpoints and cross-stage transfers.
+- Keep ordinary thick workflow strokes at the established 8 px screen and 5 px paper widths. Keep child strokes at 6 px and 3.5 px. Thin dependency links reuse Gantt paint: 2 px screen and 1 px paper, or 1.5 px and 0.75 px with a child endpoint. Preserve round ends, joins and shared line paint. Cycle links use the established 2 px dotted warning stroke, `1 4` dashes, round caps and 4 px total ground casing on screen and paper. Cycles remain thin exceptional links.
+- Put task titles below stations. Use Source Sans 3, a two-line label, a full-title `Hint` and a full accessible name. Keep the status icon and ready light beside the title with clear spacing. Keep stage badges visually close to the text that they label. Do not add blank title rows merely to position a badge.
+- Show task dates only in the existing station `Hint` on hover or keyboard focus of the station dot. Use the established localized date formatting and effective dates. Do not add persistent date labels to the map or printed map. The station remains status-neutral while its Hint is open.
+- If stage progress is shown, use top-level `stageProgress().total - stageProgress().done`. Expansion does not change the count.
+- Keep a parent title at full width. Put its count and separate expansion chevron below it. Use sibling native buttons, never nested buttons. The chevron exposes `aria-controls` and `aria-expanded` and changes viewer state only.
+- Reserve complete station, label, control and focus bounds. Keep routes clear of unrelated bounds. Use deterministic local placement and bounded routing passes. Prefer direct horizontal and 45° routes with few bends. Add clearance where an obstacle requires it. Do not impose a generic overhead detour on every link.
+- Keep station targets at 28 × 28 px on screen and never below 24 × 24 px. Use one two-axis scroller with the shared overlay scrollbars, Timeline height, pin, collapse and focus-reveal rules. Add no zoom or drag mode.
+- Preserve dark-theme ground, forced-color signs and readable labels. Reuse shared route paint. Preserve dotted warning paint on rendered warning links during route focus. Keep labels, ready lights and capsule outlines readable.
+
+#### Warnings, input and motion
+
+- Read `dependencyWarnings(index)`. Key warning paint by stored `(taskId, dependencyId)` identities and OR it when visible connectors merge. Do not infer warnings from SCC membership. A grouping-only cycle must not warn. Retain the ADR 13 example in both expand states: P depends on X; X depends on S; S is P's child and inherits its dependency on X. Preserve the stored P-depends-on-X and X-depends-on-S warnings without inventing a stored S-depends-on-X connector.
+- Reuse the single route-focus owner, registration and cleanup from sections 5.4 and 5.13 and [ADR 20](adr/0020-diagram-views.md). Treat a station and title as one hover target. Keep the shared 300 ms cold rest, 120 ms warm switch and 250 ms leave grace. Keyboard focus lights the route immediately. Keep shared touch toggling, outside-tap and Esc behavior, floating ownership and dialog priority. Add no private timer or document listener.
+- Project route focus from actual stored and effective dependency relations, not from stage adjacency. A collapsed parent's route is the union of its route and its hidden children's routes. Do not treat unrelated workflow segments or family membership as dependencies. Define the route overlay from the stored dependencies represented by same-stage rails. Do not light unrelated order-only segments as dependency edges. Preserve shared source identity when links share a junction.
+- Station click or Enter/Space opens the task dialog through `EditingState.openDetails(taskId, stationElement)`. Title activation does the same. On touch, a mark tap toggles route focus and a title tap opens details. The chevron only changes expansion. Return focus to the same visible station. If collapse hides a focused child, use its parent. After deletion, use a surviving parent or the selected view choice. Do not move to the Work plan.
+- Use native buttons. Tab reaches a station, its title and then its chevron before the next task. Give full task, stage and status names, plus text dependency directions, family relation, readiness, child count and warnings as applicable. Use `joinList()` for user-facing lists. Keep labels and ready lights readable during route focus.
+- Mark stations, labels, parents and scrollers with the shared `DIAGRAM_ATTR` marks. Keep stable task elements for dialog focus return. Use the shared FLIP and incompatible-router transition hooks rather than private replacements. Scope tests to the incoming `[data-diagram-view="route-map"]:not([inert])` layer; shared Gantt graphics retain their test ids inside Route map wrappers.
+- Route every position change through `motionDuration()` with the shared 240 ms geometry base. Retarget interrupted motion from its current frame. Use 150 ms for route paint. Cross-fade incompatible path kinds; do not morph different routing semantics point by point. Update the local connector schema if those semantics change. Reduced motion applies geometry immediately and keeps intent timers. Paper uses still signs and no route focus or tween.
+
+#### Preview and print
+
+- Build a separate readable landscape A4 and US Letter scene with the same workflow and dependency meanings as the workspace. Keep expansion state. Use the local `DiagramPaperAdapter` and shared selection, orientation, page order and page-total contracts in section 7. Do not scale a workspace screenshot.
+- Measure physical columns before panel assignment. Keep a fitting whole panel in one `SceneSegment.items` entry so links across rows stay continuous. Split oversized panels only at legal station-label, row or continuation-text boundaries. Keep every station-label pair exactly once. Do not clip or scale an oversized item to sheet height.
+- Keep bounded two-line station titles with stable references. Wrap at word boundaries; split only a word that exceeds the available width. Reserve the reference width, a space and a 3 px visual gap. Use secondary ink for references. Preserve all title characters in splittable full-title continuations. Add no schema title limit.
+- Add paired continuation stubs only at actual item or panel boundaries. Attach each marker to its endpoint fragment. Preserve dependency identity, cycle dots and casing. Distinguish workflow continuations from dependency continuations. Use `joinList()` for grouped target text.
+- Repeat relevant panel, stage and parent references, and a local sign key on each Route map sheet. Explain thick workflow lines and thin dependency links separately. Reserve the measured header before pagination. Keep the shared stage legend. The local key explains workflow lines, termini, interchange capsules, thin dependency links, family branches and cycle warnings. Hide duplicate sample graphics from assistive technology.
+- Use CSS px and the existing physical-unit conversions. Retain deterministic panel identities and bounded text layout under the shared paper adapter contract.
+
+#### Ownership and acceptance
+
+Use owned `route_map_` messages with English as source. Keep all four catalogs complete and regenerate Paraglide. Reuse shared `diagram_` names. Preserve English **Route map**, German **Linienplan**, Japanese **路線図** and Traditional Chinese **路線圖**.
+
+Keep schema, export, persistence, offline operation, shared Gantt behavior and shared view contracts unchanged. Register locally with `VIEW_ORDER['route-map']`. A demonstrated shared-contract gap belongs in a separate shared change.
+
+Acceptance coverage includes these requirements:
+
+- Unrelated tasks connect through the stage workflow in date order. Status and readiness do not change that topology. Date distance does not scale station distance.
+- Keep unrelated same-stage D—E connected. Do not duplicate same-stage workflow rails with thin dependency links. Workflow adjacency adds no stored dependency, readiness rule or warning. Cover same-stage skips, thin cross-stage/exceptional links and stored cycle warnings.
+- Station glyphs do not encode task status. The existing status icon appears beside the task name on screen and paper with accessible status text. Status changes do not rewire the workflow. Dates appear in the station Hint on hover/focus and are absent from persistent map labels.
+- Preserve parent identity, dependency projection and stored warning identities. Test the exact diamond rails and a conflicting date order. Test undated tasks, date ties, shuffled arrays, no false B—C adjacency, and zero-eligible-predecessor synthetic adjacency. Structural SCCs do not create warning paint.
+- In the collapsed garden example, Site survey → Order seeds is a colored same-stage rail. There are exactly three thin cross-stage links: Order seeds → Sowing, Soil preparation → Sowing as the hidden Add compost proxy, and Sowing → First harvest. Expand Soil preparation to restore the actual Add compost endpoint and retain the colored Soil test → Add compost dependency.
+- Settled geometry has substantial 45° runs where direction changes require them, smooth turns, compact spacing and clear labels. A test that merely permits orthogonal segments does not prove the metro visual requirement.
+- Cover task activation, focus return, interrupted motion, reduced motion, paper wrapping, whole panels and paired continuation markers.
+- Validate workspace split/tabs, Preview, rendered print/PDF, installed PWA and offline use. Follow the UI validation skill. Report unavailable modes and their reasons. A browser offline check does not prove an installed app window.
+
 ## 6. Language
 
 - The **UI language** is a viewer setting. The app saves it under `taktblatt:locale`. An import never changes it.
@@ -738,7 +828,7 @@ Printed work tables use the Status header and the same four status icons in pape
 
 ### 9.1 Shared diagram signs
 
-The Gantt, the route map and Kanban use the same signs for a task. A task looks the same in each diagram, on the screen and on paper. Refer to ADR 19.
+The diagrams share signs where their meaning is the same. Route map uses neutral station dots and shows status outside the glyph, as specified in section 5.14. The status-bearing station signs below continue to apply to Gantt and Kanban on screen and paper. Refer to ADR 19.
 
 - **Station dot:** its fill shows the effective status of the task.
   - `todo`: a ring with the ground color inside.
@@ -749,7 +839,7 @@ The Gantt, the route map and Kanban use the same signs for a task. A task looks 
 - Stage badge colors change at once with reduced motion. Paper badges have no transitions and always use the current light stage color.
 - The signs do not use color alone. The fill shape gives the status, and the badge text gives the stage.
 
-The Gantt uses these signs for task lines, points, stage headings and legends. The route map and Kanban adopt them when they are added.
+The Gantt uses these signs for task lines, points, stage headings and legends. Kanban adopts them when added. Route map follows the station-status exception in section 5.14.
 
 Diagram layers, from bottom to top: month rules, bands, Today line, base connectors, lit casings and lit connectors, cycle connectors, ordinary junction rings, task marks, milestone rings and labels. Within each task mark, a tap stays above its source line and below its station dots. It is clipped to the timeline area. Each cycle casing sits directly below its warning-painted connector.
 
