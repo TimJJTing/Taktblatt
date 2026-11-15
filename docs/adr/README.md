@@ -26,3 +26,4 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 20  | [Diagram views and print selection](0020-diagram-views.md)                                       | Proposed                                                       | 2026-11-13 |
 | 21  | [Route map](0021-route-map.md)                                                                   | Proposed                                                       | —          |
 | 22  | [Kanban](0022-kanban.md)                                                                         | Proposed                                                       | —          |
+| 23  | [Unified diagram language](0023-unified-diagram-language.md)                                     | Proposed                                                       | 2026-11-14 |
