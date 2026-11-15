@@ -1,12 +1,11 @@
 # Unified diagram design proposal
 
-Status: Design proposal (2026-11-14). Do not implement the app in this PR.
+Status: Accepted design (2026-11-16). Proposed 2026-11-14. The requesting developer closed the open decisions on 2026-11-16.
 
-Updated: 2026-11-16.
-
-This proposal records the selected design and the future integration plan.
+This document records the selected design, its study evidence and the agreed delivery.
 The screenshots are static studies. They do not show implemented app behavior.
-The proposed lasting contract is [ADR 23](../adr/0023-unified-diagram-language.md).
+The lasting contract is [ADR 23](../adr/0023-unified-diagram-language.md). The binding behavior is in the [specification](../spec.md), sections 5.13, 5.14, 5.15, 7 and 9.1.
+Where this document or a study differs from the specification, the specification applies.
 
 ## Problem and evidence
 
@@ -31,10 +30,11 @@ The views need consistent status meanings, family information and motion. Their 
 Keep the white ground, Source Sans 3, quiet controls and established stage palette.
 Dark screens use the matching dark surface. Printed sheets remain light.
 Keep the app's rounded status icons for both tasks and subtasks: circle, half-filled circle, checked circle and slashed circle.
-Use the same rounded notation for tasks and subtasks in every view, including Gantt and Work plan.
+Route map, Kanban and Work plan use this icon as their status sign.
+The Gantt stays as it is (decision U5): status-filled station dots, a ready light and no status icon in its labels. The Gantt study differs here and does not apply.
 Do not introduce square subtask or status signs in diagrams, Work plan, Preview or paper.
 Use the existing `TaskStatusIcon`: a 16 px viewport at 100% zoom, with the original Lucide geometry and stroke weight (`viewBox="0 0 24 24"`, stroke width 2).
-Tasks and subtasks use the same icon size. Do not shrink status icons in dense layouts or keys. Preserve a comparable physical size on paper.
+Tasks and subtasks use the same icon size. Do not shrink status icons in dense layouts or keys. Every printed status icon is 12 px (decision U7).
 
 ### Route map
 
@@ -58,6 +58,7 @@ Center the name and its rounded status icon directly below the station. Use one 
 Use PR #55's colored stage badge below the name at the first station of each stage route only.
 In the example, these stations are Site survey (S1), Sowing (S2) and First harvest (S3).
 Do not repeat the badge at other tasks or subtasks. Do not add readiness dots or halos.
+Keep the dimming of done and canceled rail segments (decision U6).
 
 **Spacing.** Keep parent and child stations close. Compact the whole network, including connections between stages.
 Reserve the full name, status icon and any badge before routing links.
@@ -81,7 +82,7 @@ Put the name to the right of the stem. Reserve space for wrapped names and align
 Show each eligible top-level task or parent summary once, using the existing `boardColumn()` and effective parent state.
 Expansion reveals family detail without moving the summary or increasing top-level column counts.
 Use the same outlined chevron button as Work plan for Kanban family expansion and collapse. Do not show a browser-native disclosure triangle.
-Keep the compact Gantt composition, with the original rounded status icons.
+Keep the compact Gantt composition without change (decision U5).
 Keep the existing parent expansion chevron from `GanttRow.svelte`: a separate button with an outlined chevron that points right when collapsed and down when expanded.
 Keep the leaf spacer and shared expansion state with Work plan and Kanban.
 Keep the existing row alignment and child indentation. Align the single-line Gantt label and its controls with the task line.
@@ -105,9 +106,11 @@ Keep “Plan views” as the section heading. Tie Gantt positions and Work plan 
 
 Print detail is independent of screen expansion. Keep the printed Work plan complete.
 Use separate inputs for diagram detail and printed Work plan content.
+One viewer preference, "Show subtasks in printed diagrams", applies to all selected diagrams. Its default is off (decision U2).
 
 Use the visible station as the identity anchor during view changes. Use the label when no station is visible.
 One shared coordinator must handle interrupted transitions, scrolling and focus by task id.
+When a task has no focus target, focus its visible parent, else the active button of the view switch (decision U3).
 Fade incompatible connectors without creating false intermediate dependencies. Decorative flight copies cannot take focus or input.
 Use `motionDuration()` for all durations. Reduced motion changes views immediately. Preview and paper have no view-change animation.
 
@@ -127,7 +130,7 @@ It is the current Route map reference. The written rules define behavior beyond 
 ### Composition and output studies
 
 The following studies use the example fixture dated 2026-11-14. They show composition, counts and date positions.
-The refreshed screenshots and PDFs use the original rounded status icons for tasks and subtasks, including Gantt and Work plan.
+The refreshed screenshots and PDFs use the original rounded status icons for tasks and subtasks, including Gantt and Work plan. The Gantt part of these studies is not the agreed design: the Gantt keeps its station-dot fills.
 Status icons retain the size, geometry and stroke weight of the existing app icons.
 The Work plan studies retain separate parent chevrons and aligned, indented child rows without added family summaries.
 They remain static studies, not production validation.
@@ -137,7 +140,7 @@ They remain static studies, not production validation.
 ![Gantt and Work plan composition with rounded task and subtask status icons](../screenshots/unified-diagrams-gantt-proposal.png)
 
 The synthetic dense plan has 15 top-level tasks and eight subtasks in four stages. Its counts are six Blocked, five Todo, three In progress and one Done.
-Desktop studies retain the stage matrix and split workspace. Phone studies stack status groups within each stage.
+Desktop studies retain the stage matrix and split workspace. Phone studies stack status groups within each stage. The agreed design does not stack them: it uses one horizontal strip (decision U10).
 They test content reflow, not the production pinned mobile shell. Implementation must preserve the established diagram and workspace tab behavior.
 
 ![Dense desktop composition with rounded status icons](../screenshots/unified-diagrams-dense-desktop-proposal.png)
@@ -159,26 +162,27 @@ They support the separate-detail and complete-Work-plan composition. Embedding t
 ![Letter composition proof with the approved Route map fixture](../screenshots/unified-diagrams-paper-letter-proposal.png)
 
 Seven companion screenshots and both PDFs were refreshed. The approved Route map fixture is unchanged.
-All studies use the existing rounded status icons. Screen icons use a 16 px viewport. Paper icons retain a comparable physical size.
+All studies use the existing rounded status icons. Screen icons use a 16 px viewport. Paper icons in the studies have a comparable physical size; the agreed paper size is 12 px.
 The static study's Kanban and Work plan controls share expansion state. The example shows zero child rows when collapsed and two when expanded.
 Both PDFs have four pages. All 11 fixture task names appear in the Work plan on page 4, which fits the A4 and Letter sheets.
 The approved Route map fixture is embedded on page 2.
 The approved route fixture does not establish dark-theme rendering, dense or narrow route layout, long-label routing, actual cycle routing, app Preview, production pagination, PWA or offline behavior.
 
-## Future integration plan
+## Agreed delivery
 
-The previous branch review recommended one integration branch and one shared implementation of status meanings, family counts and motion.
-At that review, both feature branches started at `69e36ee`; `main` was `690a7a8`. Production-file changes were disjoint; documentation and locale catalogs overlapped. No trial merge was performed.
-[PR #57](https://github.com/TimJJTing/Taktblatt/pull/57) contained a shared-motion placeholder, not a motion implementation.
+One integration change delivers the design (decision U1): [PR #62](https://github.com/TimJJTing/Taktblatt/pull/62) on the branch `feat/unified-diagrams`.
+It supersedes [PR #54](https://github.com/TimJJTing/Taktblatt/pull/54) (Kanban) and [PR #55](https://github.com/TimJJTing/Taktblatt/pull/55) (Route map). Their histories are merged into the branch.
+The motion and focus work of [PR #57](https://github.com/TimJJTing/Taktblatt/pull/57) lands in PR #62. PR #57 contained a placeholder, not a motion implementation.
+The parallel delivery rules of PR #54 and PR #55 no longer apply. ADR 23 becomes Accepted in PR #62.
 
-1. Create `feat/unified-diagrams` from the agreed current `main`. Preserve the histories and local artifacts of PRs #54 and #55.
-2. Update the shared specification and affected ADRs before behavior changes. Explicitly reconcile earlier shared status-fill rules with Route map's separate status icons. Have a separate agent verify the plan.
-3. Write failing behavior tests for status meanings, family counts, dependency projection and independent print detail. Implement the shared foundation once.
-4. Adapt Kanban to stage swimlanes. Adapt Route map while retaining PR #55's branching and bend machinery. Use separate reviewable commits.
-5. Complete station-based motion and focus handling. Test real view pairs, including scroll and interrupted transitions.
-6. Validate the combined branch. Keep existing feature PRs available until their work is represented and the combined implementation passes required CI.
+1. Update the specification and ADRs 19 to 23 before behavior changes. A separate agent verifies the implementation plan.
+2. Write failing behavior tests for each slice before production code changes.
+3. Implement the shared foundation once: family summary, print detail, shared expansion control and shared status key.
+4. Adapt Route map and Kanban in separate reviewable commits. Retain PR #55's branching and bend machinery.
+5. Complete station-based motion and the shared focus rules. Test real view pairs, including scroll and interrupted transitions.
+6. Validate the workspace, the Preview dialog, printed sheets and the installed PWA, including offline use. Report any mode that was not validated.
 
-Keep temporary delivery and merge instructions here or in implementation PRs, not in the lasting visual contract.
+The plan schema does not change (decision U8).
 
 ## Acceptance scenes for implementation
 
@@ -192,25 +196,38 @@ Keep temporary delivery and merge instructions here or in implementation PRs, no
 - A cycle within one stage and a cycle across stages retain red dashed warning paths. Do not hide cycles under the ordinary same-stage overlay rule. The approved screenshot does not cover this test.
 - Same-stage required and suggested edges share a visual treatment but keep distinct provenance. Synthetic links do not change readiness, cycles or dependency focus. The map adds no readiness dots or halos.
 - Collapsed families project eligible hidden-child dependencies in both directions. Expansion restores exact endpoints. Aggregated paths keep provenance and do not create internal self-links.
-- Tasks and subtasks use the same original rounded notation and status meanings in Gantt, Route map, Kanban, Work plan, Preview and paper. No view introduces square subtask or status signs.
-- At 100% zoom, task and subtask status icons use the existing `TaskStatusIcon`: 16 px viewport, original Lucide geometry and stroke weight. Dense layouts and keys do not shrink them. Paper retains a comparable physical size. Route map station and rail geometry stays unchanged.
+- Tasks and subtasks use the same original rounded notation and status meanings in Route map, Kanban, Work plan, Preview and paper. The Gantt keeps its station-dot fills. No view introduces square subtask or status signs.
+- At 100% zoom, task and subtask status icons use the existing `TaskStatusIcon`: 16 px viewport, original Lucide geometry and stroke weight. Dense layouts and keys do not shrink them. Paper icons are 12 px. The status icons do not change Route map routing. The stations have one size, without terminus circles or capsule dots.
 - Work plan retains the current parent chevron button and inline indented child rows, with aligned columns. Preserve shared expansion, keyboard navigation, focus, readiness indicators and table controls. Do not add a `details`/`summary` treatment or under-parent family summaries.
 - Kanban names clear the connected stem. The badge and stem share a left edge. Family expansion uses Work plan's outlined chevron button, without a native disclosure triangle. Keep stage swimlanes, parent summaries and counts. Empty stages, long names and narrow panes remain readable.
 - Gantt and Work plan use the same ISO dates. Site survey ends on Nov 7, after the November boundary. Show the exact plan range.
-- Gantt parent labels keep the existing expansion chevron beside the status icon and task name, without family-summary lines. Expanding or collapsing a parent updates its child rows and the shared state in Work plan and Kanban.
+- Gantt parent labels keep the existing expansion chevron beside the ready-light slot and task name, without a status icon or family-summary lines. Expanding or collapsing a parent updates its child rows and the shared state in Work plan and Kanban.
 - Every view pair supports interrupted and scrolled switching. Verify station continuity, focus, label-only tasks, hidden children, cleanup and immediate reduced-motion changes.
-- Independent diagram detail works on A4 and Letter. It does not change screen expansion, hide printed Work plan children or mutate exported plans.
+- Independent diagram detail works on A4 and Letter for Gantt, Route map and Kanban. It does not change screen expansion, hide printed Work plan children or mutate exported plans.
 - Offline reload preserves viewer choices. Check offline edits and Preview. Validate an installed PWA when available and report any unavailable mode.
 
-## Limits and open decisions
+## Closed decisions and limits
 
-This PR changes documentation and design evidence only. It does not change app behavior, the plan schema or stored dependencies.
-It does not merge feature branches, add Kanban drag or add zoom. Zoom remains optional future work.
+The requesting developer made these decisions on 2026-11-16. U9 to U12 followed the plan verification on the same day. They are final.
 
-Before implementation, define the print-detail control scope and missing-target focus fallback in the specification.
-One detail choice for selected diagrams is a proposed default, not a confirmed user choice.
-Showing canceled children within an expanded active family is also a proposed default. Keep existing `boardColumn()` behavior for canceled top-level tasks.
+| Id  | Decision                                                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| U1  | One integration PR (#62, `feat/unified-diagrams`) supersedes #54 and #55. The motion and focus work of #57 lands in #62. ADR 23 becomes Accepted in #62.                                                                                                                |
+| U2  | One viewer preference, "Show subtasks in printed diagrams", for all selected diagrams. Default: off. It is viewer state, outside plan files, backups and undo. The printed Work plan is always complete.                                                                |
+| U3  | Missing focus target after a view switch, a task-dialog close or a collapse: focus the visible parent of the task. If there is none, focus the active button of the view switch.                                                                                        |
+| U4  | An expanded active family shows and counts canceled subtasks in Route map and Kanban. Canceled top-level tasks stay hidden in Kanban.                                                                                                                                   |
+| U5  | Leave the Gantt as it is: no status icon in the label, status-filled station dots on screen and paper, and the ready light. This departs from the Gantt study.                                                                                                          |
+| U6  | Keep the dimming of done and canceled Route map rail segments.                                                                                                                                                                                                          |
+| U7  | Every printed status icon is 12 px. Tasks and subtasks use the same size. The screen size stays 16 px.                                                                                                                                                                  |
+| U8  | No plan schema change. `schemaVersion` stays.                                                                                                                                                                                                                           |
+| U9  | Route map: a same-stage dependency between a top-level task and a subtask of another parent keeps the colored rail from the parent station in both expand states. Route focus and the accessible description show the exact subtask. No thin path.                      |
+| U10 | Kanban widths: `6rem` stage heading column and `7.5rem` minimum status columns, so four columns fit a 640 px pane. Below that, one horizontal strip. No stacked status groups.                                                                                          |
+| U11 | One flight rule for every view pair. No FLIP of real task boxes. A copy exists only when the outgoing or incoming cue intersects the stage box. Real cue elements with a copy are hidden during the flight. All connectors fade; connector retargeting is out of scope. |
+| U12 | ADR 20 and ADR 22 become Accepted in the last slice of PR #62, after validation. They stay Proposed (amended) until then.                                                                                                                                               |
 
-The final Route map needs production validation in the workspace, Preview, printed sheets and installed PWA, including offline use.
-The current image does not validate dark-theme contrast, forced colors, actual cycles, long-label routing, motion, paper pagination or physical output.
-Run changed-file formatting and `pnpm lint` for this documentation PR. App behavior tests start with implementation.
+The specification marks further supervisor defaults as "Proposed default". ADR 23 lists them.
+
+The design does not add Kanban drag or zoom. Zoom remains optional future work.
+
+The static studies do not validate dark-theme contrast, forced colors, actual cycles, long-label routing, motion, paper pagination or physical output.
+The implementation needs production validation in the workspace, Preview, printed sheets and installed PWA, including offline use.

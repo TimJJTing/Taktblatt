@@ -1,8 +1,37 @@
-# ADR 22: Kanban leaf board and command seam
+# ADR 22: Kanban board and command seam
 
-Status: Proposed.
+Status: Proposed (2026-11-13). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): the leaf board decision is superseded. The last slice of PR #62 sets this record to Accepted after validation.
 
 Date: 2026-11-13.
+
+## Amendment (2026-11-16)
+
+[ADR 23](0023-unified-diagram-language.md) supersedes these parts of this record. [Specification section 5.15](../spec.md#515-kanban) defines the current behavior.
+
+| Superseded decision                                | Replacement                                                                                                                  |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Leaf board: cards for childless tasks and subtasks | One card for each eligible top-level task. A parent has a parent summary card with a family summary and family detail.       |
+| Flat board without stage swimlanes                 | Stage swimlanes with aligned status columns.                                                                                 |
+| Fixed card height (`11rem` screen, 34 mm paper)    | Card height follows content.                                                                                                 |
+| `16rem` minimum column width                       | A `6rem` stage heading column and `7.5rem` minimum status columns, which fit a 640 px pane. One horizontal strip below that. |
+| Shared station dot on cards                        | The shared status icon. Its holder is the motion cue and the route-touch target.                                             |
+| Board independent of the shared expand state       | The family rows use the shared expand state.                                                                                 |
+| No child-route union for a parent input            | A collapsed parent summary shows the union of its own route and its child routes.                                            |
+| Local focus fallback (next card, previous card)    | The shared missing-target rule of spec section 5.13.                                                                         |
+| Parallel delivery with Route map; gates on PR #57  | One integration change (PR #62) delivers Kanban, Route map and the shared motion and focus work.                             |
+
+Reasons:
+
+- The leaf board hid family structure. A parent selection could dim every visible card, because the parent had no card.
+- Subtask cards made the column counts differ from the top-level counts of the Work plan and the Route map. Family counts must be the same in each view.
+- Fixed `11rem` cards and `16rem` columns hid much of the board in a normal split pane. Fixed 34 mm paper cards wasted paper and clipped long content.
+- Stage is the main grouping of a plan. Swimlanes show it without a badge on each card.
+
+The alternative "Show parents and subtasks as independent cards" stays rejected. A parent summary is one card; its subtasks are detail items, not cards, and they change no count. The alternative "Add stage swimlanes now" is no longer rejected.
+
+These decisions stay in force: derived Blocked and Todo columns from `boardColumn()`, no Canceled column, the read-only board, the intent resolver for a later drag, route-only connectors, one shared vertical scroll region, the landscape paper adapter and the `kanban_` message block.
+
+The text below is the record of 2026-11-13. Where it conflicts with the table above, the table applies.
 
 ## Context
 
@@ -23,7 +52,7 @@ Kanban and Route map have no technical dependency on each other. Either slice ca
 
 ## Proposed decision
 
-The Kanban section in [the specification](../spec.md#kanban) defines the behavior. This record remains Proposed.
+[Section 5.15 of the specification](../spec.md#515-kanban) defines the behavior. This record remains Proposed.
 
 ### Board model
 
@@ -58,9 +87,9 @@ An isolated parent input remains an active route without lit cards. Shared proje
 
 Register through `src/lib/components/kanban/diagram-view.ts` with `order: VIEW_ORDER.kanban`. Supply the screen renderer, paper adapter and motion description without central imports or cases in shared files. The stage reads geometry from DOM marks; views do not report geometry. Put `data-diagram-task` on each card box, `data-diagram-station` on the station dot (`TaskMark` sets `data-diagram-station` when passed `taskId`; `StationDot` does not take `taskId`, so Kanban sets `data-diagram-station={task.id}` directly on its station dot element or wrapper), `data-diagram-label` on the main action, `data-diagram-parent` on subtask card boxes and an empty `data-diagram-scroller` on the vertical region and the strip. `captureGeometry()` reads them in the current frame. A removed card has no record. Declare `motion: { routerId: 'kanban', connectorSchema: 'kanban-v1' }`.
 
-Keep all column moves on one board surface. Animate reorders and status moves with local geometry motion in that shared scroll region; cross-column FLIP flights are not required. The landed stage moves real task boxes by id with FLIP, without flight copies. Verify it with the Kanban scroller at nonzero offsets, with interruption and with reduced motion. Request the shared flight layer or cross-router fade/move/fade from the shared motion and focus follow-up PR only if this verification fails Appendix C. Do not add a private flight layer in Kanban.
+Keep all column moves on one board surface. Animate reorders and status moves with local geometry motion in that shared scroll region; cross-column FLIP flights are not required. The landed stage moves real task boxes by id with FLIP, without flight copies. Verify it with the Kanban scroller at nonzero offsets, with interruption and with reduced motion. Do not add a private flight layer in Kanban. **Superseded by ADR 23:** the shared stage carries position cues in its flight layer for every animated view switch (spec section 5.13).
 
-Keep Appendix C's task-id box morph, station cue, current-frame retargeting, parent and undated-task origins, focus transfer and single announcement. Flight copies, if a shared flight layer is used later, are inert. Use `motionDuration()` for all motion. Reduced motion swaps immediately and leaves no temporary layer. The View Transitions API is excluded.
+Keep the station cue, current-frame retargeting, parent and undated-task origins, focus transfer and single announcement. Flight copies, if a shared flight layer is used later, are inert. Use `motionDuration()` for all motion. Reduced motion swaps immediately and leaves no temporary layer. The View Transitions API is excluded.
 
 ### Paper and localization
 

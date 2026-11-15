@@ -1,6 +1,6 @@
 # 4. Viewer state is not in the plan
 
-Status: Accepted (2026-11-04). Amended by [ADR 17](0017-menus-by-scope.md).
+Status: Accepted (2026-11-04). Amended by [ADR 17](0017-menus-by-scope.md). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): expand state scope and print detail.
 
 ## Context
 
@@ -16,12 +16,12 @@ Some settings are personal: the expanded tasks, the pinned Timeline section, its
 - The app starts on the client only. ModeWatcher cannot apply the saved theme before the first paint. A startup script in `src/app.html` does this. `src/hooks.server.ts` writes the script into the prerendered page shell from `src/lib/theme.ts`. Thus the storage key and the theme colors have one source.
 - `src/app.html` has the only theme-color tag. The layout keeps it current. ModeWatcher does not get `themeColors`, because it would add a second tag after the start.
 - The export does not include viewer state.
-- The Gantt and the table share one expand state for each plan.
-- Print uses the current expand state.
+- The Gantt and the table share one expand state for each plan. **Amended by ADR 23:** the Work plan, Gantt, Route map and Kanban share this state.
+- Print uses the current expand state. **Superseded by ADR 23:** print does not use the screen expand state. The viewer preference `printSubtasks` under `taktblatt:ui` sets the subtask detail of printed diagrams. Its default is off. The printed Work plan always shows all subtasks.
 - Preview and print show all Timeline legends. The screen legend setting does not change them.
 - Preview sheets and printed sheets stay light for each screen theme.
 
 ## Consequences
 
 - Two persons can have different views of the same plan file.
-- A printed plan depends on the expand state of the person who prints it.
+- A printed plan depends on the expand state of the person who prints it. **Superseded by ADR 23:** a printed plan depends on the print detail preference of the person who prints it, not on the expand state.
