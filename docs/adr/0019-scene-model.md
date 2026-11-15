@@ -8,7 +8,7 @@ The Timeline has one diagram: the Gantt. Its geometry is spread across component
 
 The connector routing has known faults. `elbowPath` puts the vertical 6 px after the source end for every edge. Two predecessors that end on the same day draw one false merged line. The backward detour can run along a bar. `GanttLine.svelte` tweens only the endpoints, so the path changes shape during the tween.
 
-More diagrams come soon: a route map without a time axis, and a Kanban board (spec, "Future: Kanban"). Both show the same tasks as the Gantt. A switch between diagrams must animate, so that the eye can follow each task. If each view builds its own geometry, each view needs its own tweens, its own print code and its own routing. Then a switch between views has no common key.
+More diagrams come soon: a route map without a time axis, and a Kanban board (spec, "Kanban"). Both show the same tasks as the Gantt. A switch between diagrams must animate, so that the eye can follow each task. If each view builds its own geometry, each view needs its own tweens, its own print code and its own routing. Then a switch between views has no common key.
 
 ## Decision
 

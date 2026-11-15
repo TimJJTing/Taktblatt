@@ -771,9 +771,162 @@ Riser slots keep their pitch spacing near the right chart edge. A riser can lie 
 
 Horizontal runs reserve their actual vertical position across both target sides. A third lane is tried before overflow. Hooks try the boundary lane first. Direct entries need no gutter lane. Hooks reserve their full run to the entry stub. A branch reserves the combined runs of all its sources. If all three lanes have conflicts, the branch reuses the near lane.
 
-## Future: Kanban
+## Kanban
 
-Kanban cards are leaves only. Canceled items are not on the board. The column comes from the one board-column calculation (`boardColumn`): Blocked, Todo, In progress, or Done. Todo contains ready items. Blocked contains blocked items. An item with status `in_progress` stays in In progress. A Kanban view is not part of this change.
+This section specifies the first Kanban view. Refer to [ADR 22](adr/0022-kanban.md), which is Proposed.
+
+### Board and columns
+
+- Kanban is a view inside the Timeline section. Register it only through `src/lib/components/kanban/diagram-view.ts`, with `order: VIEW_ORDER.kanban` from `view-contract.ts`. The registry discovers that module at build time. Use the shared switch, viewer preference, stage and print selection of section 5.13 and ADR 20. The selected view is global UI state in `taktblatt:ui`, not plan data. No schema change is required.
+- Show leaves only: a task with no subtasks, or a subtask. A task with subtasks has no card. A canceled leaf has no card. These rules keep the existing domain contract.
+- Use `indexTasks()` and `boardColumn()` from `src/lib/domain/derive.ts`. Do not calculate a second readiness or column value in the view. Effective dependencies include inherited dependencies. Done and canceled prerequisites both satisfy dependencies. Dates do not decide readiness.
+
+| Position | Column      | Existing domain rule                                                     |
+| -------- | ----------- | ------------------------------------------------------------------------ |
+| 1        | Blocked     | Effective status is `todo` and readiness is `blocked`.                   |
+| 2        | Todo        | Effective status is `todo` and readiness is `ready`.                     |
+| 3        | In progress | Effective status is `in_progress`, also when a dependency is unfinished. |
+| 4        | Done        | Effective status is `done`.                                              |
+
+Blocked is a derived column, not a stored status. Todo is the ready part of stored `todo`. The stored statuses stay `todo`, `in_progress`, `done` and `canceled`. There is no Canceled column. Keep all four column headings, including empty columns. Each heading shows its name and leaf-card count. Do not count omitted parents or canceled tasks.
+
+Use one flat board without stage swimlanes. Keep the four columns in the order above. Cards show a stage badge and, for subtasks, the parent title.
+
+In each column, keep stage order. Within a stage, walk the existing sorted top-level tasks. Emit a childless task, or its sorted subtasks in place of the parent. Filter that sequence by column. Use the shared start-date order, missing starts last, then `createdAt`. Preserve input order for exact ties, as the existing stable sort does. Do not add a manual card order. Status changes filter the same sequence again; Done does not use completion time, which the plan does not store.
+
+Show the parent title on subtask cards. Always show eligible subtasks, regardless of the Work plan or Gantt expand state. Each subtask card has a secondary line, "Subtask of {parent}". Reserve that line on every card. Do not add a parent summary card, nested card group or board collapse control. A parent with only canceled subtasks has no card. If its last subtask is removed, the now-childless task can have a card under the normal column rule. Board visibility does not change the shared expand state. The paper rule below uses the same leaf set as the screen; it has no expandable parent rows.
+
+### Cards and task identity
+
+- Cards are HTML task nodes keyed by the existing task id. Each card has the same fixed height and a two-line title clamp. Reserve both title lines, also for a short or empty title. A long title must not grow the card. Use a localized untitled-task fallback for imported empty titles. Keep the full title in the accessible name and in a `Hint.svelte` hint. Do not use a native `title` attribute.
+- Reuse `StationDot` and `StageBadge`. The leading station dot is the element that travels between views. Its fill uses effective status, as in section 9.1. Put the ready light in its own fixed slot before the title. Its hint and text alternative use the shared readiness calculation and messages.
+- Use a 4 px stage-colored rule on the leading edge. Show the stage badge (S1, S2, …). Also show the stage title as text. A badge alone must not require the user to infer a stage from its color.
+- Done keeps the shared finished treatment: a pale stage rule, a struck-through title and a solid station dot at full stage strength. Route dimming uses the single shared color mix. Titles, metadata, ready lights and focus outlines do not dim.
+- Use a screen card height of `11rem` and a minimum column width of `16rem`. These lengths scale with the user's text size. Reserve fixed slots for the title, stage, parent context, owners and dates. Show owners on one truncated line, with the full list in a hint and accessible description. Use `joinList()` and keep owner order. Show "No owners" when empty. Show both dates, a labeled single endpoint, or "No dates". Use the UI date format. If start is after end, keep both dates and give the existing date-warning text. Cards without dates or outside the Gantt range stay on the board. Deliverable, note and dependency lists stay in Task details. At larger text sizes, truncate the reserved metadata lines rather than let text overlap; the full values remain accessible.
+
+### Scrolling, growth and empty states
+
+Use one shared vertical scroll region for all four columns. Column headings and counts are sticky at the top of that region. There are no independent column scrollers. Use the shared Timeline height and viewport limits. With automatic height, use the tallest column's content height, capped by the shared Timeline limit; do not add a per-view saved height. Use the existing overlay scrollbar. Done retains all eligible cards in the shared scroll region. Do not archive, cap, collapse, virtualize or add "Show more" in this slice. Canceled items remain available in the Work plan and Task details.
+
+Keep the four columns in their fixed order in one horizontally scrolling board strip. Do not stack columns or add status tabs. Each column keeps its minimum width, capped by the available strip width when that width is less than `16rem`. The board must not make the page wider. Keep the horizontal scrollbar at the bottom of the visible board. Horizontal touch movement scrolls the strip; vertical movement scrolls the whole board. A gesture must not start a card drag. Keyboard focus reveals the target column and card. A route-focus change alone does not scroll.
+
+Keep the shared vertical offset and horizontal strip offset while the mounted stage stays active, including workspace tab changes and resizes. Clamp offsets when content shrinks. Offsets are transient, not saved plan or viewer fields. A plan change resets them. A view remount may start at the top unless a task-focus transfer must reveal another card. Keep the same diagram above Overview and Work plan with tabs. Reuse the shared pin, height, collapse, Keep open and legend controls. Do not add another Timeline stage or tab bar.
+
+Show "No tasks in this column" in an empty column. If the board has no cards, show a board-level explanation as well as the four empty headings. Distinguish a plan with no tasks from a plan whose leaves are all canceled. Explain that canceled tasks are in the Work plan. Empty states are text, not add or status controls. Do not put a create-task action in the board.
+
+### Read-only actions and future status commands
+
+The first board is read-only. It has no inline editor, status select, drag handle, drop target or reorder action. Change plan content in the Work plan or Task details. Pointer movement and keyboard navigation on the board do not create undo steps.
+
+A click, Enter or Space on the card's main action opens the existing Task details dialog through `EditingState.openDetails`. A touch tap on the main action uses the same opener for that task id. Opening the dialog is not a status edit. Use the existing dialog command path for edits, and reuse the existing opener without a shared Work plan jump callback.
+
+When the dialog closes, focus returns to the same card. If the card moved columns, reveal it by task id. If the card disappeared or Kanban is no longer active, return focus to the selected diagram choice. Keep focus in the dialog during a view or workspace-layout change until close.
+
+The current dialog return path focuses only a stored element: `EditingState.detailsReturnFocus` in `editing.svelte.ts` and the close handler in `TaskDialog.svelte`. An optional close-time return-focus resolver comes from the shared motion and focus follow-up PR, not from this slice. Kanban consumes it only after it merges to `main`. That resolver lets the board find and reveal the current card by captured plan id and task id, or focus the selected diagram choice if it is absent or the view changed. Keep the existing stored-element path for callers without that resolver, including Work plan triggers.
+
+The card box is not focusable. Mark the main action, which holds the visible title, as the task label (`data-diagram-label`). The stage's task-id focus transfer tries the focusable task box, then the task label, then a keyboard route target (`DiagramStage.svelte`). This order makes a view switch focus the main action, not the station target.
+
+The leading station target is a separate sibling of the main action, not a nested button. Give it at least a 24 px target, and 44 px with a coarse pointer. A touch tap there uses the shared route toggle and does not open the dialog. Focus there lights the same task route. The main action remains available to keyboard and touch users. A desktop click on the station does not pin the route. Do not attach the touch-toggle behavior to the main action's dialog tap.
+
+Keep a command-shaped seam between column intent and plan edits. Use the following contract for a later drag release. Do not enable drag in this slice:
+
+- Accept an intent with `sourcePlanId`, `taskId` and a target `BoardColumn`. Explicitly cancel a pending intent on every plan activation or diagram-view switch, including a switch away and back to the same plan or view. This cancellation is required even if task ids match. Resolve an uncanceled intent against the current active plan and current task index at commit time; reject a `sourcePlanId` mismatch before task lookup. Return a status-change request, a reason for rejection, or a no-op. The board layout never mutates a task or calls a persistence API.
+- In progress requests `updateTask(workspace, taskId, { status: 'in_progress' })`. Done requests the same command with `status: 'done'`. Dependencies do not prohibit these edits; this matches the existing status select.
+- Todo requests `status: 'todo'` only if that leaf would be ready under the current effective dependency graph. Blocked requests `status: 'todo'` only if that leaf would be blocked. Evaluate the hypothetical `todo` state with the shared derivation, not a second blocker algorithm. Reject the opposite case with a localized explanation. Never write `blocked`, clear dependencies, or silently put a card in a different target column.
+- Reject a missing task, a canceled task, a parent with subtasks, an unavailable target or an intent from a plan that is no longer active. A same-column intent is a no-op. Canceled intents cannot be committed or revived after switching back. No activation token is needed with this explicit-cancel policy. Do not support within-column reordering or a Canceled target.
+- `DiagramViewProps` has no command callback. A view reads the workspace from context and edits through `src/lib/state/commands.ts`. A later dispatcher therefore calls `updateTask(getWorkspace(), taskId, patch)` directly; the shared view contract needs no change.
+- A successful change calls the existing command once. Parent expansion, save, cross-tab sync and undo/redo follow the existing command behavior. A rejected or unchanged intent has no command, no save and no undo step. Rebuild the board from the resulting plan. Do not persist a card column or position.
+- A future drag release must add a keyboard alternative and drop-result announcements before it ships. The first read-only board exposes no drag semantics to assistive technology.
+
+### Route focus and connectors
+
+- As the Kanban-specific exception to the at-rest connector rule in section 9.1, show no dependency lines when no route is active. Preview and print also have no Kanban dependency lines because they have no route focus.
+- Use the single route owner in `EditingState` from [ADR 20](adr/0020-diagram-views.md#viewer-state-and-route-focus). Call `diagramRouteTargets(() => cardIds)` from `src/lib/components/diagram/diagram-layer.ts` during setup to register the view on mount, so a leaving layer takes no route input. Use its scoped `target` action on each card, and do not call the route owner's `view()` directly.
+- Use neutral `data-route-target` task ids and the shared keyboard and touch attributes. Treat the complete card as one hover target so moving between its station and main action does not restart intent. Focus-visible card actions light the route at once. Keep section 5.4's input priority, 300 ms hover rest, 120 ms target switch, 250 ms leave grace, dialog priority and Esc rules. Esc does not clear a focus route.
+- Keep the effective graph complete, including hidden parents and canceled prerequisites. Project onto actual leaf cards by task id. Do not make parent proxy cards or substitute every child for a parent endpoint. Draw an edge only when both endpoints are board leaves. Inherited effective edges between board leaves remain eligible. Omitted endpoints still take part in route traversal and readiness. Do not invent a direct edge across an omitted task.
+- Keep eligible edge identities and dependency pairs in the scene independently of route visibility. Use the shared route projection and `lineKey()` from `src/lib/domain/route.ts`. While a route is active, show only eligible edges that belong to that route. A shortcut between its upstream and downstream sides stays hidden. A route with no eligible visible edge shows no connector. Its visible route cards still keep their full color.
+- Route screen edges behind opaque cards, through inter-card and inter-column gaps, with station attachment points and no arrowheads. Clip the overlay once to the shared board viewport below the sticky headings, and let paths cross column gaps without entering card text or headings.
+- Suppress an edge when either endpoint is wholly outside that shared viewport, including after horizontal scrolling. Do not scroll to reveal an endpoint, draw a line to a header, or make continuation stubs in this slice. Recompute from rendered geometry on shared vertical scroll, horizontal strip scroll and resize.
+- Lit ordinary edges use the shared ink and ground casing. Route cycle edges keep the dotted warning form and cycle casing. Hide them at rest too. Hide off-route cycle connectors while another route is active. This overrides section 5.4's persistent off-route cycle warnings on this board. An unrelated cycle must stay hidden when another task route is active; cycle connectors on the active route keep their warning form. Off-route station dots and stage rules use one opaque ground mix. Ready lights, text and focus outlines do not dim. Reuse shared route paint and `motionDuration(150)`; do not reduce whole-card opacity.
+- Work plan and dialog route inputs work while Kanban is active. Shared projection does not automatically union a parent's child routes. An isolated parent input yields an active route with only that parent id, so no card is lit, every card is dimmed and no connector shows. A parent with effective graph neighbors can light visible leaves reached by ordinary traversal. Do not add a child-route union in this slice; that needs a separate explicit request.
+- Verify the exact parent-input fixture: parent `P` has children `C1` and `C2`, unrelated leaf `U` is present, all are stored `todo`, and all dependency lists are empty. With Work plan or dialog route input `P`, the active route ids are `{P}`, lit card ids are empty, cards `C1`, `C2` and `U` are dimmed, and no edge is drawn.
+- Route focus does not change card order, card counts or accessible names. Route graphics are decorative and have no focus targets.
+
+### Keyboard and accessibility
+
+Use named column sections and semantic card lists, not an editable ARIA grid. Keep each main action and station target in normal Tab order, column by column, then card order. No roving focus is required. On a main action, Up and Down move to the previous or next card in that column. Home and End move to its first or last card. Left and Right move to the nearest nonempty column in that direction, at the same ordinal card position clamped to the available cards. Do not wrap at board edges. An empty board has no card stop. The diagram switch and surrounding controls stay available with Tab. Station targets use normal button keys and do not intercept list navigation keys. They light a focus route; they do not establish a separate keyboard pin.
+
+Reveal a keyboard target inside the board's own vertical region and horizontal strip, clear of the sticky headings and pinned Timeline controls. This clearance is local Kanban work. Use the stage's `onReveal` prop only for the vertical Timeline body. Focus-reveal scrolling must not collapse the Timeline or change the floating workspace-tab island.
+
+Two reveal capabilities are shared work from the shared motion and focus follow-up PR: a per-view reveal inside the view's own scroller after a view switch, and an "app scrolling" classification for reveal scrolling. Kanban does not patch the stage to supply them.
+
+Retain focus by task id when status changes move a card. If a focused card disappears without an open dialog, move focus to the next surviving card in its former column, then the previous surviving card in that column, then the selected diagram choice. Do not select a card that moved to another column. A diagram switch uses section 5.13's task-id transfer and missing-target fallback instead.
+
+Use localized names for column sections, the shared vertical scroll region and the horizontal strip. Include the full task title, stored status label, derived board column, stage and parent context in each main action's accessible name. Do not repeat the status when its column has the same label. Put complete owner and date values and the shared ready explanation in its accessible description.
+
+Name the station target "Show dependency route for {task}". Name the main action "Open task details for {task}" with the task context in the same translation message. Route focus must not change these names. Empty titles use the same fallback on screen and in accessible text. Hide duplicate decorative station and ready-light graphics when the enclosing target already provides their text alternative.
+
+Show a visible focus outline around the complete action. Use system colors in forced colors: `Canvas`, `CanvasText`, `Highlight` and `HighlightText` as applicable. Preserve the station fill shapes, visible column names, stage-badge text, card borders and focus outlines. Do not use stage color alone for membership or status. Hints use `Hint.svelte` and have no extra Tab stop.
+
+### Motion and adapter handoff
+
+Implement the Appendix C contract through the shared stage of section 5.13. The stage reads current geometry from the rendered DOM; views do not report geometry. Mark the rendered nodes with the `DIAGRAM_ATTR` attributes of `view-contract.ts`:
+
+- `data-diagram-task` on each card box, with the task id.
+- `data-diagram-station` on the leading station dot. `TaskMark` sets `data-diagram-station` when passed `taskId`; `StationDot` does not take `taskId`, so Kanban sets `data-diagram-station={task.id}` directly on its station dot element or wrapper.
+- `data-diagram-label` on the main action, which holds the title.
+- `data-diagram-parent` on each subtask card box, with the parent id, for emerging subtasks.
+- `data-diagram-scroller`, empty, on the shared vertical region and on the horizontal strip.
+
+`captureGeometry()` in `diagram-motion.ts` reads these marks in the current frame, including running motion and all scroll offsets. A removed card has no record, so no teardown step is needed. Declare `motion: { routerId: 'kanban', connectorSchema: 'kanban-v1' }` in the view definition. The stage does not read these fields yet.
+
+The shared stage on `main` already stacks the outgoing and incoming layers. It moves each task box by task id with FLIP, cross-fades the layers with `motionDuration(VIEW_MOTION_MS)` and recaptures the current frame on interruption (`DiagramStage.svelte`, `diagram-motion.ts`). It moves the real boxes; it makes no flight copies. Verify this landed motion with the Kanban scroller at nonzero vertical and horizontal offsets. The FLIP flight layer across scroll containers and cross-router fade/move/fade are deferred shared work (section 5.13). Request them from the shared motion and focus follow-up PR only if the verification shows clipping or another Appendix C failure. Kanban consumes a shared capability only after it merges to `main`.
+
+Cross-column FLIP flights are not required. Card reorders and status moves stay on one board transition surface. They use local geometry motion in the shared scroll region. Kanban must not edit shared Gantt, motion, registry, stage or scroll files.
+
+Use one `motionDuration(VIEW_MOTION_MS)` ease-out switch, 300 ms, without stagger. Morph task boxes and station positions by stable task id. Fade view content in the first and last 40 %. Emerging subtasks use the parent's current box, station or label origin. Undated tasks use the outgoing label origin. An absent origin fades in at the destination. Missing destination nodes, including canceled leaves, fade out in place. Interrupted switches recapture the current frame. If a shared flight layer is used later, its copies are decorative, inert and unfocusable, and are removed after finish or cancel. Keep shared task-id focus transfer and the single localized view announcement.
+
+Use `motionDuration(GEOMETRY_MOTION_MS)` for board reorder and column changes after edits; the shared geometry constant is 240 ms. Animate positions across columns on the board surface; no cross-column flight layer is required. Normal scrolling follows the input without an added tween. Route fades and all position transitions use `motionDuration()`. With reduced motion, apply positions, column moves, focus reveal and view changes immediately. Leave no flight copy, delayed focus transfer or content fade. Shared route-intent timers remain unchanged. Do not use the View Transitions API.
+
+### Required implementation fixtures
+
+Use the following fixtures for acceptance checks:
+
+- **All-Done stress board:** One stage has 300 childless `done` tasks, ids `D001`–`D300`, in deterministic traversal order. There are no other tasks or dependencies. Counts are Blocked 0, Todo 0, In progress 0 and Done 300. All four sticky headings remain available. Reach `D001` and `D300` by pointer scrolling and keyboard navigation in the shared region. Every screen card has the same `11rem` height. Preview and printed A4/Letter output contain each of the 300 ids exactly once across complete-card fragments, with no omission, duplicate or split card; repeat counts on every fragment. This is a nonempty all-Done board, not the no-task or all-canceled state.
+- **Unbroken title:** In that board, give `D150` a title of 512 consecutive `W` characters. It wraps or breaks within the two reserved title lines, never widens its column or grows its card, and keeps its full accessible name and hint. Paper keeps its fixed 34 mm height and complete pagination.
+- **Unrelated cycle:** Use leaf tasks `A`, `B`, `X` and `Y`, with dependency pairs `A→B`, `X→Y` and `Y→X`. With route input `A`, show only `A→B`; hide both unrelated cycle connectors. With route input `X`, show the `X↔Y` cycle in its warning form. At rest hide all three connectors.
+- **Parent input:** Use the exact `P`/`C1`/`C2`/`U` fixture above. Check both Work plan focus and dialog route input. Do not infer a child union from hierarchy.
+- **Stale intent:** Reuse a task id in two plans. Check source-plan mismatch and cancellation on plan switch, view switch, and away-and-back switches. No canceled intent emits a command or undo step.
+
+### Preview, print and localization
+
+Register a landscape paper adapter for both A4 and US Letter. Use the generic `DiagramPaperAdapter` of `view-contract.ts`: `{ orientation, segments(input), component }`. `segments` returns a `SceneSegment` (`print-model.ts`) with `diagram: 'kanban'` and the board legends. Use four equal columns in the screen order. Build a separate paper scene with paper metrics. Keep the same eligible leaves and ordering as the board; the shared expand state is unchanged. Do not print the scrolled screen or depend on its offsets. Include every Done card, including cards outside a screen viewport. Canceled tasks have no card.
+
+Use a fixed paper card height with the same two-line title clamp. Start with a 34 mm card height, then verify that every reserved field fits at the project's paper text size in all four locales. Use the same fields, stage signs, parent context and status treatment. Give each card a full text alternative. The Work plan prints the full task fields under the existing rules. Paper has no actions, hints, scrolling, animation, route dimming or connectors. Use the shared signs' `still` variants and light stage colors, also when browser background graphics are off.
+
+Lay out each column from its top independently. Give the `SceneSegment` one item per complete card row across the four columns, including the gap before the next row. The paginator splits only between items, so a card never splits. The longest column sets the number of board fragments.
+
+Short columns have blank space on later fragments; do not repeat an empty-state message in every fragment. Render the Kanban heading, all four column labels and total column counts as the `repeat` part (`data-part="repeat"`), so that each continuation repeats them. A board with no cards prints one fragment with its empty explanation.
+
+For the stage legend, return `{ kind: 'legend', which: 'stages' }` from `segments`. The shared legend kinds are only `stages`, `milestones` and `bands`. Draw any status key inside the Kanban scene segment; do not add a shared legend kind. Legends use the board's landscape orientation.
+
+Reuse section 7's selection and sheet pipeline. The active screen view does not select print diagrams. Kanban prints after any selected Gantt and Route map, with shared plan content once and one page total. Orientation changes start new sheets. Header, stage overview, Work plan and remarks remain portrait.
+
+Preview, its Print button, Cmd/Ctrl+P and browser print fallback must use the same Kanban adapter. Do not add print branches outside Kanban's paths. A demonstrated gap in the paper or fragment hooks goes to a shared PR from `main`, owned by the diagram-views owner.
+
+Use new `kanban_` keys for Kanban-specific column names, counts, empty states, card summaries, parent context, missing fields, action names and future rejection text. Reuse existing status, date, stage, ready-light and task-dialog messages where they already express the same text. The shared view name `diagram_view_kanban` and the diagram announcements already exist on `main` as `diagram_` keys. Do not duplicate or edit them.
+
+The sorted `kanban_` block follows `menu_this_plan` in each of `en`, `de`, `ja` and `zh-TW`. Put word order and punctuation in messages, and use `joinList()` for owner lists. Regenerate Paraglide with `pnpm i18n`; do not edit generated files.
+
+### Delivery and shared prerequisites
+
+Kanban and Route map have no technical dependency on each other. Either slice can merge first. The slice that merges second merges the latest `main`, runs `pnpm lint`, `pnpm check`, `pnpm test:unit --run`, targeted E2E checks (`pnpm exec playwright test e2e/kanban.e2e.ts --trace off`) and `pnpm test:e2e:fixtures` again (leaving the full E2E suite to CI), and changes no file of the other slice. If Kanban merges second, it adds the Route map ↔ Kanban switch and mixed-print checks in its own E2E file.
+
+The shared prerequisite PR (#58) is merged on `main`. The registry and E2E tests that check the real view set are independent of which views register, `chooseView` and `expectView` are in `e2e/helpers.ts`, and ADR 20 allows either merge order.
+
+The open shared motion and focus follow-up PR (#57) supplies the flight layer, cross-router motion, the close-time return-focus resolver and the per-view focus reveal. Kanban does not implement or patch them. It consumes each capability only after it merges to `main`.
+
+Kanban tests assert only Kanban and Gantt. They do not assert the exact set, count or full order of registered real views; use containment and relative `VIEW_ORDER` order. Kanban does not edit `docs/adr/README.md`, `e2e/helpers.ts`, shared diagram, print, domain or state files, `package.json`, the lockfile, Vite or Playwright configuration, `src/service-worker/` or `docs/data-model.md`. A demonstrated gap goes to the applicable shared PR.
 
 ## 10. Quality
 
