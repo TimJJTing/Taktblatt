@@ -263,18 +263,12 @@ describe('Kanban main action keyboard navigation', () => {
 		expect(document.activeElement).toBe(action('A'));
 	});
 
-	it('moves focus to the next card, then the previous card, then the selected diagram choice on removal', async () => {
+	it('moves focus to the selected diagram choice on removal', async () => {
 		const { action, workspace, screen } = await mount(
 			makePlan([kanbanTask('A'), kanbanTask('B'), kanbanTask('C')])
 		);
 		action('B').focus();
 		removeTasks(workspace, ['B']);
-		flushSync();
-		await expect.poll(() => document.activeElement).toBe(action('C'));
-		removeTasks(workspace, ['C']);
-		flushSync();
-		await expect.poll(() => document.activeElement).toBe(action('A'));
-		removeTasks(workspace, ['A']);
 		flushSync();
 		await expect
 			.poll(() => document.activeElement)

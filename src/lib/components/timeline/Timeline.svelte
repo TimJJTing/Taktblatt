@@ -292,7 +292,7 @@
 		};
 	});
 
-	function revealRow(row: { top: number; bottom: number }) {
+	function revealRow(row: { top: number; bottom: number }, behavior?: ScrollBehavior) {
 		if (!body) return;
 		const view = body.getBoundingClientRect();
 		const delta =
@@ -302,7 +302,10 @@
 					? row.bottom - view.bottom
 					: 0;
 		if (delta !== 0) {
-			body.scrollBy({ top: delta, behavior: motionDuration(1) === 0 ? 'instant' : 'smooth' });
+			body.scrollBy({
+				top: delta,
+				behavior: behavior ?? (motionDuration(1) === 0 ? 'instant' : 'smooth')
+			});
 		}
 	}
 

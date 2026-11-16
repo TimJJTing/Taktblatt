@@ -39,6 +39,18 @@ describe('EditingState', () => {
 		expect(editing.detailsReturnFocus).toBeNull();
 	});
 
+	it('stores and clears the return-focus resolver', () => {
+		const editing = new EditingState();
+		const trigger = {} as HTMLElement;
+		const resolve = () => trigger;
+
+		editing.openDetails('t1', trigger, resolve);
+		expect(editing.detailsReturnResolver).toBe(resolve);
+
+		editing.openDetails('t2', trigger);
+		expect(editing.detailsReturnResolver).toBeNull();
+	});
+
 	it('cancels an earlier flash when a new flash starts before or during the timeout', () => {
 		vi.useFakeTimers();
 		const editing = new EditingState();

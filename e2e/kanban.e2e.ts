@@ -10,13 +10,20 @@ import {
 import {
 	chooseView,
 	diagramStage,
+	expectKanbanFocusContained,
 	expectView,
 	focusPreviousControl,
 	importJson,
 	openApp,
 	openPreview,
 	setTaskStatus,
-	waitForAnimations
+	startTimelineIslandMonitor,
+	timelineHandle,
+	waitForAnimations,
+	waitForFrames,
+	workspaceContent,
+	workspaceTabs,
+	workspaceTabSize
 } from './helpers.ts';
 
 const board = (page: Page) => page.getByTestId('kanban');
@@ -398,7 +405,7 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
 			const target = diagramStage(page).locator(`[data-diagram-label="D150"]`);
 			if (view === 'kanban') {
 				await expect(target).toBeFocused();
-				await expect(target).toBeInViewport();
+				await expectKanbanFocusContained(target);
 			} else {
 				await expect
 					.poll(() =>
@@ -409,6 +416,31 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
 						)
 					)
 					.toBe('D150');
+				await expect
+					.poll(() =>
+						page.evaluate(() => {
+							const item = document
+								.querySelector('[data-testid="diagram-stage"] [data-diagram-task="D150"]')!
+								.getBoundingClientRect();
+							const scroller = document
+								.querySelector('[data-testid="gantt-scroller"]')!
+								.getBoundingClientRect();
+							const stickyHeader = document
+								.querySelector('[data-testid="gantt-scroller"] .sticky.top-0')!
+								.getBoundingClientRect();
+							const body = document
+								.querySelector('[data-testid="timeline-body"]')!
+								.getBoundingClientRect();
+							return (
+								item.top >= stickyHeader.bottom - 1 &&
+								item.top >= scroller.top - 1 &&
+								item.bottom <= scroller.bottom + 1 &&
+								item.top >= body.top - 1 &&
+								item.bottom <= body.bottom + 1
+							);
+						})
+					)
+					.toBe(true);
 			}
 		}
 	});
@@ -427,6 +459,64 @@ test('a dialog status edit moves the card to the new column without reloading', 
 	await expect(column(page, 'todo').locator('[data-diagram-task="A"]')).toHaveCount(0);
 	await expectCounts(page, [0, 0, 0, 1]);
 	await expect(dialog).toBeVisible();
+});
+
+test('returns focus to a moved card and reveals it when the task dialog closes on Escape', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await page.setViewportSize({ width: 520, height: 800 });
+	const plan = makePlan([
+		...Array.from({ length: 10 }, (_, i) =>
+			kanbanTask(`D${String(i + 1).padStart(2, '0')}`, {
+				status: 'done',
+				createdAt: new Date(Date.UTC(2027, 0, 1, 0, 0, i)).toISOString()
+			})
+		),
+		kanbanTask('A', { createdAt: '2027-01-01T00:00:20.000Z' }),
+		...Array.from({ length: 24 }, (_, i) =>
+			kanbanTask(`T${String(i + 1).padStart(2, '0')}`, {
+				createdAt: new Date(Date.UTC(2027, 0, 1, 0, 1, i)).toISOString()
+			})
+		)
+	]);
+	plan.remarks.push({
+		id: 'scroll-notes',
+		title: 'Scroll notes',
+		bullets: Array.from({ length: 30 }, (_, i) => `Scroll note ${i + 1}`)
+	});
+	await load(page, plan);
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	await expect
+		.poll(() => workspaceContent(page).evaluate((el) => el.scrollHeight > el.clientHeight))
+		.toBe(true);
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	const fullIsland = await workspaceTabSize(page);
+	expect(fullIsland.tab).toBe(40);
+
+	await expect(column(page, 'todo').locator('[data-diagram-task="A"]')).toHaveCount(1);
+	await action(page, 'A').click();
+	const dialog = page.getByTestId('task-dialog');
+	await expect(dialog).toBeVisible();
+	await setTaskStatus(page, dialog, 'done');
+	await expect(column(page, 'done').locator('[data-diagram-task="A"]')).toHaveCount(1);
+	const monitor = await startTimelineIslandMonitor(page);
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await waitForAnimations(page.locator('#timeline'));
+	await waitForAnimations(workspaceTabs(page));
+	await waitForFrames(page);
+	const samples = await monitor.finish();
+	expect(samples.length).toBeGreaterThan(1);
+	for (const sample of samples) {
+		expect(sample).toEqual({ expanded: 'true', ...fullIsland });
+	}
+	await expect(action(page, 'A')).toBeFocused();
+	await expect.poll(() => strip(page).evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+	await expect.poll(() => vertical(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+	await expectKanbanFocusContained(action(page, 'A'));
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	expect(await workspaceTabSize(page)).toEqual(fullIsland);
 });
 
 test('reveals an offscreen station target when keyboard focus reaches it', async ({ page }) => {
@@ -480,7 +570,7 @@ test('retains station focus across an undone column move and falls back after re
 	await keyboardFocus(page, station(page, 'A'));
 	await page.keyboard.press('ControlOrMeta+Shift+z');
 	await expect(action(page, 'A')).toHaveCount(0);
-	await expect(action(page, 'B')).toBeFocused();
+	await expect(page.getByTestId('diagram-view-kanban')).toBeFocused();
 });
 
 test('returns focus to the view choice when a removed card has no survivors in its column', async ({
@@ -522,14 +612,58 @@ test('updates the connector as another card reorders its focused endpoint', asyn
 	await setTaskStatus(page, dialog, 'done');
 	await page.keyboard.press('Escape');
 	await expect(dialog).toHaveCount(0);
+	await keyboardFocus(page, action(page, 'D'));
 	await keyboardFocus(page, station(page, 'C'));
 	const line = board(page).getByTestId('kanban-dependency');
+	await expect
+		.poll(() =>
+			board(page).evaluate((root) => {
+				const stripRect = root
+					.querySelector<HTMLElement>('[data-testid="kanban-strip"]')!
+					.getBoundingClientRect();
+				const scrollRect = root
+					.querySelector<HTMLElement>('[data-testid="kanban-scroll"]')!
+					.getBoundingClientRect();
+				const heading = root
+					.querySelector<HTMLElement>('[data-testid="kanban-heading"]')!
+					.getBoundingClientRect();
+				const left = Math.max(scrollRect.left, stripRect.left);
+				const right = Math.min(scrollRect.right, stripRect.right);
+				const top = Math.max(scrollRect.top, stripRect.top) + heading.height;
+				const bottom = Math.min(scrollRect.bottom, stripRect.bottom);
+				return ['C', 'D'].every((id) => {
+					const box = root
+						.querySelector<HTMLElement>(`[data-diagram-task="${id}"]`)!
+						.getBoundingClientRect();
+					const dot = root
+						.querySelector<HTMLElement>(`[data-diagram-station="${id}"]`)!
+						.getBoundingClientRect();
+					return (
+						box.left >= left - 1 &&
+						box.right <= right + 1 &&
+						box.top >= top - 1 &&
+						box.bottom <= bottom + 1 &&
+						dot.left >= left - 1 &&
+						dot.right <= right + 1 &&
+						dot.top >= top - 1 &&
+						dot.bottom <= bottom + 1
+					);
+				});
+			})
+		)
+		.toBe(true);
 	await expect(line).toHaveCount(1);
+	await expect(line).toHaveAttribute('data-from', 'C');
+	await expect(line).toHaveAttribute('data-to', 'D');
 	await page.keyboard.press('ControlOrMeta+z');
 	await expect
 		.poll(() => card(page, 'C').evaluate((node) => node.getAnimations().length))
 		.toBeGreaterThan(0);
 	await waitForAnimations(board(page));
+	await expect(station(page, 'C')).toBeFocused();
+	await expect(line).toHaveCount(1);
+	await expect(line).toHaveAttribute('data-from', 'C');
+	await expect(line).toHaveAttribute('data-to', 'D');
 	await expect
 		.poll(() =>
 			board(page).evaluate((root) => {

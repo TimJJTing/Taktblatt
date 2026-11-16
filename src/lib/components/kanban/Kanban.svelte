@@ -241,7 +241,6 @@
 		if (!id || !root?.contains(active)) return;
 		const priorColumn = old.findIndex((c) => c.includes(id));
 		if (priorColumn < 0) return;
-		const prior = old[priorColumn];
 		const nextIds = current.flat();
 		if (nextIds.includes(id) && current.some((c, i) => c.includes(id) && !old[i]?.includes(id))) {
 			tick().then(() => {
@@ -251,19 +250,6 @@
 					)
 					?.focus({ preventScroll: true });
 				reveal(id);
-			});
-		} else if (!nextIds.includes(id) && !editing.detailsTaskId) {
-			const index = prior.indexOf(id);
-			const fallback = [...prior.slice(index + 1), ...prior.slice(0, index).reverse()].find(
-				(candidate) => current[priorColumn].includes(candidate)
-			);
-			tick().then(() => {
-				if (fallback) {
-					root
-						.querySelector<HTMLElement>(`[data-diagram-label="${CSS.escape(fallback)}"]`)
-						?.focus({ preventScroll: true });
-					reveal(fallback);
-				} else document.querySelector<HTMLElement>('[data-testid="diagram-view-kanban"]')?.focus();
 			});
 		}
 	});
@@ -285,7 +271,7 @@
 		onscroll={measure}
 		role="region"
 		aria-label={m.kanban_scroll()}
-		class="min-h-0 flex-1 overflow-y-auto"
+		class="min-h-0 flex-1 scroll-pt-10 overflow-y-auto"
 		data-testid="kanban-scroll"
 		data-diagram-scroller
 	>

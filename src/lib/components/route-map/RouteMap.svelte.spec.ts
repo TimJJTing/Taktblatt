@@ -3,7 +3,7 @@ import '../../../routes/layout.css';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { render } from 'vitest-browser-svelte';
-import { userEvent } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { DIAGRAM_ATTR } from '#lib/components/diagram/view-contract.ts';
 import { fablePlan, pinnedExamplePlan, screenMetrics } from '#lib/scene/route-map.test-helpers.ts';
 import { formatRangeDisplay, joinList } from '#lib/domain/format.ts';
@@ -100,7 +100,8 @@ describe('Route map station interactions', () => {
 	beforeEach(() => {
 		motion.reduced = false;
 		workspace = new Workspace(new MemoryStorage());
-		viewer = new ViewerState(new MemoryStorage());
+		viewer = new ViewerState(new MemoryStorage(), ['gantt', 'route-map']);
+		viewer.setDiagramView('route-map');
 		editing = new EditingState();
 		workspace.commit((plan) => {
 			plan.stages = [{ id: 's1', title: 'Prepare', description: '', color: 'blue' }];
@@ -124,7 +125,7 @@ describe('Route map station interactions', () => {
 		const screen = await mount();
 		const station = mark(screen.container, 'P');
 		await userEvent.click(station);
-		expect(open).toHaveBeenCalledWith('P', station);
+		expect(open).toHaveBeenCalledWith('P', station, expect.any(Function));
 		await expect.element(screen.getByRole('dialog')).toBeVisible();
 		await userEvent.keyboard('{Escape}');
 		await expect.poll(() => document.activeElement).toBe(station);
@@ -139,12 +140,12 @@ describe('Route map station interactions', () => {
 		for (const key of ['{Enter}', ' ']) {
 			station.focus();
 			await userEvent.keyboard(key);
-			expect(open).toHaveBeenLastCalledWith('standalone', station);
+			expect(open).toHaveBeenLastCalledWith('standalone', station, expect.any(Function));
 			await userEvent.keyboard('{Escape}');
 			await expect.poll(() => document.activeElement).toBe(station);
 		}
 		tap(label(screen.container, 'standalone'));
-		expect(open).toHaveBeenLastCalledWith('standalone', station);
+		expect(open).toHaveBeenLastCalledWith('standalone', station, expect.any(Function));
 		await userEvent.keyboard('{Escape}');
 		await expect.poll(() => document.activeElement).toBe(station);
 	});
@@ -977,8 +978,7 @@ describe('Route map station interactions', () => {
 		for (const path of thin) expect(getComputedStyle(path).strokeWidth).toBe('0.75px');
 	});
 
-	// Shared PR #57 must merge before these close-time resolver cases can run.
-	it.skip('returns an open child dialog to the parent after collapse (shared PR #57)', async () => {
+	it('returns an open child dialog to the parent after collapse', async () => {
 		viewer.setExpanded(workspace.plan.id, 'P', true);
 		const screen = await mount();
 		await userEvent.click(mark(screen.container, 'a'));
@@ -987,7 +987,7 @@ describe('Route map station interactions', () => {
 		await expect.poll(() => document.activeElement).toBe(mark(screen.container, 'P'));
 	});
 
-	it.skip('resolves dialog return after child or family deletion (shared PR #57)', async () => {
+	it('resolves dialog return after child or family deletion', async () => {
 		viewer.setExpanded(workspace.plan.id, 'P', true);
 		const screen = await mount();
 		await userEvent.click(mark(screen.container, 'a'));
@@ -996,5 +996,31 @@ describe('Route map station interactions', () => {
 		await userEvent.click(mark(screen.container, 'b'));
 		flushSync(() => removeTasks(workspace, ['P']));
 		await expect.element(screen.getByTestId('diagram-view-route-map')).toHaveFocus();
+	});
+
+	it('returns focus to the parent station when a subtask is deleted inside the task dialog', async () => {
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		const screen = await mount();
+		await userEvent.click(mark(screen.container, 'a'));
+		await expect.element(page.getByTestId('task-dialog')).toBeVisible();
+		await userEvent.click(page.getByRole('button', { name: 'Delete…' }));
+		await expect.element(page.getByRole('alertdialog')).toBeVisible();
+		await userEvent.click(page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }));
+		await expect.poll(() => document.activeElement).toBe(mark(screen.container, 'P'));
+	});
+
+	it('returns focus to the parent station when a focused subtask is removed through undo', async () => {
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		const screen = await mount();
+		const added = makeTask({ id: 'undo-child', title: 'Undo child', parentId: 'P' });
+		workspace.commit((plan) => {
+			plan.tasks.push(added);
+		});
+		flushSync();
+		await expect.poll(() => mark(screen.container, 'undo-child')).not.toBeNull();
+		mark(screen.container, 'undo-child').focus();
+		workspace.undo();
+		flushSync();
+		await expect.poll(() => document.activeElement).toBe(mark(screen.container, 'P'));
 	});
 });

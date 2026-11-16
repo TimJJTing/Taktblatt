@@ -19,9 +19,11 @@ import {
 	openPreview,
 	readDownload,
 	settledPanelHeight,
+	storedPlan,
 	storedViewer,
 	waitForAnimations,
-	workspaceContent
+	workspaceContent,
+	writeStoredPlan
 } from './helpers.ts';
 
 declare global {
@@ -133,6 +135,28 @@ test.describe('production build', () => {
 				expect(text.includes(marker), `${url} contains ${marker}`).toBe(false);
 			}
 		}
+	});
+
+	test('focuses the Kanban switch choice when switching from a canceled top-level Gantt task', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			const task = plan.tasks.find((item) => item.title === 'Site survey')!;
+			task.status = 'canceled';
+		});
+		const canceledId = (await storedPlan(page)).tasks.find(
+			(item) => item.title === 'Site survey'
+		)!.id;
+		const bar = page.locator(`[data-diagram-view="gantt"] [data-diagram-task="${canceledId}"]`);
+		await bar.focus();
+		await expect(bar).toBeFocused();
+		// A programmatic click switches the view while focus stays on the Gantt task.
+		await page
+			.getByTestId('diagram-view-kanban')
+			.evaluate((choice) => (choice as HTMLElement).click());
+		await expectView(page, 'kanban');
+		await expect(page.getByTestId('diagram-view-kanban')).toBeFocused();
 	});
 });
 

@@ -4,7 +4,7 @@
 	1. captures the current geometry and focus of the outgoing view,
 	2. marks the outgoing layer inactive (no route input, inert) and mounts the incoming layer,
 	3. moves task boxes by task id (FLIP) and cross-fades the layers in one ease-out transition,
-	4. moves focus to the same task id, or to the selected switch choice,
+	4. resolves focus by task id, then captured parent id, then the selected switch choice,
 	5. announces the final view in a polite live region.
 	All durations use motionDuration. Reduced motion swaps at once.
 -->
@@ -17,7 +17,18 @@
 	import { MOTION_SETTLE_MS, VIEW_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
+	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
+	import {
+		activeDiagramLayer,
+		diagramReturnFocus,
+		parentIdOf,
+		resolveTaskFocus,
+		revealTarget,
+		selectedDiagramChoice,
+		taskIdOf
+	} from './diagram-focus.ts';
+	import { setDiagramLayer } from './diagram-layer.ts';
 	import {
 		applyTransition,
 		captureGeometry,
@@ -25,13 +36,7 @@
 		type TaskGeometry
 	} from './diagram-motion.ts';
 	import DiagramStageLayer from './DiagramStageLayer.svelte';
-	import { focusSelectedChoice } from './DiagramViewSwitch.svelte';
-	import {
-		DIAGRAM_ATTR,
-		ROUTE_ATTR,
-		type DiagramViewId,
-		type DiagramViewProps
-	} from './view-contract.ts';
+	import { DIAGRAM_ATTR, type DiagramViewId, type DiagramViewProps } from './view-contract.ts';
 	import { getViewRegistry } from './view-registry.ts';
 
 	interface Props extends DiagramViewProps {
@@ -43,6 +48,7 @@
 
 	const registry = getViewRegistry();
 	const viewer = getViewer();
+	const ws = getWorkspace();
 	const active = $derived(registry.resolve(viewer.diagramView));
 
 	/** The delay before the announcement. Rapid changes announce only the final view. */
@@ -65,38 +71,144 @@
 
 	const layerElement = (key: number) =>
 		stage?.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.layer}="${key}"]`) ?? null;
+	const activeKey = $derived(layers.find((layer) => !layer.leaving)?.key);
+
+	setDiagramLayer({
+		active: true,
+		returnFocus: (taskId, from) =>
+			diagramReturnFocus(
+				{
+					planId: ws.plan.id,
+					viewId: active.id,
+					taskId,
+					parentId: parentIdOf(from, ws.index) ?? ws.index.byId.get(taskId)?.parentId ?? null,
+					from
+				},
+				{
+					planId: () => ws.plan.id,
+					viewId: () => active.id,
+					stage: () => stage,
+					get controls() {
+						return id;
+					},
+					onReveal: revealImmediately,
+					onFallback: () => announce(active.id, true)
+				}
+			)
+	});
+
+	interface FocusRecord {
+		element: HTMLElement;
+		taskId: string;
+		parentId: string | null;
+	}
+
+	function revealImmediately(row: { top: number; bottom: number }) {
+		onReveal(row, 'instant');
+	}
 
 	/**
 	 * The task id of the focused stage node. Focus on another stage control (for example a
 	 * milestone) gives 'switch': that control leaves with the outgoing view.
 	 */
-	function focusedTask(): string | 'switch' | null {
+	function focusedTask(): FocusRecord | 'switch' | null {
 		const focused = document.activeElement;
-		if (!stage || !(focused instanceof Element) || !stage.contains(focused)) return null;
-		return focused.closest(`[${ROUTE_ATTR.target}]`)?.getAttribute(ROUTE_ATTR.target) ?? 'switch';
+		const layer = activeDiagramLayer(stage);
+		if (!layer || !(focused instanceof HTMLElement) || !layer.contains(focused)) return null;
+		const taskId = taskIdOf(focused);
+		return taskId
+			? { element: focused, taskId, parentId: parentIdOf(focused, ws.index) }
+			: 'switch';
 	}
 
-	/** The task box if it takes focus, else the task label, else a keyboard route target. */
-	function focusTarget(root: HTMLElement, taskId: string): HTMLElement | null {
-		const id = CSS.escape(taskId);
-		const focusable = 'button, [tabindex]:not([tabindex="-1"])';
-		const candidates = [
-			root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.task}="${id}"]`),
-			root.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.label}="${id}"]`),
-			...root.querySelectorAll<HTMLElement>(
-				`[${ROUTE_ATTR.target}="${id}"][${ROUTE_ATTR.focus}="keyboard"]`
-			)
-		];
-		return candidates.find((element) => element?.matches(focusable)) ?? null;
+	function transferFocus(root: HTMLElement, target: FocusRecord | 'switch') {
+		const resolved = target === 'switch' ? 'switch' : resolveTaskFocus(root, target);
+		const element = resolved === 'switch' ? selectedDiagramChoice(id) : resolved;
+		if (element) {
+			element.focus({ preventScroll: true });
+			revealTarget(element, stage, revealImmediately);
+		}
+		return resolved === 'switch' || (target !== 'switch' && taskIdOf(element) !== target.taskId);
 	}
+
+	$effect(() => {
+		const root = activeKey === undefined ? null : layerElement(activeKey);
+		if (!root) return;
+		let record: FocusRecord | null = null;
+		let pendingBlur: FocusRecord | null = null;
+		const focusin = (event: FocusEvent) => {
+			pendingBlur = null;
+			const element = event.target;
+			const taskId = element instanceof HTMLElement ? taskIdOf(element) : null;
+			record =
+				taskId && element instanceof HTMLElement
+					? { element, taskId, parentId: parentIdOf(element, ws.index) }
+					: null;
+		};
+		const focusout = (event: FocusEvent) => {
+			const next = event.relatedTarget;
+			if (next instanceof Element) {
+				if (!root.contains(next) || !taskIdOf(next)) {
+					record = null;
+					pendingBlur = null;
+				}
+				return;
+			}
+			// Removal of the focused node also sends focusout with no relatedTarget, before the node
+			// is detached. Keep the record for the removal observer; clear it only after a real blur.
+			const left = record;
+			pendingBlur = left;
+			queueMicrotask(() => {
+				if (record !== left || !left?.element.isConnected) return;
+				// A move can queue this clear before the observer. Read that batch before clearing.
+				reconcileRemovals(observer.takeRecords());
+				if (record === left && pendingBlur === left) {
+					record = null;
+					pendingBlur = null;
+				}
+			});
+		};
+		const reconcileRemovals = (mutations: MutationRecord[]) => {
+			if (
+				!mutations.some((mutation) => mutation.removedNodes.length > 0) ||
+				!record ||
+				document.activeElement !== document.body ||
+				activeDiagramLayer(stage) !== root
+			)
+				return;
+			const target = record;
+			if (target.element.isConnected) {
+				const moved = mutations.some((mutation) =>
+					Array.from(mutation.removedNodes).some((node) => node.contains(target.element))
+				);
+				if (pendingBlur === target && root.contains(target.element) && moved) {
+					pendingBlur = null;
+					target.element.focus({ preventScroll: true });
+				}
+				return;
+			}
+			record = null;
+			pendingBlur = null;
+			if (transferFocus(root, target)) announce(active.id, true);
+		};
+		const observer = new MutationObserver(reconcileRemovals);
+		root.addEventListener('focusin', focusin);
+		root.addEventListener('focusout', focusout);
+		observer.observe(root, { childList: true, subtree: true });
+		return () => {
+			observer.disconnect();
+			root.removeEventListener('focusin', focusin);
+			root.removeEventListener('focusout', focusout);
+		};
+	});
 
 	let announced = untrack(() => active.id);
 
-	function announce(view: DiagramViewId) {
+	function announce(view: DiagramViewId, fallback = false) {
 		clearTimeout(announceTimer);
 		// Rapid changes announce only the final view. A return to the announced view is no change.
 		announceTimer = setTimeout(() => {
-			if (view === announced) return;
+			if (view === announced && !fallback) return;
 			announced = view;
 			const label = registry.get(view)?.label() ?? view;
 			announcement = '';
@@ -145,11 +257,9 @@
 		];
 		await tick();
 		const incoming = layerElement(key);
-		// Measure the destination before any transform: the FLIP start frame moves the boxes.
+		// Resolve and reveal before motion samples the destination geometry.
+		const fallback = target && incoming ? transferFocus(incoming, target) : false;
 		const destination = stage && incoming ? captureGeometry(incoming, stage) : null;
-		const focusElement =
-			target && target !== 'switch' && incoming ? focusTarget(incoming, target) : null;
-		const reveal = focusElement?.getBoundingClientRect();
 		if (stage && incoming && destination) {
 			// Keep only flights in progress. Finished and canceled ones hold removed elements.
 			animations = animations.filter((animation) => animation.playState === 'running');
@@ -173,13 +283,7 @@
 		// The outgoing layers lost route input above. Now their DOM can exit.
 		layers = layers.filter((layer) => !layer.leaving);
 
-		if (focusElement && reveal) {
-			focusElement.focus({ preventScroll: true });
-			onReveal({ top: reveal.top, bottom: reveal.bottom });
-		} else if (target) {
-			focusSelectedChoice(id);
-		}
-		announce(view);
+		announce(view, fallback);
 	}
 
 	let shown = untrack(() => active.id);

@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
 	import GanttLine from '#lib/components/timeline/GanttLine.svelte';
 	import RouteMapDecoration from './RouteMapDecoration.svelte';
 	import RouteMapStageLabel from './RouteMapStageLabel.svelte';
-	import { diagramRouteTargets } from '#lib/components/diagram/diagram-layer.ts';
+	import { diagramRouteTargets, getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
 	import {
@@ -36,6 +36,7 @@
 	const ws = getWorkspace();
 	const viewer = getViewer();
 	const editing = getEditing();
+	const layer = getDiagramLayer();
 	const model = $derived(
 		routeMapModel(
 			ws.plan,
@@ -126,25 +127,6 @@
 			)
 		)
 	);
-	$effect.pre(() => {
-		const visible = new Set(model.nodes.map((node) => node.id));
-		const active = document.activeElement;
-		if (!(active instanceof HTMLElement)) return;
-		const target = active.closest<HTMLElement>('[data-route-map-task]');
-		const id = target?.dataset.routeMapTask;
-		if (!id || visible.has(id)) return;
-		const parent = target.dataset.routeMapParent;
-		void tick().then(() => {
-			const replacement =
-				parent &&
-				root.querySelector<HTMLElement>(
-					`button[data-route-target="${CSS.escape(parent)}"][data-route-focus="keyboard"]`
-				);
-			(
-				replacement || document.querySelector<HTMLElement>('[data-testid="diagram-view-route-map"]')
-			)?.focus();
-		});
-	});
 	const childId = (id: string) =>
 		`${instanceId}-family-${Array.from(id, (c) => c.codePointAt(0)!.toString(16)).join('-')}`;
 
@@ -368,6 +350,7 @@
 				{#each groups as station (station.id)}
 					{@const node = nodes.get(station.id)!}
 					<RouteMapStation
+						returnFocus={layer.returnFocus}
 						{node}
 						{station}
 						stage={stages.get(node.stageId)!}
@@ -385,6 +368,7 @@
 						{#each layout.stations.filter((s) => nodes.get(s.id)?.parentId === node.id) as child (child.id)}
 							{@const childNode = nodes.get(child.id)!}
 							<RouteMapStation
+								returnFocus={layer.returnFocus}
 								node={childNode}
 								station={child}
 								stage={stages.get(childNode.stageId)!}

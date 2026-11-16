@@ -2,12 +2,14 @@ import '../../../routes/layout.css';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushSync, tick } from 'svelte';
 import { render } from 'vitest-browser-svelte';
-import { userEvent } from 'vitest/browser';
+import { userEvent, page } from 'vitest/browser';
+import { view as routeMapView } from '#lib/components/route-map/diagram-view.ts';
 import { view as ganttView } from '#lib/components/timeline/diagram-view.ts';
-import { makeTask } from '#lib/domain/test-helpers.ts';
+import { makePlan, makeTask } from '#lib/domain/test-helpers.ts';
 import { getLocale, overwriteGetLocale } from '#lib/paraglide/runtime.js';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { MemoryStorage } from '#lib/state/memory-storage.ts';
+import { PlanStorage } from '#lib/state/storage.ts';
 import { ViewerState } from '#lib/state/viewer.svelte.ts';
 import { Workspace } from '#lib/state/workspace.svelte.ts';
 import StageTest from './DiagramStage.test.svelte';
@@ -23,6 +25,17 @@ vi.mock('#lib/motion.ts', async (original) => ({
 const listView = fixtureView('test-list', { order: 15, label: 'Test list' });
 const rowView = fixtureView('test-row', { order: 25, label: 'Test row', layout: 'row' });
 const partialView = fixtureView('test-partial', { order: 35, label: 'Test partial', omit: ['b'] });
+const parentOnlyView = fixtureView('test-parent-only', {
+	order: 45,
+	label: 'Parent only',
+	omitSubtasks: true
+});
+const scrollView = fixtureView('test-scroll', {
+	order: 55,
+	label: 'Test scroll',
+	layout: 'row',
+	scroll: { height: 100, width: 140, paddingTop: 20, paddingLeft: 16 }
+});
 
 const originalLocale = getLocale;
 
@@ -47,9 +60,21 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-async function mount(registry: ViewRegistry, editing = new EditingState()) {
+async function mount(
+	registry: ViewRegistry,
+	editing = new EditingState(),
+	onReveal: (row: { top: number; bottom: number }) => void = () => {},
+	options: { withDialog?: boolean; workspace?: Workspace } = {}
+) {
 	const viewer = new ViewerState(new MemoryStorage(), registry.ids);
-	const screen = await render(StageTest, { workspace: ws, viewer, registry, editing });
+	const screen = await render(StageTest, {
+		workspace: options.workspace ?? ws,
+		viewer,
+		registry,
+		editing,
+		onReveal,
+		withDialog: options.withDialog ?? false
+	});
 	const container = screen.container;
 	const stage = container.querySelector<HTMLElement>('[data-testid="diagram-stage"]')!;
 	const layer = (view: string) =>
@@ -188,6 +213,68 @@ describe('focus across a view change', () => {
 		await expect.poll(() => document.activeElement).toBe(radio('Test partial'));
 	});
 
+	it('focuses the visible parent when the incoming view does not show the subtask', async () => {
+		ws.commit((plan) => {
+			const stageId = plan.stages[0].id;
+			plan.tasks = [
+				makeTask({ id: 'p', title: 'Parent', stageId, start: '2027-01-02', end: '2027-01-08' }),
+				makeTask({
+					id: 'sub',
+					title: 'Child',
+					parentId: 'p',
+					stageId,
+					start: '2027-01-03',
+					end: '2027-01-06'
+				})
+			];
+		});
+		const { task, select, settled } = await mount(
+			createViewRegistry([ganttView, listView, parentOnlyView])
+		);
+		select('test-list');
+		await settled();
+		task('test-list', 'sub')!.focus();
+		select('test-parent-only');
+		await expect.poll(focusPlace).toBe('test-parent-only:p');
+	});
+
+	it('reveals the focused target inside nested scrollers after a view change', async () => {
+		ws.commit((plan) => {
+			const stageId = plan.stages[0].id;
+			plan.tasks = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'].map((id) =>
+				makeTask({ id, title: id.toUpperCase(), stageId, start: '2027-01-02', end: '2027-01-08' })
+			);
+		});
+		const onReveal = vi.fn();
+		const { container, task, select, settled } = await mount(
+			createViewRegistry([ganttView, listView, scrollView]),
+			new EditingState(),
+			onReveal
+		);
+		select('test-list');
+		await settled();
+		task('test-list', 't8')!.focus();
+		select('test-scroll');
+		await expect.poll(focusPlace).toBe('test-scroll:t8');
+		await settled();
+
+		const outer = container.querySelector<HTMLElement>('[data-testid="fixture-row"]')!;
+		const inner = container.querySelector<HTMLElement>('[data-testid="fixture-scroller"]')!;
+		expect(outer.scrollTop).toBeGreaterThan(0);
+		expect(inner.scrollLeft).toBeGreaterThan(0);
+		const targetRect = task('test-scroll', 't8')!.getBoundingClientRect();
+		const outerRect = outer.getBoundingClientRect();
+		const innerRect = inner.getBoundingClientRect();
+		expect(targetRect.top).toBeGreaterThanOrEqual(outerRect.top + 20 - 1);
+		expect(targetRect.bottom).toBeLessThanOrEqual(outerRect.bottom + 1);
+		expect(targetRect.left).toBeGreaterThanOrEqual(innerRect.left + 16 - 1);
+		expect(targetRect.right).toBeLessThanOrEqual(innerRect.right + 1);
+		expect(onReveal).toHaveBeenCalledWith(
+			{ top: expect.any(Number), bottom: expect.any(Number) },
+			'instant'
+		);
+	});
+
 	it('keeps focus on the switch after a click on a choice', async () => {
 		const { radio, settled, stage } = await mount(threeViews());
 		await userEvent.click(radio('Test list'));
@@ -207,10 +294,71 @@ describe('focus across a view change', () => {
 	});
 });
 
+describe('focus on task disappearance', () => {
+	it('moves focus to the parent or switch when a focused task disappears, and ignores focus elsewhere', async () => {
+		ws.commit((plan) => {
+			const stageId = plan.stages[0].id;
+			plan.tasks = [
+				makeTask({ id: 'p', title: 'Parent', stageId }),
+				makeTask({ id: 'c1', title: 'Child 1', parentId: 'p', stageId }),
+				makeTask({ id: 'c2', title: 'Child 2', parentId: 'p', stageId }),
+				makeTask({ id: 'c3', title: 'Child 3', parentId: 'p', stageId }),
+				makeTask({ id: 't', title: 'Top', stageId })
+			];
+		});
+		const { container, task, select, settled, radio } = await mount(
+			createViewRegistry([ganttView, listView])
+		);
+		select('test-list');
+		await settled();
+
+		// Focused subtask disappears -> parent gets focus.
+		task('test-list', 'c1')!.focus();
+		ws.commit((plan) => {
+			plan.tasks = plan.tasks.filter((item) => item.id !== 'c1');
+		});
+		flushSync();
+		await expect.poll(focusPlace).toBe('test-list:p');
+
+		// Focus moved outside the stage clears the record -> subtask removal leaves focus outside.
+		task('test-list', 'c2')!.focus();
+		const outside = container.querySelector<HTMLElement>('[data-testid="outside"]')!;
+		outside.focus();
+		ws.commit((plan) => {
+			plan.tasks = plan.tasks.filter((item) => item.id !== 'c2');
+		});
+		flushSync();
+		await tick();
+		expect(document.activeElement).toBe(outside);
+
+		// Focus blurred to body clears the record -> subtask removal leaves focus on body.
+		const c3 = task('test-list', 'c3')!;
+		c3.focus();
+		c3.blur();
+		// A blur and a removal are separate user tasks.
+		await tick();
+		expect(document.activeElement).toBe(document.body);
+		ws.commit((plan) => {
+			plan.tasks = plan.tasks.filter((item) => item.id !== 'c3');
+		});
+		flushSync();
+		await tick();
+		expect(document.activeElement).toBe(document.body);
+
+		// Focused top-level task disappears -> selected switch choice gets focus.
+		task('test-list', 't')!.focus();
+		ws.commit((plan) => {
+			plan.tasks = plan.tasks.filter((item) => item.id !== 't');
+		});
+		flushSync();
+		await expect.poll(() => document.activeElement).toBe(radio('Test list'));
+	});
+});
+
 describe('view announcement', () => {
-	it('announces nothing on mount and only the final view after rapid changes', async () => {
+	it('announces nothing on mount, only the final view after rapid changes, and same-view fallback', async () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-		const { container, select, announcement } = await mount(threeViews());
+		const { container, task, radio, select, announcement } = await mount(threeViews());
 		await vi.advanceTimersByTimeAsync(400);
 		expect(announcement()).toBe('');
 		const regions = container.querySelectorAll('[aria-live="polite"]');
@@ -229,9 +377,117 @@ describe('view announcement', () => {
 		await tick();
 		await vi.advanceTimersByTimeAsync(400);
 		await tick();
-		observer.disconnect();
 		expect(announcement()).toBe('Test row view');
 		expect(said.filter((text) => text !== '')).toEqual(['Test row view']);
+
+		task('test-row', 'a')!.focus();
+		ws.commit((plan) => {
+			plan.tasks = plan.tasks.filter((item) => item.id !== 'a');
+		});
+		flushSync();
+		await expect.poll(() => document.activeElement).toBe(radio('Test row'));
+		await vi.advanceTimersByTimeAsync(400);
+		await tick();
+		observer.disconnect();
+		expect(announcement()).toBe('Test row view');
+		expect(said.filter((text) => text !== '')).toEqual(['Test row view', 'Test row view']);
+	});
+});
+
+describe('task dialog return focus across stage changes', () => {
+	it('keeps focus in the dialog when the diagram view changes and focuses the selected switch choice on close', async () => {
+		const { container, select, settled, radio } = await mount(
+			createViewRegistry([ganttView, routeMapView]),
+			new EditingState(),
+			() => {},
+			{ withDialog: true }
+		);
+		select('route-map');
+		await settled();
+
+		const station = container.querySelector<HTMLElement>(
+			'[data-diagram-view="route-map"] [data-route-target="a"][data-route-focus="keyboard"]'
+		)!;
+		await userEvent.click(station);
+		const dialog = page.getByTestId('task-dialog');
+		await expect.element(dialog).toBeVisible();
+		await expect
+			.poll(() =>
+				document.querySelector('[data-testid="task-dialog"]')?.contains(document.activeElement)
+			)
+			.toBe(true);
+
+		select('gantt');
+		await settled();
+		expect(
+			document.querySelector('[data-testid="task-dialog"]')?.contains(document.activeElement)
+		).toBe(true);
+
+		await userEvent.keyboard('{Escape}');
+		await expect.element(dialog).not.toBeInTheDocument();
+		await expect.poll(() => document.activeElement).toBe(radio('Gantt'));
+	});
+
+	it('keeps focus in the dialog when the active plan changes and focuses the selected switch choice on close', async () => {
+		const storage = new MemoryStorage();
+		const plan1 = makePlan([
+			makeTask({
+				id: 'a',
+				title: 'Plan 1 Alpha',
+				stageId: 's1',
+				start: '2027-01-02',
+				end: '2027-01-08'
+			})
+		]);
+		plan1.id = 'plan-1';
+		const plan2 = makePlan([
+			makeTask({
+				id: 'a',
+				title: 'Plan 2 Alpha',
+				stageId: 's1',
+				start: '2027-01-02',
+				end: '2027-01-08'
+			})
+		]);
+		plan2.id = 'plan-2';
+		const planStorage = new PlanStorage(storage);
+		planStorage.savePlan(plan1);
+		planStorage.savePlan(plan2);
+		planStorage.saveIndex({ planIds: ['plan-1', 'plan-2'], activeId: 'plan-1' });
+		const workspace = new Workspace(storage);
+
+		const { container, select, settled, radio } = await mount(
+			createViewRegistry([ganttView, routeMapView]),
+			new EditingState(),
+			() => {},
+			{ withDialog: true, workspace }
+		);
+		select('route-map');
+		await settled();
+
+		const station = container.querySelector<HTMLElement>(
+			'[data-diagram-view="route-map"] [data-route-target="a"][data-route-focus="keyboard"]'
+		)!;
+		await userEvent.click(station);
+		const dialog = page.getByTestId('task-dialog');
+		await expect.element(dialog).toBeVisible();
+		await expect
+			.poll(() =>
+				document.querySelector('[data-testid="task-dialog"]')?.contains(document.activeElement)
+			)
+			.toBe(true);
+
+		workspace.switchTo('plan-2');
+		flushSync();
+		await tick();
+		await expect.element(dialog).toBeVisible();
+		expect(
+			document.querySelector('[data-testid="task-dialog"]')?.contains(document.activeElement)
+		).toBe(true);
+
+		await userEvent.keyboard('{Escape}');
+		await expect.element(dialog).not.toBeInTheDocument();
+		await expect.poll(() => document.activeElement).toBe(radio('Route map'));
 	});
 });
 

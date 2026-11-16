@@ -8,6 +8,7 @@
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { taskStatusLabel } from '#lib/components/task/task-status.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
+	import type { DiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import { stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { readyLight } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay, joinSentences } from '#lib/domain/format.ts';
@@ -36,7 +37,8 @@
 		expanded,
 		controls,
 		description,
-		onTitleHeight
+		onTitleHeight,
+		returnFocus
 	}: {
 		sign?: RouteMapSign;
 		stages: ReadonlyMap<string, Stage>;
@@ -50,6 +52,7 @@
 		controls: string;
 		description: string;
 		onTitleHeight?: (id: string, height: number) => void;
+		returnFocus?: DiagramLayer['returnFocus'];
 	} = $props();
 	const ws = getWorkspace();
 	const viewer = getViewer();
@@ -119,7 +122,10 @@
 				node.id,
 				editing.routeFocus.tokenFor(event.currentTarget as Element)
 			);
-		else editing.openDetails(node.id, button);
+		else openDetails(button);
+	}
+	function openDetails(from: HTMLElement) {
+		editing.openDetails(node.id, from, returnFocus?.(node.id, from));
 	}
 	function hover(event: PointerEvent, enter: boolean) {
 		const token = editing.routeFocus.tokenFor(event.currentTarget as Element);
@@ -133,7 +139,6 @@
 		class="contents"
 		role="group"
 		data-route-map-task={node.id}
-		data-route-map-parent={node.parentId ?? undefined}
 		data-route-target={node.id}
 		use:routeTarget={node.id}
 		onpointerenter={(e) => hover(e, true)}
@@ -180,7 +185,7 @@
 		<Hint text={title} side="bottom">
 			{#snippet child({ props })}
 				<button
-					{...mergeProps(props, { onclick: () => editing.openDetails(node.id, button) })}
+					{...mergeProps(props, { onclick: () => openDetails(button) })}
 					type="button"
 					class="absolute z-10 rounded-sm text-center text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring"
 					style:left="{geom.current.labelBox.x}px"

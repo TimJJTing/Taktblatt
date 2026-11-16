@@ -4,6 +4,7 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import StationDot from '#lib/components/diagram/StationDot.svelte';
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
+	import { getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import { markColorLevel, stageColorVar } from '#lib/components/plan/colors.ts';
 	import { joinList } from '#lib/domain/format.ts';
@@ -24,6 +25,10 @@
 	}
 	let { card, color, dimmed, target, onNavigate }: Props = $props();
 	const editing = getEditing();
+	const layer = getDiagramLayer();
+	function openDetails(from: HTMLElement) {
+		editing.openDetails(card.id, from, layer.returnFocus?.(card.id, from));
+	}
 	const locale = uiIntl();
 	const descId = $props.id();
 	const title = $derived(card.title || m.task_untitled());
@@ -101,8 +106,7 @@
 		<Hint text={title}
 			>{#snippet child({ props })}<button
 					{...mergeProps(props, {
-						onclick: (event: MouseEvent) =>
-							editing.openDetails(card.id, event.currentTarget as HTMLElement),
+						onclick: (event: MouseEvent) => openDetails(event.currentTarget as HTMLElement),
 						onkeydown: (event: KeyboardEvent) => onNavigate(event, card.id)
 					})}
 					type="button"

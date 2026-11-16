@@ -1249,6 +1249,45 @@ export async function workspaceTabSize(page: Page) {
 	});
 }
 
+/** Samples Timeline expanded state and floating-island size across frames until settled. */
+export async function startTimelineIslandMonitor(page: Page) {
+	const monitor = await page.evaluateHandle(() => {
+		const read = () => {
+			const island = document.querySelector<HTMLElement>('[data-testid="workspace-tabs"]')!;
+			const tab = island.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!;
+			const icon = tab.querySelector('svg')!.getBoundingClientRect();
+			const handle = document.querySelector<HTMLElement>('button#timeline-collapse');
+			return {
+				expanded: handle?.getAttribute('aria-expanded') ?? null,
+				island: island.getBoundingClientRect().height,
+				tab: tab.getBoundingClientRect().height,
+				iconWidth: icon.width,
+				iconHeight: icon.height
+			};
+		};
+		const state = { frames: [read()], stopped: false, done: false, until: Infinity };
+		const sample = () => {
+			state.frames.push(read());
+			if (!state.stopped || performance.now() < state.until) requestAnimationFrame(sample);
+			else state.done = true;
+		};
+		requestAnimationFrame(sample);
+		return state;
+	});
+	return {
+		async finish() {
+			const frames = await monitor.evaluate(async (state) => {
+				state.stopped = true;
+				state.until = performance.now() + 400;
+				while (!state.done) await new Promise(requestAnimationFrame);
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
+
 export const planPane = (page: Page) => page.getByTestId('plan-pane');
 export const workPane = (page: Page) => page.getByTestId('work-pane');
 
@@ -1966,6 +2005,56 @@ export async function expectView(page: Page, id: string): Promise<void> {
 export async function chooseView(page: Page, id: string): Promise<void> {
 	await page.getByTestId(`diagram-view-${id}`).click();
 	await expectView(page, id);
+}
+
+/** Verifies a Kanban focus target is fully contained in its scrollers, Timeline body, viewport, and below the sticky heading. */
+export async function expectKanbanFocusContained(target: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			target.evaluate((element) => {
+				const item = element.getBoundingClientRect();
+				const board = element.closest('[data-testid="kanban"]')!;
+				const scroll = board
+					.querySelector('[data-testid="kanban-scroll"]')!
+					.getBoundingClientRect();
+				const stripRect = board
+					.querySelector('[data-testid="kanban-strip"]')!
+					.getBoundingClientRect();
+				const heading = board
+					.querySelector('[data-testid="kanban-heading"]')!
+					.getBoundingClientRect();
+				const body = element.closest('[data-testid="timeline-body"]')!.getBoundingClientRect();
+				return {
+					belowHeading: item.top >= heading.bottom - 1,
+					insideScroll: item.top >= scroll.top - 1 && item.bottom <= scroll.bottom + 1,
+					insideStrip: item.left >= stripRect.left - 1 && item.right <= stripRect.right + 1,
+					insideBody:
+						item.top >= body.top - 1 &&
+						item.bottom <= body.bottom + 1 &&
+						item.left >= body.left - 1 &&
+						item.right <= body.right + 1,
+					insideViewport:
+						item.top >= 0 &&
+						item.bottom <= window.innerHeight &&
+						item.left >= 0 &&
+						item.right <= window.innerWidth,
+					rects: {
+						item: { top: item.top, bottom: item.bottom, left: item.left, right: item.right },
+						headingBottom: heading.bottom,
+						scroll: { top: scroll.top, bottom: scroll.bottom },
+						strip: { left: stripRect.left, right: stripRect.right },
+						body: { top: body.top, bottom: body.bottom, left: body.left, right: body.right }
+					}
+				};
+			})
+		)
+		.toMatchObject({
+			belowHeading: true,
+			insideScroll: true,
+			insideStrip: true,
+			insideBody: true,
+			insideViewport: true
+		});
 }
 
 /**
