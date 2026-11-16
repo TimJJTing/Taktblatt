@@ -45,21 +45,26 @@ describe('Workflow Route map dependency carriers', () => {
 		expect(r.routes.map((edge) => edge.carrier)).toEqual(['walkway', 'walkway']);
 		for (const id of ['a', 'b', 'c'])
 			expect(r.layout.signs.find((s) => s.stationId === id)?.kind).toBe('interchange');
-		expect(r.routes.every((edge) => edge.dock === undefined)).toBe(true);
+		expect(r.routes.every((edge) => !('dock' in edge))).toBe(true);
 		expectClearRoutes(r.layout, r.routes);
 	});
-	it('uses termini for zero-incoming or zero-outgoing nodes and no sign for an interior same-stage node', () => {
+	it('uses no terminus signs at workflow endpoints or interior stations', () => {
 		const r = scene(
-			makePlan([
-				task({ id: 'a', start: '2028-01-01' }),
-				task({ id: 'b', start: '2028-01-02', dependsOn: ['a'] }),
-				task({ id: 'c', start: '2028-01-03', dependsOn: ['b'] }),
-				task({ id: 'alone', start: '2029-01-01' })
-			])
+			makePlan(
+				[
+					task({ id: 'a', start: '2028-01-01' }),
+					task({ id: 'b', start: '2028-01-02', dependsOn: ['a'] }),
+					task({ id: 'c', start: '2028-01-03', dependsOn: ['b'] }),
+					task({ id: 'cross', stageId: 's2', dependsOn: ['c'] })
+				],
+				['s1', 's2']
+			)
 		);
-		for (const id of ['a', 'alone'])
-			expect(r.layout.signs.find((s) => s.stationId === id)?.kind).toBe('terminus');
-		expect(r.layout.signs.some((s) => s.stationId === 'b' || s.stationId === 'c')).toBe(false);
+		expect(r.layout.signs.map((sign) => sign.kind)).not.toContain('terminus');
+		expect(r.layout.signs.map((sign) => [sign.stationId, sign.kind]).sort()).toEqual([
+			['c', 'interchange'],
+			['cross', 'interchange']
+		]);
 	});
 	it('keeps all fork and join dependencies as lines without synthesizing sibling connections', () => {
 		const r = scene(
@@ -209,7 +214,7 @@ describe('Workflow Route map dependency carriers', () => {
 		).toEqual(['S->X', 'X->P']);
 		for (const edge of r.routes.filter((edge) => edge.cycle)) {
 			expect(edge.carrier).toBe('walkway');
-			expect(edge.dock).toBeUndefined();
+			expect('dock' in edge).toBe(false);
 			expectOctilinear(edge.points);
 		}
 		expectCoverage(r.model, r.routes);

@@ -52,28 +52,18 @@ export interface RouteMapLine {
 }
 
 export interface RouteMapSign {
-	kind: 'terminus' | 'interchange';
+	kind: 'interchange' | 'empty-stage';
 	stationId: string | null;
 	stageId: string;
 	center: RouteMapPoint;
 	width: number;
 	height: number;
-	slots: number;
 	outlineWidth: number;
-	docks?: readonly {
-		key: string;
-		stageId: string;
-		point: RouteMapPoint;
-		carrier: RouteMapRoute['carrier'];
-	}[];
 }
 export interface RouteMapStageLabel {
 	stageId: string;
 	hostId: string | null;
-	role: 'start' | 'end' | 'both';
 	box: RouteMapBox;
-	titleBox?: RouteMapBox;
-	progressBox?: RouteMapBox;
 }
 export interface RouteMapLayout {
 	stations: readonly RouteMapStation[];
@@ -232,6 +222,17 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 	const roots = model.nodes.filter((node) => !node.parentId);
 	const workflow = stageWorkflow(model);
 	const actual = classifyRouteMapEdges(model);
+	// Badge hosts use each stage's ordinary dependency order, before workflow adjacency.
+	const badgeHosts = new Set(
+		model.stages.flatMap((stage) => {
+			const nodes = roots.filter((node) => node.stageId === stage.id);
+			const first = dependencyOrder(
+				nodes,
+				actual.filter((edge) => edge.carrier === 'line')
+			)[0]?.node;
+			return first ? [first.id] : [];
+		})
+	);
 	const scopePairs = [...actual.filter((edge) => edge.carrier === 'line'), ...workflow];
 	// Paths constrain placement. Only ordinary rails determine order within each scope.
 	const orderingPairs = [...actual.filter((edge) => !edge.cycle), ...workflow];
@@ -365,7 +366,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 			]
 		});
 	}
-	const rowCount = Math.max(0, ...tracks.values()) + 1;
+	const rowCount = Math.max(-1, ...tracks.values()) + 1;
 	const corridors: RouteMapLayout['corridors'][number][] = [];
 	const rowTop = new Map<number, number>();
 	for (let row = 0; row < rowCount; row++) {
@@ -409,10 +410,6 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 				? 32
 				: 16
 		);
-	const workflowLinks = [...actual.filter((edge) => edge.carrier === 'line'), ...workflow];
-	const endpoint = (id: string) =>
-		!workflowLinks.some((edge) => edge.to === id) ||
-		!workflowLinks.some((edge) => edge.from === id);
 	const belowTransfers = new Set(
 		actual
 			.filter(
@@ -430,15 +427,6 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 			paper ? 15 : 21,
 			belowTransfers.has(node.id) ? hit / 2 + 2 * clearance + 6 : 0
 		);
-	const crossStageIds = new Set(
-		model.edges
-			.filter(
-				(edge) =>
-					model.nodes.find((node) => node.id === edge.from)!.stageId !==
-					model.nodes.find((node) => node.id === edge.to)!.stageId
-			)
-			.flatMap((edge) => [edge.from, edge.to])
-	);
 	const rowYs = new Map<number, number>();
 	let bottom = clearance + 4;
 	for (let row = 0; row < rowCount; row++) {
@@ -456,7 +444,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 							labelOffset(node) +
 							titleHeight(node) +
 							(!paper && hasChildren(node.id) ? 24 : 0) +
-							(endpoint(node.id) || crossStageIds.has(node.id) ? 24 : 0)
+							(badgeHosts.has(node.id) ? 24 : 0)
 					)
 			) +
 			12;
@@ -587,56 +575,26 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 	layout.signs = stations.flatMap((station) => {
 		const node = model.nodes.find((node) => node.id === station.id)!;
 		const cross = model.edges.some(
-			(edge) =>
-				(edge.from === station.id || edge.to === station.id) &&
-				model.nodes.find((n) => n.id === (edge.from === station.id ? edge.to : edge.from))!
-					.stageId !== node.stageId
+			(edge) => (edge.from === station.id || edge.to === station.id) && edge.crossStage
 		);
-		const terminus = endpoint(station.id);
-		if (!cross && !terminus) return [];
+		if (!cross) return [];
 		return [
 			{
-				kind: cross ? ('interchange' as const) : ('terminus' as const),
+				kind: 'interchange' as const,
 				stationId: station.id,
 				stageId: node.stageId,
 				center: station.center,
-				width: paper
-					? cross
-						? node.parentId
-							? 7.5
-							: 10
-						: 12
-					: cross
-						? node.parentId
-							? 12
-							: 16
-						: 20,
-				height: paper
-					? cross
-						? node.parentId
-							? 15
-							: 20
-						: 12
-					: cross
-						? node.parentId
-							? 24
-							: 32
-						: 20,
-				slots: 1,
+				width: paper ? 10 : 16,
+				height: paper ? 20 : 32,
 				outlineWidth: paper ? 2 : 3
 			}
 		];
 	});
 	layout.stageLabels = stations
-		.filter(
-			(station) =>
-				endpoint(station.id) ||
-				layout.signs.some((sign) => sign.stationId === station.id && sign.kind === 'interchange')
-		)
+		.filter((station) => badgeHosts.has(station.id))
 		.map((station) => ({
 			stageId: model.nodes.find((node) => node.id === station.id)!.stageId,
 			hostId: station.id,
-			role: 'start' as const,
 			box: {
 				x: station.labelBox.x,
 				y: station.labelBox.y + station.labelBox.h + 4,
@@ -644,6 +602,33 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 				h: 20
 			}
 		}));
+	// Empty stages occupy separate rows below the task bounds, in stage order.
+	const placeholders: RouteMapSign[] = [];
+	for (const stage of model.stages.filter(
+		(stage) => !model.nodes.some((node) => node.stageId === stage.id)
+	)) {
+		const size = paper ? 6 : 8;
+		const center = { x: columnXs.get(0)!, y: bottom + hit / 2 + clearance };
+		const box = {
+			x: center.x - metrics.labelWidth / 2,
+			y: center.y + Math.max(hit / 2 + clearance, paper ? 15 : 21),
+			w: metrics.labelWidth,
+			h: 20
+		};
+		placeholders.push({
+			kind: 'empty-stage',
+			stationId: null,
+			stageId: stage.id,
+			center,
+			width: size,
+			height: size,
+			outlineWidth: 1.5
+		});
+		layout.stageLabels = [...layout.stageLabels, { stageId: stage.id, hostId: null, box }];
+		bottom = box.y + box.h + 12;
+	}
+	layout.signs = [...layout.signs, ...placeholders];
+	layout.height = bottom;
 	// Keep the canvas at the rendered content and focus bounds, without an unused end gutter.
 	layout.width = Math.max(
 		1,

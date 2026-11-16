@@ -58,7 +58,6 @@ export interface RouteMapPaperItem {
 	titles: readonly { taskId: string; reference: string; text: string }[];
 	edges: readonly RouteMapRoute[];
 	continuations: readonly RouteMapContinuation[];
-	termini: readonly { stageId: string; toGo: number }[];
 	markers?: readonly RouteMapContinuationMarker[];
 	markerY?: number;
 	titleY?: number;
@@ -187,7 +186,6 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		titles: [],
 		edges: [],
 		continuations: [],
-		termini: [],
 		lines: [],
 		signs: [],
 		stageLabels: []
@@ -298,29 +296,12 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				reference: refs.get(s.id)!,
 				labelLines: labelLines(s.id, s.labelBox.w).slice(0, 2)
 			}));
-			item.edges = edges.map((r) => ({
-				...r,
-				...(r.carrier === 'walkway' && r.dock
-					? {
-							lane: layout.routes
-								.filter((other) => other.carrier === 'walkway' && other.to === r.to)
-								.findIndex((other) => other.key === r.key)
-						}
-					: {}),
-				points: r.points.map(point),
-				...(r.dock ? { dock: { ...r.dock, point: point(r.dock.point) } } : {})
-			}));
+			item.edges = edges.map((r) => ({ ...r, points: r.points.map(point) }));
 			item.lines = lines.map((l) => ({ ...l, points: l.points.map(point) }));
-			item.signs = signs.map((s) => ({
-				...s,
-				center: point(s.center),
-				docks: s.docks?.map((d) => ({ ...d, point: point(d.point) }))
-			}));
+			item.signs = signs.map((s) => ({ ...s, center: point(s.center) }));
 			item.stageLabels = labels.map((l) => ({
 				...l,
-				box: box(l.box),
-				titleBox: l.titleBox && box(l.titleBox),
-				progressBox: l.progressBox && box(l.progressBox)
+				box: box(l.box)
 			}));
 			item.junctions = layout.junctions
 				.filter((j) => j.memberKeys.every((key) => edges.some((r) => r.key === key)))
@@ -430,17 +411,20 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 			item.signs = signs
 				.filter((sign) => sign.stationId && local.has(sign.stationId))
 				.map((sign) => ({ ...sign, center: local.get(sign.stationId!)!.center }));
-			item.stageLabels = item.stations.map((station) => ({
-				stageId: nodes.get(station.id)!.stageId,
-				hostId: station.id,
-				role: 'start',
-				box: {
-					x: station.labelBox.x,
-					y: station.labelBox.y + station.labelBox.h + 4,
-					w: station.labelBox.w,
-					h: 20
-				}
-			}));
+			item.stageLabels = labels
+				.filter((label) => label.hostId && local.has(label.hostId))
+				.map((label) => {
+					const station = local.get(label.hostId!)!;
+					return {
+						...label,
+						box: {
+							x: station.labelBox.x,
+							y: station.labelBox.y + station.labelBox.h + 4,
+							w: station.labelBox.w,
+							h: 20
+						}
+					};
+				});
 			const previous = items.at(-1);
 			const previousIds = new Set(previous?.stations.map((station) => station.id) ?? []);
 			const separated =
@@ -499,6 +483,31 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				items.push(item);
 				for (const station of item.stations) stationItems.set(station.id, item);
 			}
+		}
+		// A fragmented panel keeps each empty stage in one complete placeholder item.
+		for (const sign of decorative) {
+			const size = sign.width;
+			const center = { x: panelWidth / 2, y: metrics.clearance + size / 2 };
+			const labelWidth = Math.min(metrics.labelWidth, panelWidth - 2 * metrics.clearance);
+			const box = {
+				x: center.x - labelWidth / 2,
+				y: center.y + 15,
+				w: labelWidth,
+				h: 20
+			};
+			const item = empty(
+				`empty-stage:${panel.id}:${sign.stageId}`,
+				panel.id,
+				panelWidth,
+				box.y + box.h + metrics.clearance
+			);
+			item.lineY = center.y;
+			item.stageId = sign.stageId;
+			item.signs = [{ ...sign, center }];
+			item.stageLabels = labels
+				.filter((label) => label.hostId === null && label.stageId === sign.stageId)
+				.map((label) => ({ ...label, box }));
+			items.push(item);
 		}
 	}
 

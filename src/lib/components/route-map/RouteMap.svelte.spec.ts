@@ -714,35 +714,150 @@ describe('Route map station interactions', () => {
 		for (const branch of families) {
 			expect(getComputedStyle(branch).strokeWidth).toBe('6px');
 		}
-		expect(root.querySelectorAll('[data-testid="route-map-stage-label"]')).toHaveLength(4);
+		expect(root.querySelectorAll('[data-testid="route-map-stage-label"]')).toHaveLength(1);
 		expect(root.querySelector('[data-stage-progress]')).toBeNull();
 	});
 
-	it('gives every station its own stage badge and cross-stage endpoints a capsule', async () => {
+	it('places one badge at the first top-level station of each fable stage in both states', async () => {
 		motion.reduced = true;
-		workspace.commit((plan) => {
-			Object.assign(plan, fablePlan());
-		});
-		viewer.setExpanded(workspace.plan.id, 'soil', true);
+		workspace.commit((plan) => Object.assign(plan, fablePlan()));
 		const screen = await mount(),
 			root = screen.container;
-		const model = routeMapModel(workspace.plan, new Set(['soil']), workspace.index);
-		const labels = [...root.querySelectorAll<HTMLElement>('[data-testid="route-map-stage-label"]')];
-		expect(labels).toHaveLength(model.nodes.length);
-		for (const node of model.nodes) {
-			const badge = labels.find((l) => l.dataset.host === node.id)!;
-			expect(badge.dataset.stage).toBe(node.stageId);
-			expect(badge.dataset.role).toBe('start');
-			expect(badge.querySelector('[data-stage-progress]')).toBeNull();
-			expect(badge.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-				label(root, node.id).getBoundingClientRect().bottom
+		for (const expanded of [false, true]) {
+			viewer.setExpanded(workspace.plan.id, 'soil', expanded);
+			flushSync();
+			const badges = [
+				...root.querySelectorAll<HTMLElement>('[data-testid="route-map-stage-label"]')
+			];
+			expect(badges.map((badge) => badge.dataset.host).sort()).toEqual(
+				['survey', 'water', 'stall'].sort()
 			);
+			for (const badge of badges) {
+				expect(badge.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+					label(root, badge.dataset.host!).getBoundingClientRect().bottom
+				);
+			}
+			for (const id of ['soil', 'seeds', 'water', 'stall'])
+				expect(
+					root.querySelector(`[data-testid="route-map-interchange"][data-station="${id}"]`)
+				).not.toBeNull();
 		}
-		for (const id of ['soil', 'seeds', 'water', 'stall'])
-			expect(
-				root.querySelector(`[data-testid="route-map-interchange"][data-station="${id}"]`)
-			).not.toBeNull();
-		expect(root.querySelector('[data-carrier="lead-in"]')).toBeNull();
+	});
+
+	it('renders one station size and equal empty child and top-level transfers', async () => {
+		motion.reduced = true;
+		const plan = fablePlan();
+		plan.tasks.find((task) => task.id === 'water')!.dependsOn.push('test');
+		workspace.commit((current) => Object.assign(current, plan));
+		viewer.setExpanded(workspace.plan.id, 'soil', true);
+		const root = (await mount()).container;
+		const glyphs = [...root.querySelectorAll<SVGElement>('[data-route-map-station-glyph]')];
+		expect(glyphs).toHaveLength(plan.tasks.length);
+		for (const glyph of glyphs) {
+			const box = glyph.getBoundingClientRect();
+			expect([box.width, box.height]).toEqual([8, 8]);
+			expect(glyph.querySelectorAll('circle')).toHaveLength(1);
+			expect(glyph.querySelectorAll('path, line, rect, polygon, polyline')).toHaveLength(0);
+			expect(glyph.querySelector('circle')!.getAttribute('fill')).toBe('var(--station-ground)');
+		}
+		expect(root.querySelector('[data-testid="route-map-terminus"]')).toBeNull();
+		expect(root.querySelector('[data-dock-dot]')).toBeNull();
+		for (const id of ['test', 'water']) {
+			const box = root
+				.querySelector(`[data-testid="route-map-interchange"][data-station="${id}"]`)!
+				.getBoundingClientRect();
+			expect([box.width, box.height]).toEqual([16, 32]);
+		}
+	});
+
+	it('lists the map signs in order with hidden sample graphics', async () => {
+		const root = (await mount()).container;
+		const key = root.querySelector('ul[aria-label="Map signs"]')!;
+		expect(key).not.toBeNull();
+		expect([...key.querySelectorAll('li')].map((item) => item.textContent?.trim())).toEqual([
+			'Stage journey',
+			'Subtask route',
+			'Station',
+			'Transfer',
+			'Cross-stage dependency',
+			'Dependency cycle'
+		]);
+		const samples = [...key.querySelectorAll('li svg')];
+		expect(samples).toHaveLength(6);
+		for (const sample of samples) expect(sample.getAttribute('aria-hidden')).toBe('true');
+	});
+
+	it('shows a neutral placeholder and badge for an empty stage with its screen reader count', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => {
+			plan.stages.push({ id: 'empty', title: 'Empty stage', description: '', color: 'green' });
+			plan.tasks = [makeTask({ id: 'only', stageId: 's1' })];
+		});
+		const root = (await mount()).container;
+		expect(root.querySelectorAll('[data-route-map-station-glyph]')).toHaveLength(2);
+		expect(
+			root.querySelectorAll('[data-testid="route-map-stage-label"][data-stage="empty"]')
+		).toHaveLength(1);
+		const count = [...root.querySelectorAll('.sr-only')].find((element) =>
+			/Empty stage\s+0 to go/.test(element.textContent ?? '')
+		);
+		expect(count).toBeDefined();
+		expect(root.querySelectorAll('[data-route-map-status]')).toHaveLength(1);
+		const placeholder = [
+			...root.querySelectorAll<SVGElement>('[data-route-map-station-glyph]')
+		].find((glyph) => !glyph.closest('[data-diagram-task]'))!;
+		expect(placeholder).toBeDefined();
+		const probe = document.createElement('span');
+		probe.style.color = 'var(--foreground)';
+		root.appendChild(probe);
+		expect(getComputedStyle(placeholder).color).toBe(getComputedStyle(probe).color);
+		probe.remove();
+	});
+
+	it('prints a neutral ring and badge without a status icon for an empty stage', async () => {
+		const plan = fablePlan();
+		plan.stages = [plan.stages[0], { ...plan.stages[1], id: 'empty', title: 'Empty stage' }];
+		plan.tasks = [plan.tasks[0]];
+		const model = routeMapModel(plan, new Set(), indexTasks(plan.tasks));
+		const paper = routeMapPaper(model, {
+			...screenMetrics,
+			sheetWidth: 1200,
+			sheetHeight: 900,
+			margin: 24,
+			repeatedLabelWidth: 0,
+			gutter: 0,
+			headerHeight: 36,
+			footerHeight: 54,
+			lineHeight: 16
+		});
+		const segment = {
+			...paper.segment,
+			data: { stages: plan.stages, nodes: model.nodes, panels: paper.panels }
+		};
+		const printed = await render(PrintRouteMap, {
+			segment,
+			from: 0,
+			to: segment.items.length,
+			first: true,
+			width: 1100
+		});
+		const root = printed.container;
+		const glyphs = [...root.querySelectorAll<SVGElement>('[data-route-map-station-glyph]')];
+		const placeholder = glyphs.find((glyph) => !glyph.closest('[data-paper-station]'))!;
+		expect(glyphs).toHaveLength(2);
+		expect(placeholder).toBeDefined();
+		expect(placeholder.getBoundingClientRect().width).toBe(6);
+		expect(placeholder.getBoundingClientRect().height).toBe(6);
+		expect(placeholder.querySelectorAll('circle')).toHaveLength(1);
+		const probe = document.createElement('span');
+		probe.style.color = 'var(--color-paper-ink, #1A1D23)';
+		root.appendChild(probe);
+		expect(getComputedStyle(placeholder).color).toBe(getComputedStyle(probe).color);
+		probe.remove();
+		expect(
+			root.querySelectorAll('[data-testid="route-map-stage-label"][data-stage="empty"]')
+		).toHaveLength(1);
+		expect(root.querySelectorAll('[data-route-map-status]')).toHaveLength(1);
 	});
 
 	it('keeps family membership out of lit keys for the real example and independent children', async () => {
@@ -1209,7 +1324,7 @@ describe('Route map station interactions', () => {
 		const child = printed.container.querySelector(
 			'[data-paper-station="child"] [data-route-map-station-glyph]'
 		)!;
-		expect(child.getAttribute('width')).toBe('4');
+		expect(child.getAttribute('width')).toBe('6');
 		const thin = [
 			...printed.container.querySelectorAll<SVGElement>(
 				'[data-carrier="walkway"] [data-carrier-path]'

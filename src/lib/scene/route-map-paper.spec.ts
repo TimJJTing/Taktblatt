@@ -79,7 +79,114 @@ function expectPairs(paper: RouteMapPaper) {
 	}
 }
 
+function expectEmptyStage(paper: RouteMapPaper, stageId: string) {
+	const signs = paper.segment.items.flatMap((item) =>
+		item.signs
+			.filter((sign) => sign.kind === 'empty-stage' && sign.stageId === stageId)
+			.map((sign) => ({ item, sign }))
+	);
+	const labels = paper.segment.items.flatMap((item) =>
+		item.stageLabels
+			.filter((label) => label.stageId === stageId && label.hostId === null)
+			.map((label) => ({ item, label }))
+	);
+	expect(signs).toHaveLength(1);
+	expect(labels).toHaveLength(1);
+	const { item, sign } = signs[0];
+	expect(sign.stationId).toBeNull();
+	expect(labels[0].item).toBe(item);
+	const box = labels[0].label.box;
+	for (const value of [
+		item.width,
+		item.height,
+		sign.center.x,
+		sign.center.y,
+		sign.width,
+		sign.height,
+		box.x,
+		box.y,
+		box.w,
+		box.h
+	])
+		expect(Number.isFinite(value)).toBe(true);
+	expect(sign.center.x - sign.width / 2).toBeGreaterThanOrEqual(0);
+	expect(sign.center.y - sign.height / 2).toBeGreaterThanOrEqual(0);
+	expect(sign.center.x + sign.width / 2).toBeLessThanOrEqual(item.width);
+	expect(sign.center.y + sign.height / 2).toBeLessThanOrEqual(item.height);
+	expect(box.x).toBeGreaterThanOrEqual(0);
+	expect(box.y).toBeGreaterThanOrEqual(0);
+	expect(box.x + box.w).toBeLessThanOrEqual(item.width);
+	expect(box.y + box.h).toBeLessThanOrEqual(item.height);
+}
+
 describe('Workflow Route map paper', () => {
+	it('keeps an empty stage with its badge on a fitting panel', () => {
+		const plan = makePlan(
+			[task({ id: 'a' }), task({ id: 'b', dependsOn: ['a'] })],
+			['s1', 'empty']
+		);
+		const paper = routeMapPaper(
+			routeMapModel(plan, new Set(), indexTasks(plan.tasks)),
+			exampleMetrics()
+		);
+		expect(paper.segment.items).toHaveLength(1);
+		expectEmptyStage(paper, 'empty');
+		expect(
+			paper.segment.items.flatMap((item) => item.stations.map((station) => station.id)).sort()
+		).toEqual(plan.tasks.map((task) => task.id).sort());
+	});
+
+	it('keeps an empty stage with its badge when an expanded family fragments', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'p' }),
+				...Array.from({ length: 30 }, (_, i) => task({ id: `child-${i}`, parentId: 'p' }))
+			],
+			['s1', 'empty']
+		);
+		const m = { ...exampleMetrics(), sheetWidth: 420, sheetHeight: 380 };
+		const paper = routeMapPaper(routeMapModel(plan, new Set(['p']), indexTasks(plan.tasks)), m);
+		expect(paper.segment.items.some((item) => item.id.startsWith('row:'))).toBe(true);
+		expectEmptyStage(paper, 'empty');
+		expect(
+			paper.segment.items.flatMap((item) => item.stations.map((station) => station.id)).sort()
+		).toEqual(plan.tasks.map((task) => task.id).sort());
+	});
+
+	it('prints one placeholder and badge per stage when all stages are empty', () => {
+		const plan = makePlan([], ['s1', 's2', 's3']);
+		const paper = routeMapPaper(
+			routeMapModel(plan, new Set(), indexTasks(plan.tasks)),
+			exampleMetrics()
+		);
+		for (const stage of plan.stages) expectEmptyStage(paper, stage.id);
+		expect(paper.segment.items.flatMap((item) => item.signs)).toHaveLength(3);
+		expect(paper.segment.items.flatMap((item) => item.stageLabels)).toHaveLength(3);
+		expect(paper.segment.items.flatMap((item) => item.stations)).toHaveLength(0);
+	});
+
+	it('prints equal empty transfer capsules for a child and a top-level task without termini', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'parent' }),
+				task({ id: 'child', parentId: 'parent' }),
+				task({ id: 'external', stageId: 's2', dependsOn: ['child'] })
+			],
+			['s1', 's2']
+		);
+		const paper = routeMapPaper(
+			routeMapModel(plan, new Set(['parent']), indexTasks(plan.tasks)),
+			metrics()
+		);
+		const signs = paper.segment.items.flatMap((item) => item.signs);
+		expect(signs.map((sign) => sign.kind)).not.toContain('terminus');
+		for (const id of ['child', 'external']) {
+			const sign = signs.find((sign) => sign.stationId === id && sign.kind === 'interchange')!;
+			expect([sign.width, sign.height]).toEqual([10, 20]);
+			expect(sign).not.toHaveProperty('docks');
+		}
+	});
+
 	it('groups four-by-four continuations into one marker per station and side', () => {
 		const plan = makePlan(
 			[
@@ -341,7 +448,7 @@ describe('Workflow Route map paper', () => {
 		expectFits(paper, m);
 		expect(paper.segment.items[0].stations).toHaveLength(7);
 		expect(paper.segment.items[0].continuations).toEqual([]);
-		expect(paper.segment.items[0].stageLabels).toHaveLength(7);
+		expect(paper.segment.items[0].stageLabels).toHaveLength(3);
 	});
 	it('cuts a long dependency chain between whole columns without losing nodes or stored edges', () => {
 		const plan = makePlan(

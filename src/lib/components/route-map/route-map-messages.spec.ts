@@ -4,6 +4,14 @@ import { describe, expect, it } from 'vitest';
 const required = [
 	'route_map_continuation',
 	'route_map_empty',
+	'route_map_key_cross_stage',
+	'route_map_key_cycle',
+	'route_map_key_label',
+	'route_map_key_station',
+	'route_map_key_subtask_route',
+	'route_map_key_transfer',
+	'route_map_key_workflow',
+
 	'route_map_entry',
 	'route_map_exit',
 	'route_map_print_header',
@@ -26,6 +34,14 @@ const parameters: Record<string, string[]> = {
 	route_map_print_header: ['panels', 'stages'],
 	route_map_print_header_parents: ['panels', 'parents', 'stages'],
 	route_map_empty: [],
+	route_map_key_cross_stage: [],
+	route_map_key_cycle: [],
+	route_map_key_label: [],
+	route_map_key_station: [],
+	route_map_key_subtask_route: [],
+	route_map_key_transfer: [],
+	route_map_key_workflow: [],
+
 	route_map_hide_subtasks: ['task'],
 	route_map_predecessors: ['tasks'],
 	route_map_show_subtasks: ['task'],
@@ -51,7 +67,31 @@ describe('Route map locale inventory', () => {
 		const source = owned(catalogs[0]);
 		expect(source).toEqual(expect.arrayContaining(required));
 		for (const key of required) expect(params(catalogs[0][key])).toEqual(parameters[key]);
+		expect(
+			Object.fromEntries(
+				[
+					'route_map_key_workflow',
+					'route_map_key_subtask_route',
+					'route_map_key_station',
+					'route_map_key_transfer',
+					'route_map_key_cross_stage'
+				].map((key) => [key, catalogs[0][key]])
+			)
+		).toEqual({
+			route_map_key_workflow: 'Stage journey',
+			route_map_key_subtask_route: 'Subtask route',
+			route_map_key_station: 'Station',
+			route_map_key_transfer: 'Transfer',
+			route_map_key_cross_stage: 'Cross-stage dependency'
+		});
 		for (const catalog of catalogs) {
+			for (const key of [
+				'route_map_key_terminus',
+				'route_map_key_walkway',
+				'route_map_key_interchange',
+				'route_map_key_family'
+			])
+				expect(catalog).not.toHaveProperty(key);
 			const keys = owned(catalog);
 			expect([...keys].sort()).toEqual([...source].sort());
 			expect(keys).toEqual([...keys].sort());

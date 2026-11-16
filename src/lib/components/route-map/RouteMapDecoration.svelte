@@ -1,23 +1,24 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
-	import StationDot from '#lib/components/diagram/StationDot.svelte';
 	import type { RouteMapSign } from '#lib/scene/route-map-layout.ts';
-	import RouteMapTerminus from './RouteMapTerminus.svelte';
-	let { sign }: { sign: RouteMapSign } = $props();
+	import RouteMapStationGlyph from './RouteMapStationGlyph.svelte';
+	let { sign, still = false }: { sign: RouteMapSign; still?: boolean } = $props();
 	const point = new GeometryTween(untrack(() => sign.center));
-	$effect(() => point.set(sign.center));
+	$effect(() => point.set(sign.center, { still }));
 </script>
 
 <div
 	class="pointer-events-none absolute flex items-center justify-center"
 	aria-hidden="true"
-	style:left="{point.current.x - 7}px"
-	style:top="{point.current.y - 7}px"
-	style:width="14px"
-	style:height="14px"
+	style:left="{point.current.x - sign.width / 2}px"
+	style:top="{point.current.y - sign.height / 2}px"
+	style:width="{sign.width}px"
+	style:height="{sign.height}px"
 >
-	<RouteMapTerminus {sign} /><span class="relative flex"
-		><StationDot status="todo" color="var(--foreground)" size={8} /></span
-	>
+	<RouteMapStationGlyph
+		color={still ? 'var(--color-paper-ink, #1A1D23)' : 'var(--foreground)'}
+		size={sign.width}
+		{still}
+	/>
 </div>

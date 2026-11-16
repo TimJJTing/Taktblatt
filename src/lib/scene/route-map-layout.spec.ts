@@ -51,7 +51,7 @@ describe('Workflow branching Route map', () => {
 	});
 
 	it.each([false, true])(
-		'keeps child dependency and capsule sizes distinct (paper: %s)',
+		'keeps family line width and equal transfer sizes (paper: %s)',
 		(paper) => {
 			const plan = makePlan(
 				[
@@ -68,8 +68,13 @@ describe('Workflow branching Route map', () => {
 			});
 			const dependency = result.lines.find((line) => line.dependencyKeys.includes('a->b'))!;
 			expect(dependency.width).toBe(paper ? 3.5 : 6);
-			const capsule = result.signs.find((sign) => sign.stationId === 'a')!;
-			expect([capsule.width, capsule.height]).toEqual(paper ? [7.5, 15] : [12, 24]);
+			for (const id of ['a', 'external']) {
+				const capsule = result.signs.find(
+					(sign) => sign.stationId === id && sign.kind === 'interchange'
+				)!;
+				expect([capsule.width, capsule.height]).toEqual(paper ? [10, 20] : [16, 32]);
+				expect(capsule).not.toHaveProperty('docks');
+			}
 		}
 	);
 
@@ -235,21 +240,52 @@ describe('Workflow branching Route map', () => {
 			).toBe(true);
 		}
 	});
-	it('omits empty-stage stubs and attaches one badge to each station', () => {
+	it('places one placeholder and badge for an empty stage and one badge at the first task', () => {
 		const result = scene(
 			makePlan([task({ id: 'a' }), task({ id: 'b', dependsOn: ['a'] })], ['s1', 'empty'])
 		);
-		expect(result.lines.flatMap((line) => line.taskIds)).not.toContain('empty');
-		expect(result.signs.every((sign) => sign.stationId !== null)).toBe(true);
-		expect(result.stageLabels.map((label) => [label.hostId, label.role]).sort()).toEqual([
-			['a', 'start'],
-			['b', 'start']
-		]);
-		for (const label of result.stageLabels) {
-			const host = station(result, label.hostId!);
-			expect(label.box.y).toBeGreaterThanOrEqual(host.labelBox.y + host.labelBox.h);
-			expect(label.progressBox).toBeUndefined();
+		expect(result.stageLabels.filter((label) => label.stageId === 'empty')).toHaveLength(1);
+		const placeholders = result.signs.filter(
+			(sign) => sign.stageId === 'empty' && sign.stationId === null
+		);
+		expect(placeholders).toHaveLength(1);
+		expect(
+			Number.isFinite(placeholders[0].center.x) && Number.isFinite(placeholders[0].center.y)
+		).toBe(true);
+		expect(
+			result.stageLabels.filter((label) => label.stageId === 's1').map((label) => label.hostId)
+		).toEqual(['a']);
+		const badge = result.stageLabels.find((label) => label.hostId === 'a')!;
+		expect(badge.box.y).toBeGreaterThanOrEqual(
+			station(result, 'a').labelBox.y + station(result, 'a').labelBox.h
+		);
+	});
+	it('places garden badges on the first top-level task in both expansion states and shuffled input', () => {
+		const plan = pinnedExamplePlan();
+		const expected = ['Site survey', 'Sowing', 'First harvest']
+			.map((title) => plan.tasks.find((task) => task.title === title)!.id)
+			.sort();
+		const expanded = new Set(
+			plan.tasks.filter((task) => task.parentId === null).map((task) => task.id)
+		);
+		for (const candidate of [plan, shuffled(plan)]) {
+			for (const state of [new Set<string>(), expanded]) {
+				expect(
+					scene(candidate, state)
+						.stageLabels.map((label) => label.hostId)
+						.sort()
+				).toEqual(expected);
+			}
 		}
+	});
+	it('uses dependency order rather than date order for the stage badge', () => {
+		const result = scene(
+			makePlan([
+				task({ id: 'a', start: '2027-12-01' }),
+				task({ id: 'b', start: '2027-01-01', dependsOn: ['a'] })
+			])
+		);
+		expect(result.stageLabels.map((label) => label.hostId)).toEqual(['a']);
 	});
 	it('keeps parent x fixed when a dense family expands and distinguishes family links', () => {
 		const plan = makePlan([

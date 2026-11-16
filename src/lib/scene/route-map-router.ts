@@ -4,7 +4,6 @@ import type { RouteMapLayout, RouteMapPoint } from './route-map-layout.ts';
 export interface RouteMapRoute extends RouteMapEdge {
 	points: readonly RouteMapPoint[];
 	carrier: 'line' | 'walkway';
-	dock?: { hostId: string; side: 'above' | 'below'; point: RouteMapPoint };
 	corridorId?: string;
 	lane?: number;
 	trunkId?: string;

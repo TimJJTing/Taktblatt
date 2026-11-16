@@ -1,6 +1,6 @@
 <script lang="ts">
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
-	import RouteMapTerminus from './RouteMapTerminus.svelte';
+	import RouteMapDecoration from './RouteMapDecoration.svelte';
 	import RouteMapInterchange from './RouteMapInterchange.svelte';
 	import RouteMapStageLabel from './RouteMapStageLabel.svelte';
 	import RouteMapKey from './RouteMapKey.svelte';
@@ -57,7 +57,6 @@
 		].map((id) => items.flatMap((item) => item.stations).find((s) => s.id === id)?.reference ?? id)
 	);
 
-	const stages = $derived(new Map(data.stages.map((s) => [s.id, s])));
 	const paperLine = (stageId: string, ids: readonly string[], branch = false) => {
 		const statuses = ids.map((id) => node(id)?.status);
 		const dim =
@@ -179,13 +178,8 @@
 						style:width="{station.hitBox.w}px"
 						style:height="{station.hitBox.h}px"
 					>
-						{#if sign?.kind === 'terminus'}<RouteMapTerminus
-								{sign}
-								still
-							/>{:else if sign}<RouteMapInterchange {sign} {stages} still />{/if}
-						<span class="relative flex"
-							><RouteMapStationGlyph {color} size={n.parentId ? 4 : 6} still /></span
-						>
+						<span class="relative flex"><RouteMapStationGlyph {color} size={6} still /></span>
+						{#if sign}<RouteMapInterchange {sign} still />{/if}
 					</div>
 					<div
 						class="paper-label"
@@ -207,18 +201,7 @@
 					</div>
 				{/each}
 				{#each item.signs.filter((s) => !s.stationId) as sign (sign.stageId)}
-					<div
-						class="paper-station"
-						aria-hidden="true"
-						style:left="{sign.center.x - 5}px"
-						style:top="{sign.center.y - 5}px"
-						style:width="10px"
-						style:height="10px"
-					>
-						<RouteMapTerminus {sign} still /><span class="relative flex"
-							><RouteMapStationGlyph color="#20242B" size={6} still /></span
-						>
-					</div>
+					<RouteMapDecoration {sign} still />
 				{/each}
 				{#each item.stageLabels as label, index (index)}
 					<RouteMapStageLabel

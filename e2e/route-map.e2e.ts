@@ -385,7 +385,7 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 		const right = Math.max(
 			...[
 				...root.querySelectorAll<HTMLElement>(
-					'[data-testid="route-map-terminus"],[data-testid="route-map-interchange"],[data-testid="route-map-stage-label"],[data-diagram-task],[data-diagram-label],[data-route-map-controls],svg path'
+					'[data-testid="route-map-interchange"],[data-testid="route-map-stage-label"],[data-diagram-task],[data-diagram-label],[data-route-map-controls],svg path'
 				)
 			].map(
 				(e) =>
@@ -475,7 +475,40 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 	await expect(
 		incoming(page).locator('[data-testid="route-map-interchange"][data-station="task-7"]')
 	).toHaveCount(1);
-	await expect(incoming(page).locator('[data-testid="route-map-stage-label"]')).toHaveCount(7);
+	const badgeHosts = ['Site survey', 'Sowing', 'First harvest']
+		.map((title) => fixture.tasks.find((task) => task.title === title)!.id)
+		.sort();
+	const assertBadges = async () => {
+		await expect(incoming(page).getByTestId('route-map-stage-label')).toHaveCount(3);
+		expect(
+			(
+				await incoming(page)
+					.getByTestId('route-map-stage-label')
+					.evaluateAll((badges) => badges.map((badge) => badge.getAttribute('data-host')))
+			).sort()
+		).toEqual(badgeHosts);
+	};
+	await assertBadges();
+	await expect(incoming(page).getByTestId('route-map-terminus')).toHaveCount(0);
+	await expect(incoming(page).locator('[data-dock-dot]')).toHaveCount(0);
+	const key = incoming(page).getByRole('list', { name: 'Map signs' });
+	await expect(key.getByRole('listitem')).toHaveText([
+		'Stage journey',
+		'Subtask route',
+		'Station',
+		'Transfer',
+		'Cross-stage dependency',
+		'Dependency cycle'
+	]);
+	await incoming(page)
+		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.click();
+	await waitForAnimations(incoming(page));
+	await assertBadges();
+	await incoming(page)
+		.getByRole('button', { name: 'Hide subtasks of Soil preparation', exact: true })
+		.click();
+	await waitForAnimations(incoming(page));
 	await expect(
 		incoming(page).locator(
 			'[data-stage-progress],[data-route-map-joint-break],[data-carrier="lead-in"]'
@@ -547,10 +580,6 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 			)
 		).toEqual(['Soil', 'preparation']);
 	}
-	await expect(paper(page).locator('[data-testid="route-map-terminus"]').first()).toHaveAttribute(
-		'width',
-		'12'
-	);
 	await page.emulateMedia({ media: 'print' });
 	try {
 		await expect(paper(page).locator('[data-paper-station]')).toHaveCount(7);
@@ -716,18 +745,12 @@ test('D53 Fable signs and imported status paint survive dark and forced-color re
 	await expect(
 		incoming(page).locator('[data-carrier="walkway"][data-testid="route-map-dependency"]')
 	).toHaveCount(3);
-	await expect(
-		incoming(page).locator('[data-testid="route-map-terminus"][data-station="survey"]')
-	).toHaveCount(1);
+	await expect(incoming(page).getByTestId('route-map-terminus')).toHaveCount(0);
+	await expect(incoming(page).locator('[data-dock-dot]')).toHaveCount(0);
 	await expect(incoming(page).getByTestId('route-map-interchange')).toHaveCount(4);
-	for (const sign of await incoming(page).getByTestId('route-map-terminus').all()) {
-		await expect(sign).toHaveAttribute('width', '20');
-		await expect(sign.locator('[data-sign-outline]')).toHaveCSS('stroke-width', '3px');
-	}
 	for (const sign of await incoming(page).getByTestId('route-map-interchange').all()) {
-		const k = Number(await sign.getAttribute('data-slots'));
 		await expect(sign).toHaveAttribute('width', '16');
-		await expect(sign).toHaveAttribute('height', String(12 * k + 20));
+		await expect(sign).toHaveAttribute('height', '32');
 		await expect(sign.locator('[data-sign-outline]')).toHaveCSS('stroke-width', '3px');
 	}
 	for (const theme of ['Light', 'Dark'] as const) {

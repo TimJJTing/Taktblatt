@@ -29,7 +29,6 @@
 	data-testid="route-map-stage-label"
 	data-stage={stage.id}
 	data-host={label.hostId ?? undefined}
-	data-role={label.role}
 >
 	<div class="flex h-5 items-center justify-center gap-1" data-stage-title>
 		{#if still}

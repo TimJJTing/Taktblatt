@@ -22,12 +22,10 @@
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 
-	import RouteMapTerminus from './RouteMapTerminus.svelte';
 	import RouteMapInterchange from './RouteMapInterchange.svelte';
 
 	let {
 		sign,
-		stages,
 		node,
 		station,
 		stage,
@@ -41,7 +39,6 @@
 		returnFocus
 	}: {
 		sign?: RouteMapSign;
-		stages: ReadonlyMap<string, Stage>;
 		node: RouteMapNode;
 		station: RouteMapStation;
 		stage: Stage;
@@ -169,16 +166,10 @@
 					data-diagram-parent={node.parentId ?? undefined}
 					data-route={route ?? undefined}
 				>
-					{#if sign?.kind === 'terminus'}<RouteMapTerminus
-							{sign}
-						/>{:else if sign}<RouteMapInterchange {sign} {stages} />{/if}
 					<span data-diagram-station={node.id} class="relative flex"
-						><RouteMapStationGlyph
-							color={stageColorVar(stage.color)}
-							size={node.parentId ? 6 : hasChildren ? 10 : 8}
-							{route}
-						/></span
+						><RouteMapStationGlyph color={stageColorVar(stage.color)} size={8} {route} /></span
 					>
+					{#if sign}<RouteMapInterchange {sign} />{/if}
 				</button>
 			{/snippet}
 		</Hint>

@@ -3,10 +3,10 @@
 	let { still = false }: { still?: boolean } = $props();
 	const signs = $derived([
 		{ kind: 'workflow', label: m.route_map_key_workflow() },
-		{ kind: 'terminus', label: m.route_map_key_terminus() },
-		{ kind: 'interchange', label: m.route_map_key_interchange() },
-		{ kind: 'walkway', label: m.route_map_key_walkway() },
-		{ kind: 'family', label: m.route_map_key_family() },
+		{ kind: 'family', label: m.route_map_key_subtask_route() },
+		{ kind: 'station', label: m.route_map_key_station() },
+		{ kind: 'interchange', label: m.route_map_key_transfer() },
+		{ kind: 'walkway', label: m.route_map_key_cross_stage() },
 		{ kind: 'cycle', label: m.route_map_key_cycle() }
 	]);
 </script>
@@ -32,12 +32,16 @@
 						stroke="currentColor"
 						stroke-width="8"
 					/>
-				{:else if sign.kind === 'terminus'}
-					<path d="M 0 10 H 12" fill="none" stroke="currentColor" stroke-width="4" />
-					<circle cx="12" cy="10" r="7" class="ground" stroke="currentColor" stroke-width="2" />
-					<circle cx="12" cy="10" r="2" fill="currentColor" />
+				{:else if sign.kind === 'station'}
+					<circle
+						cx="12"
+						cy="10"
+						r={still ? 2.25 : 3.25}
+						class="ground"
+						stroke="currentColor"
+						stroke-width="1.5"
+					/>
 				{:else if sign.kind === 'interchange'}
-					<path d="M 0 6 H 24 M 0 14 H 24" fill="none" stroke="currentColor" stroke-width="3" />
 					<rect
 						x="7"
 						y="1"
@@ -48,8 +52,6 @@
 						stroke="currentColor"
 						stroke-width="2"
 					/>
-					<circle cx="12" cy="6" r="2" fill="currentColor" />
-					<circle cx="12" cy="14" r="2" fill="currentColor" />
 				{:else if sign.kind === 'walkway'}
 					<path
 						d="M 0 14 L 5 9 H 19 L 24 14"

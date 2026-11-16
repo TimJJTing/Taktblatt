@@ -122,50 +122,12 @@ export function expectClearRoutes(
 		const source = layout.stations.find((s) => s.id === route.from)!;
 		const target = layout.stations.find((s) => s.id === route.to)!;
 		expect(route.points.length).toBeGreaterThanOrEqual(2);
-		const carrier = route as MetroRoute;
-		expect(route.points[0]).toEqual(carrier.dock ? carrier.dock.point : center(source));
+		expect(route.points[0]).toEqual(center(source));
 		expect(route.points.at(-1)).toEqual(center(target));
 		expectOctilinear(route.points);
 		for (const p of route.points) expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
 		expectPathClear(route.points, layout.stations, layout.clearance, [route.from, route.to]);
 	}
-}
-
-/** Check settled direction. Backward paths retain their return corridors. */
-export function expectWalkwayDirection(
-	route: MetroRoute,
-	source: { center: RouteMapPoint; column: number },
-	target: { center: RouteMapPoint; column: number },
-	crossBand: boolean,
-	paper = false
-) {
-	const p = route.points;
-	expect(p).toHaveLength(8);
-	expect(p[7]).toEqual(target.center);
-	expect(p[7].x - p[6].x).toBeGreaterThan(0);
-	expect(p[7].y - p[6].y).toBeCloseTo(p[7].x - p[6].x);
-	if (route.cycle || source.column >= target.column) {
-		expect(p[0]).toEqual(source.center);
-	} else if (crossBand) {
-		const below = target.center.y > source.center.y;
-		expect(route.dock?.hostId).toBe(route.from);
-		expect(route.dock?.side).toBe(below ? 'below' : 'above');
-		expect(p[0]).toEqual(route.dock?.point);
-		expect(p[0].x).toBe(source.center.x);
-		expect((p[0].y - source.center.y) * (below ? 1 : -1)).toBeGreaterThan(0);
-		expect(p[1].y).toBe(p[0].y);
-		expect(p[1].x - p[0].x).toBeGreaterThanOrEqual(52);
-		expect(p[2].x - p[1].x).toBe(paper ? 5 : 8);
-		expect(p[2].y - p[1].y).toBe((below ? 1 : -1) * (paper ? 5 : 8));
-		expect(p[3].x).toBe(p[2].x);
-		expect((p[3].y - p[2].y) * (below ? 1 : -1)).toBeGreaterThan(0);
-		if (below) expect(Math.min(...p.map((point) => point.y))).toBeGreaterThanOrEqual(p[0].y);
-	} else {
-		expect(p[0]).toEqual(source.center);
-		expect(p[1].x - p[0].x).toBeGreaterThan(0);
-		expect(p[0].y - p[1].y).toBeCloseTo(p[1].x - p[0].x);
-	}
-	expectOctilinear(p);
 }
 
 export function expectPathClear(
@@ -231,13 +193,12 @@ export interface MetroLayout extends Pick<
 		width: number;
 	}[];
 	signs: readonly {
-		kind: 'terminus' | 'interchange';
+		kind: 'empty-stage' | 'interchange';
 		stationId: string | null;
 		stageId: string;
 		center: RouteMapPoint;
 		width: number;
 		height: number;
-		slots: number;
 		outlineWidth: number;
 	}[];
 	familyReturns: readonly {
@@ -256,14 +217,10 @@ export interface MetroLayout extends Pick<
 	stageLabels: readonly {
 		stageId: string;
 		hostId: string | null;
-		role: 'start' | 'end' | 'both';
 		box: RouteMapBox;
-		titleBox?: RouteMapBox;
-		progressBox?: RouteMapBox;
 	}[];
 }
 export interface MetroRoute extends RouteMapRoute {
-	dock?: { hostId: string; side: 'above' | 'below'; point: RouteMapPoint };
 	corridorId?: string;
 	lane?: number;
 	trunkId?: string;

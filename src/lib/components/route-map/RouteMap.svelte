@@ -373,7 +373,7 @@
 						/>
 					{/each}
 				</svg>
-				{#each layout.stageLabels as label (`${label.stageId}:${label.hostId}:${label.role}`)}
+				{#each layout.stageLabels as label (`${label.stageId}:${label.hostId}`)}
 					<RouteMapStageLabel
 						{label}
 						stage={stages.get(label.stageId)!}
@@ -396,7 +396,6 @@
 						{node}
 						{station}
 						stage={stages.get(node.stageId)!}
-						{stages}
 						sign={layout.signs.find((s) => s.stationId === node.id)}
 						routeTarget={routeTargets.target}
 						route={paint(focus.onRouteRowIds.has(node.id))}
@@ -414,7 +413,6 @@
 								node={childNode}
 								station={child}
 								stage={stages.get(childNode.stageId)!}
-								{stages}
 								sign={layout.signs.find((s) => s.stationId === child.id)}
 								routeTarget={routeTargets.target}
 								route={paint(focus.onRouteRowIds.has(child.id))}
