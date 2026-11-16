@@ -8,6 +8,7 @@ import { DIAGRAM_ATTR } from '#lib/components/diagram/view-contract.ts';
 import { fablePlan, pinnedExamplePlan, screenMetrics } from '#lib/scene/route-map.test-helpers.ts';
 import { formatRangeDisplay, joinList } from '#lib/domain/format.ts';
 import { uiIntl } from '#lib/ui-language.ts';
+import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapPaper } from '#lib/scene/route-map-paper.ts';
 import PrintRouteMap from './PrintRouteMap.svelte';
@@ -380,7 +381,7 @@ describe('Route map station interactions', () => {
 			.poll(() => document.querySelector('[data-slot="tooltip-content"]')?.textContent ?? '')
 			.toBe('Done');
 
-		const model = routeMapModel(workspace.plan, new Set());
+		const model = routeMapModel(workspace.plan, new Set(), workspace.index);
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
 			sheetWidth: 1200,
@@ -483,7 +484,7 @@ describe('Route map station interactions', () => {
 		viewer.setExpanded(workspace.plan.id, 'soil', true);
 		const screen = await mount(),
 			root = screen.container;
-		const model = routeMapModel(workspace.plan, new Set(['soil']));
+		const model = routeMapModel(workspace.plan, new Set(['soil']), workspace.index);
 		const labels = [...root.querySelectorAll<HTMLElement>('[data-testid="route-map-stage-label"]')];
 		expect(labels).toHaveLength(model.nodes.length);
 		for (const node of model.nodes) {
@@ -568,7 +569,7 @@ describe('Route map station interactions', () => {
 
 	it('renders a fitting example panel as one item with complete dependencies and no continuation stubs', async () => {
 		const plan = pinnedExamplePlan();
-		const model = routeMapModel(plan, new Set());
+		const model = routeMapModel(plan, new Set(), indexTasks(plan.tasks));
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
 			clearance: 4,
@@ -625,7 +626,7 @@ describe('Route map station interactions', () => {
 
 	it('puts a text space between the printed station reference and title', async () => {
 		const plan = pinnedExamplePlan();
-		const model = routeMapModel(plan, new Set());
+		const model = routeMapModel(plan, new Set(), indexTasks(plan.tasks));
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
 			sheetWidth: 1200,
@@ -701,7 +702,7 @@ describe('Route map station interactions', () => {
 				)
 			];
 		});
-		const model = routeMapModel(workspace.plan, new Set());
+		const model = routeMapModel(workspace.plan, new Set(), workspace.index);
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
 			sheetWidth: 180,
@@ -940,7 +941,7 @@ describe('Route map station interactions', () => {
 			'[data-testid="route-map-dependency"][data-from="outside"][data-to="child"] [data-testid="gantt-dependency"]'
 		)!;
 		expect(getComputedStyle(connector).strokeWidth).toBe('1.5px');
-		const model = routeMapModel(workspace.plan, new Set(['P']));
+		const model = routeMapModel(workspace.plan, new Set(['P']), workspace.index);
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
 			sheetWidth: 1200,

@@ -1,6 +1,5 @@
 import {
 	boardColumn,
-	indexTasks,
 	type BoardColumn,
 	type Readiness,
 	type TaskIndex
@@ -32,7 +31,8 @@ export interface KanbanBoard {
 	total: number;
 	emptyKind: KanbanEmptyKind;
 }
-export function kanbanBoard(plan: Plan, index: TaskIndex = indexTasks(plan.tasks)): KanbanBoard {
+/** Use an index built from this plan's current tasks. */
+export function kanbanBoard(plan: Plan, index: TaskIndex): KanbanBoard {
 	const columns = KANBAN_COLUMNS.map((id) => ({ id, cards: [] as KanbanCard[], count: 0 }));
 	for (const [i, stage] of plan.stages.entries()) {
 		const add = (task: Task, parent: Task | null) => {

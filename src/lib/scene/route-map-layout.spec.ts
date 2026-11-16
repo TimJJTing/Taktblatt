@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makePlan } from '#lib/domain/test-helpers.ts';
+import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapLayout } from './route-map-layout.ts';
 import {
@@ -13,7 +14,7 @@ import {
 } from './route-map.test-helpers.ts';
 
 const scene = (plan: ReturnType<typeof makePlan>, expanded = new Set<string>()) =>
-	routeMapLayout(routeMapModel(plan, expanded), screenMetrics);
+	routeMapLayout(routeMapModel(plan, expanded, indexTasks(plan.tasks)), screenMetrics);
 const station = (result: ReturnType<typeof scene>, id: string) =>
 	result.stations.find((s) => s.id === id)!;
 
@@ -25,7 +26,10 @@ describe('Workflow branching Route map', () => {
 				[task({ id: 'a' }), task({ id: 'b', stageId: 's2', dependsOn: ['a'] })],
 				['s1', 's2']
 			);
-			const result = routeMapLayout(routeMapModel(plan, new Set()), { ...screenMetrics, paper });
+			const result = routeMapLayout(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), {
+				...screenMetrics,
+				paper
+			});
 			for (const sign of result.signs.filter((sign) => sign.kind === 'interchange')) {
 				const host = station(result, sign.stationId!);
 				expect(host.labelBox.y - (sign.center.y + sign.height / 2)).toBeGreaterThanOrEqual(5);
@@ -57,7 +61,7 @@ describe('Workflow branching Route map', () => {
 				],
 				['s1', 's2']
 			);
-			const result = routeMapLayout(routeMapModel(plan, new Set(['p'])), {
+			const result = routeMapLayout(routeMapModel(plan, new Set(['p']), indexTasks(plan.tasks)), {
 				...screenMetrics,
 				paper
 			});

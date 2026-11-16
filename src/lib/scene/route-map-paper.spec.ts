@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makePlan } from '#lib/domain/test-helpers.ts';
+import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapLayout } from './route-map-layout.ts';
 import { routeMapPaper, type RouteMapPaper, type RouteMapPaperMetrics } from './route-map-paper.ts';
@@ -90,7 +91,7 @@ describe('Workflow Route map paper', () => {
 			['s1', 's2']
 		);
 		const m = { ...metrics(), sheetWidth: 320 };
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		expectPairs(paper);
 		const items = paper.segment.items;
@@ -133,7 +134,7 @@ describe('Workflow Route map paper', () => {
 			stages
 		);
 		const m = { ...metrics(), sheetHeight: 330 };
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		expectPairs(paper);
 		const stations = paper.segment.items.flatMap((i) => i.stations);
@@ -154,7 +155,7 @@ describe('Workflow Route map paper', () => {
 		];
 		const plan = makePlan(titles.map((title, i) => task({ id: `long-${i}`, title })));
 		const m = metrics();
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		for (const [i, title] of titles.entries()) {
 			const id = `long-${i}`;
@@ -176,10 +177,8 @@ describe('Workflow Route map paper', () => {
 
 	it('keeps explicit title breaks in separate physical rows', () => {
 		const title = 'First line\n\n' + 'Long line '.repeat(40);
-		const paper = routeMapPaper(
-			routeMapModel(makePlan([task({ id: 'multiline', title })]), new Set()),
-			metrics()
-		);
+		const plan = makePlan([task({ id: 'multiline', title })]);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), metrics());
 		const rows = paper.segment.items
 			.flatMap((item) => item.titles)
 			.filter((row) => row.taskId === 'multiline');
@@ -197,7 +196,7 @@ describe('Workflow Route map paper', () => {
 			)
 		);
 		const m = { ...metrics(), sheetWidth: 480, sheetHeight: 300 };
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		expectPairs(paper);
 		const continuations = paper.segment.items
@@ -219,7 +218,7 @@ describe('Workflow Route map paper', () => {
 	it('covers all 120 stations and 200 stored edges on measured paper without input-order changes', () => {
 		const plan = largePlan();
 		const m = metrics();
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		expectPairs(paper);
 		const ids = paper.segment.items.flatMap((i) => i.stations.map((s) => s.id));
@@ -234,12 +233,15 @@ describe('Workflow Route map paper', () => {
 			plan.tasks.flatMap((t) => t.dependsOn.map((id) => `${t.id}:${id}`)).sort()
 		);
 		expect(represented.size).toBe(200);
-		expect(routeMapPaper(routeMapModel(shuffled(plan), new Set()), m)).toEqual(paper);
+		const shuffledPlan = shuffled(plan);
+		expect(
+			routeMapPaper(routeMapModel(shuffledPlan, new Set(), indexTasks(shuffledPlan.tasks)), m)
+		).toEqual(paper);
 	}, 20000);
 	it('wraps station labels between words when each word fits the label', () => {
 		const plan = makePlan([task({ id: 'soil', title: 'Soil preparation' })]);
 		const m = exampleMetrics();
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		const station = paper.segment.items
 			.flatMap((item) => item.stations)
 			.find((s) => s.id === 'soil')!;
@@ -252,10 +254,8 @@ describe('Workflow Route map paper', () => {
 		const word = 'Supercalifragilisticexpialidocious';
 		const title = word;
 		const m = exampleMetrics();
-		const paper = routeMapPaper(
-			routeMapModel(makePlan([task({ id: 'long-word', title })]), new Set()),
-			m
-		);
+		const plan = makePlan([task({ id: 'long-word', title })]);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		const station = paper.segment.items.flatMap((item) => item.stations)[0];
 		expect(m.measureText(word)).toBeGreaterThan(station.labelBox.w);
 		const capacity = Math.floor(station.labelBox.w / 7);
@@ -283,7 +283,7 @@ describe('Workflow Route map paper', () => {
 			)
 		);
 		const m = { ...exampleMetrics(), sheetWidth: 364 };
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expect(paper.panels).toHaveLength(3);
 		const items = paper.segment.items.filter((item) => item.stations.length);
 		expect(items.every((item) => item.id.startsWith('whole:'))).toBe(true);
@@ -298,10 +298,8 @@ describe('Workflow Route map paper', () => {
 
 	it('reserves the reference code and its gap on the first label row', () => {
 		const m = exampleMetrics();
-		const paper = routeMapPaper(
-			routeMapModel(makePlan([task({ id: 'bounded', title: 'ABCDEFGHIJKLM' })]), new Set()),
-			m
-		);
+		const plan = makePlan([task({ id: 'bounded', title: 'ABCDEFGHIJKLM' })]);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		const station = paper.segment.items.flatMap((item) => item.stations)[0];
 		expect(
 			m.measureText(station.reference) + 3 + 15 + m.measureText(station.labelLines[0])
@@ -311,10 +309,8 @@ describe('Workflow Route map paper', () => {
 
 	it('starts the second row with the next word when the first row is exactly full', () => {
 		const m = exampleMetrics();
-		const paper = routeMapPaper(
-			routeMapModel(makePlan([task({ id: 'exact', title: 'ABCDEFGHI preparation' })]), new Set()),
-			m
-		);
+		const plan = makePlan([task({ id: 'exact', title: 'ABCDEFGHI preparation' })]);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		const station = paper.segment.items.flatMap((item) => item.stations)[0];
 		expect(station.labelLines).toEqual(['ABCDEFGHI', 'preparation']);
 	});
@@ -322,10 +318,8 @@ describe('Workflow Route map paper', () => {
 	it('preserves whitespace-only titles in the continuation rows without an empty loop', () => {
 		const title = ' '.repeat(80);
 		const m = exampleMetrics();
-		const paper = routeMapPaper(
-			routeMapModel(makePlan([task({ id: 'spaces', title })]), new Set()),
-			m
-		);
+		const plan = makePlan([task({ id: 'spaces', title })]);
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		expect(
 			paper.segment.items
@@ -339,8 +333,9 @@ describe('Workflow Route map paper', () => {
 		['A4', false],
 		['Letter', true]
 	] as const)('keeps the workflow real example whole on %s', (_, letter) => {
+		const plan = pinnedExamplePlan();
 		const m = exampleMetrics(letter),
-			paper = routeMapPaper(routeMapModel(pinnedExamplePlan(), new Set()), m);
+			paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expect(paper.segment.items).toHaveLength(1);
 		expect(paper.panels).toHaveLength(1);
 		expectFits(paper, m);
@@ -353,7 +348,7 @@ describe('Workflow Route map paper', () => {
 			Array.from({ length: 18 }, (_, i) => task({ id: `t${i}`, dependsOn: i ? [`t${i - 1}`] : [] }))
 		);
 		const m = { ...metrics(), sheetWidth: 440 },
-			model = routeMapModel(plan, new Set()),
+			model = routeMapModel(plan, new Set(), indexTasks(plan.tasks)),
 			paper = routeMapPaper(model, m);
 		expect(paper.panels.length).toBeGreaterThan(1);
 		expectFits(paper, m);
@@ -385,9 +380,10 @@ describe('Workflow Route map paper', () => {
 			['s1', 's2']
 		);
 		const m = { ...exampleMetrics(), sheetHeight: 330 },
-			paper = routeMapPaper(routeMapModel(plan, new Set()), m);
+			paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
 		expect(
-			routeMapLayout(routeMapModel(plan, new Set()), { ...m, paper: true }).height
+			routeMapLayout(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), { ...m, paper: true })
+				.height
 		).toBeGreaterThan(usable(m).h);
 		expect(paper.segment.items.length).toBeGreaterThan(1);
 		expectFits(paper, m);
@@ -410,7 +406,7 @@ describe('Workflow Route map paper', () => {
 			],
 			['s1', 's2']
 		);
-		const paper = routeMapPaper(routeMapModel(plan, new Set()), {
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), {
 			...exampleMetrics(),
 			sheetWidth: 214
 		});
@@ -440,7 +436,7 @@ describe('Workflow Route map paper', () => {
 				task({ id: 'b', start: '2027-01-02' }),
 				task({ id: 'c', start: '2027-01-03' })
 			]),
-			model = routeMapModel(plan, new Set());
+			model = routeMapModel(plan, new Set(), indexTasks(plan.tasks));
 		const fitting = routeMapPaper(model, exampleMetrics());
 		expect(fitting.segment.items).toHaveLength(1);
 		expect(
@@ -480,7 +476,7 @@ describe('Workflow Route map paper', () => {
 			...Array.from({ length: 30 }, (_, i) => task({ id: `child-${i}`, parentId: 'p' }))
 		]);
 		const m = { ...exampleMetrics(), sheetWidth: 420, sheetHeight: 380 },
-			paper = routeMapPaper(routeMapModel(plan, new Set(['p'])), m);
+			paper = routeMapPaper(routeMapModel(plan, new Set(['p']), indexTasks(plan.tasks)), m);
 		expectFits(paper, m);
 		expect(paper.segment.items.flatMap((item) => item.stations.map((s) => s.id)).sort()).toEqual(
 			plan.tasks.map((t) => t.id).sort()

@@ -16,7 +16,7 @@ function scene(
 	clip = viewport
 ) {
 	const index = indexTasks(plan.tasks);
-	const cardIds = kanbanBoard(plan).columns.flatMap((column) =>
+	const cardIds = kanbanBoard(plan, index).columns.flatMap((column) =>
 		column.cards.map((card) => card.id)
 	);
 	const edges = kanbanEdges(index, new Set(cardIds));

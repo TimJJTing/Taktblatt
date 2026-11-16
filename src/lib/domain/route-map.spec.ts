@@ -19,8 +19,9 @@ describe('Route map model', () => {
 			],
 			['s1', 'empty']
 		);
-		const closed = routeMapModel(plan, new Set());
-		const open = routeMapModel(plan, new Set(['P']));
+		const index = indexTasks(plan.tasks);
+		const closed = routeMapModel(plan, new Set(), index);
+		const open = routeMapModel(plan, new Set(['P']), index);
 		expect(closed.nodes.map((n) => n.id).sort()).toEqual(['P', 'canceled', 'done']);
 		expect(open.nodes.map((n) => n.id).sort()).toEqual(['P', 'S', 'canceled', 'done']);
 		expect(closed.groups.find((g) => g.id === 'P')!.taskIds).toEqual(['P', 'S']);
@@ -28,7 +29,9 @@ describe('Route map model', () => {
 			['s1', 1],
 			['empty', 0]
 		]);
-		expect(routeMapModel(makePlan([], []), new Set()).stages).toEqual([]);
+		const emptyPlan = makePlan([], []);
+		const emptyIndex = indexTasks(emptyPlan.tasks);
+		expect(routeMapModel(emptyPlan, new Set(), emptyIndex).stages).toEqual([]);
 	});
 
 	it('counts D51 top-level effective open work independently of expansion', () => {
@@ -44,8 +47,11 @@ describe('Route map model', () => {
 			],
 			['s1', 'canceled', 'family', 'done', 'empty']
 		);
+		const index = indexTasks(plan.tasks);
 		for (const expanded of [new Set<string>(), new Set(['P', 'family'])]) {
-			expect(routeMapModel(plan, expanded).stages.map((s) => s.toGo)).toEqual([2, 0, 0, 0, 0]);
+			expect(routeMapModel(plan, expanded, index).stages.map((s) => s.toGo)).toEqual([
+				2, 0, 0, 0, 0
+			]);
 		}
 	});
 
@@ -58,7 +64,8 @@ describe('Route map model', () => {
 			task({ id: 'doneChild', parentId: 'doneFamily', status: 'done' }),
 			task({ id: 'down', dependsOn: ['doneFamily'] })
 		]);
-		const model = routeMapModel(plan, new Set(['P']));
+		const index = indexTasks(plan.tasks);
+		const model = routeMapModel(plan, new Set(['P']), index);
 		expect(model.nodes.find((n) => n.id === 'doneFamily')).toMatchObject({ status: 'done' });
 	});
 
@@ -70,13 +77,14 @@ describe('Route map model', () => {
 			task({ id: 'T', parentId: 'P', dependsOn: ['S', 'up'] }),
 			task({ id: 'down', dependsOn: ['P', 'S'] })
 		]);
-		const closed = routeMapModel(plan, new Set());
+		const index = indexTasks(plan.tasks);
+		const closed = routeMapModel(plan, new Set(), index);
 		expect(stored(closed.edges)).toEqual(['P:up', 'down:P', 'down:S']);
 		expect(closed.edges.find((e) => e.key === 'P->down')!.stored).toEqual([
 			{ taskId: 'down', dependencyId: 'P' },
 			{ taskId: 'down', dependencyId: 'S' }
 		]);
-		const open = routeMapModel(plan, new Set(['P']));
+		const open = routeMapModel(plan, new Set(['P']), index);
 		expect(stored(open.edges)).toEqual(['P:up', 'T:S', 'T:up', 'down:P', 'down:S']);
 		expect(open.effectivePairs).toContainEqual({ from: 'up', to: 'S' });
 		expect(open.edges.some((e) => e.from === 'up' && e.to === 'S')).toBe(false);
@@ -89,9 +97,10 @@ describe('Route map model', () => {
 
 	it('preserves the ADR 13 stored warning identities in both expand states', () => {
 		const plan = adr13Plan();
+		const index = indexTasks(plan.tasks);
 		for (const expanded of [new Set<string>(), new Set(['P'])]) {
-			const model = routeMapModel(plan, expanded);
-			expect(model.warnings).toEqual(dependencyWarnings(indexTasks(plan.tasks)));
+			const model = routeMapModel(plan, expanded, index);
+			expect(model.warnings).toEqual(dependencyWarnings(index));
 			expect(stored(model.edges)).toEqual(['P:X', 'X:S']);
 			expect(model.edges.every((e) => e.cycle)).toBe(true);
 			expect(model.edges.find((e) => e.to === 'X')!.from).toBe(expanded.size ? 'S' : 'P');
@@ -104,22 +113,24 @@ describe('Route map model', () => {
 			task({ id: 'S', parentId: 'P', dependsOn: ['X'] }),
 			task({ id: 'X', dependsOn: ['P', 'S'] })
 		]);
-		const warnings = dependencyWarnings(indexTasks(plan.tasks));
+		const index = indexTasks(plan.tasks);
+		const warnings = dependencyWarnings(index);
 		expect(warnings.filter((w) => w.kind === 'cycle')).toEqual(
 			expect.arrayContaining([{ taskId: 'X', dependencyId: 'S', kind: 'cycle' }])
 		);
 		expect(
 			warnings.some((w) => w.taskId === 'X' && w.dependencyId === 'P' && w.kind === 'cycle')
 		).toBe(false);
-		const edge = routeMapModel(plan, new Set()).edges.find((e) => e.key === 'P->X')!;
+		const edge = routeMapModel(plan, new Set(), index).edges.find((e) => e.key === 'P->X')!;
 		expect(edge.stored).toHaveLength(2);
 		expect(edge.cycle).toBe(true);
 	});
 
 	it('does not turn an acyclic effective graph into cycle warnings by grouping families', () => {
 		const plan = groupingPlan();
+		const index = indexTasks(plan.tasks);
 		for (const expanded of [new Set<string>(), new Set(['P', 'Q'])]) {
-			const model = routeMapModel(plan, expanded);
+			const model = routeMapModel(plan, expanded, index);
 			expect(model.warnings).toEqual([{ kind: 'subtask_scope', taskId: 'T', dependencyId: 'X' }]);
 			expect(model.edges.every((e) => !e.cycle)).toBe(true);
 		}

@@ -89,7 +89,7 @@ describe('Kanban paper card rows', () => {
 			expanded = paper(plan, true);
 		expect(collapsed.rows).toEqual(expanded.rows);
 		expect(rowIds(collapsed.rows).sort()).toEqual(['C1', 'C2', 'U']);
-		const screen = kanbanBoard(plan).columns;
+		const screen = kanbanBoard(plan, indexTasks(plan.tasks)).columns;
 		for (let column = 0; column < 4; column++) {
 			expect(
 				collapsed.rows.flatMap((row) => (row.cards[column] ? [row.cards[column]!.id] : []))

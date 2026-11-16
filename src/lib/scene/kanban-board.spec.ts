@@ -11,8 +11,9 @@ const ids = (board: ReturnType<typeof kanbanBoard>) =>
 describe('Kanban leaf projection', () => {
 	it('projects inherited blockers, satisfied prerequisites and stored progress without parent cards', () => {
 		const plan = mixedBoard();
+		const index = indexTasks(plan.tasks);
 		const before = structuredClone(plan);
-		const board = kanbanBoard(plan);
+		const board = kanbanBoard(plan, index);
 		expect(board.columns.map((column) => column.id)).toEqual([
 			'blocked',
 			'todo',
@@ -74,7 +75,8 @@ describe('Kanban leaf projection', () => {
 			],
 			['s1', 's2']
 		);
-		expect(ids(kanbanBoard(plan, indexTasks(plan.tasks)))[1]).toEqual([
+		const index = indexTasks(plan.tasks);
+		expect(ids(kanbanBoard(plan, index))[1]).toEqual([
 			'first',
 			'child-tie-z',
 			'child-tie-a',
@@ -90,19 +92,31 @@ describe('Kanban leaf projection', () => {
 	});
 
 	it('distinguishes no tasks and canceled leaves, including a parent with only canceled children', () => {
-		expect(kanbanBoard(makePlan([]))).toMatchObject({ total: 0, emptyKind: 'no-tasks' });
+		const emptyPlan = makePlan([]);
+		const emptyIndex = indexTasks(emptyPlan.tasks);
+		expect(kanbanBoard(emptyPlan, emptyIndex)).toMatchObject({
+			total: 0,
+			emptyKind: 'no-tasks'
+		});
 		const plan = makePlan([
 			kanbanTask('P'),
 			kanbanTask('C', { parentId: 'P', status: 'canceled' })
 		]);
-		expect(kanbanBoard(plan)).toMatchObject({ total: 0, emptyKind: 'all-canceled' });
-		expect(ids(kanbanBoard(plan))).toEqual([[], [], [], []]);
-		plan.tasks = [kanbanTask('P')];
-		expect(ids(kanbanBoard(plan))).toEqual([[], ['P'], [], []]);
+		const index = indexTasks(plan.tasks);
+		expect(kanbanBoard(plan, index)).toMatchObject({
+			total: 0,
+			emptyKind: 'all-canceled'
+		});
+		expect(ids(kanbanBoard(plan, index))).toEqual([[], [], [], []]);
+		const childlessPlan = makePlan([kanbanTask('P')]);
+		const childlessIndex = indexTasks(childlessPlan.tasks);
+		expect(ids(kanbanBoard(childlessPlan, childlessIndex))).toEqual([[], ['P'], [], []]);
 	});
 
 	it('retains all 300 Done cards in deterministic traversal order', () => {
-		const board = kanbanBoard(done300());
+		const plan = done300();
+		const index = indexTasks(plan.tasks);
+		const board = kanbanBoard(plan, index);
 		expect(board.columns.map((column) => column.count)).toEqual([0, 0, 0, 300]);
 		expect(board).toMatchObject({ total: 300, emptyKind: 'none' });
 		expect(ids(board)[3]).toEqual(
@@ -118,7 +132,8 @@ describe('eligible Kanban edges', () => {
 			kanbanTask('C', { parentId: 'P' }),
 			kanbanTask('X', { dependsOn: ['C'] })
 		]);
-		expect(kanbanEdges(indexTasks(plan.tasks), new Set(['C', 'X']))).toEqual(
+		const index = indexTasks(plan.tasks);
+		expect(kanbanEdges(index, new Set(['C', 'X']))).toEqual(
 			expect.arrayContaining([
 				{ from: 'X', to: 'C', key: lineKey('X', 'C'), cycle: true },
 				{ from: 'C', to: 'X', key: lineKey('C', 'X'), cycle: true }
@@ -127,9 +142,11 @@ describe('eligible Kanban edges', () => {
 	});
 	it('does not substitute children for an isolated parent endpoint', () => {
 		const plan = isolatedParent();
-		expect(kanbanEdges(indexTasks(plan.tasks), new Set(['C1', 'C2', 'U']))).toEqual([]);
+		const index = indexTasks(plan.tasks);
+		expect(kanbanEdges(index, new Set(['C1', 'C2', 'U']))).toEqual([]);
 		const variant = isolatedParent(true);
-		expect(kanbanEdges(indexTasks(variant.tasks), new Set(['C1', 'C2', 'U']))).toEqual([
+		const variantIndex = indexTasks(variant.tasks);
+		expect(kanbanEdges(variantIndex, new Set(['C1', 'C2', 'U']))).toEqual([
 			{ from: 'C1', to: 'C2', key: lineKey('C1', 'C2'), cycle: false }
 		]);
 	});
@@ -143,10 +160,11 @@ describe('eligible Kanban edges', () => {
 			kanbanTask('Z', { status: 'canceled', dependsOn: ['C'] }),
 			kanbanTask('E', { dependsOn: ['Z'] })
 		]);
+		const index = indexTasks(plan.tasks);
 		const leaves = new Set(
-			kanbanBoard(plan).columns.flatMap((column) => column.cards.map((card) => card.id))
+			kanbanBoard(plan, index).columns.flatMap((column) => column.cards.map((card) => card.id))
 		);
-		expect(kanbanEdges(indexTasks(plan.tasks), leaves)).toEqual([
+		expect(kanbanEdges(index, leaves)).toEqual([
 			{ from: 'A', to: 'C', key: lineKey('A', 'C'), cycle: false }
 		]);
 	});

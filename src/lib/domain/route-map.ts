@@ -1,7 +1,7 @@
 const compareIds = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 import { dependencyWarnings, type DependencyEdge, type DependencyWarning } from './dependencies.ts';
-import { effectiveDependencies, indexTasks, stageProgress } from './derive.ts';
+import { effectiveDependencies, stageProgress, type TaskIndex } from './derive.ts';
 import { lineKey } from './route.ts';
 import type { Plan, TaskStatus } from './schema.ts';
 
@@ -30,8 +30,12 @@ export interface RouteMapModel {
 	warnings: readonly DependencyWarning[];
 }
 
-export function routeMapModel(plan: Plan, expanded: ReadonlySet<string>): RouteMapModel {
-	const index = indexTasks(plan.tasks);
+/** Use an index built from this plan's current tasks. */
+export function routeMapModel(
+	plan: Plan,
+	expanded: ReadonlySet<string>,
+	index: TaskIndex
+): RouteMapModel {
 	const tasks = [...plan.tasks].sort((a, b) => compareIds(a.id, b.id));
 	const visible = tasks.filter((t) => t.parentId === null || expanded.has(t.parentId));
 	const ids = new Set(visible.map((t) => t.id));

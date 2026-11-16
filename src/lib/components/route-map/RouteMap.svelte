@@ -39,7 +39,8 @@
 	const model = $derived(
 		routeMapModel(
 			ws.plan,
-			new Set(ws.plan.tasks.filter((t) => viewer.isExpanded(ws.plan.id, t.id)).map((t) => t.id))
+			new Set(ws.plan.tasks.filter((t) => viewer.isExpanded(ws.plan.id, t.id)).map((t) => t.id)),
+			ws.index
 		)
 	);
 	let labelHeights = $state.raw(new Map<string, number>());

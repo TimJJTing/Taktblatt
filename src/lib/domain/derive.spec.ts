@@ -6,6 +6,7 @@ import {
 	expandParents,
 	effectiveOf,
 	effectiveValues,
+	familySummary,
 	hasValidRange,
 	indexTasks,
 	orderedMilestones,
@@ -1045,5 +1046,101 @@ describe('breaksSubtaskFloor', () => {
 			last: child.end ?? child.start
 		};
 		expect(breaksSubtaskFloor(range, floor)).toBe(expected);
+	});
+});
+
+describe('familySummary', () => {
+	it('counts one child per class and sums to total', () => {
+		const index = indexTasks([
+			makeTask({ id: 'dep' }),
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'ready', parentId: 'p', status: 'todo' }),
+			makeTask({ id: 'blocked', parentId: 'p', status: 'todo', dependsOn: ['dep'] }),
+			makeTask({ id: 'active', parentId: 'p', status: 'in_progress' }),
+			makeTask({ id: 'finished', parentId: 'p', status: 'done' }),
+			makeTask({ id: 'dropped', parentId: 'p', status: 'canceled' })
+		]);
+		expect(familySummary(index, 'p')).toEqual({
+			ready: 1,
+			blocked: 1,
+			inProgress: 1,
+			done: 1,
+			canceled: 1,
+			total: 5
+		});
+	});
+
+	it('counts a todo child as blocked while its dependency is unfinished, then ready once done', () => {
+		const dep = makeTask({ id: 'dep', status: 'in_progress' });
+		const parent = makeTask({ id: 'p' });
+		const child = makeTask({ id: 'c', parentId: 'p', status: 'todo', dependsOn: ['dep'] });
+
+		expect(familySummary(indexTasks([dep, parent, child]), 'p')).toEqual({
+			ready: 0,
+			blocked: 1,
+			inProgress: 0,
+			done: 0,
+			canceled: 0,
+			total: 1
+		});
+
+		const finishedDep = makeTask({ id: 'dep', status: 'done' });
+		expect(familySummary(indexTasks([finishedDep, parent, child]), 'p')).toEqual({
+			ready: 1,
+			blocked: 0,
+			inProgress: 0,
+			done: 0,
+			canceled: 0,
+			total: 1
+		});
+	});
+
+	it('counts a canceled child as canceled even with an unfinished dependency', () => {
+		const index = indexTasks([
+			makeTask({ id: 'dep', status: 'todo' }),
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'c', parentId: 'p', status: 'canceled', dependsOn: ['dep'] })
+		]);
+		expect(familySummary(index, 'p')).toEqual({
+			ready: 0,
+			blocked: 0,
+			inProgress: 0,
+			done: 0,
+			canceled: 1,
+			total: 1
+		});
+	});
+
+	it('counts all children when every child is canceled', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'c1', parentId: 'p', status: 'canceled' }),
+			makeTask({ id: 'c2', parentId: 'p', status: 'canceled' })
+		]);
+		expect(familySummary(index, 'p')).toEqual({
+			ready: 0,
+			blocked: 0,
+			inProgress: 0,
+			done: 0,
+			canceled: 2,
+			total: 2
+		});
+	});
+
+	it('counts only the direct subtasks of the parent', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'other' }),
+			makeTask({ id: 'otherChild', parentId: 'other', status: 'done' }),
+			makeTask({ id: 'child', parentId: 'p', status: 'todo' })
+		]);
+		expect(familySummary(index, 'p')).toMatchObject({ ready: 1, done: 0, total: 1 });
+	});
+
+	it('returns all zero for an unknown id and a childless task id', () => {
+		const index = indexTasks([makeTask({ id: 'leaf', status: 'todo' })]);
+		const zero = { ready: 0, blocked: 0, inProgress: 0, done: 0, canceled: 0, total: 0 };
+		expect(familySummary(index, 'missing')).toEqual(zero);
+		expect(familySummary(index, 'leaf')).toEqual(zero);
 	});
 });

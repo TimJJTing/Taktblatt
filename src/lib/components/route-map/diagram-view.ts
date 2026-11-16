@@ -14,10 +14,11 @@ export const view: DiagramViewDefinition = {
 	component: RouteMap,
 	paper: {
 		orientation: 'landscape',
-		segments: ({ plan, isExpanded }) => {
+		segments: ({ plan, index, isExpanded }) => {
 			const model = routeMapModel(
 				plan,
-				new Set(plan.tasks.filter((task) => isExpanded(task.id)).map((task) => task.id))
+				new Set(plan.tasks.filter((task) => isExpanded(task.id)).map((task) => task.id)),
+				index
 			);
 			const letter = plan.paper === 'letter';
 			const paper = routeMapPaper(model, {

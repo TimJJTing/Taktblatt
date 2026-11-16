@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makePlan } from '#lib/domain/test-helpers.ts';
+import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapLayout } from './route-map-layout.ts';
 import { routeMapRoutes } from './route-map-router.ts';
@@ -16,7 +17,7 @@ import {
 	task
 } from './route-map.test-helpers.ts';
 const scene = (plan: ReturnType<typeof makePlan>, expanded = new Set<string>()) => {
-	const model = routeMapModel(plan, expanded),
+	const model = routeMapModel(plan, expanded, indexTasks(plan.tasks)),
 		layout = routeMapLayout(model, screenMetrics);
 	return { model, layout, routes: routeMapRoutes(model, layout) };
 };
@@ -215,7 +216,7 @@ describe('Workflow Route map dependency carriers', () => {
 		'takes the clear forward gutter between garden rows without an overhead excursion (paper: %s)',
 		(paper) => {
 			const plan = pinnedExamplePlan(),
-				model = routeMapModel(plan, new Set()),
+				model = routeMapModel(plan, new Set(), indexTasks(plan.tasks)),
 				layout = routeMapLayout(model, { ...screenMetrics, paper }),
 				routes = routeMapRoutes(model, layout);
 			for (const [from, to] of [
