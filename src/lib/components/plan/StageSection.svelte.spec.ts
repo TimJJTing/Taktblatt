@@ -9,6 +9,7 @@ import { updateTask } from '#lib/state/commands.ts';
 import { render } from 'vitest-browser-svelte';
 import { MemoryStorage } from '#lib/state/memory-storage.ts';
 import { Workspace } from '#lib/state/workspace.svelte.ts';
+import '../../../routes/layout.css';
 import StageSectionTest from './StageSection.test.svelte';
 
 const HOVER_SCHEDULING_MARGIN_MS = 50;
@@ -67,6 +68,40 @@ describe('Work plan route input', () => {
 	}
 	const chartRow = (container: Element, id: string) =>
 		container.querySelector(`[data-testid="gantt-row"][data-task-id="${id}"]`)!;
+
+	it('shows an outline on the Work plan expansion control after keyboard focus', async () => {
+		const ws = workspace();
+		ws.commit((plan) => {
+			plan.tasks.push(makeTask({ id: 'child', stageId: plan.stages[0].id, parentId: 'a' }));
+		});
+		const screen = await render(StageSectionTest, { workspace: ws, withGantt: true });
+		const toggle = screen.getByTestId('task-toggle');
+		const ganttToggle = screen.getByTestId('gantt-toggle');
+		await expect.element(toggle).toBeVisible();
+		await expect.element(ganttToggle).toBeVisible();
+		(screen.getByTestId('outside-row').element() as HTMLElement).focus();
+		for (let i = 0; i < 100 && document.activeElement !== ganttToggle.element(); i++) {
+			await userEvent.tab({ shift: true });
+		}
+		await expect.element(ganttToggle).toHaveFocus();
+		const ganttStyle = getComputedStyle(ganttToggle.element());
+		const ganttOutline = {
+			style: ganttStyle.outlineStyle,
+			width: ganttStyle.outlineWidth,
+			color: ganttStyle.outlineColor
+		};
+		(screen.getByTestId('outside-row').element() as HTMLElement).focus();
+		for (let i = 0; i < 100 && document.activeElement !== toggle.element(); i++) {
+			await userEvent.tab();
+		}
+		await expect.element(toggle).toHaveFocus();
+		const style = getComputedStyle(toggle.element());
+		expect({
+			style: style.outlineStyle,
+			width: style.outlineWidth,
+			color: style.outlineColor
+		}).toEqual(ganttOutline);
+	});
 
 	it('keeps pointer row focus below hover and restores it after leave without a Gantt', async () => {
 		const ws = workspace(),

@@ -15,6 +15,7 @@
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
+	import ExpandToggle from '#lib/components/task/ExpandToggle.svelte';
 	import TaskMark from '#lib/components/diagram/TaskMark.svelte';
 	import type { GanttMarkGeom } from '#lib/scene/gantt-scene.ts';
 	import type { Junction } from '#lib/scene/types.ts';
@@ -144,28 +145,18 @@
 		{...focusInput}
 	>
 		{#if row.isParent}
-			<button
-				type="button"
-				class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-				aria-expanded={row.expanded}
-				aria-label={row.expanded
-					? m.task_collapse({ task: titleText })
-					: m.task_expand({ task: titleText })}
-				onclick={(event) => {
+			<ExpandToggle
+				expanded={row.expanded}
+				task={titleText}
+				onToggle={(event) => {
 					viewer.toggleExpanded(ws.plan.id, row.id);
 					if (event.detail > 0) {
-						event.currentTarget.blur();
+						(event.currentTarget as HTMLButtonElement).blur();
 						onHighlight(row.id, false);
 					}
 				}}
-				data-testid="gantt-toggle"
-			>
-				<span
-					class={cn('flex transition-transform', row.expanded && 'rotate-90')}
-					style:transition-duration={`${motionDuration(200)}ms`}
-					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
-				>
-			</button>
+				testid="gantt-toggle"
+			/>
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}

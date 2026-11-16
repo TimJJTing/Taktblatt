@@ -26,4 +26,24 @@ describe('shared diagram messages', () => {
 			}
 		}
 	});
+	it('keeps a sorted diagram block at the end of each catalog with all slice 3 keys', () => {
+		const required = [
+			'diagram_family_blocked',
+			'diagram_family_canceled',
+			'diagram_family_done',
+			'diagram_family_in_progress',
+			'diagram_family_ready',
+			'diagram_family_summary',
+			'diagram_status_key',
+			'diagram_status_key_readiness'
+		];
+		for (const locale of ['en', ...LOCALES]) {
+			const messages = catalog(locale);
+			const keys = Object.keys(messages);
+			const diagramKeys = keys.filter((key) => key.startsWith('diagram_'));
+			expect(diagramKeys, locale).toEqual([...diagramKeys].sort());
+			expect(keys.slice(-diagramKeys.length), locale).toEqual(diagramKeys);
+			for (const key of required) expect(typeof messages[key], `${locale}: ${key}`).toBe('string');
+		}
+	});
 });
