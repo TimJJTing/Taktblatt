@@ -66,7 +66,7 @@ Move stations or routing corridors when labels need space. Do not solve collisio
 
 **Dependencies.** Draw ordinary cross-stage dependencies as thin neutral paths with small open destination chevrons. The cue points to the waiting task.
 Do not add ordinary thin same-stage or sibling overlays. Preserve stored dependencies for readiness, cycle detection and route focus.
-Cyclic dependencies are the exception: retain red dashed warning paths, including cycles within one stage.
+Cyclic dependencies are the exception: retain red dotted warning paths, including cycles within one stage.
 
 Determine ordinary cross-stage eligibility from stored source and target stage ids before mapping hidden tasks to visible parents.
 Collapsed parents summarize both incoming and outgoing eligible hidden-child dependencies. Expansion restores exact endpoints.
@@ -193,7 +193,7 @@ The plan schema does not change (decision U8).
 - Every name and rounded status icon sits directly below its station. Only Site survey, Sowing and First harvest carry stage badges in this example. Check long names without moving labels to arbitrary sides.
 - Compact family spacing and cross-stage routing. Reserved label bounds remain clear of paths, stations and neighboring labels.
 - There is no ordinary thin overlay for Site survey → Order seeds or Soil test → Add compost. Directed neutral paths remain from Add compost and Order seeds to Sowing, and from Sowing to First harvest.
-- A cycle within one stage and a cycle across stages retain red dashed warning paths. Do not hide cycles under the ordinary same-stage overlay rule. The approved screenshot does not cover this test.
+- A cycle within one stage and a cycle across stages retain red dotted warning paths. Do not hide cycles under the ordinary same-stage overlay rule. The approved screenshot does not cover this test.
 - Same-stage required and suggested edges share a visual treatment but keep distinct provenance. Synthetic links do not change readiness, cycles or dependency focus. The map adds no readiness dots or halos.
 - Collapsed families project eligible hidden-child dependencies in both directions. Expansion restores exact endpoints. Aggregated paths keep provenance and do not create internal self-links.
 - Tasks and subtasks use the same original rounded notation and status meanings in Route map, Kanban, Work plan, Preview and paper. The Gantt keeps its station-dot fills. No view introduces square subtask or status signs.
@@ -208,7 +208,7 @@ The plan schema does not change (decision U8).
 
 ## Closed decisions and limits
 
-The requesting developer made these decisions on 2026-11-16. U9 to U12 followed the plan verification on the same day. They are final.
+The requesting developer made these decisions on 2026-11-16. U9 to U12 followed the plan verification, and U13 to U15 followed direction check 1 on the same day. They are final.
 
 | Id  | Decision                                                                                                                                                                                                                                                                |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -224,6 +224,9 @@ The requesting developer made these decisions on 2026-11-16. U9 to U12 followed 
 | U10 | Kanban widths: `6rem` stage heading column and `7.5rem` minimum status columns, so four columns fit a 640 px pane. Below that, one horizontal strip. No stacked status groups.                                                                                          |
 | U11 | One flight rule for every view pair. No FLIP of real task boxes. A copy exists only when the outgoing or incoming cue intersects the stage box. Real cue elements with a copy are hidden during the flight. All connectors fade; connector retargeting is out of scope. |
 | U12 | ADR 20 and ADR 22 become Accepted in the last slice of PR #62, after validation. They stay Proposed (amended) until then.                                                                                                                                               |
+| U13 | Kanban family rows sit below the cards of the swimlane across all columns; the expansion control is in that row, not on the parent summary card.                                                                                                                        |
+| U14 | Kanban card titles clamp to two lines on screen and paper. The full title stays in the accessible name, the task dialog and the printed Work plan. Card borders stay and stage badges are omitted from cards.                                                           |
+| U15 | Status key readiness text is "Ready: all dependencies are finished. Blocked: a dependency is not finished." without an introductory sentence.                                                                                                                           |
 
 The specification marks further supervisor defaults as "Proposed default". ADR 23 lists them.
 

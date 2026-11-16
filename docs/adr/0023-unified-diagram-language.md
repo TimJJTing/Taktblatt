@@ -21,7 +21,7 @@ The design uses the existing rounded status icons and gives Route map a distinct
 - The Gantt stays as it is. Its status sign is the status-filled station dot (`StationDot` through `TaskMark`), on screen and paper. A Gantt label has no status icon. The Gantt keeps its ready light. This is a deliberate departure from the Gantt study.
 - Use the existing `TaskStatusIcon`: a 16 px viewport at 100% zoom, original Lucide geometry (`viewBox="0 0 24 24"`) and stroke width 2. Tasks and subtasks use the same size. Do not shrink icons in dense layouts or keys. Every printed status icon is 12 px, for tasks and subtasks, in Work plan, Route map, Kanban and keys.
 - Keep status separate from Route map station geometry. Do not place status fills or another circle inside those stations. Do not add readiness dots or halos. Keep the dimming of done and canceled rail segments. This dimming is the one status cue in Route map rail paint.
-- Use “In progress” consistently. Name Todo explicitly in status keys. Explain readiness separately: Todo work can be ready or blocked by dependencies. Route map and Kanban share one status key component.
+- Use “In progress” consistently. Name Todo explicitly in status keys. Explain readiness separately: "Ready: all dependencies are finished. Blocked: a dependency is not finished." Route map and Kanban share one status key component.
 - Keep the established stage palette, Source Sans 3 and quiet controls. Printed sheets remain light; dark screens use the matching dark surface.
 - Keep the compact Gantt composition and the existing Work plan design. Keep Gantt's existing parent expansion chevron, aligned leaf spacer, row alignment, child indentation and shared expansion state. Gantt labels do not include family child-state counts below parent names. Tie date positions and displayed dates to the same ISO-date data.
 - One shared expansion control component serves Work plan, Gantt, Route map and Kanban. It keeps the form of the Work plan chevron button.
@@ -44,7 +44,7 @@ The design uses the existing rounded status icons and gives Route map a distinct
 
 - Draw ordinary stored dependencies between different stages as thin neutral paths. A small open destination chevron points to the waiting task. Keep the cue clear of the station. This does not change Gantt routing.
 - Do not draw ordinary thin overlays between tasks in the same stage, including sibling subtasks. This includes same-stage edges that come from projection and legacy external-child edges. The colored rails show them. When one task of such a dependency is a subtask of another parent, the rail runs from the parent station in both expand states. Route focus and the accessible description show the exact subtask. Keep those dependencies in readiness, cycle and route-focus calculations.
-- Cycles are an explicit exception. Preserve red dashed warning paths for cyclic dependencies, including cycles within one stage. Do not suppress them under the ordinary same-stage overlay rule.
+- Cycles are an explicit exception. Preserve red dotted warning paths (`1 4` dashes) for cyclic dependencies, including cycles within one stage. Do not suppress them under the ordinary same-stage overlay rule.
 - Determine ordinary cross-stage eligibility from stored source and target stage ids before mapping hidden tasks to visible parents. Reserve space so colored rails cannot hide those paths.
 - When a family is collapsed, project incoming and outgoing eligible hidden-child dependencies to the visible parent. Keep stored edge provenance, aggregate equal visible endpoint pairs and omit internal self-links. Expansion restores the exact endpoints of cross-stage and cycle paths.
 - Synthetic sequence links and membership attachments do not create stored dependencies or change readiness, cycle warnings or dependency route focus. Do not draw every inherited or effective pair as a stored edge.
@@ -69,7 +69,7 @@ The design uses the existing rounded status icons and gives Route map a distinct
 
 ## Reconciliation (2026-11-16)
 
-The requesting developer made these decisions. The last four rows followed the plan verification of 2026-11-16. Where a decision differs from the proposal of 2026-11-14 or from a study, the decision applies.
+The requesting developer made these decisions. Rows 9–12 followed the plan verification, and the last three rows followed direction check 1 on 2026-11-16. Where a decision differs from the proposal of 2026-11-14 or from a study, the decision applies.
 
 | Decision                     | Result                                                                                                                                                                                                                                                                                                            |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -85,6 +85,9 @@ The requesting developer made these decisions. The last four rows followed the p
 | Kanban widths                | A `6rem` stage heading column and `7.5rem` minimum status columns, so four columns fit a 640 px pane. Below that, one horizontal strip. No stacked status groups.                                                                                                                                                 |
 | View-switch motion           | One flight rule for every view pair. Remove the FLIP of real task boxes. A copy exists only when the outgoing or incoming cue intersects the stage box. Real cue elements with a copy are hidden during the flight and restored on finish and cancel. All connectors fade; connector retargeting is out of scope. |
 | ADR 20 and ADR 22            | They become Accepted in the last slice of PR #62, after validation. They stay Proposed (amended) until then.                                                                                                                                                                                                      |
+| Kanban family row            | Family rows sit below the cards of their swimlane across all columns. The expansion control sits in the family row, not on the parent summary card.                                                                                                                                                               |
+| Kanban card titles and frame | Clamp card titles to two lines on screen and paper. Keep the full title in the accessible name, the task dialog and the printed Work plan. Keep the card border and omit stage badges from cards.                                                                                                                 |
+| Status key readiness text    | Use "Ready: all dependencies are finished. Blocked: a dependency is not finished." without an introductory sentence.                                                                                                                                                                                              |
 
 The project supervisor set these defaults, which follow this record and the studies. The specification marks them as "Proposed default" where it records them. The requesting developer can change them without a new record.
 
@@ -114,7 +117,7 @@ This record amends earlier records as follows:
 ## Evidence
 
 The current Route map image is a map-only desktop notation study. It does not prove interaction, family-summary behavior, dark theme, dense or narrow route layout, long-label routing, actual cycle routing or production print output.
-The red dashed cycle sign appears only in its key.
+The cycle sign appears only in its key (the static key study drew it dashed; the specification uses a dotted warning stroke).
 The refreshed Gantt, Kanban, dense and narrow screenshots use the same rounded task and subtask status icons as Work plan. The status icons in the Gantt study do not apply; the Gantt stays as it is.
 Status icons retain the size, geometry and stroke weight of the existing app icons.
 Work plan studies preserve separate parent chevrons and aligned, indented child rows without added family summaries. They do not validate production keyboard or focus behavior.
