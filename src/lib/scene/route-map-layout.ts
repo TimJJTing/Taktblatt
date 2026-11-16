@@ -231,20 +231,17 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 	const owner = new Map(model.groups.flatMap((g) => g.taskIds.map((id) => [id, g.id] as const)));
 	const roots = model.nodes.filter((node) => !node.parentId);
 	const workflow = stageWorkflow(model);
-	const orderingPairs = [
-		...model.effectivePairs.filter(
-			(pair) =>
-				!model.edges.some((edge) => edge.cycle && edge.from === pair.from && edge.to === pair.to)
-		),
-		...workflow
-	];
+	const actual = classifyRouteMapEdges(model);
+	const scopePairs = [...actual.filter((edge) => edge.carrier === 'line'), ...workflow];
+	// Paths constrain placement. Only ordinary rails determine order within each scope.
+	const orderingPairs = [...actual.filter((edge) => !edge.cycle), ...workflow];
 	const stageOrder = new Map(model.stages.map((stage, index) => [stage.id, index]));
 	const compare = (a: RouteMapNode, b: RouteMapNode) =>
 		stageOrder.get(a.stageId)! - stageOrder.get(b.stageId)! || compareNodes(a, b);
 	const childOrders = new Map(
 		roots.map((root) => {
 			const children = model.nodes.filter((node) => node.parentId === root.id);
-			return [root.id, dependencyOrder(children, orderingPairs, compare)] as const;
+			return [root.id, dependencyOrder(children, scopePairs, compare)] as const;
 		})
 	);
 	const childOffset = new Map(
@@ -256,20 +253,9 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		.map((pair) => ({
 			from: owner.get(pair.from) ?? pair.from,
 			to: owner.get(pair.to) ?? pair.to,
-			weight: 1 + (childOffset.get(pair.from) ?? 0),
-			workflow: 'key' in pair
+			weight: 1 + (childOffset.get(pair.from) ?? 0)
 		}))
-		.filter(
-			(pair) =>
-				pair.from !== pair.to &&
-				(pair.workflow ||
-					!model.edges.some(
-						(edge) =>
-							edge.cycle &&
-							(owner.get(edge.from) ?? edge.from) === pair.from &&
-							(owner.get(edge.to) ?? edge.to) === pair.to
-					))
-		);
+		.filter((pair) => pair.from !== pair.to);
 	const ordered = dependencyOrder(roots, pairs, compare);
 	const rootRanks = new Map(ordered.map(({ node, rank }) => [node.id, rank]));
 	const columnsById = new Map(ordered.map(({ node, rank }) => [node.id, rank]));
@@ -322,7 +308,6 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 				]
 			: [];
 	});
-	const actual = classifyRouteMapEdges(model);
 	const allEdges = [...actual, ...workflow, ...familyEdges];
 	const lastColumn = Math.max(0, ...columnsById.values());
 	const nonstraight = allEdges.filter((edge) => {

@@ -3,7 +3,7 @@ import type { RouteMapLayout, RouteMapPoint } from './route-map-layout.ts';
 
 export interface RouteMapRoute extends RouteMapEdge {
 	points: readonly RouteMapPoint[];
-	carrier: 'line' | 'lead-in' | 'walkway';
+	carrier: 'line' | 'walkway';
 	dock?: { hostId: string; side: 'above' | 'below'; point: RouteMapPoint };
 	corridorId?: string;
 	lane?: number;
@@ -12,23 +12,10 @@ export interface RouteMapRoute extends RouteMapEdge {
 
 /** A carrier describes a real dependency. Family strokes are separate scene lines. */
 export function classifyRouteMapEdges(model: RouteMapModel): Omit<RouteMapRoute, 'points'>[] {
-	const nodes = new Map(model.nodes.map((node) => [node.id, node]));
-	return model.edges.map((edge) => {
-		const source = nodes.get(edge.from)!,
-			target = nodes.get(edge.to)!;
-		const proxy = edge.stored.some(
-			(stored) => stored.taskId !== edge.to || stored.dependencyId !== edge.from
-		);
-		const externalChild =
-			source.parentId !== target.parentId && (source.parentId || target.parentId);
-		return {
-			...edge,
-			carrier:
-				!edge.cycle && !proxy && !externalChild && source.stageId === target.stageId
-					? ('line' as const)
-					: ('walkway' as const)
-		};
-	});
+	return model.edges.map((edge) => ({
+		...edge,
+		carrier: edge.cycle || edge.crossStage ? 'walkway' : 'line'
+	}));
 }
 
 /** Trim orthogonal corners into 45-degree ramps without moving either endpoint. */
@@ -146,7 +133,13 @@ export function buildRouteMapRoutes(
 ): Pick<RouteMapLayout, 'routes' | 'corridors' | 'gutters' | 'junctions'> {
 	const stations = new Map(layout.stations.map((station) => [station.id, station]));
 	const edges = family
-		? family.map((edge) => ({ ...edge, cycle: false, stored: [], carrier: 'line' as const }))
+		? family.map((edge) => ({
+				...edge,
+				cycle: false,
+				crossStage: false,
+				stored: [],
+				carrier: 'line' as const
+			}))
 		: classifyRouteMapEdges(model);
 	const routes = edges.map((edge): RouteMapRoute => {
 		const source = stations.get(edge.from)!,

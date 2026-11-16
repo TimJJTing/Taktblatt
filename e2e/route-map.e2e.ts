@@ -30,6 +30,23 @@ const station = (page: Page, id: string) =>
 	incoming(page).locator(`button[data-route-target="${id}"][data-route-focus="keyboard"]`);
 const paper = (page: Page) => page.locator('[data-fragment="route-map-scene"]');
 
+function pinnedGardenPlan() {
+	const fixture = createExamplePlan('2026-11-14');
+	const stageIds = new Map(fixture.stages.map((stage, i) => [stage.id, `stage-${i}`]));
+	const taskIds = new Map(fixture.tasks.map((task, i) => [task.id, `task-${i}`]));
+	fixture.stages = fixture.stages.map((stage) => ({ ...stage, id: stageIds.get(stage.id)! }));
+	fixture.tasks = fixture.tasks.map((task, i) => ({
+		...task,
+		id: taskIds.get(task.id)!,
+		stageId: stageIds.get(task.stageId)!,
+		parentId: task.parentId ? taskIds.get(task.parentId)! : null,
+		dependsOn: task.dependsOn.map((id) => taskIds.get(id)!),
+		note: task.note.replace(/@\[task:([^\]]+)\]/g, (_, id) => `@[task:${taskIds.get(id)!}]`),
+		createdAt: new Date(Date.parse('2026-11-14T00:00:00.000Z') + i).toISOString()
+	}));
+	return fixture;
+}
+
 test('shows every top-level station, including undated, done and canceled work', async ({
 	page
 }) => {
@@ -355,19 +372,7 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 	page
 }) => {
 	await openRoutePlan(page);
-	const fixture = createExamplePlan('2026-11-14');
-	const stageIds = new Map(fixture.stages.map((stage, i) => [stage.id, `stage-${i}`]));
-	const taskIds = new Map(fixture.tasks.map((task, i) => [task.id, `task-${i}`]));
-	fixture.stages = fixture.stages.map((stage) => ({ ...stage, id: stageIds.get(stage.id)! }));
-	fixture.tasks = fixture.tasks.map((task, i) => ({
-		...task,
-		id: taskIds.get(task.id)!,
-		stageId: stageIds.get(task.stageId)!,
-		parentId: task.parentId ? taskIds.get(task.parentId)! : null,
-		dependsOn: task.dependsOn.map((id) => taskIds.get(id)!),
-		note: task.note.replace(/@\[task:([^\]]+)\]/g, (_, id) => `@[task:${taskIds.get(id)!}]`),
-		createdAt: new Date(Date.parse('2026-11-14T00:00:00.000Z') + i).toISOString()
-	}));
+	const fixture = pinnedGardenPlan();
 	await writeStoredPlan(page, (plan) => Object.assign(plan, fixture, { id: plan.id }));
 	await chooseView(page, 'route-map');
 	await page.evaluate(() => document.fonts.ready);
@@ -572,7 +577,7 @@ test('D53 incoming connectors stay scoped during Gantt ↔ Route map layer coexi
 	const gantt = await identities('gantt');
 	await chooseView(page, 'route-map');
 	const route = await identities('route-map');
-	expect(route).toEqual(expect.arrayContaining(['cycle-a->cycle-b', 'cycle-b->cycle-a']));
+	expect(route).toEqual(['cycle-a->cycle-b', 'cycle-b->cycle-a']);
 	for (const [next, expected] of [
 		['gantt', gantt],
 		['route-map', route]
@@ -789,4 +794,81 @@ test('Route map keeps offline stations, expansion and Preview after a production
 	} finally {
 		await context.setOffline(false);
 	}
+});
+
+test('keeps garden expansion carriers free of thin same-stage links and lights U9 parent rail with Soil test focus and description', async ({
+	page
+}) => {
+	await openRoutePlan(page);
+	const garden = pinnedGardenPlan();
+	await writeStoredPlan(page, (plan) => Object.assign(plan, garden, { id: plan.id }));
+	await chooseView(page, 'route-map');
+	await waitForAnimations(incoming(page));
+
+	const walkways = () =>
+		incoming(page)
+			.locator('[data-testid="route-map-dependency"][data-carrier="walkway"]')
+			.evaluateAll((items) =>
+				items.map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`).sort()
+			);
+
+	expect(await walkways()).toEqual(['task-1->task-5', 'task-4->task-5', 'task-5->task-7']);
+	await incoming(page)
+		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.click();
+	await waitForAnimations(incoming(page));
+	expect(await walkways()).toEqual(['task-3->task-5', 'task-4->task-5', 'task-5->task-7']);
+	await expect(
+		incoming(page).locator(
+			'[data-testid="route-map-dependency"][data-from="task-2"][data-to="task-3"]'
+		)
+	).toHaveAttribute('data-carrier', 'line');
+
+	const u9 = pinnedGardenPlan();
+	u9.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');
+	await writeStoredPlan(page, (plan) => Object.assign(plan, u9, { id: plan.id }));
+	await expectView(page, 'route-map');
+	await waitForAnimations(incoming(page));
+	await incoming(page)
+		.getByRole('button', { name: 'Hide subtasks of Soil preparation', exact: true })
+		.click();
+	await waitForAnimations(incoming(page));
+	await expect(station(page, 'task-2')).toHaveCount(0);
+
+	const topRails = () =>
+		incoming(page)
+			.locator('[data-testid="route-map-dependency"][data-carrier="line"]')
+			.evaluateAll((items) =>
+				items
+					.map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`)
+					.filter((key) => !key.includes('task-2') && !key.includes('task-3'))
+					.sort()
+			);
+
+	const collapsedTopRails = await topRails();
+	expect(collapsedTopRails).toContain('task-1->task-4');
+	await expect(station(page, 'task-4')).toHaveAccessibleDescription(/Soil test/);
+
+	await incoming(page)
+		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.click();
+	await waitForAnimations(incoming(page));
+	expect(await topRails()).toEqual(collapsedTopRails);
+	await expect(
+		incoming(page).locator(
+			'[data-testid="route-map-dependency"][data-from="task-2"][data-to="task-4"]'
+		)
+	).toHaveCount(0);
+
+	await expect(station(page, 'task-4')).toHaveAccessibleDescription(/Soil test/);
+	await expect(station(page, 'task-2')).toHaveAccessibleDescription(/Order seeds/);
+	await focusPreviousControl(station(page, 'task-4'));
+	await page.keyboard.press('Tab');
+	await expect(station(page, 'task-4')).toBeFocused();
+	await expect(
+		incoming(page).locator(
+			'[data-testid="route-map-dependency"][data-from="task-1"][data-to="task-4"]'
+		)
+	).toHaveAttribute('data-route', 'lit');
+	await expect(station(page, 'task-2')).toHaveAttribute('data-route', 'lit');
 });

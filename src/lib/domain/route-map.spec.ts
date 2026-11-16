@@ -69,7 +69,7 @@ describe('Route map model', () => {
 		expect(model.nodes.find((n) => n.id === 'doneFamily')).toMatchObject({ status: 'done' });
 	});
 
-	it('proxies hidden predecessors, omits hidden dependents and inherited duplicates', () => {
+	it('projects hidden predecessors and hidden dependents, suppresses collapsed sibling self-links, and keeps same-stage external-child rails', () => {
 		const plan = makePlan([
 			task({ id: 'up' }),
 			task({ id: 'P', dependsOn: ['up'] }),
@@ -79,13 +79,32 @@ describe('Route map model', () => {
 		]);
 		const index = indexTasks(plan.tasks);
 		const closed = routeMapModel(plan, new Set(), index);
-		expect(stored(closed.edges)).toEqual(['P:up', 'down:P', 'down:S']);
+		expect(stored(closed.edges)).toEqual(['P:up', 'T:up', 'down:P', 'down:S']);
+		expect(closed.edges.find((e) => e.key === 'up->P')!.stored).toEqual([
+			{ taskId: 'P', dependencyId: 'up' },
+			{ taskId: 'T', dependencyId: 'up' }
+		]);
 		expect(closed.edges.find((e) => e.key === 'P->down')!.stored).toEqual([
 			{ taskId: 'down', dependencyId: 'P' },
 			{ taskId: 'down', dependencyId: 'S' }
 		]);
+		expect(closed.edges.some((e) => e.from === e.to)).toBe(false);
 		const open = routeMapModel(plan, new Set(['P']), index);
 		expect(stored(open.edges)).toEqual(['P:up', 'T:S', 'T:up', 'down:P', 'down:S']);
+		expect(open.edges.find((e) => e.key === 'up->P')!.stored).toEqual([
+			{ taskId: 'P', dependencyId: 'up' },
+			{ taskId: 'T', dependencyId: 'up' }
+		]);
+		expect(open.edges.find((e) => e.key === 'P->down')!.stored).toEqual([
+			{ taskId: 'down', dependencyId: 'P' },
+			{ taskId: 'down', dependencyId: 'S' }
+		]);
+		expect(open.edges.find((e) => e.key === 'S->T')).toMatchObject({
+			from: 'S',
+			to: 'T',
+			crossStage: false,
+			cycle: false
+		});
 		expect(open.effectivePairs).toContainEqual({ from: 'up', to: 'S' });
 		expect(open.edges.some((e) => e.from === 'up' && e.to === 'S')).toBe(false);
 		expect(open.warnings).toContainEqual({
@@ -93,6 +112,204 @@ describe('Route map model', () => {
 			taskId: 'T',
 			dependencyId: 'up'
 		});
+	});
+
+	it('projects cross-stage hidden predecessors and dependents in both directions, handles partial expansion, and restores exact endpoints', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'P', stageId: 's1' }),
+				task({ id: 'S1', stageId: 's1', parentId: 'P' }),
+				task({ id: 'S2', stageId: 's1', parentId: 'P' }),
+				task({ id: 'Q', stageId: 's2' }),
+				task({ id: 'T1', stageId: 's2', parentId: 'Q', dependsOn: ['S1', 'P'] }),
+				task({ id: 'T2', stageId: 's2', parentId: 'Q', dependsOn: ['S2'] }),
+				task({ id: 'R', stageId: 's2', dependsOn: ['S1'] })
+			],
+			['s1', 's2']
+		);
+		const index = indexTasks(plan.tasks);
+		const closed = routeMapModel(plan, new Set(), index);
+		expect(closed.edges.find((e) => e.key === 'P->Q')).toEqual({
+			key: 'P->Q',
+			from: 'P',
+			to: 'Q',
+			crossStage: true,
+			cycle: false,
+			stored: [
+				{ taskId: 'T1', dependencyId: 'P' },
+				{ taskId: 'T1', dependencyId: 'S1' },
+				{ taskId: 'T2', dependencyId: 'S2' }
+			]
+		});
+		expect(closed.edges.find((e) => e.key === 'P->R')).toEqual({
+			key: 'P->R',
+			from: 'P',
+			to: 'R',
+			crossStage: true,
+			cycle: false,
+			stored: [{ taskId: 'R', dependencyId: 'S1' }]
+		});
+		const onlyP = routeMapModel(plan, new Set(['P']), index);
+		expect(onlyP.edges.map((e) => [e.key, e.crossStage, e.stored])).toEqual([
+			['P->Q', true, [{ taskId: 'T1', dependencyId: 'P' }]],
+			['S1->Q', true, [{ taskId: 'T1', dependencyId: 'S1' }]],
+			['S1->R', true, [{ taskId: 'R', dependencyId: 'S1' }]],
+			['S2->Q', true, [{ taskId: 'T2', dependencyId: 'S2' }]]
+		]);
+		const onlyQ = routeMapModel(plan, new Set(['Q']), index);
+		expect(onlyQ.edges.map((e) => [e.key, e.crossStage, e.stored])).toEqual([
+			['P->R', true, [{ taskId: 'R', dependencyId: 'S1' }]],
+			[
+				'P->T1',
+				true,
+				[
+					{ taskId: 'T1', dependencyId: 'P' },
+					{ taskId: 'T1', dependencyId: 'S1' }
+				]
+			],
+			['P->T2', true, [{ taskId: 'T2', dependencyId: 'S2' }]]
+		]);
+		const open = routeMapModel(plan, new Set(['P', 'Q']), index);
+		expect(open.edges.map((e) => [e.key, e.crossStage, e.stored])).toEqual([
+			['P->T1', true, [{ taskId: 'T1', dependencyId: 'P' }]],
+			['S1->R', true, [{ taskId: 'R', dependencyId: 'S1' }]],
+			['S1->T1', true, [{ taskId: 'T1', dependencyId: 'S1' }]],
+			['S2->T2', true, [{ taskId: 'T2', dependencyId: 'S2' }]]
+		]);
+	});
+
+	it('restores incoming and outgoing cycle endpoints across partial and full expansion', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'P', stageId: 's1' }),
+				task({ id: 'S', stageId: 's1', parentId: 'P', dependsOn: ['T'] }),
+				task({ id: 'Q', stageId: 's2' }),
+				task({ id: 'T', stageId: 's2', parentId: 'Q', dependsOn: ['S'] })
+			],
+			['s1', 's2']
+		);
+		const index = indexTasks(plan.tasks);
+		expect(
+			routeMapModel(plan, new Set(), index).edges.map((e) => [
+				e.key,
+				e.cycle,
+				e.crossStage,
+				e.stored
+			])
+		).toEqual([
+			['P->Q', true, true, [{ taskId: 'T', dependencyId: 'S' }]],
+			['Q->P', true, true, [{ taskId: 'S', dependencyId: 'T' }]]
+		]);
+		expect(
+			routeMapModel(plan, new Set(['P']), index).edges.map((e) => [e.key, e.cycle, e.stored])
+		).toEqual([
+			['Q->S', true, [{ taskId: 'S', dependencyId: 'T' }]],
+			['S->Q', true, [{ taskId: 'T', dependencyId: 'S' }]]
+		]);
+		expect(
+			routeMapModel(plan, new Set(['P', 'Q']), index).edges.map((e) => [e.key, e.cycle, e.stored])
+		).toEqual([
+			['S->T', true, [{ taskId: 'T', dependencyId: 'S' }]],
+			['T->S', true, [{ taskId: 'S', dependencyId: 'T' }]]
+		]);
+	});
+
+	it('classifies crossStage from stored stage ids before projection and ORs merged flags', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'P', stageId: 's1' }),
+				task({ id: 'S', stageId: 's2', parentId: 'P', dependsOn: ['Q'] }),
+				task({ id: 'Q', stageId: 's1' }),
+				task({ id: 'R', stageId: 's1', dependsOn: ['Q'] }),
+				task({ id: 'U', stageId: 's2', parentId: 'R', dependsOn: ['Q'] }),
+				task({ id: 'sameStoredTarget', stageId: 's2', dependsOn: ['S'] })
+			],
+			['s1', 's2']
+		);
+		const index = indexTasks(plan.tasks);
+		const closed = routeMapModel(plan, new Set(), index);
+		const crossOnly = closed.edges.find((e) => e.key === 'Q->P');
+		expect(crossOnly).toMatchObject({
+			crossStage: true,
+			stored: [{ taskId: 'S', dependencyId: 'Q' }]
+		});
+		const sameStored = closed.edges.find((e) => e.key === 'P->sameStoredTarget');
+		expect(sameStored).toMatchObject({
+			crossStage: false,
+			stored: [{ taskId: 'sameStoredTarget', dependencyId: 'S' }]
+		});
+		const merged = closed.edges.find((e) => e.key === 'Q->R');
+		expect(merged).toMatchObject({
+			crossStage: true,
+			stored: [
+				{ taskId: 'R', dependencyId: 'Q' },
+				{ taskId: 'U', dependencyId: 'Q' }
+			]
+		});
+	});
+
+	it('suppresses collapsed sibling self-links while preserving effective pairs and warnings', () => {
+		const plan = makePlan([
+			task({ id: 'P' }),
+			task({ id: 'A', parentId: 'P', start: '2027-02-01', end: '2027-02-05' }),
+			task({ id: 'B', parentId: 'P', start: '2027-01-01', end: '2027-01-05', dependsOn: ['A'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const closed = routeMapModel(plan, new Set(), index);
+		expect(closed.edges).toEqual([]);
+		expect(closed.effectivePairs).toContainEqual({ from: 'A', to: 'B' });
+		expect(closed.warnings).toContainEqual({ kind: 'date', taskId: 'B', dependencyId: 'A' });
+		expect(routeMapModel(plan, new Set(['P']), index).edges).toEqual([
+			{
+				key: 'A->B',
+				from: 'A',
+				to: 'B',
+				crossStage: false,
+				cycle: false,
+				stored: [{ taskId: 'B', dependencyId: 'A' }]
+			}
+		]);
+	});
+
+	it('keeps same-stage external-child parent rails in both expand states for U9 and two-family dependencies', () => {
+		const u9 = makePlan([
+			task({ id: 'survey', title: 'Site survey' }),
+			task({ id: 'soil', title: 'Soil preparation' }),
+			task({ id: 'test', title: 'Soil test', parentId: 'soil' }),
+			task({ id: 'seeds', title: 'Order seeds', dependsOn: ['survey', 'test'] })
+		]);
+		const u9Index = indexTasks(u9.tasks);
+		for (const expanded of [new Set<string>(), new Set(['soil'])]) {
+			const edge = routeMapModel(u9, expanded, u9Index).edges.find((e) => e.key === 'soil->seeds');
+			expect(edge).toEqual({
+				key: 'soil->seeds',
+				from: 'soil',
+				to: 'seeds',
+				crossStage: false,
+				cycle: false,
+				stored: [{ taskId: 'seeds', dependencyId: 'test' }]
+			});
+		}
+
+		const twoFamilies = makePlan([
+			task({ id: 'P' }),
+			task({ id: 'S', parentId: 'P' }),
+			task({ id: 'Q' }),
+			task({ id: 'T', parentId: 'Q', dependsOn: ['S'] })
+		]);
+		const twoIndex = indexTasks(twoFamilies.tasks);
+		for (const expanded of [new Set<string>(), new Set(['P', 'Q'])]) {
+			expect(routeMapModel(twoFamilies, expanded, twoIndex).edges).toEqual([
+				{
+					key: 'P->Q',
+					from: 'P',
+					to: 'Q',
+					crossStage: false,
+					cycle: false,
+					stored: [{ taskId: 'T', dependencyId: 'S' }]
+				}
+			]);
+		}
 	});
 
 	it('preserves the ADR 13 stored warning identities in both expand states', () => {

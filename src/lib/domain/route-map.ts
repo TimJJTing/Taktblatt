@@ -19,6 +19,7 @@ export interface RouteMapEdge {
 	from: string;
 	to: string;
 	cycle: boolean;
+	crossStage: boolean;
 	stored: readonly DependencyEdge[];
 }
 export interface RouteMapModel {
@@ -71,23 +72,62 @@ export function routeMapModel(
 	const effectivePairs = tasks
 		.flatMap((t) => [...effectiveDependencies(index, t.id)].map((from) => ({ from, to: t.id })))
 		.sort((a, b) => compareIds(a.from, b.from) || compareIds(a.to, b.to));
-	const edges = new Map<
-		string,
-		{ key: string; from: string; to: string; cycle: boolean; stored: DependencyEdge[] }
-	>();
-	for (const task of visible)
+	type MutableEdge = Omit<RouteMapEdge, 'stored'> & { stored: DependencyEdge[] };
+	const projected = new Map<string, MutableEdge>();
+	const merge = (edges: Map<string, MutableEdge>, incoming: RouteMapEdge) => {
+		if (incoming.from === incoming.to) return;
+		const key = lineKey(incoming.from, incoming.to);
+		const edge = edges.get(key) ?? { ...incoming, key, stored: [] };
+		edge.cycle ||= incoming.cycle;
+		edge.crossStage ||= incoming.crossStage;
+		edge.stored.push(...incoming.stored);
+		edges.set(key, edge);
+	};
+	const cycles = new Set(
+		warnings
+			.filter((warning) => warning.kind === 'cycle')
+			.map((w) => lineKey(w.dependencyId, w.taskId))
+	);
+	for (const task of tasks)
 		for (const dep of [...new Set(task.dependsOn)].sort()) {
-			if (!index.byId.has(dep)) continue;
+			const source = index.byId.get(dep);
+			if (!source) continue;
 			const from = proxy(dep),
-				to = task.id,
+				to = proxy(task.id),
 				key = lineKey(from, to);
-			const edge = edges.get(key) ?? { key, from, to, cycle: false, stored: [] };
-			edge.stored.push({ taskId: task.id, dependencyId: dep });
-			edge.cycle ||= warnings.some(
-				(w) => w.kind === 'cycle' && w.taskId === task.id && w.dependencyId === dep
-			);
-			edges.set(key, edge);
+			merge(projected, {
+				key,
+				from,
+				to,
+				cycle: cycles.has(lineKey(dep, task.id)),
+				crossStage: source.stageId !== task.stageId,
+				stored: [{ taskId: task.id, dependencyId: dep }]
+			});
 		}
+	const edges = new Map<string, MutableEdge>();
+	// Merge visible paths first so an aggregate warning keeps its exact visible endpoints.
+	for (const edge of projected.values()) {
+		if (edge.cycle || edge.crossStage) {
+			merge(edges, edge);
+			continue;
+		}
+		for (const stored of edge.stored) {
+			const source = index.byId.get(stored.dependencyId)!;
+			const target = index.byId.get(stored.taskId)!;
+			const siblings = source.parentId !== null && source.parentId === target.parentId;
+			// External child dependencies keep the parent rail in both expand states.
+			merge(edges, {
+				...edge,
+				from: siblings ? edge.from : (source.parentId ?? source.id),
+				to: siblings ? edge.to : (target.parentId ?? target.id),
+				stored: [stored]
+			});
+		}
+	}
+	for (const edge of edges.values())
+		edge.stored.sort(
+			(a, b) => compareIds(a.taskId, b.taskId) || compareIds(a.dependencyId, b.dependencyId)
+		);
 	return {
 		nodes,
 		groups,

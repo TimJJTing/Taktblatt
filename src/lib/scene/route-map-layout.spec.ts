@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { dependencyWarnings } from '#lib/domain/dependencies.ts';
 import { makePlan } from '#lib/domain/test-helpers.ts';
 import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
@@ -318,4 +319,141 @@ describe('Workflow branching Route map', () => {
 			expect(Number.isFinite(s.center.x) && Number.isFinite(s.center.y)).toBe(true);
 		expect(scene(shuffled(plan))).toEqual(result);
 	}, 20000);
+
+	it('keeps U9 top-level rail keys equal in both expand states without duplicate carriers', () => {
+		const plan = pinnedExamplePlan();
+		plan.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');
+		const topLevelIds = new Set(plan.tasks.filter((t) => t.parentId === null).map((t) => t.id));
+		const topStageRails = (result: ReturnType<typeof scene>, stageId: string) =>
+			result.lines
+				.filter(
+					(line) =>
+						line.stageId === stageId &&
+						line.kind !== 'family' &&
+						line.taskIds.every((id) => topLevelIds.has(id))
+				)
+				.map((line) => line.key)
+				.sort();
+
+		const collapsed = scene(plan);
+		const expanded = scene(plan, new Set(['task-1']));
+		for (const result of [collapsed, expanded]) {
+			expect(result.lines.some((line) => line.key === 'task-1->task-4')).toBe(true);
+			expect(result.lines.find((line) => line.key === 'task-1->task-4')!.dependencyKeys).toEqual([
+				'task-1->task-4'
+			]);
+			expect(new Set(result.routes.map((route) => route.key)).size).toBe(result.routes.length);
+		}
+		expect(topStageRails(expanded, 'stage-0')).toEqual(topStageRails(collapsed, 'stage-0'));
+	});
+
+	it('lets U9 parent rails govern scope order over conflicting dates with unrelated work and no duplicate carriers', () => {
+		const plan = makePlan([
+			task({ id: 'seeds', title: 'Order seeds', start: '2026-11-01', dependsOn: ['test'] }),
+			task({ id: 'survey', title: 'Site survey', start: '2026-11-05' }),
+			task({ id: 'soil', title: 'Soil preparation', start: '2026-11-10', dependsOn: ['survey'] }),
+			task({ id: 'test', title: 'Soil test', parentId: 'soil', start: '2026-11-10' }),
+			task({ id: 'extra', title: 'Tool check', start: '2026-11-12' })
+		]);
+		const topLevelIds = new Set(['seeds', 'survey', 'soil', 'extra']);
+		const topRails = (result: ReturnType<typeof scene>) =>
+			result.lines
+				.filter((line) => line.kind !== 'family' && line.taskIds.every((id) => topLevelIds.has(id)))
+				.map((line) => [line.key, line.dependencyKeys])
+				.sort();
+
+		const collapsed = scene(plan);
+		const expanded = scene(plan, new Set(['soil']));
+		for (const result of [collapsed, expanded]) {
+			expect(station(result, 'soil').column).toBeLessThan(station(result, 'seeds').column);
+			expect(
+				result.lines.filter((line) => line.taskIds[0] === 'soil' && line.taskIds[1] === 'seeds')
+			).toHaveLength(1);
+			expect(result.routes.map((route) => route.key).sort()).toEqual([
+				'soil->seeds',
+				'survey->soil'
+			]);
+			expect(new Set(result.routes.map((route) => route.key)).size).toBe(result.routes.length);
+		}
+		expect(topRails(collapsed)).toEqual([
+			['soil->seeds', ['soil->seeds']],
+			['survey->soil', ['survey->soil']],
+			['workflow:seeds->extra', []]
+		]);
+		expect(topRails(expanded)).toEqual(topRails(collapsed));
+	});
+
+	it('keeps exact three thin garden pairs in both states and expanded Soil test -> Add compost rail', () => {
+		const plan = pinnedExamplePlan();
+		const collapsed = scene(plan);
+		const expanded = scene(plan, new Set(['task-1']));
+		expect(
+			collapsed.routes
+				.filter((route) => route.carrier === 'walkway')
+				.map((route) => route.key)
+				.sort()
+		).toEqual(['task-1->task-5', 'task-4->task-5', 'task-5->task-7']);
+		expect(
+			expanded.routes
+				.filter((route) => route.carrier === 'walkway')
+				.map((route) => route.key)
+				.sort()
+		).toEqual(['task-3->task-5', 'task-4->task-5', 'task-5->task-7']);
+		expect(expanded.lines.find((line) => line.key === 'task-2->task-3')?.dependencyKeys).toEqual([
+			'task-2->task-3'
+		]);
+	});
+
+	it('keeps same-stage two-family external-child parent rail keys equal in both expand states', () => {
+		const plan = makePlan([
+			task({ id: 'P', start: '2027-01-01' }),
+			task({ id: 'A', parentId: 'P', start: '2027-01-01' }),
+			task({ id: 'Q', start: '2027-01-02' }),
+			task({ id: 'B', parentId: 'Q', start: '2027-01-02', dependsOn: ['A'] })
+		]);
+		const topLevelIds = new Set(['P', 'Q']);
+		const topRails = (expanded: Set<string>) =>
+			scene(plan, expanded)
+				.lines.filter(
+					(line) => line.kind !== 'family' && line.taskIds.every((id) => topLevelIds.has(id))
+				)
+				.map((line) => [line.key, line.dependencyKeys]);
+
+		const collapsed = topRails(new Set());
+		const expanded = topRails(new Set(['P', 'Q']));
+		expect(collapsed).toEqual([['P->Q', ['P->Q']]]);
+		expect(expanded).toEqual(collapsed);
+	});
+
+	it('keeps synthetic workflow adjacency and family links free of stored identities, readiness changes, and warnings', () => {
+		const plan = makePlan([
+			task({ id: 'first', start: '2027-01-01', status: 'todo' }),
+			task({ id: 'second', start: '2027-01-02', status: 'todo' }),
+			task({ id: 'parent', start: '2027-01-03' }),
+			task({ id: 'child-a', parentId: 'parent', start: '2027-01-03' }),
+			task({ id: 'child-b', parentId: 'parent', start: '2027-01-04' })
+		]);
+		const index = indexTasks(plan.tasks);
+		const model = routeMapModel(plan, new Set(['parent']), index);
+		const layout = routeMapLayout(model, screenMetrics);
+
+		const synthetic = layout.lines.filter(
+			(line) => line.kind === 'workflow' || line.kind === 'family'
+		);
+		expect(synthetic.length).toBeGreaterThanOrEqual(3);
+		for (const line of synthetic) expect(line.dependencyKeys).toEqual([]);
+		expect(model.edges).toEqual([]);
+		expect(layout.routes).toEqual([]);
+		expect(model.warnings).toEqual(dependencyWarnings(index));
+		expect(index.state.get('second')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 0
+		});
+		expect(index.state.get('child-b')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 0
+		});
+	});
 });

@@ -263,7 +263,6 @@ export interface MetroLayout extends Pick<
 	}[];
 }
 export interface MetroRoute extends RouteMapRoute {
-	carrier: 'line' | 'lead-in' | 'walkway';
 	dock?: { hostId: string; side: 'above' | 'below'; point: RouteMapPoint };
 	corridorId?: string;
 	lane?: number;
@@ -292,7 +291,7 @@ export function expectOctilinear(points: readonly RouteMapPoint[]) {
 }
 export function expectCoverage(model: RouteMapModel, routes: readonly MetroRoute[]) {
 	expect(routes.map((r) => r.key).sort()).toEqual(model.edges.map((e) => e.key).sort());
-	expect(routes.every((r) => ['line', 'lead-in', 'walkway'].includes(r.carrier))).toBe(true);
+	expect(routes.every((r) => ['line', 'walkway'].includes(r.carrier))).toBe(true);
 	const identity = (edge: { taskId: string; dependencyId: string }) =>
 		JSON.stringify([edge.taskId, edge.dependencyId]);
 	expect(routes.flatMap((r) => r.stored.map(identity)).sort()).toEqual(

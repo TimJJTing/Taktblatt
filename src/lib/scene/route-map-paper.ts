@@ -531,6 +531,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				from: line.taskIds[0],
 				to: line.taskIds[1],
 				cycle: false,
+				crossStage: false,
 				stored: [],
 				carrier: 'line' as const,
 				points: line.points,
@@ -552,28 +553,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 			const a = { x: s.center.x + (kind === 'exit' ? d : -d), y: s.center.y - d };
 			const end = { x: a.x + (kind === 'exit' ? 12 : -12), y: a.y };
 			let points = kind === 'exit' ? [s.center, a, end] : [end, a, s.center];
-			if (route.carrier === 'lead-in') {
-				if (kind === 'exit') {
-					const dock = {
-						x: s.center.x,
-						y:
-							s.center.y +
-							route.dock!.point.y -
-							layout.stations.find((original) => original.id === s.id)!.center.y
-					};
-					const run = { x: dock.x + 12, y: dock.y };
-					const lane = {
-						x: run.x,
-						y: Math.min(...item.stations.map((station) => station.center.y)) - 12
-					};
-					points = [dock, run, lane, { x: lane.x + 12, y: lane.y }];
-				} else
-					points = [
-						{ x: s.center.x - 24, y: s.center.y },
-						{ x: s.center.x - 12, y: s.center.y },
-						s.center
-					];
-			}
+
 			const laneY = kind === 'exit' ? points.at(-1)!.y : points[0].y;
 			const stub =
 				kind === 'exit'

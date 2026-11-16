@@ -13,7 +13,7 @@ import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapPaper } from '#lib/scene/route-map-paper.ts';
 import PrintRouteMap from './PrintRouteMap.svelte';
 import { makeTask } from '#lib/domain/test-helpers.ts';
-import { removeTasks } from '#lib/state/commands.ts';
+import { removeTasks, updateTask } from '#lib/state/commands.ts';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { ViewerState } from '#lib/state/viewer.svelte.ts';
 import { MemoryStorage } from '#lib/state/memory-storage.ts';
@@ -186,14 +186,14 @@ describe('Route map station interactions', () => {
 		expect(editing.detailsTaskId).toBeNull();
 	});
 
-	it('projects a collapsed family route without lighting shortcuts or adding inherited connectors', async () => {
+	it('projects collapsed family routes in both directions and keeps same-stage parent rails when expanded', async () => {
 		workspace.commit((plan) => {
 			plan.tasks = [
 				makeTask({ id: 'up' }),
-				makeTask({ id: 'P', dependsOn: ['up'] }),
-				makeTask({ id: 'a', parentId: 'P' }),
+				makeTask({ id: 'P' }),
+				makeTask({ id: 'a', parentId: 'P', dependsOn: ['up'] }),
 				makeTask({ id: 'b', parentId: 'P', dependsOn: ['a'] }),
-				makeTask({ id: 'down', dependsOn: ['a', 'up'] }),
+				makeTask({ id: 'down', dependsOn: ['b', 'up'] }),
 				makeTask({ id: 'other' })
 			];
 		});
@@ -202,21 +202,251 @@ describe('Route map station interactions', () => {
 		mark(screen.container, 'P').focus();
 		flushSync();
 		expect(editing.routeId).toBe('P');
-		const lit = [
+		const litCollapsed = [
 			...screen.container.querySelectorAll('[data-testid="route-map-dependency"][data-route="lit"]')
 		]
 			.map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`)
 			.sort();
-		expect(lit).toEqual(['P->down', 'up->P']);
-		expect(screen.container.querySelectorAll('[data-testid="route-map-dependency"]')).toHaveLength(
-			3
-		);
+		expect(litCollapsed).toEqual(['P->down', 'up->P']);
+		const collapsedDeps = [
+			...screen.container.querySelectorAll('[data-testid="route-map-dependency"]')
+		];
+		expect(collapsedDeps).toHaveLength(3);
+		expect(collapsedDeps.every((e) => e.getAttribute('data-carrier') === 'line')).toBe(true);
 		const other = screen.container.querySelector(`[${DIAGRAM_ATTR.task}="other"]`)!;
 		expect(other.getAttribute('data-route')).toBe('off');
 		expect(getComputedStyle(label(screen.container, 'other')).opacity).toBe('1');
 		expect(
 			screen.container.querySelector('[data-testid="route-map-guide"] [data-route="lit"]')
 		).toBeNull();
+
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		flushSync();
+		mark(screen.container, 'down').focus();
+		flushSync();
+		expect(editing.routeId).toBe('down');
+		const expandedDeps = [
+			...screen.container.querySelectorAll('[data-testid="route-map-dependency"]')
+		];
+		expect(expandedDeps).toHaveLength(4);
+		expect(expandedDeps.every((e) => e.getAttribute('data-carrier') === 'line')).toBe(true);
+		const litExpanded = [
+			...screen.container.querySelectorAll('[data-testid="route-map-dependency"][data-route="lit"]')
+		]
+			.map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`)
+			.sort();
+		expect(litExpanded).toEqual(['P->down', 'a->b', 'up->P', 'up->down']);
+		for (const id of ['up', 'a', 'b', 'down'])
+			expect(mark(screen.container, id).getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'P').getAttribute('data-route')).toBe('off');
+		expect(mark(screen.container, 'other').getAttribute('data-route')).toBe('off');
+	});
+
+	const assertInheritedRouteState = (
+		container: ParentNode,
+		{
+			owner,
+			expectedDeps,
+			litRails,
+			litStations,
+			offStations
+		}: {
+			owner: string;
+			expectedDeps: string[];
+			litRails: string[];
+			litStations: string[];
+			offStations: string[];
+		}
+	) => {
+		expect(editing.routeId).toBe(owner);
+		const deps = [...container.querySelectorAll('[data-testid="route-map-dependency"]')];
+		expect(
+			deps.map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`).sort()
+		).toEqual(expectedDeps);
+		expect(deps.every((e) => e.getAttribute('data-carrier') === 'line')).toBe(true);
+		expect(
+			container.querySelector(
+				'[data-testid="route-map-dependency"][data-from="external"][data-to="child"]'
+			)
+		).toBeNull();
+		expect(
+			container.querySelector(
+				'[data-testid="route-map-guide"][data-route="lit"], [data-family-branch][data-route="lit"]'
+			)
+		).toBeNull();
+		expect(
+			deps
+				.filter((e) => e.getAttribute('data-route') === 'lit')
+				.map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`)
+				.sort()
+		).toEqual(litRails);
+		for (const dep of deps) {
+			const key = `${dep.getAttribute('data-from')}->${dep.getAttribute('data-to')}`;
+			expect(dep.getAttribute('data-route')).toBe(litRails.includes(key) ? 'lit' : 'off');
+		}
+		for (const id of litStations) {
+			expect(mark(container, id).getAttribute('data-route')).toBe('lit');
+		}
+		for (const id of offStations) {
+			expect(mark(container, id).getAttribute('data-route')).toBe('off');
+		}
+	};
+
+	it('lights collapsed inherited route rails on tail and hidden-child dialog focus without borrowing external->parent when expanded', async () => {
+		motion.reduced = true;
+		const stageId = 's1';
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'external', stageId }),
+				makeTask({ id: 'parent', stageId, dependsOn: ['external'] }),
+				makeTask({ id: 'child', stageId, parentId: 'parent' }),
+				makeTask({ id: 'tail', stageId, dependsOn: ['child'] }),
+				makeTask({ id: 'other', stageId })
+			];
+		});
+		const screen = await mount();
+		const expectedDeps = ['external->parent', 'parent->tail'];
+
+		await userEvent.tab();
+		mark(screen.container, 'tail').focus();
+		flushSync();
+		expect(mark(screen.container, 'child')).toBeNull();
+		assertInheritedRouteState(screen.container, {
+			owner: 'tail',
+			expectedDeps,
+			litRails: ['external->parent', 'parent->tail'],
+			litStations: ['external', 'parent', 'tail'],
+			offStations: ['other']
+		});
+
+		editing.openDetails('child', null);
+		flushSync();
+		await expect.element(page.getByTestId('task-dialog')).toBeVisible();
+		expect(mark(screen.container, 'child')).toBeNull();
+		assertInheritedRouteState(screen.container, {
+			owner: 'child',
+			expectedDeps,
+			litRails: ['external->parent', 'parent->tail'],
+			litStations: ['external', 'parent', 'tail'],
+			offStations: ['other']
+		});
+		await userEvent.keyboard('{Escape}');
+		await expect.element(page.getByTestId('task-dialog')).not.toBeInTheDocument();
+
+		viewer.setExpanded(workspace.plan.id, 'parent', true);
+		flushSync();
+		await userEvent.tab();
+		mark(screen.container, 'tail').focus();
+		flushSync();
+		assertInheritedRouteState(screen.container, {
+			owner: 'tail',
+			expectedDeps,
+			litRails: ['parent->tail'],
+			litStations: ['external', 'child', 'tail'],
+			offStations: ['parent', 'other']
+		});
+
+		mark(screen.container, 'child').focus();
+		flushSync();
+		assertInheritedRouteState(screen.container, {
+			owner: 'child',
+			expectedDeps,
+			litRails: ['parent->tail'],
+			litStations: ['external', 'child', 'tail'],
+			offStations: ['parent', 'other']
+		});
+	});
+
+	it('lights the U9 sourceParent->parent rail for a collapsed inherited child route across all four family-expansion states', async () => {
+		motion.reduced = true;
+		const stageId = 's1';
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'sourceParent', stageId }),
+				makeTask({ id: 'external', stageId, parentId: 'sourceParent' }),
+				makeTask({ id: 'parent', stageId, dependsOn: ['external'] }),
+				makeTask({ id: 'child', stageId, parentId: 'parent' }),
+				makeTask({ id: 'tail', stageId, dependsOn: ['child'] }),
+				makeTask({ id: 'other', stageId })
+			];
+		});
+		const expectedDeps = ['parent->tail', 'sourceParent->parent'];
+		viewer.setExpanded(workspace.plan.id, 'sourceParent', true);
+		const screen = await mount();
+
+		// 1-2. sourceParent expanded only + tail keyboard focus
+		await userEvent.tab();
+		mark(screen.container, 'tail').focus();
+		flushSync();
+		expect(mark(screen.container, 'child')).toBeNull();
+		assertInheritedRouteState(screen.container, {
+			owner: 'tail',
+			expectedDeps,
+			litRails: ['parent->tail', 'sourceParent->parent'],
+			litStations: ['external', 'parent', 'tail'],
+			offStations: ['sourceParent', 'other']
+		});
+
+		// 3. sourceParent expanded only + hidden child dialog focus
+		editing.openDetails('child', null);
+		flushSync();
+		await expect.element(page.getByTestId('task-dialog')).toBeVisible();
+		expect(mark(screen.container, 'child')).toBeNull();
+		assertInheritedRouteState(screen.container, {
+			owner: 'child',
+			expectedDeps,
+			litRails: ['parent->tail', 'sourceParent->parent'],
+			litStations: ['external', 'parent', 'tail'],
+			offStations: ['sourceParent', 'other']
+		});
+		await userEvent.keyboard('{Escape}');
+		await expect.element(page.getByTestId('task-dialog')).not.toBeInTheDocument();
+
+		// 4a. Neither expanded + tail keyboard focus
+		viewer.setExpanded(workspace.plan.id, 'sourceParent', false);
+		flushSync();
+		await userEvent.tab();
+		mark(screen.container, 'tail').focus();
+		flushSync();
+		expect(mark(screen.container, 'external')).toBeNull();
+		expect(mark(screen.container, 'child')).toBeNull();
+		assertInheritedRouteState(screen.container, {
+			owner: 'tail',
+			expectedDeps,
+			litRails: ['parent->tail', 'sourceParent->parent'],
+			litStations: ['sourceParent', 'parent', 'tail'],
+			offStations: ['other']
+		});
+
+		// 4b. Both expanded + tail keyboard focus
+		viewer.setExpanded(workspace.plan.id, 'sourceParent', true);
+		viewer.setExpanded(workspace.plan.id, 'parent', true);
+		flushSync();
+		await userEvent.tab();
+		mark(screen.container, 'tail').focus();
+		flushSync();
+		assertInheritedRouteState(screen.container, {
+			owner: 'tail',
+			expectedDeps,
+			litRails: ['parent->tail'],
+			litStations: ['external', 'child', 'tail'],
+			offStations: ['sourceParent', 'parent', 'other']
+		});
+
+		// 4c. parent expanded only + tail keyboard focus
+		viewer.setExpanded(workspace.plan.id, 'sourceParent', false);
+		flushSync();
+		await userEvent.tab();
+		mark(screen.container, 'tail').focus();
+		flushSync();
+		expect(mark(screen.container, 'external')).toBeNull();
+		assertInheritedRouteState(screen.container, {
+			owner: 'tail',
+			expectedDeps,
+			litRails: ['parent->tail'],
+			litStations: ['sourceParent', 'child', 'tail'],
+			offStations: ['parent', 'other']
+		});
 	});
 
 	it('shares label and mark hover intent with warm switching and leave grace', async () => {
@@ -927,7 +1157,7 @@ describe('Route map station interactions', () => {
 		}
 	});
 
-	it('uses thin Gantt connector widths for legacy subtask walkways on screen and paper', async () => {
+	it('uses thin Gantt connector widths for cross-stage legacy subtask walkways on screen and paper', async () => {
 		workspace.commit((plan) => {
 			plan.stages.push({ id: 's2', title: 'Next', description: '', color: 'green' });
 			plan.tasks = [
@@ -976,6 +1206,225 @@ describe('Route map station interactions', () => {
 		];
 		expect(thin.length).toBeGreaterThan(0);
 		for (const path of thin) expect(getComputedStyle(path).strokeWidth).toBe('0.75px');
+	});
+
+	it('routes same-stage legacy external subtask dependencies as parent rails in both expand states', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'P' }),
+				makeTask({ id: 'sameStage' }),
+				makeTask({ id: 'child', parentId: 'P', dependsOn: ['sameStage'] })
+			];
+		});
+		const screen = await mount();
+		expect(
+			screen.container
+				.querySelector('[data-testid="route-map-dependency"][data-from="sameStage"][data-to="P"]')
+				?.getAttribute('data-carrier')
+		).toBe('line');
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		flushSync();
+		expect(
+			screen.container
+				.querySelector('[data-testid="route-map-dependency"][data-from="sameStage"][data-to="P"]')
+				?.getAttribute('data-carrier')
+		).toBe('line');
+		expect(
+			screen.container.querySelector(
+				'[data-testid="route-map-dependency"][data-from="sameStage"][data-to="child"]'
+			)
+		).toBeNull();
+	});
+
+	it('lights the parent rail and exact stations in both directions on U9 and keeps exact descriptions in both expand states', async () => {
+		motion.reduced = true;
+		const fixture = pinnedExamplePlan();
+		fixture.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');
+		workspace.commit((plan) => Object.assign(plan, fixture));
+		const screen = await mount();
+		expect(
+			screen.container
+				.querySelector('[data-testid="route-map-dependency"][data-from="task-1"][data-to="task-4"]')
+				?.getAttribute('data-carrier')
+		).toBe('line');
+		await expect
+			.element(mark(screen.container, 'task-4'))
+			.toHaveAccessibleDescription(/Depends on Site survey and Soil test\./);
+		await expect
+			.element(mark(screen.container, 'task-4'))
+			.toHaveAccessibleDescription(/Required by Sowing\./);
+
+		viewer.setExpanded(workspace.plan.id, 'task-1', true);
+		flushSync();
+		const parentRail = screen.container.querySelector(
+			'[data-testid="route-map-dependency"][data-from="task-1"][data-to="task-4"]'
+		);
+		expect(parentRail?.getAttribute('data-carrier')).toBe('line');
+		expect(
+			screen.container.querySelector(
+				'[data-testid="route-map-dependency"][data-from="task-2"][data-to="task-4"]'
+			)
+		).toBeNull();
+
+		const seedsStation = mark(screen.container, 'task-4');
+		const testStation = mark(screen.container, 'task-2');
+		await expect
+			.element(seedsStation)
+			.toHaveAccessibleDescription(/Depends on Site survey and Soil test\./);
+		await expect.element(seedsStation).toHaveAccessibleDescription(/Required by Sowing\./);
+		await expect.element(seedsStation).toHaveAccessibleDescription(/Ready\. Dependencies done: 2/);
+		await expect
+			.element(testStation)
+			.toHaveAccessibleDescription(/Required by Add compost and Order seeds\./);
+		await expect.element(testStation).toHaveAccessibleDescription(/Subtask of Soil preparation\./);
+		const seedsDescBefore = seedsStation
+			.closest('[data-route-map-task]')!
+			.querySelector('.sr-only')?.textContent;
+		const testDescBefore = testStation
+			.closest('[data-route-map-task]')!
+			.querySelector('.sr-only')?.textContent;
+
+		await userEvent.tab();
+		seedsStation.focus();
+		flushSync();
+		expect(editing.routeId).toBe('task-4');
+		expect(parentRail?.getAttribute('data-route')).toBe('lit');
+		expect(testStation.getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'task-1').getAttribute('data-route')).toBe('off');
+		expect(
+			seedsStation.closest('[data-route-map-task]')!.querySelector('.sr-only')?.textContent
+		).toBe(seedsDescBefore);
+
+		testStation.focus();
+		flushSync();
+		expect(editing.routeId).toBe('task-2');
+		expect(parentRail?.getAttribute('data-route')).toBe('lit');
+		expect(seedsStation.getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'task-1').getAttribute('data-route')).toBe('off');
+		expect(
+			testStation.closest('[data-route-map-task]')!.querySelector('.sr-only')?.textContent
+		).toBe(testDescBefore);
+
+		expect(workspace.index.state.get('task-4')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 2
+		});
+		updateTask(workspace, 'task-2', { status: 'todo' });
+		flushSync();
+		expect(workspace.index.state.get('task-4')!.readiness.kind).not.toBe('ready');
+		await expect.element(seedsStation).not.toHaveAccessibleDescription(/Ready/);
+		workspace.undo();
+		flushSync();
+		expect(workspace.index.state.get('task-4')!.readiness).toEqual({
+			kind: 'ready',
+			via: 'dependencies',
+			count: 2
+		});
+		await expect.element(seedsStation).toHaveAccessibleDescription(/Ready\. Dependencies done: 2/);
+	});
+
+	it('keeps exact predecessor and dependent descriptions across expand states, reverse external direction, and merged edges', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'ext', title: 'External task' }),
+				makeTask({ id: 'P', title: 'Parent P' }),
+				makeTask({ id: 'c1', title: 'Child one', parentId: 'P', dependsOn: ['ext'] }),
+				makeTask({ id: 'c2', title: 'Child two', parentId: 'P', dependsOn: ['ext'] }),
+				makeTask({ id: 'down', title: 'Downstream task', dependsOn: ['c1', 'c2'] })
+			];
+		});
+		const screen = await mount();
+		const extStation = mark(screen.container, 'ext');
+		const downStation = mark(screen.container, 'down');
+		await expect
+			.element(extStation)
+			.toHaveAccessibleDescription(/Required by Child one and Child two\./);
+		await expect
+			.element(downStation)
+			.toHaveAccessibleDescription(/Depends on Child one and Child two\./);
+		const parentStation = mark(screen.container, 'P');
+		await expect.element(parentStation).toHaveAccessibleDescription(/Depends on External task\./);
+		await expect
+			.element(parentStation)
+			.toHaveAccessibleDescription(/Required by Downstream task\./);
+		const parentDesc =
+			parentStation.closest('[data-route-map-task]')!.querySelector('.sr-only')?.textContent ?? '';
+		expect(parentDesc.match(/External task/g)).toHaveLength(1);
+		expect(parentDesc.match(/Downstream task/g)).toHaveLength(1);
+
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		flushSync();
+		await expect
+			.element(extStation)
+			.toHaveAccessibleDescription(/Required by Child one and Child two\./);
+		await expect
+			.element(downStation)
+			.toHaveAccessibleDescription(/Depends on Child one and Child two\./);
+		const childOne = mark(screen.container, 'c1');
+		await expect.element(childOne).toHaveAccessibleDescription(/Depends on External task\./);
+		await expect.element(childOne).toHaveAccessibleDescription(/Required by Downstream task\./);
+		await expect.element(childOne).toHaveAccessibleDescription(/Subtask of Parent P\./);
+		await expect
+			.element(childOne)
+			.toHaveAccessibleDescription(/A subtask can depend only on tasks with the same parent\./);
+	});
+
+	it('lights an aggregate parent rail for each represented stored pair independently while keeping unrelated siblings and synthetic rails off', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'P', start: '2027-01-01' }),
+				makeTask({ id: 'c1', parentId: 'P', start: '2027-01-01' }),
+				makeTask({ id: 'c2', parentId: 'P', start: '2027-01-02' }),
+				makeTask({ id: 'c3', parentId: 'P', start: '2027-01-03' }),
+				makeTask({ id: 'Q', start: '2027-01-04' }),
+				makeTask({ id: 'd1', parentId: 'Q', start: '2027-01-04', dependsOn: ['c1'] }),
+				makeTask({ id: 'd2', parentId: 'Q', start: '2027-01-05', dependsOn: ['c2'] }),
+				makeTask({ id: 'd3', parentId: 'Q', start: '2027-01-06' }),
+				makeTask({ id: 'other', start: '2027-02-01' })
+			];
+		});
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		viewer.setExpanded(workspace.plan.id, 'Q', true);
+		const screen = await mount();
+		const rail = screen.container.querySelector(
+			'[data-testid="route-map-dependency"][data-from="P"][data-to="Q"]'
+		);
+		expect(rail?.getAttribute('data-carrier')).toBe('line');
+
+		await userEvent.tab();
+		mark(screen.container, 'd1').focus();
+		flushSync();
+		expect(rail?.getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'c1').getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'd1').getAttribute('data-route')).toBe('lit');
+		for (const offId of ['c2', 'c3', 'd2', 'd3', 'P', 'Q', 'other'])
+			expect(mark(screen.container, offId).getAttribute('data-route')).toBe('off');
+		expect(
+			[
+				...screen.container.querySelectorAll(
+					'[data-testid="route-map-dependency"][data-route="lit"]'
+				)
+			].map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`)
+		).toEqual(['P->Q']);
+
+		mark(screen.container, 'd2').focus();
+		flushSync();
+		expect(rail?.getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'c2').getAttribute('data-route')).toBe('lit');
+		expect(mark(screen.container, 'd2').getAttribute('data-route')).toBe('lit');
+		for (const offId of ['c1', 'c3', 'd1', 'd3', 'P', 'Q', 'other'])
+			expect(mark(screen.container, offId).getAttribute('data-route')).toBe('off');
+		expect(
+			[
+				...screen.container.querySelectorAll(
+					'[data-testid="route-map-dependency"][data-route="lit"]'
+				)
+			].map((e) => `${e.getAttribute('data-from')}->${e.getAttribute('data-to')}`)
+		).toEqual(['P->Q']);
 	});
 
 	it('returns an open child dialog to the parent after collapse', async () => {

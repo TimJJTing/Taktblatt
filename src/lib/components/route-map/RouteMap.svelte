@@ -17,7 +17,7 @@
 	} from '#lib/components/plan/colors.ts';
 	import { joinList, joinSentences } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
-	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
+	import { effectiveDependencyGraph, lineKey, routeFocusModel } from '#lib/domain/route.ts';
 	import { routeMapModel } from '#lib/domain/route-map.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -66,26 +66,76 @@
 	const stages = $derived(new Map(ws.plan.stages.map((stage) => [stage.id, stage])));
 	const routeTargets = diagramRouteTargets(() => model.nodes.map((node) => node.id));
 	const rows = $derived(
-		model.nodes.map((node) => ({
-			id: node.id,
-			isParent: (ws.index.children.get(node.id)?.length ?? 0) > 0,
-			expanded: viewer.isExpanded(ws.plan.id, node.id)
+		ws.plan.tasks.map((task) => ({
+			id: task.id,
+			isParent: (ws.index.children.get(task.id)?.length ?? 0) > 0,
+			expanded: viewer.isExpanded(ws.plan.id, task.id)
 		}))
 	);
-	const focus = $derived(
-		routeFocusModel(effectiveDependencyGraph(ws.index), ws.index, rows, routes, editing.routeId)
-	);
+	const visibleId = (id: string) => (nodes.has(id) ? id : (ws.index.byId.get(id)?.parentId ?? id));
+	const focus = $derived.by(() => {
+		const graph = effectiveDependencyGraph(ws.index);
+		// Resolve the shared route at stored task identities before mapping drawn rails.
+		const exact = routeFocusModel(
+			graph,
+			ws.index,
+			rows,
+			routes.flatMap((edge) =>
+				edge.stored.map((s) => ({ key: lineKey(s.dependencyId, s.taskId) }))
+			),
+			editing.routeId
+		);
+		const visiblePairKey = (from: string, to: string) => lineKey(visibleId(from), visibleId(to));
+		// Project stored identities before matching inherited pairs to existing rails.
+		const projected = routeFocusModel(
+			graph,
+			ws.index,
+			rows.filter((row) => nodes.has(row.id)),
+			routes.flatMap((edge) =>
+				edge.stored.map((s) => ({ key: visiblePairKey(s.dependencyId, s.taskId) }))
+			),
+			editing.routeId
+		);
+		return {
+			active: exact.active,
+			onRouteRowIds: new Set([...exact.onRouteRowIds].map(visibleId)),
+			litLineKeys: new Set(
+				routes
+					.filter((edge) =>
+						edge.stored.some(
+							(s) =>
+								exact.litLineKeys.has(lineKey(s.dependencyId, s.taskId)) ||
+								projected.litLineKeys.has(visiblePairKey(s.dependencyId, s.taskId))
+						)
+					)
+					.map((edge) => edge.key)
+			)
+		};
+	});
 	const paint = (lit: boolean): RoutePaint => (focus.active ? (lit ? 'lit' : 'off') : null);
 	const width = $derived(Math.max(300, layout.width));
 	const height = $derived(Math.max(160, layout.height));
+	const storedDependencies = $derived(
+		ws.plan.tasks.flatMap((task) =>
+			[...new Set(task.dependsOn)]
+				.filter((dep) => ws.index.byId.has(dep))
+				.map((dependencyId) => ({ taskId: task.id, dependencyId }))
+		)
+	);
 	function directions(id: string) {
 		const names = (ids: string[]) =>
 			joinList(
-				ids.map((taskId) => nodes.get(taskId)?.title || m.route_map_untitled_task()),
+				[...new Set(ids)]
+					.sort()
+					.map((taskId) => ws.index.byId.get(taskId)?.title || m.route_map_untitled_task()),
 				uiIntl()
 			);
-		const predecessors = model.edges.filter((edge) => edge.to === id).map((edge) => edge.from);
-		const successors = model.edges.filter((edge) => edge.from === id).map((edge) => edge.to);
+		const predecessors = storedDependencies
+			.filter((edge) => visibleId(edge.taskId) === id)
+			.map((edge) => edge.dependencyId);
+		const successors = storedDependencies
+			.filter((edge) => visibleId(edge.dependencyId) === id)
+			.map((edge) => edge.taskId);
 		return joinSentences(
 			[
 				predecessors.length ? m.route_map_predecessors({ tasks: names(predecessors) }) : '',
@@ -96,15 +146,7 @@
 						})
 					: '',
 				...model.warnings
-					.filter((w) =>
-						model.edges.some(
-							(edge) =>
-								(edge.from === id || edge.to === id) &&
-								edge.stored.some(
-									(stored) => stored.taskId === w.taskId && stored.dependencyId === w.dependencyId
-								)
-						)
-					)
+					.filter((w) => visibleId(w.taskId) === id || visibleId(w.dependencyId) === id)
 					.map((w) =>
 						w.kind === 'cycle'
 							? m.dependency_warning_cycle()

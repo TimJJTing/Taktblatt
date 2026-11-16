@@ -77,22 +77,36 @@ describe('Workflow Route map dependency carriers', () => {
 		);
 		expectClearRoutes(r.layout, r.routes);
 	});
-	it('preserves collapsed proxy storage identity as a thin link after family expansion', () => {
-		const plan = makePlan([
-			task({ id: 'p' }),
-			task({ id: 'child', parentId: 'p' }),
-			task({ id: 'target', dependsOn: ['child'] })
-		]);
+	it('projects cross-stage hidden endpoints to parent walkways and restores exact endpoints when expanded', () => {
+		const plan = makePlan(
+			[
+				task({ id: 'p', stageId: 's1' }),
+				task({ id: 'child', stageId: 's1', parentId: 'p' }),
+				task({ id: 'target', stageId: 's2', dependsOn: ['child'] }),
+				task({ id: 'source', stageId: 's1' }),
+				task({ id: 'q', stageId: 's2' }),
+				task({ id: 'dependentChild', stageId: 's2', parentId: 'q', dependsOn: ['source'] })
+			],
+			['s1', 's2']
+		);
 		const collapsed = scene(plan),
-			expanded = scene(plan, new Set(['p']));
-		const proxy = collapsed.routes.find((edge) => edge.to === 'target')!;
-		expect(proxy.carrier).toBe('walkway');
-		expect(proxy.stored).toEqual([{ taskId: 'target', dependencyId: 'child' }]);
-		expect(expanded.routes.find((edge) => edge.from === 'child')?.carrier).toBe('walkway');
+			expanded = scene(plan, new Set(['p', 'q']));
+		expect(collapsed.routes.find((edge) => edge.key === 'p->target')).toMatchObject({
+			carrier: 'walkway',
+			stored: [{ taskId: 'target', dependencyId: 'child' }]
+		});
+		expect(collapsed.routes.find((edge) => edge.key === 'source->q')).toMatchObject({
+			carrier: 'walkway',
+			stored: [{ taskId: 'dependentChild', dependencyId: 'source' }]
+		});
+		expect(expanded.routes.find((edge) => edge.key === 'child->target')?.carrier).toBe('walkway');
+		expect(expanded.routes.find((edge) => edge.key === 'source->dependentChild')?.carrier).toBe(
+			'walkway'
+		);
 		for (const r of [collapsed, expanded]) expectCoverage(r.model, r.routes);
 	});
-	it('keeps legacy external subtask dependencies thin and family links outside dependency keys', () => {
-		const r = scene(
+	it('routes cross-stage external subtasks as walkways and same-stage external subtasks as top-level lines while keeping family links outside dependency keys', () => {
+		const crossStage = scene(
 			makePlan(
 				[
 					task({ id: 'p' }),
@@ -103,12 +117,33 @@ describe('Workflow Route map dependency carriers', () => {
 			),
 			new Set(['p'])
 		);
-		expect(r.routes.map((edge) => edge.carrier)).toEqual(['walkway']);
+		expect(crossStage.routes.map((edge) => edge.carrier)).toEqual(['walkway']);
 		expect(
-			r.layout.lines.filter((line) => line.kind === 'family').flatMap((line) => line.dependencyKeys)
+			crossStage.layout.lines
+				.filter((line) => line.kind === 'family')
+				.flatMap((line) => line.dependencyKeys)
 		).toEqual([]);
-		expectCoverage(r.model, r.routes);
-		expectClearRoutes(r.layout, r.routes);
+		expectCoverage(crossStage.model, crossStage.routes);
+		expectClearRoutes(crossStage.layout, crossStage.routes);
+
+		const sameStagePlan = makePlan([
+			task({ id: 'p' }),
+			task({ id: 'child', parentId: 'p', dependsOn: ['external'] }),
+			task({ id: 'external' })
+		]);
+		for (const expanded of [new Set<string>(), new Set(['p'])]) {
+			const sameStage = scene(sameStagePlan, expanded);
+			expect(sameStage.routes).toHaveLength(1);
+			expect(sameStage.routes[0]).toMatchObject({
+				key: 'external->p',
+				from: 'external',
+				to: 'p',
+				carrier: 'line',
+				stored: [{ taskId: 'child', dependencyId: 'external' }]
+			});
+			expect(sameStage.routes.some((edge) => edge.carrier === 'walkway')).toBe(false);
+			expectCoverage(sameStage.model, sameStage.routes);
+		}
 	});
 	it('keeps a cycle-only stage connected by a noncyclic workflow while both stored warnings stay thin', () => {
 		const r = scene(
@@ -126,20 +161,37 @@ describe('Workflow Route map dependency carriers', () => {
 		]);
 		expectCoverage(r.model, r.routes);
 	});
-	it('keeps same-stage hidden-child proxy links exceptional without suppressing the stage workflow', () => {
+	it('routes a cross-stage cycle as walkway with cycle true', () => {
 		const r = scene(
-			makePlan([
-				task({ id: 'parent', start: '2027-01-01' }),
-				task({ id: 'child', parentId: 'parent', start: '2027-01-01' }),
-				task({ id: 'target', start: '2027-01-02', dependsOn: ['child'] })
-			])
+			makePlan(
+				[
+					task({ id: 'A', stageId: 's1', dependsOn: ['B'] }),
+					task({ id: 'B', stageId: 's2', dependsOn: ['A'] })
+				],
+				['s1', 's2']
+			)
 		);
-		const workflow = r.layout.lines.filter((line) => line.kind !== 'family');
-		expect(workflow.map((line) => line.taskIds)).toEqual([['parent', 'target']]);
-		expect(workflow.flatMap((line) => line.dependencyKeys)).toEqual([]);
-		expect(r.routes).toHaveLength(1);
-		expect(r.routes[0].carrier).toBe('walkway');
-		expect(r.routes[0].stored).toEqual([{ taskId: 'target', dependencyId: 'child' }]);
+		expect(r.routes.map((route) => [route.key, route.carrier, route.cycle]).sort()).toEqual([
+			['A->B', 'walkway', true],
+			['B->A', 'walkway', true]
+		]);
+		expectCoverage(r.model, r.routes);
+	});
+	it('routes same-stage hidden-child dependencies as parent lines in both expand states', () => {
+		const plan = makePlan([
+			task({ id: 'parent', start: '2027-01-01' }),
+			task({ id: 'child', parentId: 'parent', start: '2027-01-01' }),
+			task({ id: 'target', start: '2027-01-02', dependsOn: ['child'] })
+		]);
+		for (const expanded of [new Set<string>(), new Set(['parent'])]) {
+			const r = scene(plan, expanded);
+			const lines = r.layout.lines.filter((line) => line.kind !== 'family');
+			expect(lines.map((line) => line.taskIds)).toEqual([['parent', 'target']]);
+			expect(lines.flatMap((line) => line.dependencyKeys)).toEqual(['parent->target']);
+			expect(r.routes).toHaveLength(1);
+			expect(r.routes[0].carrier).toBe('line');
+			expect(r.routes[0].stored).toEqual([{ taskId: 'target', dependencyId: 'child' }]);
+		}
 	});
 	it('condenses structural family cycles for placement without inventing warning links', () => {
 		const r = scene(groupingPlan(), new Set(['P', 'Q']));
@@ -163,7 +215,7 @@ describe('Workflow Route map dependency carriers', () => {
 		expectCoverage(r.model, r.routes);
 		expectClearRoutes(r.layout, r.routes);
 	});
-	it('gives the garden workflow four thick pairs and three exceptional thin links', () => {
+	it('assigns four colored line pairs and three cross-stage walkways in the garden workflow, collapsed and expanded', () => {
 		const plan = pinnedExamplePlan(),
 			r = scene(plan);
 		const title = (id: string) => plan.tasks.find((task) => task.id === id)!.title;
@@ -200,17 +252,55 @@ describe('Workflow Route map dependency carriers', () => {
 			(line) => line.taskIds[0] === 'task-0' && line.taskIds[1] === 'task-1'
 		)!;
 		expect(synthetic.dependencyKeys).toEqual([]);
-		const expanded = scene(plan, new Set(['task-1']));
+		const expanded = scene(plan, new Set(['task-1', 'task-8']));
 		expect(
 			expanded.layout.lines.some(
-				(line) => line.taskIds[0] === 'task-2' && line.taskIds[1] === 'task-3'
+				(line) =>
+					line.taskIds[0] === 'task-2' &&
+					line.taskIds[1] === 'task-3' &&
+					line.dependencyKeys.includes('task-2->task-3')
 			)
 		).toBe(true);
 		expect(
-			expanded.routes.find((route) => route.from === 'task-3' && route.to === 'task-5')?.carrier
-		).toBe('walkway');
+			expanded.layout.lines.some(
+				(line) =>
+					line.taskIds[0] === 'task-9' &&
+					line.taskIds[1] === 'task-10' &&
+					line.dependencyKeys.includes('task-9->task-10')
+			)
+		).toBe(true);
+		expect(
+			expanded.routes
+				.filter((route) => route.carrier === 'walkway')
+				.map((route) => `${title(route.from)}->${title(route.to)}`)
+				.sort()
+		).toEqual(['Add compost->Sowing', 'Order seeds->Sowing', 'Sowing->First harvest'].sort());
+		expect(
+			expanded.routes.find((route) => route.from === 'task-2' && route.to === 'task-3')?.carrier
+		).toBe('line');
 		expectCoverage(r.model, r.routes);
 		expectCoverage(expanded.model, expanded.routes);
+	});
+	it('routes U9 Order seeds -> Soil test as a top-level line in both expand states with no thin path', () => {
+		const plan = pinnedExamplePlan();
+		plan.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');
+		for (const expanded of [new Set<string>(), new Set(['task-1'])]) {
+			const r = scene(plan, expanded);
+			expect(
+				r.routes.find((route) => route.from === 'task-1' && route.to === 'task-4')
+			).toMatchObject({
+				carrier: 'line',
+				stored: [{ taskId: 'task-4', dependencyId: 'task-2' }]
+			});
+			expect(
+				r.routes.some(
+					(route) =>
+						route.carrier === 'walkway' &&
+						(route.from === 'task-1' || route.from === 'task-2') &&
+						route.to === 'task-4'
+				)
+			).toBe(false);
+		}
 	});
 	it.each([false, true])(
 		'takes the clear forward gutter between garden rows without an overhead excursion (paper: %s)',
