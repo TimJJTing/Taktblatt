@@ -7,7 +7,7 @@
 	"exclude": ["src/service-worker"],
 	"include": [
 		"src",
-		"e2e/fixtures",
+		"e2e",
 		"vite.config.ts",
 		"prettier.config.js",
 		"eslint.config.js",

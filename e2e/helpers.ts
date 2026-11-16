@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { STAGE_COLORS } from '#lib/domain/palette.ts';
+import type { Plan, Task } from '#lib/domain/schema.ts';
 
 // Read constants without loading Svelte state or its browser-build aliases in Playwright.
 const viewerSource = readFileSync(
@@ -531,7 +532,7 @@ export const taller = (page: Page) =>
 	page.getByRole('button', { name: 'Make timeline taller', exact: true });
 
 /** Reads the active plan from localStorage. */
-export async function storedPlan(page: Page) {
+export async function storedPlan(page: Page): Promise<Plan> {
 	return page.evaluate(() => {
 		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
 		return JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
@@ -768,7 +769,7 @@ export async function openLinePlan(page: Page): Promise<void> {
 		plan.stages[0].color = 'blue';
 		plan.bands = [];
 		plan.milestones = [];
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -1113,7 +1114,7 @@ export async function writeStoredPlan(
 /** Adds enough task rows and remarks to exercise both workspace scrollers. */
 export async function addWorkspaceOverflow(page: Page): Promise<void> {
 	await writeStoredPlan(page, (plan) => {
-		const template = plan.tasks.find((task) => task.parentId === null);
+		const template = plan.tasks.find((task) => task.parentId === null)!;
 		for (let i = 0; i < 36; i++) {
 			plan.tasks.push({
 				...template,
@@ -1760,7 +1761,7 @@ export async function openContinuationPlan(page: Page): Promise<void> {
 				symbol: 'diamond'
 			}
 		];
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -1781,7 +1782,7 @@ export async function openContinuationPlan(page: Page): Promise<void> {
 				end: '2027-01-20',
 				dependsOn: ['up-source']
 			},
-			{ ...base, id: 'a', title: 'Source A', status: 'done' },
+			{ ...base, id: 'a', title: 'Source A', status: 'done' as const },
 			{ ...base, id: 'b', title: 'Source B' },
 			...Array.from({ length: 120 }, (_, i) => ({
 				...base,
@@ -1827,7 +1828,7 @@ export async function openRoutePlan(page: Page): Promise<void> {
 		plan.stages = [{ ...plan.stages[0], color: 'blue', description: '' }];
 		plan.bands = [];
 		plan.milestones = [];
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -1840,7 +1841,7 @@ export async function openRoutePlan(page: Page): Promise<void> {
 			end: '2027-01-05'
 		};
 		plan.tasks = [
-			{ ...base, id: 'up', title: 'Route upstream', status: 'done' },
+			{ ...base, id: 'up', title: 'Route upstream', status: 'done' as const },
 			{ ...base, id: 'parent', title: 'Route parent', dependsOn: ['up'] },
 			{ ...base, id: 'child-a', title: 'Route child A', parentId: 'parent' },
 			{ ...base, id: 'child-b', title: 'Route child B', parentId: 'parent' },

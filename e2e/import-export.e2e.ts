@@ -1,3 +1,4 @@
+import type { Plan } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	importJson,
@@ -78,7 +79,7 @@ test.describe('import', () => {
 		await importJson(page, file);
 		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
 		// The old language key of the file is dropped.
-		expect((await storedPlan(page)).locale).toBeUndefined();
+		expect(((await storedPlan(page)) as Plan & { locale?: string }).locale).toBeUndefined();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 		await expect(page.getByTestId('app-menu')).toHaveAccessibleName('Menü');
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');

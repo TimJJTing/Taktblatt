@@ -208,7 +208,7 @@ test.describe('work plan', () => {
 			for (const [index, task] of tasks.entries()) {
 				task.stageId = plan.stages[0].id;
 				task.dependsOn = [];
-				task.status = ['done', 'in_progress', 'todo'][index];
+				task.status = (['done', 'in_progress', 'todo'] as const)[index];
 				task.title = ['Progress done', 'Progress working', 'Progress todo'][index];
 			}
 		});
@@ -267,7 +267,7 @@ test.describe('work plan', () => {
 		await expect
 			.poll(
 				async () =>
-					(await storedPlan(page)).tasks.find((task) => task.title === 'Soil preparation').owners
+					(await storedPlan(page)).tasks.find((task) => task.title === 'Soil preparation')!.owners
 			)
 			.toContain('Mira');
 	});

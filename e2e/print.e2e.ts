@@ -1,4 +1,4 @@
-import { MILESTONE_SYMBOLS } from '#lib/domain/schema.ts';
+import { MILESTONE_SYMBOLS, type Plan } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
@@ -205,7 +205,7 @@ test('Preview and printed tables show four status icons and mute done and cancel
 			task.title = ['Status done', 'Status working', 'Status todo', 'Status canceled'][index];
 			task.start = plan.range.start;
 			task.end = null;
-			task.status = ['done', 'in_progress', 'todo', 'canceled'][index];
+			task.status = (['done', 'in_progress', 'todo', 'canceled'] as const)[index];
 			task.dependsOn = [];
 		}
 	});
@@ -873,7 +873,7 @@ test('the sheets use the UI language, whatever an old file says', async ({ page 
 	await openExample(page);
 	// An old plan can still have a language key. It must change nothing. The UI stays English.
 	await writeStoredPlan(page, (plan) => {
-		plan.locale = 'ja';
+		(plan as Plan & { locale?: string }).locale = 'ja';
 	});
 	await openPreview(page);
 	const first = sheets(page).first();
@@ -882,7 +882,7 @@ test('the sheets use the UI language, whatever an old file says', async ({ page 
 	await expect(first).toContainText('Today');
 	await expect(first).not.toContainText('目標');
 	await expect(first.locator('.sheet-footer')).toContainText(
-		formatted((await storedPlan(page)).footer.date)
+		formatted((await storedPlan(page)).footer.date!)
 	);
 });
 

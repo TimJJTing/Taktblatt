@@ -1,3 +1,4 @@
+import type { TaskStatus } from '#lib/domain/schema.ts';
 import { createExamplePlan } from '#lib/domain/example.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -675,7 +676,7 @@ test('D53 Fable signs and imported status paint survive dark and forced-color re
 			...plan.stages[0],
 			id: `s${i + 1}`,
 			title,
-			color: ['green', 'amber', 'blue'][i]
+			color: (['green', 'amber', 'blue'] as const)[i]
 		}));
 		const station = (
 			id: string,
@@ -683,7 +684,7 @@ test('D53 Fable signs and imported status paint survive dark and forced-color re
 			stageId: string,
 			dependsOn: string[] = [],
 			parentId: string | null = null,
-			status = 'todo'
+			status: TaskStatus = 'todo'
 		) => ({ ...base, id, title, stageId, parentId, dependsOn, status, start: null, end: null });
 		plan.tasks = [
 			station('survey', 'Site survey', 's1', [], null, 'done'),

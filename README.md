@@ -132,7 +132,7 @@ Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light** (su
 | Command                  | Check                                                |
 | ------------------------ | ---------------------------------------------------- |
 | `pnpm lint`              | Format (Prettier) and code rules (ESLint)            |
-| `pnpm check`             | Types (svelte-check)                                 |
+| `pnpm check`             | Types for the app, E2E tests and service worker      |
 | `pnpm test:unit --run`   | Unit tests                                           |
 | `pnpm test:e2e`          | End-to-end tests (Playwright)                        |
 | `pnpm test:e2e:fixtures` | End-to-end tests of test-only diagram views (ADR 20) |
