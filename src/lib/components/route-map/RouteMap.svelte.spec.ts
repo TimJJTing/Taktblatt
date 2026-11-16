@@ -153,11 +153,11 @@ describe('Route map station interactions', () => {
 	it('expands only with its named chevron and keeps plan data, history unchanged', async () => {
 		const screen = await mount();
 		const before = JSON.stringify(workspace.plan);
-		const chevron = screen.getByRole('button', { name: `Show subtasks of ${fullTitle}` });
+		const chevron = screen.getByRole('button', { name: `Expand ${fullTitle}` });
 		await expect.element(chevron).toHaveAttribute('aria-expanded', 'false');
 		await userEvent.click(chevron);
 		await expect
-			.element(screen.getByRole('button', { name: `Hide subtasks of ${fullTitle}` }))
+			.element(screen.getByRole('button', { name: `Collapse ${fullTitle}` }))
 			.toHaveAttribute('aria-expanded', 'true');
 		const control = screen.container.querySelector<HTMLElement>(
 			'[aria-expanded="true"][aria-controls]'
@@ -541,43 +541,39 @@ describe('Route map station interactions', () => {
 		expect(label(screen.container, 'P').textContent?.trim()).toBe(fullTitle);
 	});
 
-	it('uses sibling title and chevron controls below the parent with station → title → chevron Tab order', async () => {
+	it('places sibling summary and expansion control below the name in station, name, control Tab order', async () => {
+		motion.reduced = true;
 		const screen = await mount();
 		const station = mark(screen.container, 'P');
 		const title = label(screen.container, 'P');
-		const chevron = screen.container.querySelector<HTMLButtonElement>(
-			'[aria-controls][aria-expanded="false"]'
+		const control = screen.getByRole('button', { name: `Expand ${fullTitle}` });
+		await expect.element(control).toBeVisible();
+		const button = screen.container.querySelector<HTMLButtonElement>(
+			'[aria-expanded="false"][aria-controls]'
 		)!;
-		expect(title.closest('[data-route-map-task]')).toBe(chevron.closest('[data-route-map-task]'));
-		expect(chevron.closest('button button')).toBeNull();
-		expect(title.parentElement!.matches('button,[role="button"]')).toBe(false);
-		const titleBox = title.getBoundingClientRect();
-		const controlBox = chevron.getBoundingClientRect();
-		expect(titleBox.width).toBe(96);
-		expect(controlBox.top).toBeGreaterThanOrEqual(titleBox.bottom);
 		const group = title.closest('[data-route-map-task]')!;
-		const count = [...group.querySelectorAll('span')].find((e) => e.textContent?.trim() === '3')!;
-		const countBox = count.getBoundingClientRect();
-		expect(countBox.top).toBeGreaterThanOrEqual(titleBox.bottom);
-		expect(
-			Math.abs((countBox.top + countBox.bottom) / 2 - (controlBox.top + controlBox.bottom) / 2)
-		).toBeLessThanOrEqual(1);
-		expect(
-			(Math.min(countBox.left, controlBox.left) + Math.max(countBox.right, controlBox.right)) / 2
-		).toBeCloseTo(titleBox.left + titleBox.width / 2, 0);
-		const row = chevron.parentElement!;
-		expect(row.getBoundingClientRect().height).toBe(24);
-		await expect.element(title).toHaveAccessibleName(fullTitle);
-		await expect.element(chevron).toHaveAccessibleName(`Show subtasks of ${fullTitle}`);
+		const summary = [...group.querySelectorAll<HTMLElement>('*')].find(
+			(element) => element.textContent?.trim() === '3 ready' && element.children.length === 0
+		);
+		expect(summary).toBeDefined();
+		expect(summary!.parentElement).toBe(button.parentElement);
+		expect(button.closest('button button')).toBeNull();
+		expect(title.closest('button button')).toBeNull();
+		expect(summary!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			title.getBoundingClientRect().bottom
+		);
+		expect(button.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			title.getBoundingClientRect().bottom
+		);
+		expect(group.textContent).not.toContain('›');
+		expect(group.textContent).not.toMatch(/Subtasks:\s*\d+/);
+		expect(screen.container.querySelector('[aria-label^="Show subtasks of "]')).toBeNull();
+		expect(screen.container.querySelector('[aria-label^="Hide subtasks of "]')).toBeNull();
 		station.focus();
 		await userEvent.tab();
 		await expect.element(title).toHaveFocus();
 		await userEvent.tab();
-		await expect.element(chevron).toHaveFocus();
-		await userEvent.keyboard('{Enter}');
-		expect(editing.detailsTaskId).toBeNull();
-		expect(mark(screen.container, 'P')).toBe(station);
-		await expect.element(chevron).toHaveAttribute('aria-expanded', 'true');
+		await expect.element(control).toHaveFocus();
 	});
 
 	it('uses one neutral station glyph and places the selected status icon beside each task name', async () => {
@@ -588,6 +584,13 @@ describe('Route map station interactions', () => {
 				makeTask({ id: `status-${i}`, title: `Task ${i}`, status })
 			);
 		});
+		workspace.commit((plan) => {
+			plan.tasks.push(
+				makeTask({ id: 'family', title: 'Family' }),
+				makeTask({ id: 'child', title: 'Child', parentId: 'family', status: 'done' })
+			);
+		});
+		viewer.setExpanded(workspace.plan.id, 'family', true);
 		const screen = await mount(),
 			root = screen.container;
 		const glyphs = statuses.map((_, i) =>
@@ -609,6 +612,22 @@ describe('Route map station interactions', () => {
 					.getAttribute('aria-label')
 			).toBe(['Todo', 'In progress', 'Done', 'Canceled'][i]);
 		expect(new Set(icons.map((icon) => icon!.innerHTML)).size).toBe(4);
+		for (const id of ['status-0', 'status-1', 'status-2', 'status-3', 'child']) {
+			const name = label(root, id);
+			const icon = name.querySelector<SVGElement>('[data-route-map-status] svg');
+			expect(icon).not.toBeNull();
+			const box = icon!.getBoundingClientRect();
+			expect(box.width).toBe(16);
+			expect(box.height).toBe(16);
+			const text = [...name.querySelectorAll<HTMLElement>('span')].find(
+				(element) =>
+					element.children.length === 0 &&
+					element.textContent?.trim() === (id === 'child' ? 'Child' : `Task ${id.slice(-1)}`)
+			);
+			expect(text).toBeDefined();
+			expect(box.left).toBeLessThan(text!.getBoundingClientRect().left);
+		}
+
 		for (let i = 0; i < statuses.length; i++)
 			await expect
 				.element(mark(root, `status-${i}`))
@@ -623,7 +642,11 @@ describe('Route map station interactions', () => {
 			.poll(() => document.querySelector('[data-slot="tooltip-content"]')?.textContent ?? '')
 			.toBe('Done');
 
-		const model = routeMapModel(workspace.plan, new Set(), workspace.index);
+		const paperPlan = {
+			...workspace.plan,
+			tasks: workspace.plan.tasks.filter((task) => task.id.startsWith('status-'))
+		};
+		const model = routeMapModel(paperPlan, new Set(), indexTasks(paperPlan.tasks));
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
 			sheetWidth: 1200,
@@ -659,6 +682,453 @@ describe('Route map station interactions', () => {
 		expect(
 			printed.container.querySelectorAll('.paper-label [data-route-map-status] svg')
 		).toHaveLength(4);
+	});
+
+	it('shows the example family summaries and describes parents in both expansion states', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => Object.assign(plan, pinnedExamplePlan()));
+		const screen = await mount();
+		for (const expanded of [false, true]) {
+			for (const [id, summary] of [
+				['task-1', '1 in progress and 1 done'],
+				['task-8', '1 ready and 1 blocked']
+			] as const) {
+				const controls = screen.container.querySelector<HTMLElement>(
+					`[data-route-map-controls="${id}"]`
+				)!;
+				const visibleSummary = controls.querySelector<HTMLElement>('span')!;
+				await expect.element(visibleSummary).toBeVisible();
+				await expect.element(visibleSummary).toHaveTextContent(summary);
+				await expect
+					.element(mark(screen.container, id))
+					.toHaveAccessibleDescription(new RegExp(summary));
+			}
+			if (!expanded) {
+				viewer.setExpanded(workspace.plan.id, 'task-1', true);
+				viewer.setExpanded(workspace.plan.id, 'task-8', true);
+				flushSync();
+			}
+		}
+	});
+
+	it('keeps example station names within their text boxes in both expansion states', async () => {
+		motion.reduced = true;
+		const fixture = pinnedExamplePlan();
+		workspace.commit((plan) => Object.assign(plan, fixture));
+		const screen = await mount();
+		await document.fonts.ready;
+		for (const expanded of [false, true]) {
+			const tasks = fixture.tasks.filter((task) => expanded || task.parentId === null);
+			for (const task of tasks) {
+				const name = label(screen.container, task.id);
+				const title = [...name.querySelectorAll<HTMLElement>('span')].find(
+					(element) => element.children.length === 0 && element.textContent === task.title
+				);
+				expect(title, task.title).toBeDefined();
+				expect(title!.scrollWidth, task.title).toBeLessThanOrEqual(title!.clientWidth);
+			}
+			if (!expanded) {
+				viewer.setExpanded(workspace.plan.id, 'task-1', true);
+				viewer.setExpanded(workspace.plan.id, 'task-8', true);
+				flushSync();
+			}
+		}
+	});
+
+	it('displays measured wrapped summary and badge geometry on the first frame', async () => {
+		motion.reduced = false;
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'P', title: 'Parent' }),
+				makeTask({ id: 'a', parentId: 'P', status: 'in_progress' }),
+				makeTask({ id: 'b', parentId: 'P', status: 'done' })
+			];
+		});
+		await document.fonts.ready;
+		const frame = await mockFrames();
+		try {
+			const screen = await mount();
+			const controls = screen.container.querySelector<HTMLElement>(
+				'[data-route-map-controls="P"]'
+			)!;
+			const title = label(screen.container, 'P');
+			const badge = screen.container.querySelector<HTMLElement>(
+				'[data-testid="route-map-stage-label"][data-stage="s1"]'
+			)!;
+			const boxes = () =>
+				[controls, title, badge].map((element) => {
+					const { x, y, width, height } = element.getBoundingClientRect();
+					return [x, y, width, height];
+				});
+			frame(0);
+			const first = boxes();
+			expect(controls.textContent).toContain('1 in progress and 1 done');
+			expect(first[0][3]).toBeGreaterThan(24);
+			let time = 300;
+			let previous: number[][] | undefined;
+			let settled = first;
+			await expect
+				.poll(() => {
+					frame(time);
+					time += 300;
+					settled = boxes();
+					const stable =
+						previous !== undefined &&
+						settled.every((box, i) =>
+							box.every((value, j) => Math.abs(value - previous![i][j]) < 0.01)
+						);
+					previous = settled;
+					return stable;
+				})
+				.toBe(true);
+			for (let i = 0; i < first.length; i++) {
+				for (let j = 0; j < first[i].length; j++) {
+					expect(Math.abs(first[i][j] - settled[i][j])).toBeLessThanOrEqual(1);
+				}
+			}
+			expect(first[2][1]).toBeGreaterThanOrEqual(first[0][1] + first[0][3]);
+		} finally {
+			frame(10000);
+			frame(11000);
+		}
+	});
+
+	for (const lifecycle of ['empty replacement', 'plan switch'] as const) {
+		it(`displays measured first-frame geometry after ${lifecycle}`, async () => {
+			motion.reduced = false;
+			const family = (prefix: string) => [
+				makeTask({ id: `${prefix}-parent`, title: 'Parent' }),
+				makeTask({ id: `${prefix}-a`, parentId: `${prefix}-parent`, status: 'in_progress' }),
+				makeTask({ id: `${prefix}-b`, parentId: `${prefix}-parent`, status: 'done' })
+			];
+			workspace.commit((plan) => {
+				plan.tasks = lifecycle === 'empty replacement' ? [] : family('old');
+			});
+			const firstPlanId = workspace.plan.id;
+			let secondPlanId = '';
+			if (lifecycle === 'plan switch') {
+				workspace.createPlan();
+				workspace.commit((plan) => {
+					plan.stages = [{ id: 's1', title: 'Prepare', description: '', color: 'blue' }];
+					plan.tasks = family('new');
+				});
+				secondPlanId = workspace.plan.id;
+				workspace.switchTo(firstPlanId);
+			}
+			await document.fonts.ready;
+			const frame = await mockFrames();
+			try {
+				const screen = await mount();
+				frame(0);
+				frame(300);
+				flushSync(() => {
+					if (lifecycle === 'plan switch') workspace.switchTo(secondPlanId);
+					else
+						workspace.commit((plan) => {
+							plan.tasks = family('new');
+						});
+				});
+				frame(300);
+				const controls = screen.container.querySelector<HTMLElement>(
+					'[data-route-map-controls="new-parent"]'
+				)!;
+				const title = label(screen.container, 'new-parent');
+				const badge = screen.container.querySelector<HTMLElement>(
+					'[data-testid="route-map-stage-label"][data-stage="s1"]'
+				)!;
+				const boxes = () =>
+					[controls, title, badge].map((element) => {
+						const { x, y, width, height } = element.getBoundingClientRect();
+						return [x, y, width, height];
+					});
+				const first = boxes();
+				expect(controls.textContent).toContain('1 in progress and 1 done');
+				expect(first[0][3]).toBeGreaterThan(24);
+				let previous: number[][] | undefined;
+				let settled = first;
+				let time = 600;
+				await expect
+					.poll(() => {
+						frame(time);
+						time += 300;
+						settled = boxes();
+						const stable =
+							previous !== undefined &&
+							settled.every((box, i) =>
+								box.every((value, j) => Math.abs(value - previous![i][j]) < 0.01)
+							);
+						previous = settled;
+						return stable;
+					})
+					.toBe(true);
+				for (let i = 0; i < first.length; i++)
+					for (let j = 0; j < first[i].length; j++)
+						expect(Math.abs(first[i][j] - settled[i][j])).toBeLessThanOrEqual(1);
+				expect(first[2][1]).toBeGreaterThanOrEqual(first[0][1] + first[0][3]);
+			} finally {
+				frame(10000);
+				frame(11000);
+			}
+		});
+	}
+
+	it.each(['initial mount', 'plan switch'] as const)(
+		'displays measured empty-stage geometry on first frame after %s',
+		async (lifecycle) => {
+			motion.reduced = false;
+			const setFamily = () =>
+				workspace.commit((plan) => {
+					plan.stages = [
+						{ id: 's1', title: 'Prepare', description: '', color: 'blue' },
+						{ id: 'empty', title: 'Empty stage', description: '', color: 'green' }
+					];
+					plan.tasks = [
+						makeTask({ id: 'parent', title: 'Parent' }),
+						makeTask({ id: 'a', parentId: 'parent', status: 'in_progress' }),
+						makeTask({ id: 'b', parentId: 'parent', status: 'done' })
+					];
+				});
+			let targetPlanId = workspace.plan.id;
+			if (lifecycle === 'plan switch') {
+				const firstPlanId = workspace.plan.id;
+				workspace.createPlan();
+				setFamily();
+				targetPlanId = workspace.plan.id;
+				workspace.switchTo(firstPlanId);
+			} else setFamily();
+			await document.fonts.ready;
+			const frame = await mockFrames();
+			try {
+				const screen = await mount();
+				frame(0);
+				let time = 300;
+				if (lifecycle === 'plan switch') {
+					frame(time);
+					flushSync(() => workspace.switchTo(targetPlanId));
+					frame(time);
+					time += 300;
+				}
+				const controls = screen.container.querySelector<HTMLElement>(
+					'[data-route-map-controls="parent"]'
+				)!;
+				expect(controls.textContent).toContain('1 in progress and 1 done');
+				expect(controls.getBoundingClientRect().height).toBeGreaterThan(24);
+				expect(viewer.isExpanded(workspace.plan.id, 'parent')).toBe(false);
+				const badge = screen.container.querySelector<HTMLElement>(
+					'[data-testid="route-map-stage-label"][data-stage="empty"]'
+				);
+				const placeholder = [
+					...screen.container.querySelectorAll<SVGElement>('[data-route-map-station-glyph]')
+				].find((glyph) => !glyph.closest('[data-diagram-task]'));
+				expect(badge).not.toBeNull();
+				expect(placeholder).toBeDefined();
+				const boxes = () =>
+					[badge!, placeholder!].map((element) => {
+						const { x, y, width, height } = element.getBoundingClientRect();
+						return [x, y, width, height];
+					});
+				const first = boxes();
+				let previous: number[][] | undefined;
+				let settled = first;
+				await expect
+					.poll(() => {
+						frame(time);
+						time += 300;
+						settled = boxes();
+						const stable =
+							previous !== undefined &&
+							settled.every((box, i) =>
+								box.every((value, j) => Math.abs(value - previous![i][j]) < 0.01)
+							);
+						previous = settled;
+						return stable;
+					})
+					.toBe(true);
+				for (let i = 0; i < first.length; i++)
+					for (let j = 0; j < first[i].length; j++)
+						expect(Math.abs(first[i][j] - settled[i][j])).toBeLessThanOrEqual(1);
+			} finally {
+				frame(10000);
+				frame(11000);
+			}
+		}
+	);
+
+	it('animates a later label-height change in an initialized scene', async () => {
+		motion.reduced = false;
+		workspace.commit((plan) => {
+			plan.tasks = [makeTask({ id: 'P', title: 'Parent' })];
+		});
+		await document.fonts.ready;
+		const frame = await mockFrames();
+		try {
+			const screen = await mount();
+			frame(0);
+			frame(300);
+			const badge = screen.container.querySelector<HTMLElement>(
+				'[data-testid="route-map-stage-label"][data-stage="s1"]'
+			)!;
+			const start = badge.getBoundingClientRect().top;
+			flushSync(() => updateTask(workspace, 'P', { title: 'A longer parent title that wraps' }));
+			const title = label(screen.container, 'P');
+			await expect
+				.poll(() => {
+					const span = [...title.querySelectorAll<HTMLElement>('span')].find(
+						(element) =>
+							element.textContent === 'A longer parent title that wraps' && !element.children.length
+					);
+					return span?.getBoundingClientRect().height ?? 0;
+				})
+				.toBeGreaterThan(16);
+			let time = 300;
+			let midway = start;
+			await expect
+				.poll(() => {
+					frame(time);
+					time += 16;
+					midway = badge.getBoundingClientRect().top;
+					return midway;
+				})
+				.not.toBe(start);
+			frame(time + 300);
+			const end = badge.getBoundingClientRect().top;
+			expect(midway).not.toBe(end);
+		} finally {
+			frame(2000);
+			frame(3000);
+		}
+	});
+
+	it('exposes a large named expansion control that owns the expanded child stations', async () => {
+		motion.reduced = true;
+		const screen = await mount();
+		const control = screen.getByRole('button', { name: `Expand ${fullTitle}` });
+		await expect.element(control).toHaveAttribute('aria-expanded', 'false');
+		const button = screen.container.querySelector<HTMLButtonElement>(
+			'[aria-expanded="false"][aria-controls]'
+		)!;
+		const box = button.getBoundingClientRect();
+		expect(box.width).toBeGreaterThanOrEqual(24);
+		expect(box.height).toBeGreaterThanOrEqual(24);
+		await userEvent.click(control);
+		await expect
+			.element(screen.getByRole('button', { name: `Collapse ${fullTitle}` }))
+			.toHaveAttribute('aria-expanded', 'true');
+		const targetId = button.getAttribute('aria-controls');
+		expect(targetId).toBeTruthy();
+		const target = document.getElementById(targetId!);
+		expect(target).not.toBeNull();
+		expect(target!.contains(mark(screen.container, 'a'))).toBe(true);
+	});
+
+	it('describes readiness without rendering a ready light in the map layer', async () => {
+		const screen = await mount();
+		const layer = screen.container.querySelector('[data-diagram-view="route-map"]')!;
+		expect(
+			layer.querySelector(
+				'[data-testid="ready-dot"], .ready-dot, [role="img"][aria-label^="Ready"]'
+			)
+		).toBeNull();
+		await expect.element(mark(screen.container, 'standalone')).toHaveAccessibleDescription(/Ready/);
+	});
+
+	it('shows canceled child stations and includes them in the family summary', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => {
+			plan.tasks.find((task) => task.id === 'a')!.status = 'canceled';
+		});
+		viewer.setExpanded(workspace.plan.id, 'P', true);
+		const screen = await mount();
+		expect(mark(screen.container, 'a')).not.toBeNull();
+		expect(
+			label(screen.container, 'a').querySelector('[data-route-map-status="canceled"]')
+		).not.toBeNull();
+		const controls = screen.container.querySelector<HTMLElement>('[data-route-map-controls="P"]')!;
+		const visibleSummary = controls.querySelector<HTMLElement>('span')!;
+		await expect.element(visibleSummary).toBeVisible();
+		await expect.element(visibleSummary).toHaveTextContent('1 canceled');
+	});
+
+	it('owns the parent route on expansion-control keyboard focus without touch route toggling', async () => {
+		motion.reduced = true;
+		const screen = await mount();
+		const title = label(screen.container, 'P');
+		const station = mark(screen.container, 'P');
+		const control = screen.getByRole('button', { name: `Expand ${fullTitle}` });
+		title.focus();
+		await userEvent.tab();
+		await expect.element(control).toHaveFocus();
+		await expect.poll(() => station.getAttribute('data-route')).toBe('lit');
+		expect(editing.routeId).toBe('P');
+		screen.container.querySelector<HTMLElement>('[data-testid="diagram-view-route-map"]')!.focus();
+		await expect.poll(() => editing.routeId).toBeNull();
+		expect(station.getAttribute('data-route')).not.toBe('lit');
+		const button = screen.container.querySelector<HTMLButtonElement>(
+			'[data-route-map-controls="P"] button'
+		)!;
+		tap(button);
+		await expect
+			.element(screen.getByRole('button', { name: `Collapse ${fullTitle}` }))
+			.toHaveAttribute('aria-expanded', 'true');
+		expect(editing.detailsTaskId).toBeNull();
+		expect(editing.routeId).toBeNull();
+		label(screen.container, 'P').focus();
+		await userEvent.tab();
+		await expect.poll(() => station.getAttribute('data-route')).toBe('lit');
+		flushSync(() => removeTasks(workspace, ['a', 'b', 'c']));
+		expect(screen.container.querySelector('[data-route-map-controls="P"] button')).toBeNull();
+		await expect.poll(() => document.activeElement).toBe(station);
+		await expect.poll(() => editing.routeId).toBe('P');
+		await expect.poll(() => station.getAttribute('data-route')).toBe('lit');
+		screen.container.querySelector<HTMLElement>('[data-testid="diagram-view-route-map"]')!.focus();
+		await expect.poll(() => editing.routeId).toBeNull();
+		await expect.poll(() => station.getAttribute('data-route')).not.toBe('lit');
+	});
+
+	it('keeps control focus after pointer and keyboard activation and shows keyboard focus', async () => {
+		motion.reduced = true;
+		const screen = await mount();
+		const control = screen.getByRole('button', { name: `Expand ${fullTitle}` });
+		await expect.element(control).toBeVisible();
+		await userEvent.click(control);
+		const expanded = screen.getByRole('button', { name: `Collapse ${fullTitle}` });
+		await expect.element(expanded).toHaveFocus();
+		await expect.element(expanded).toHaveAttribute('aria-expanded', 'true');
+		await userEvent.keyboard('{Enter}');
+		await expect.element(control).toHaveFocus();
+		await expect.element(control).toHaveAttribute('aria-expanded', 'false');
+		await userEvent.keyboard(' ');
+		await expect.element(expanded).toHaveFocus();
+		await expect.element(expanded).toHaveAttribute('aria-expanded', 'true');
+		label(screen.container, 'P').focus();
+		await userEvent.tab();
+		await expect.element(expanded).toHaveFocus();
+		const button = screen.container.querySelector<HTMLButtonElement>(
+			'[aria-expanded="true"][aria-controls]'
+		)!;
+		expect(getComputedStyle(button).outlineStyle).not.toBe('none');
+	});
+
+	it('shows the shared status key below the map scroller', async () => {
+		const screen = await mount();
+		const list = screen.getByRole('list', { name: 'Status' });
+		await expect.element(list).toBeVisible();
+		const node = screen.container.querySelector<HTMLElement>('ul[aria-label="Status"]')!;
+		expect([...node.querySelectorAll('li')].map((item) => item.textContent?.trim())).toEqual([
+			'Todo',
+			'In progress',
+			'Done',
+			'Canceled'
+		]);
+		expect(node.nextElementSibling?.textContent?.trim()).toBe(
+			'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+		);
+		const scroller = screen.container.querySelector<HTMLElement>(
+			'[data-testid="route-map-scroller"]'
+		)!;
+		expect(node.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			scroller.getBoundingClientRect().bottom
+		);
 	});
 
 	it('shows dates on station hover and keyboard focus while the title hint stays title only', async () => {

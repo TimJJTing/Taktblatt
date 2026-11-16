@@ -16,11 +16,8 @@ const required = [
 	'route_map_exit',
 	'route_map_print_header',
 	'route_map_print_header_parents',
-	'route_map_hide_subtasks',
 	'route_map_predecessors',
-	'route_map_show_subtasks',
 	'route_map_station_name',
-	'route_map_subtask_count',
 	'route_map_successors',
 	'route_map_title_continuation',
 	'route_map_to_go',
@@ -42,11 +39,8 @@ const parameters: Record<string, string[]> = {
 	route_map_key_transfer: [],
 	route_map_key_workflow: [],
 
-	route_map_hide_subtasks: ['task'],
 	route_map_predecessors: ['tasks'],
-	route_map_show_subtasks: ['task'],
 	route_map_station_name: ['stage', 'status', 'task'],
-	route_map_subtask_count: ['count'],
 	route_map_successors: ['tasks'],
 	route_map_title_continuation: ['reference', 'title'],
 	route_map_to_go: ['count'],
@@ -86,6 +80,9 @@ describe('Route map locale inventory', () => {
 		});
 		for (const catalog of catalogs) {
 			for (const key of [
+				'route_map_hide_subtasks',
+				'route_map_show_subtasks',
+				'route_map_subtask_count',
 				'route_map_key_terminus',
 				'route_map_key_walkway',
 				'route_map_key_interchange',

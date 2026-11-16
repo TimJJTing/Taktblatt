@@ -10,15 +10,21 @@
 		label,
 		stage,
 		index,
+		measured = true,
 		still = false
 	}: {
 		label: RouteMapStageLabel;
 		stage: Stage;
 		index: number;
+		measured?: boolean;
 		still?: boolean;
 	} = $props();
 	const geom = new GeometryTween(untrack(() => label.box));
-	$effect(() => geom.set(label.box, { still }));
+	let initialized = $state(false);
+	$effect(() => {
+		geom.set(label.box, { still, snap: !initialized });
+		initialized ||= measured;
+	});
 </script>
 
 <div

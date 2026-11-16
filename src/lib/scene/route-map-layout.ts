@@ -26,6 +26,7 @@ export interface RouteMapMetrics {
 	clearance: number;
 	paper?: boolean;
 	labelHeights?: ReadonlyMap<string, number>;
+	controlsHeights?: ReadonlyMap<string, number>;
 }
 export interface RouteMapStation {
 	id: string;
@@ -401,6 +402,10 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 	}
 	const hasChildren = (id: string) =>
 		model.groups.some((group) => group.id === id && group.taskIds.length > 1);
+	const controlsHeight = (node: RouteMapNode) =>
+		!paper && hasChildren(node.id)
+			? Math.max(24, Math.min(320, metrics.controlsHeights?.get(node.id) ?? 24))
+			: 0;
 	const titleHeight = (node: RouteMapNode) =>
 		(paper ? metrics.labelHeight : metrics.labelHeights?.get(node.id)) ??
 		Math.min(
@@ -443,7 +448,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 						(node) =>
 							labelOffset(node) +
 							titleHeight(node) +
-							(!paper && hasChildren(node.id) ? 24 : 0) +
+							controlsHeight(node) +
 							(badgeHosts.has(node.id) ? 24 : 0)
 					)
 			) +
@@ -489,7 +494,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 			x: center.x - metrics.labelWidth / 2,
 			y: center.y + labelOffset(node),
 			w: metrics.labelWidth,
-			h: titleHeight(node) + (!paper && hasChildren(node.id) ? 24 : 0)
+			h: titleHeight(node) + controlsHeight(node)
 		};
 		return {
 			id: node.id,
@@ -503,7 +508,14 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 			focusBox: { x: hitBox.x - 4, y: hitBox.y - 4, w: hit + 8, h: hit + 8 },
 			controlBoxes:
 				!paper && hasChildren(node.id)
-					? [{ x: center.x - 20, y: labelBox.y + titleHeight(node), w: 40, h: 24 }]
+					? [
+							{
+								x: center.x - 20,
+								y: labelBox.y + titleHeight(node),
+								w: 40,
+								h: controlsHeight(node)
+							}
+						]
 					: [],
 			inPort: center,
 			outPort: center

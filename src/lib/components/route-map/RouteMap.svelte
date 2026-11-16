@@ -3,6 +3,7 @@
 	import { fade } from 'svelte/transition';
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
+	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
 	import GanttLine from '#lib/components/timeline/GanttLine.svelte';
 	import RouteMapDecoration from './RouteMapDecoration.svelte';
 	import RouteMapStageLabel from './RouteMapStageLabel.svelte';
@@ -49,6 +50,34 @@
 		if (labelHeights.get(id) !== height)
 			labelHeights = new Map([...labelHeights, [id, height] as const]);
 	};
+	let controlsHeights = $state.raw(new Map<string, number>());
+	const onControlsHeight = (id: string, height: number) => {
+		if (controlsHeights.get(id) !== height)
+			controlsHeights = new Map([...controlsHeights, [id, height] as const]);
+	};
+	let measuredPlanId = $state(untrack(() => ws.plan.id));
+	$effect.pre(() => {
+		if (measuredPlanId !== ws.plan.id) {
+			measuredPlanId = ws.plan.id;
+			labelHeights = new Map();
+			controlsHeights = new Map();
+		}
+		const visible = new Set(model.nodes.map((node) => node.id));
+		if ([...labelHeights.keys()].some((id) => !visible.has(id)))
+			labelHeights = new Map([...labelHeights].filter(([id]) => visible.has(id)));
+		if (
+			[...controlsHeights.keys()].some(
+				(id) => !visible.has(id) || !ws.index.children.get(id)?.length
+			)
+		)
+			controlsHeights = new Map(
+				[...controlsHeights].filter(([id]) => visible.has(id) && ws.index.children.get(id)?.length)
+			);
+	});
+	const isMeasured = (id: string) =>
+		labelHeights.has(id) && (!ws.index.children.get(id)?.length || controlsHeights.has(id));
+	// Empty-stage placement follows the bounds of every visible station.
+	const allStationsMeasured = $derived(model.nodes.every((node) => isMeasured(node.id)));
 	const layout = $derived(
 		routeMapLayout(model, {
 			hitSize: 28,
@@ -58,7 +87,8 @@
 			stageGap: 120,
 			laneGap: 40,
 			clearance: 5,
-			labelHeights
+			labelHeights,
+			controlsHeights
 		})
 	);
 	const routes = $derived(routeMapRoutes(model, layout));
@@ -190,22 +220,27 @@
 	}
 	const path = routeMapPath;
 	let tweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }[]>>());
+	const initializedTweens = new WeakSet<GeometryTween<{ x: number; y: number }[]>>();
+	let tweenPlanId: string | undefined;
 	$effect(() => {
+		const planId = ws.plan.id;
 		const items = [
 			...layout.lines.map((l) => ({
 				key: `line:${l.key}:${l.points.length}`,
 				id: l.key,
-				points: l.points
+				points: l.points,
+				measured: l.taskIds.every(isMeasured)
 			})),
 			...routes.map((r) => ({
 				key: `${r.carrier}:${r.key}:${r.points.length}`,
 				id: r.key,
-				points: r.points
+				points: r.points,
+				measured: isMeasured(r.from) && isMeasured(r.to)
 			}))
 		];
 		// Read the running tweens untracked. Their frames must not rerun this effect.
 		untrack(() => {
-			const previous = tweens;
+			const previous: typeof tweens = tweenPlanId === planId ? tweens : new Map();
 			tweens = new Map(
 				items.map((item) => {
 					const points = [...item.points];
@@ -220,10 +255,14 @@
 					);
 					const tween =
 						old && old.current.length === points.length ? old : new GeometryTween(start);
-					tween.set(points);
+					// A replacement tween with measured endpoints keeps its current-frame ports.
+					if (tween !== old && item.measured) initializedTweens.add(tween);
+					tween.set(points, { snap: !initializedTweens.has(tween) });
+					if (item.measured) initializedTweens.add(tween);
 					return [item.key, tween];
 				})
 			);
+			tweenPlanId = planId;
 		});
 	});
 	const lineEntries = $derived(
@@ -359,7 +398,7 @@
 							>{@render stageLine(entry.line)}</g
 						>
 					{/each}
-					{#each layout.junctions as junction, i (i)}
+					{#each layout.junctions as junction, i (JSON.stringify([ws.plan.id, i]))}
 						<DiagramRing
 							junction={{
 								key: `route-junction:${i}`,
@@ -373,15 +412,16 @@
 						/>
 					{/each}
 				</svg>
-				{#each layout.stageLabels as label (`${label.stageId}:${label.hostId}`)}
+				{#each layout.stageLabels as label (JSON.stringify( [ws.plan.id, label.stageId, label.hostId] ))}
 					<RouteMapStageLabel
 						{label}
+						measured={label.hostId === null ? allStationsMeasured : isMeasured(label.hostId)}
 						stage={stages.get(label.stageId)!}
 						index={ws.plan.stages.findIndex((s) => s.id === label.stageId)}
 					/>
 				{/each}
-				{#each layout.signs.filter((s) => !s.stationId) as sign (sign.stageId)}
-					<RouteMapDecoration {sign} />
+				{#each layout.signs.filter((s) => !s.stationId) as sign (JSON.stringify( [ws.plan.id, sign.stageId] ))}
+					<RouteMapDecoration {sign} measured={allStationsMeasured} />
 					<span class="sr-only"
 						>{stages.get(sign.stageId)!.title}
 						{m.route_map_to_go({
@@ -389,18 +429,20 @@
 						})}</span
 					>
 				{/each}
-				{#each groups as station (station.id)}
+				{#each groups as station (JSON.stringify([ws.plan.id, station.id]))}
 					{@const node = nodes.get(station.id)!}
 					<RouteMapStation
 						returnFocus={layer.returnFocus}
 						{node}
 						{station}
+						measured={isMeasured(node.id)}
 						stage={stages.get(node.stageId)!}
 						sign={layout.signs.find((s) => s.stationId === node.id)}
 						routeTarget={routeTargets.target}
 						route={paint(focus.onRouteRowIds.has(node.id))}
 						description={directions(node.id)}
 						{onTitleHeight}
+						{onControlsHeight}
 						hasChildren={(ws.index.children.get(node.id)?.length ?? 0) > 0}
 						expanded={viewer.isExpanded(ws.plan.id, node.id)}
 						controls={childId(node.id)}
@@ -412,6 +454,7 @@
 								returnFocus={layer.returnFocus}
 								node={childNode}
 								station={child}
+								measured={isMeasured(child.id)}
 								stage={stages.get(childNode.stageId)!}
 								sign={layout.signs.find((s) => s.stationId === child.id)}
 								routeTarget={routeTargets.target}
@@ -428,7 +471,10 @@
 			</div>
 		{/if}
 	</div>
-	<div class="shrink-0 border-t px-3 py-2"><RouteMapKey /></div>
+	<div class="flex shrink-0 flex-wrap gap-x-6 gap-y-2 border-t px-3 py-2">
+		<RouteMapKey />
+		<div class="space-y-1 text-xs text-muted-foreground"><StatusKey /></div>
+	</div>
 </div>
 
 <style>

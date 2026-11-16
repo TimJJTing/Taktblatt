@@ -3,6 +3,8 @@ import { createExamplePlan } from '#lib/domain/example.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	focusPreviousControl,
+	ganttRow,
+	row,
 	chooseView,
 	chooseTheme,
 	diagramStage,
@@ -162,7 +164,7 @@ test('the separate chevron expands children without opening details or editing t
 	await chooseView(page, 'route-map');
 	const before = await storedPlan(page);
 	const expand = diagramStage(page).getByRole('button', {
-		name: 'Show subtasks of Route parent',
+		name: 'Expand Route parent',
 		exact: true
 	});
 	await expect(expand).toHaveAttribute('aria-expanded', 'false');
@@ -183,9 +185,60 @@ test('the separate chevron expands children without opening details or editing t
 	await expect(station(page, 'parent')).toBeVisible();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(
-		diagramStage(page).getByRole('button', { name: 'Hide subtasks of Route parent', exact: true })
+		diagramStage(page).getByRole('button', { name: 'Collapse Route parent', exact: true })
 	).toHaveAttribute('aria-expanded', 'true');
 	expect(await storedPlan(page)).toEqual(before);
+});
+
+test('shares family expansion with Work plan and Gantt and restores it after reload', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1600, height: 1000 });
+	await openRoutePlan(page);
+	await chooseView(page, 'route-map');
+	const before = await storedPlan(page);
+	const routeToggle = () =>
+		incoming(page).getByRole('button', { name: /^(Expand|Collapse) Route parent$/, exact: true });
+	const workToggle = row(page, 'Route parent').getByTestId('task-toggle');
+	await expect(routeToggle()).toHaveAttribute('aria-expanded', 'false');
+	await routeToggle().click();
+	await expect(routeToggle()).toHaveAttribute('aria-expanded', 'true');
+	await expect(workToggle).toHaveAttribute('aria-expanded', 'true');
+	await chooseView(page, 'gantt');
+	const ganttToggle = ganttRow(page, 'Route parent').getByTestId('gantt-toggle');
+	await expect(ganttToggle).toHaveAttribute('aria-expanded', 'true');
+	await ganttToggle.click();
+	await expect(workToggle).toHaveAttribute('aria-expanded', 'false');
+	await chooseView(page, 'route-map');
+	await expect(routeToggle()).toHaveAttribute('aria-expanded', 'false');
+	await workToggle.click();
+	await expect(routeToggle()).toHaveAttribute('aria-expanded', 'true');
+	await page.reload();
+	await expectView(page, 'route-map');
+	await expect(routeToggle()).toHaveAttribute('aria-expanded', 'true');
+	await expect(workToggle).toHaveAttribute('aria-expanded', 'true');
+	await chooseView(page, 'gantt');
+	await expect(ganttToggle).toHaveAttribute('aria-expanded', 'true');
+	expect(await storedPlan(page)).toEqual(before);
+});
+
+test('shows the shared status key below the Route map', async ({ page }) => {
+	await openRoutePlan(page);
+	await chooseView(page, 'route-map');
+	const view = incoming(page);
+	const list = view.getByRole('list', { name: 'Status', exact: true });
+	await expect(list).toBeVisible();
+	await expect(list.getByRole('listitem')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+	await expect(list.locator('xpath=following-sibling::*[1]')).toHaveText(
+		'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+	);
+	await expect
+		.poll(async () => {
+			const key = await list.boundingBox();
+			const map = await view.getByTestId('route-map-scroller').boundingBox();
+			return key !== null && map !== null && key.y >= map.y + map.height;
+		})
+		.toBe(true);
 });
 
 test('keeps the screen view across reload and plan switch, after Gantt in the real switch', async ({
@@ -309,7 +362,7 @@ test('reduced motion settles switches and expansion immediately with usable forc
 	await openRoutePlan(page);
 	await chooseView(page, 'route-map');
 	await diagramStage(page)
-		.getByRole('button', { name: 'Show subtasks of Route parent', exact: true })
+		.getByRole('button', { name: 'Expand Route parent', exact: true })
 		.click();
 	await expect(station(page, 'child-a')).toBeVisible();
 	await expect
@@ -501,12 +554,12 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 		'Dependency cycle'
 	]);
 	await incoming(page)
-		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.getByRole('button', { name: 'Expand Soil preparation', exact: true })
 		.click();
 	await waitForAnimations(incoming(page));
 	await assertBadges();
 	await incoming(page)
-		.getByRole('button', { name: 'Hide subtasks of Soil preparation', exact: true })
+		.getByRole('button', { name: 'Collapse Soil preparation', exact: true })
 		.click();
 	await waitForAnimations(incoming(page));
 	await expect(
@@ -736,7 +789,7 @@ test('D53 Fable signs and imported status paint survive dark and forced-color re
 	});
 	await chooseView(page, 'route-map');
 	await incoming(page)
-		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.getByRole('button', { name: 'Expand Soil preparation', exact: true })
 		.click();
 	await waitForAnimations(incoming(page));
 	await expect(
@@ -794,9 +847,7 @@ test('Route map keeps offline stations, expansion and Preview after a production
 		await context.setOffline(true);
 		await page.reload();
 		await expectView(page, 'route-map');
-		await incoming(page)
-			.getByRole('button', { name: 'Show subtasks of Route parent', exact: true })
-			.click();
+		await incoming(page).getByRole('button', { name: 'Expand Route parent', exact: true }).click();
 		await expect(station(page, 'child-a')).toBeVisible();
 		await page.reload();
 		await expectView(page, 'route-map');
@@ -837,7 +888,7 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 
 	expect(await walkways()).toEqual(['task-1->task-5', 'task-4->task-5', 'task-5->task-7']);
 	await incoming(page)
-		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.getByRole('button', { name: 'Expand Soil preparation', exact: true })
 		.click();
 	await waitForAnimations(incoming(page));
 	expect(await walkways()).toEqual(['task-3->task-5', 'task-4->task-5', 'task-5->task-7']);
@@ -853,7 +904,7 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 	await expectView(page, 'route-map');
 	await waitForAnimations(incoming(page));
 	await incoming(page)
-		.getByRole('button', { name: 'Hide subtasks of Soil preparation', exact: true })
+		.getByRole('button', { name: 'Collapse Soil preparation', exact: true })
 		.click();
 	await waitForAnimations(incoming(page));
 	await expect(station(page, 'task-2')).toHaveCount(0);
@@ -873,7 +924,7 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 	await expect(station(page, 'task-4')).toHaveAccessibleDescription(/Soil test/);
 
 	await incoming(page)
-		.getByRole('button', { name: 'Show subtasks of Soil preparation', exact: true })
+		.getByRole('button', { name: 'Expand Soil preparation', exact: true })
 		.click();
 	await waitForAnimations(incoming(page));
 	expect(await topRails()).toEqual(collapsedTopRails);

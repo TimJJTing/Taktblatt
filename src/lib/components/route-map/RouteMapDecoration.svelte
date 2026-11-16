@@ -3,9 +3,21 @@
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import type { RouteMapSign } from '#lib/scene/route-map-layout.ts';
 	import RouteMapStationGlyph from './RouteMapStationGlyph.svelte';
-	let { sign, still = false }: { sign: RouteMapSign; still?: boolean } = $props();
+	let {
+		sign,
+		measured = true,
+		still = false
+	}: {
+		sign: RouteMapSign;
+		measured?: boolean;
+		still?: boolean;
+	} = $props();
 	const point = new GeometryTween(untrack(() => sign.center));
-	$effect(() => point.set(sign.center, { still }));
+	let initialized = $state(false);
+	$effect(() => {
+		point.set(sign.center, { still, snap: !initialized });
+		initialized ||= measured;
+	});
 </script>
 
 <div
