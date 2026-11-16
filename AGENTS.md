@@ -87,6 +87,8 @@ Reuse `e2e/helpers.ts` for shared browser setup and interactions. Extend the hel
 
 For date, history, popover, animation, and scroll checks, follow the interaction rules in the [Taktblatt UI validation skill](.agents/skills/taktblatt-ui-validation/SKILL.md).
 
+Write tests that remain reliable across local and CI environments. In browser integration and E2E tests, wait for observable state, focus, or settled geometry. Do not use fixed sleeps or narrow wall-clock timing windows as proof of behavior. Do not assume that CI has the same speed as the local machine. Check exact debounce, hover, grace, and other timer boundaries in controlled unit tests. Keep real pointer input in browser hover checks. Do not use the Playwright clock to control animated UI; it also stops animation-frame tweens.
+
 ## Commit & Pull Request Guidelines
 
 Create or switch to a separate branch before you commit changes. Give the branch a name that tells its purpose, for example `fix/stable-chevron-test`. Do not commit directly to `main`. Submit changes to `main` through a pull request. A pull request can merge only when the `CI passed` check succeeds. See [ADR 11](docs/adr/0011-required-ci-checks.md) for the required checks and branch protection rules.

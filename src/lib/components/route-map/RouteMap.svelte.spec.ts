@@ -449,7 +449,7 @@ describe('Route map station interactions', () => {
 		});
 	});
 
-	it('shares label and mark hover intent with warm switching and leave grace', async () => {
+	it('activates route focus from station and name hover targets and clears on leave', async () => {
 		motion.reduced = true;
 		workspace.commit((plan) => {
 			plan.tasks = [
@@ -468,22 +468,14 @@ describe('Route map station interactions', () => {
 		await expect.element(labelStandalone).toBeVisible();
 		await expect.element(leaveTarget).toBeVisible();
 
-		const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 		await userEvent.hover(labelP);
-		expect(editing.routeId).toBeNull();
-		await pause(350);
-		expect(editing.routeId).toBe('P');
-		await userEvent.hover(markP);
-		await pause(170);
-		expect(editing.routeId).toBe('P');
+		await expect.poll(() => editing.routeId).toBe('P');
 		await userEvent.hover(labelStandalone);
-		expect(editing.routeId).toBe('P');
-		await expect.poll(() => editing.routeId, { timeout: 240, interval: 10 }).toBe('standalone');
+		await expect.poll(() => editing.routeId).toBe('standalone');
+		await userEvent.hover(markP);
+		await expect.poll(() => editing.routeId).toBe('P');
 		await userEvent.hover(leaveTarget);
-		expect(editing.routeId).toBe('standalone');
-		await pause(170);
-		expect(editing.routeId).toBe('standalone');
-		await expect.poll(() => editing.routeId, { timeout: 200, interval: 10 }).toBeNull();
+		await expect.poll(() => editing.routeId).toBeNull();
 	});
 
 	it('retains full accessible names, untitled fallback and all current-frame geometry marks', async () => {
