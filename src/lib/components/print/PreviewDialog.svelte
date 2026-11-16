@@ -1,6 +1,7 @@
 <!--
 	The preview: a read-only, full-screen view of the sheets. It has a paper size control, the
-	"Diagrams to print" group (only with more than one registered view) and a Print button.
+	"Diagrams to print" group (only with more than one registered view), a print detail checkbox
+	and a Print button.
 	It is a modal dialog. Esc closes it. The focus goes back to the Menu button.
 	The preview has no motion. In print, only the sheets show.
 
@@ -131,6 +132,14 @@
 				{/if}
 			</div>
 		{/if}
+		<label class="flex min-h-6 items-center gap-1.5 text-xs">
+			<Checkbox
+				checked={viewer.printSubtasks}
+				onCheckedChange={(value) => viewer.setPrintSubtasks(value)}
+				data-testid="print-subtasks"
+			/>
+			{m.diagram_print_subtasks()}
+		</label>
 		<Button size="sm" onclick={() => preview.print()} data-testid="preview-print">
 			<PrinterIcon aria-hidden="true" />{m.action_print()}
 		</Button>

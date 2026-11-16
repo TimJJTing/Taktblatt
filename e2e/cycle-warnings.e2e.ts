@@ -166,9 +166,12 @@ test('an inherited From parent chip warns for the parent-stored edge and both Ga
 		await expectCyclePaint(line);
 	}
 	const preview = await openPreview(page);
+	await preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
 	await page.evaluate(() => document.fonts.ready);
 	const printed = preview.getByTestId('sheet-gantt-dependency');
 	await expect(printed).toHaveCount(2);
+	await expect(printed.and(page.locator('[data-from="x"][data-to="p"]'))).toHaveCount(1);
+	await expect(printed.and(page.locator('[data-from="s"][data-to="x"]'))).toHaveCount(1);
 	for (const line of await printed.all()) {
 		await expectCyclePaint(line, true);
 	}

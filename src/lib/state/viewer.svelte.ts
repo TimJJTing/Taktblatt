@@ -24,7 +24,8 @@ const ViewerSchema = v.object({
 	),
 	// The registry validates the ids after parsing. Refer to `resolveDiagramView`.
 	diagramView: v.fallback(v.optional(v.string()), undefined),
-	printDiagrams: v.fallback(v.optional(v.array(v.unknown())), undefined)
+	printDiagrams: v.fallback(v.optional(v.array(v.unknown())), undefined),
+	printSubtasks: v.fallback(v.boolean(), false)
 });
 
 /** Resolves a stored view id. An unknown or unregistered id gives Gantt. */
@@ -64,6 +65,8 @@ export class ViewerState {
 	diagramView = $state<DiagramViewId>(GANTT_VIEW_ID);
 	/** The diagrams to print, in print order, shared by all plans. */
 	printDiagrams = $state<DiagramViewId[]>([GANTT_VIEW_ID]);
+	/** Whether printed diagrams include subtasks, shared by all plans. */
+	printSubtasks = $state(false);
 
 	/**
 	 * @param viewIds The registered diagram view ids in display and print order.
@@ -91,6 +94,7 @@ export class ViewerState {
 		this.ganttHeight = data.ganttHeight;
 		this.diagramView = resolveDiagramView(data.diagramView, viewIds);
 		this.printDiagrams = resolvePrintDiagrams(data.printDiagrams, viewIds);
+		this.printSubtasks = data.printSubtasks;
 	}
 
 	private save(): void {
@@ -104,7 +108,8 @@ export class ViewerState {
 			timelineKeepOpen: this.timelineKeepOpen,
 			ganttHeight: this.ganttHeight,
 			diagramView: this.diagramView,
-			printDiagrams: [...this.printDiagrams]
+			printDiagrams: [...this.printDiagrams],
+			printSubtasks: this.printSubtasks
 		};
 		this.storage.setItem(KEYS.viewer, JSON.stringify(data));
 	}
@@ -178,6 +183,13 @@ export class ViewerState {
 		this.printDiagrams = selected
 			? resolvePrintDiagrams([...this.printDiagrams, id], this.viewIds)
 			: this.printDiagrams.filter((item) => item !== id);
+		this.save();
+	}
+
+	/** Sets whether printed diagrams include subtasks. */
+	setPrintSubtasks(value: boolean): void {
+		if (this.printSubtasks === value) return;
+		this.printSubtasks = value;
 		this.save();
 	}
 

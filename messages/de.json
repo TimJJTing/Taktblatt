@@ -340,6 +340,7 @@
 	"menu_export_hint": "Dieser Plan als Datei",
 	"diagram_print_group": "Zu druckende Diagramme",
 	"diagram_print_min": "Mindestens ein Diagramm auswählen",
+	"diagram_print_subtasks": "Teilaufgaben in gedruckten Diagrammen anzeigen",
 	"diagram_region": "Diagramm {view}",
 	"diagram_view_announcement": "Ansicht {view}",
 	"diagram_view_gantt": "Gantt",

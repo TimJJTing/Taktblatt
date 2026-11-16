@@ -11,11 +11,11 @@ import {
 	type KanbanPaperRow
 } from './kanban-paper.ts';
 
-function paper(plan: Plan, expanded = false) {
+function paper(plan: Plan, showSubtasks = false) {
 	const segments = kanbanPaperSegments({
 		plan,
 		index: indexTasks(plan.tasks),
-		isExpanded: () => expanded,
+		showSubtasks: () => showSubtasks,
 		today: '2027-01-10'
 	});
 	const segment = segments[0];
@@ -83,16 +83,17 @@ describe('Kanban paper card rows', () => {
 		expect(data.columns.map((column) => column.count)).toEqual([0, 0, 0, 0]);
 	});
 
-	it('uses the same leaves and traversal regardless of Work plan expansion', () => {
+	// The Kanban family detail slice will replace this leaf projection.
+	it('uses the same leaves and traversal regardless of print detail', () => {
 		const plan = isolatedParent(true);
-		const collapsed = paper(plan),
-			expanded = paper(plan, true);
-		expect(collapsed.rows).toEqual(expanded.rows);
-		expect(rowIds(collapsed.rows).sort()).toEqual(['C1', 'C2', 'U']);
+		const withoutSubtasks = paper(plan),
+			withSubtasks = paper(plan, true);
+		expect(withoutSubtasks.rows).toEqual(withSubtasks.rows);
+		expect(rowIds(withoutSubtasks.rows).sort()).toEqual(['C1', 'C2', 'U']);
 		const screen = kanbanBoard(plan, indexTasks(plan.tasks)).columns;
 		for (let column = 0; column < 4; column++) {
 			expect(
-				collapsed.rows.flatMap((row) => (row.cards[column] ? [row.cards[column]!.id] : []))
+				withoutSubtasks.rows.flatMap((row) => (row.cards[column] ? [row.cards[column]!.id] : []))
 			).toEqual(screen[column].cards.map((card) => card.id));
 		}
 	});

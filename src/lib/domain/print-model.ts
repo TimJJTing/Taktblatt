@@ -94,7 +94,7 @@ export interface StageSegment extends Placement {
 	number: number;
 	span: { start: ISODate; end: ISODate } | null;
 	progress: { done: number; inProgress: number; total: number };
-	/** The visible rows. A stage without tasks has no rows and one item for the empty notice. */
+	/** All task and subtask rows. An empty stage has one item for the empty notice. */
 	rows: TableRow[];
 	/** The first stage shows the title of the work plan above its header. */
 	workPlanTitle: boolean;
@@ -173,7 +173,8 @@ function chunk<T>(list: readonly T[], size: number): T[][] {
 export interface PrintModelInput {
 	plan: Plan;
 	index: TaskIndex;
-	isExpanded: (taskId: string) => boolean;
+	/** Diagram detail only. The printed Work plan always includes every subtask. */
+	showSubtasks: (taskId: string) => boolean;
 	/** The date of the today line: the footer date, else the current date. */
 	today: ISODate;
 }
@@ -195,14 +196,14 @@ export interface PrintModelOptions extends PrintModelInput {
 export function ganttPrintSegments({
 	plan,
 	index,
-	isExpanded,
+	showSubtasks,
 	today
 }: PrintModelInput): DiagramSegment[] {
 	const win = plan.range;
 	const rows = ganttRows(
 		index,
 		plan.stages.map((s) => s.id),
-		isExpanded,
+		showSubtasks,
 		win
 	);
 	const segments: DiagramSegment[] = [
@@ -260,7 +261,7 @@ const stageSegmentId = (stage: Stage) => `stage-${stage.id}`;
  * The paginator starts a new sheet at each orientation change.
  */
 export function buildPrintModel(options: PrintModelOptions): Segment[] {
-	const { plan, index, isExpanded } = options;
+	const { plan, index } = options;
 	const diagrams = options.diagrams ?? [
 		{ id: GANTT_VIEW_ID, orientation: 'portrait', segments: ganttPrintSegments(options) }
 	];
@@ -319,7 +320,6 @@ export function buildPrintModel(options: PrintModelOptions): Segment[] {
 				eff: index.state.get(task.id)!.eff,
 				readiness: index.state.get(task.id)!.readiness
 			});
-			if (!isExpanded(task.id)) continue;
 			for (const child of children) {
 				tableRows.push({
 					task: child,

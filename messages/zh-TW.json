@@ -340,6 +340,7 @@
 	"menu_export_hint": "將此計畫儲存為檔案",
 	"diagram_print_group": "要列印的圖表",
 	"diagram_print_min": "請至少選擇一個圖表",
+	"diagram_print_subtasks": "在列印的圖表中顯示子任務",
 	"diagram_region": "{view}圖表",
 	"diagram_view_announcement": "{view}檢視",
 	"diagram_view_gantt": "甘特圖",

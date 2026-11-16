@@ -22,6 +22,7 @@ import {
 	openPreview,
 	row,
 	storedPlan,
+	storedViewer,
 	writeStoredPlan,
 	setTaskStatus,
 	openLinePlan,
@@ -50,9 +51,9 @@ test('paper marks use physical sizes, opaque status paint and source-local taps 
 	page
 }) => {
 	await openLinePlan(page);
-	await row(page, 'Crossing').getByTestId('task-toggle').click();
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await openPreview(page);
+	await page.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
 	for (const paper of ['a4', 'letter']) {
 		await page.getByTestId(`paper-${paper}`).click();
 		const first = sheets(page).first();
@@ -480,20 +481,78 @@ test('the paper size changes the sheet size, is one undo step, and persists', as
 	await assertPaper('letter');
 });
 
-test('expanding a parent adds rows to the preview', async ({ page }) => {
+test('print detail is independent of screen expansion', async ({ page, context }) => {
 	await openExample(page);
-	await openPreview(page);
-	const rows = page.getByTestId('sheets').getByTestId('sheet-task-row');
-	const ganttRows = page.getByTestId('sheets').getByTestId('sheet-gantt-row');
-	await expect(rows).toHaveCount(7);
+	await page.reload();
+	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+	const undo = page.getByRole('button', { name: 'Undo', exact: true });
+	await expect(undo).toBeDisabled();
+
+	const preview = await openPreview(page);
+	const tableRows = preview.getByTestId('sheets').getByTestId('sheet-task-row');
+	const ganttRows = preview.getByTestId('sheets').getByTestId('sheet-gantt-row');
+	await expect(tableRows).toHaveCount(11);
 	await expect(ganttRows).toHaveCount(7);
+	await expect(tableRows.filter({ hasText: 'Soil test' })).toHaveCount(1);
+	await expect(ganttRows.filter({ hasText: 'Soil test' })).toHaveCount(0);
 	await page.keyboard.press('Escape');
 
 	await row(page, 'Soil preparation').getByTestId('task-toggle').click();
 	await openPreview(page);
-	await expect(rows).toHaveCount(9);
-	await expect(ganttRows).toHaveCount(9);
-	await expect(page.getByTestId('sheets').getByText('Soil test')).toHaveCount(2);
+	const checkbox = preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+	await expect(checkbox).toHaveAttribute('aria-checked', 'false');
+	await expect(ganttRows).toHaveCount(7);
+	await expect(tableRows).toHaveCount(11);
+
+	await checkbox.focus();
+	await page.keyboard.press('Space');
+	await expect(checkbox).toHaveAttribute('aria-checked', 'true');
+	await expect(ganttRows).toHaveCount(11);
+	await expect(tableRows).toHaveCount(11);
+	for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
+		await expect(ganttRows.filter({ hasText: title })).toHaveCount(1);
+	}
+	await expect.poll(async () => (await storedViewer(page)).printSubtasks).toBe(true);
+
+	await page.keyboard.press('Escape');
+	await expect(undo).toBeDisabled();
+	await row(page, 'Soil preparation').getByTestId('task-toggle').click();
+	await expect(row(page, 'Soil test')).toHaveCount(0);
+
+	await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+	await expect
+		.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
+		.toBe(true);
+	try {
+		await context.setOffline(true);
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		await expect(row(page, 'Soil test')).toHaveCount(0);
+		expect((await storedViewer(page)).printSubtasks).toBe(true);
+
+		await page.evaluate(() => {
+			window.__printedSheets = [];
+			window.print = () => {
+				window.__printedSheets.push(
+					document.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-gantt-row"]')
+						.length,
+					document.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-task-row"]').length
+				);
+			};
+		});
+		await page.keyboard.press('ControlOrMeta+p');
+		expect(await page.evaluate(() => window.__printedSheets)).toEqual([11, 11]);
+		// A click resets the print state after the stubbed print call.
+		await page.getByTestId('plan-heading').click();
+		await expect(sheets(page)).toHaveCount(0);
+
+		await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await expect(sheets(page).getByTestId('sheet-gantt-row')).toHaveCount(11);
+		await expect(sheets(page).getByTestId('sheet-task-row')).toHaveCount(11);
+		await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	} finally {
+		await context.setOffline(false);
+	}
 });
 
 test('the Gantt continues on the next sheet with the month header, and the table header repeats', async ({
@@ -531,7 +590,7 @@ test('the Gantt continues on the next sheet with the month header, and the table
 		1
 	);
 
-	// The first stage has 103 rows in the table. Its table continues, and the header repeats.
+	// The first stage has 105 rows in the table. Its table continues, and the header repeats.
 	let tableSheets = 0;
 	let taskRows = 0;
 	for (let i = 0; i < count; i++) {
@@ -545,7 +604,7 @@ test('the Gantt continues on the next sheet with the month header, and the table
 		tableSheets += 1;
 	}
 	expect(tableSheets).toBeGreaterThanOrEqual(3);
-	expect(taskRows).toBe(107);
+	expect(taskRows).toBe(111);
 	// The stage header shows once. The work plan title shows once.
 	await expect(
 		page.getByTestId('sheets').getByRole('heading', { name: /S1.*Prepare/ })
@@ -719,16 +778,19 @@ for (const source of ['preview', 'direct'] as const) {
 				-3
 			);
 		});
-		await row(page, 'Soil preparation').getByTestId('task-toggle').click();
-		if (source === 'preview') await openPreview(page);
-		else await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await openPreview(page);
+		await page.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
+		if (source === 'direct') {
+			await page.keyboard.press('Escape');
+			await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		}
 		await page.emulateMedia({ media: 'print' });
 		const first = sheets(page).first();
-		await expect(first.getByTestId('sheet-gantt-row')).toHaveCount(9);
-		await expect(first.getByTestId('sheet-gantt-bar')).toHaveCount(8);
+		await expect(first.getByTestId('sheet-gantt-row')).toHaveCount(11);
+		await expect(first.getByTestId('sheet-gantt-bar')).toHaveCount(10);
 		await expect(first.getByTestId('sheet-gantt-point')).toHaveCount(1);
 		await expect(first.getByTestId('sheet-gantt-band')).toHaveCount(1);
-		await expect(first.getByTestId('sheet-gantt-dependency')).toHaveCount(5);
+		await expect(first.getByTestId('sheet-gantt-dependency')).toHaveCount(6);
 		await expectMilestoneRing(first.getByRole('img', { name: /^Milestone M1:/ }));
 		await expect(
 			first.getByRole('img', { name: /^Milestone M2:/ }).locator('svg.lucide-hexagon')

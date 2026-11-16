@@ -775,6 +775,15 @@ test('Route map keeps offline stations, expansion and Preview after a production
 		const preview = await openPreview(page);
 		await preview.getByTestId('print-diagram-route-map').click();
 		await preview.getByTestId('print-diagram-gantt').click();
+		await expect(paper(page).first()).not.toContainText('Route child A', { useInnerText: true });
+		await preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
+		await expect(paper(page).first()).toContainText('Route child A', { useInnerText: true });
+		await page.reload();
+		await expectView(page, 'route-map');
+		const again = await openPreview(page);
+		await expect(
+			again.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' })
+		).toHaveAttribute('aria-checked', 'true');
 		await expect(paper(page).first()).toContainText('Route child A', { useInnerText: true });
 	} finally {
 		await context.setOffline(false);

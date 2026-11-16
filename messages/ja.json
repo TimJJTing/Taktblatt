@@ -340,6 +340,7 @@
 	"menu_export_hint": "この計画をファイルに保存",
 	"diagram_print_group": "印刷する図",
 	"diagram_print_min": "図を1つ以上選択してください",
+	"diagram_print_subtasks": "印刷する図にサブタスクを表示",
 	"diagram_region": "{view}の図",
 	"diagram_view_announcement": "{view}表示",
 	"diagram_view_gantt": "ガント",

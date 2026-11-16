@@ -340,6 +340,7 @@
 	"menu_export_hint": "This plan as a file",
 	"diagram_print_group": "Diagrams to print",
 	"diagram_print_min": "Select at least one diagram",
+	"diagram_print_subtasks": "Show subtasks in printed diagrams",
 	"diagram_region": "{view} diagram",
 	"diagram_view_announcement": "{view} view",
 	"diagram_view_gantt": "Gantt",
