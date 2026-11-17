@@ -1291,6 +1291,21 @@ export async function startTimelineIslandMonitor(page: Page) {
 export const planPane = (page: Page) => page.getByTestId('plan-pane');
 export const workPane = (page: Page) => page.getByTestId('work-pane');
 
+/** Resize the real split pane with the divider. */
+export async function resizePlanPane(page: Page, width: number): Promise<void> {
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	const separator = page.getByTestId('split-resize');
+	const handle = (await separator.boundingBox())!;
+	const pane = (await planPane(page).boundingBox())!;
+	const x = handle.x + handle.width / 2;
+	const y = handle.y + handle.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + width - pane.width, y);
+	await page.mouse.up();
+	await expect.poll(async () => (await planPane(page).boundingBox())!.width).toBeCloseTo(width, 0);
+}
+
 /** Selects a group when the workspace uses tabs. */
 export async function selectTab(page: Page, name: 'Overview' | 'Work plan'): Promise<void> {
 	if ((await workspaceContent(page).getAttribute('data-layout')) === 'tabs') {
@@ -2023,9 +2038,13 @@ export async function expectKanbanFocusContained(target: Locator): Promise<void>
 				const heading = board
 					.querySelector('[data-testid="kanban-heading"]')!
 					.getBoundingClientRect();
+				const stageHeading = board
+					.querySelector('[data-testid="kanban-stage-heading"]')!
+					.getBoundingClientRect();
 				const body = element.closest('[data-testid="timeline-body"]')!.getBoundingClientRect();
 				return {
 					belowHeading: item.top >= heading.bottom - 1,
+					besideStage: item.left >= stageHeading.right - 1,
 					insideScroll: item.top >= scroll.top - 1 && item.bottom <= scroll.bottom + 1,
 					insideStrip: item.left >= stripRect.left - 1 && item.right <= stripRect.right + 1,
 					insideBody:
@@ -2050,6 +2069,7 @@ export async function expectKanbanFocusContained(target: Locator): Promise<void>
 		)
 		.toMatchObject({
 			belowHeading: true,
+			besideStage: true,
 			insideScroll: true,
 			insideStrip: true,
 			insideBody: true,

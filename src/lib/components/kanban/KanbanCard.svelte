@@ -2,35 +2,36 @@
 	import { mergeProps } from 'bits-ui';
 	import type { Action } from 'svelte/action';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import StationDot from '#lib/components/diagram/StationDot.svelte';
-	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
+	import { familySummaryText } from '#lib/components/diagram/family-summary.ts';
+	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { markColorLevel, stageColorVar } from '#lib/components/plan/colors.ts';
+	import { markColorLevel } from '#lib/components/plan/colors.ts';
 	import { joinList } from '#lib/domain/format.ts';
-	import type { StageColor } from '#lib/domain/palette.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getLocale } from '#lib/paraglide/runtime.js';
 	import type { KanbanCard } from '#lib/scene/kanban-board.ts';
-	import { kanbanColumnLabel } from '#lib/scene/kanban-paper.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
-	import { cardDates } from './card-text.ts';
+	import { cardDates, kanbanTaskContext } from './card-text.ts';
 	interface Props {
 		card: KanbanCard;
-		color: StageColor;
 		dimmed: boolean;
 		target: Action<HTMLElement, string>;
 		onNavigate: (event: KeyboardEvent, id: string) => void;
 	}
-	let { card, color, dimmed, target, onNavigate }: Props = $props();
+	let { card, dimmed, target, onNavigate }: Props = $props();
 	const editing = getEditing();
 	const layer = getDiagramLayer();
 	function openDetails(from: HTMLElement) {
 		editing.openDetails(card.id, from, layer.returnFocus?.(card.id, from));
 	}
 	const locale = uiIntl();
-	const descId = $props.id();
+	const cardId = $props.id();
+	const descId = `${cardId}-description`;
+	const summaryId = `${cardId}-summary`;
+	const summary = $derived(card.summary ? familySummaryText(card.summary, getLocale()) : '');
 	const title = $derived(card.title || m.task_untitled());
 	const owners = $derived(
 		card.owners.length ? joinList(card.owners, locale) : m.kanban_no_owners()
@@ -50,28 +51,10 @@
 	const label = $derived(
 		m.kanban_card_action({
 			task: title,
-			context: m.kanban_summary({
-				stage: joinList(
-					[
-						m.stage_badge({ n: card.stageNumber }),
-						card.stageTitle,
-						...(card.parentTitle !== null
-							? [m.kanban_parent({ parent: card.parentTitle || m.task_untitled() })]
-							: [])
-					],
-					locale
-				),
-				status:
-					card.column === 'blocked'
-						? joinList([m.task_status_todo(), kanbanColumnLabel(card.column)], locale)
-						: kanbanColumnLabel(card.column)
-			})
+			context: kanbanTaskContext(card, card.column, locale)
 		})
 	);
-	const colorValue = $derived(stageColorVar(color));
-	const rule = $derived(
-		`color-mix(in oklab, ${colorValue} ${markColorLevel(card.status, 'line', dimmed)}%, var(--background))`
-	);
+	const level = $derived(markColorLevel('todo', 'line', dimmed));
 	function stationClick(event: MouseEvent) {
 		if (editing.routeFocus.lastPointerType === 'touch')
 			editing.routeFocus.toggleTouch(
@@ -83,11 +66,11 @@
 
 <div
 	role="group"
-	class="card relative flex h-44 min-w-0 flex-col gap-1 overflow-hidden rounded-md border bg-background p-2 pl-3 text-sm"
-	style:border-left="4px solid {rule}"
+	class="card relative flex min-w-0 flex-col gap-1 rounded-md border bg-background p-2 text-sm"
+	style:border-color={`color-mix(in oklab, var(--muted-foreground) ${level}%, var(--background))`}
 	style:transition-duration="{motionDuration(150)}ms"
 	data-diagram-task={card.id}
-	data-diagram-parent={card.parentId ?? undefined}
+	data-testid="kanban-card"
 	data-route-target={card.id}
 	use:target={card.id}
 	onpointerenter={(event) =>
@@ -110,10 +93,11 @@
 						onkeydown: (event: KeyboardEvent) => onNavigate(event, card.id)
 					})}
 					type="button"
-					class="order-2 flex min-w-0 flex-1 items-start gap-1 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-ring"
+					class="order-2 flex min-h-6 min-w-0 flex-1 items-start gap-1 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-ring"
 					aria-label={label}
 					aria-describedby={[
 						descId,
+						summary ? summaryId : '',
 						typeof props['aria-describedby'] === 'string' ? props['aria-describedby'] : ''
 					]
 						.filter(Boolean)
@@ -127,7 +111,8 @@
 						><ReadyDot readiness={card.readiness} reserve /></span
 					><span
 						class:line-through={card.status === 'done'}
-						class="title min-w-0 font-medium break-all">{title}</span
+						class:text-muted-foreground={card.status === 'done'}
+						class="title min-w-0 font-medium wrap-anywhere">{title}</span
 					>
 				</button>{/snippet}</Hint
 		>
@@ -140,26 +125,23 @@
 			data-route-focus="keyboard"
 			use:target={card.id}
 			onclick={stationClick}
-			><span data-diagram-station={card.id}
-				><StationDot
-					status={card.status}
-					color={colorValue}
-					size={10}
-					route={dimmed ? 'off' : null}
-				/></span
+			><span
+				class="status-icon flex size-4 shrink-0"
+				data-diagram-station={card.id}
+				aria-hidden="true"
+				style:color={`color-mix(in oklab, var(--foreground) ${level}%, var(--background))`}
+				style:transition-duration="{motionDuration(150)}ms"
+				><TaskStatusIcon status={card.status} /></span
 			></button
 		>
 	</div>
-	<div class="mt-auto flex min-w-0 items-center gap-1">
-		<StageBadge {color} label={m.stage_badge({ n: card.stageNumber })} /><span class="truncate"
-			>{card.stageTitle}</span
+	{#if summary}<p
+			id={summaryId}
+			class="text-xs wrap-anywhere text-muted-foreground"
+			data-testid="kanban-card-summary"
 		>
-	</div>
-	<div class="h-5 truncate text-xs text-muted-foreground">
-		{card.parentTitle !== null
-			? m.kanban_parent({ parent: card.parentTitle || m.task_untitled() })
-			: ''}
-	</div>
+			{summary}
+		</p>{/if}
 	<Hint text={owners} focusable={false}
 		>{#snippet child({ props })}<div {...props} class="h-5 truncate text-xs text-muted-foreground">
 				{owners}
@@ -177,9 +159,27 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 		line-height: 1.25rem;
-		min-height: 2lh;
 	}
 	.card {
 		transition-property: border-color;
+	}
+	.status-icon {
+		transition-property: color;
+	}
+	/* The global reduced-motion rule keeps a 0.01 ms transition. Remove it here. */
+	@media (prefers-reduced-motion: reduce) {
+		.card,
+		.status-icon,
+		.status-icon :global(*) {
+			transition: none;
+		}
+	}
+	@media (forced-colors: active) {
+		.card {
+			border-color: CanvasText !important;
+		}
+		.status-icon {
+			color: CanvasText !important;
+		}
 	}
 </style>

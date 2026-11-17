@@ -9,5 +9,5 @@ export const view: DiagramViewDefinition = {
 	label: () => m.diagram_view_kanban(),
 	component: Kanban,
 	paper: { orientation: 'landscape', segments: kanbanPaperSegments, component: PrintKanban },
-	motion: { routerId: 'kanban', connectorSchema: 'kanban-v1' }
+	motion: { routerId: 'kanban', connectorSchema: 'kanban-v2' }
 };

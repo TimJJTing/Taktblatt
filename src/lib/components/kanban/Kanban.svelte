@@ -5,39 +5,53 @@
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { workspaceLayout } from '#lib/components/app/app-layout.svelte.ts';
 	import { diagramRouteTargets } from '#lib/components/diagram/diagram-layer.ts';
+	import { revealTarget, taskFocusTarget } from '#lib/components/diagram/diagram-focus.ts';
+	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
 	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
 	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
 	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { kanbanBoard, kanbanEdges } from '#lib/scene/kanban-board.ts';
+	import { KANBAN_COLUMNS, kanbanSwimlanes } from '#lib/scene/kanban-board.ts';
+	import { kanbanColumnLabel } from '#lib/scene/kanban-paper.ts';
 	import {
+		kanbanNodeEdges,
 		kanbanScene,
 		type KanbanCardGeometry,
 		type KanbanRect
 	} from '#lib/scene/kanban-scene.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
-	import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.ts';
-	import KanbanColumn from './KanbanColumn.svelte';
+	import { GANTT_HEIGHT, getViewer } from '#lib/state/viewer.svelte.ts';
+	import KanbanSwimlane from './KanbanSwimlane.svelte';
 	let { class: className, onReveal }: DiagramViewProps = $props();
 	const clipId = $props.id();
 	const ws = getWorkspace();
 	const editing = getEditing();
-	const board = $derived(kanbanBoard(ws.plan, ws.index));
-	const ids = $derived(board.columns.flatMap((c) => c.cards.map((card) => card.id)));
-	const targets = diagramRouteTargets(() => ids);
-	const edges = $derived(kanbanEdges(ws.index, new Set(ids)));
-	const graph = $derived(effectiveDependencyGraph(ws.index));
-	const route = $derived(
-		routeFocusModel(
-			graph,
-			ws.index,
-			ids.map((id) => ({ id, isParent: false, expanded: false })),
-			edges,
-			editing.routeId
-		)
+	const viewer = getViewer();
+	const board = $derived(kanbanSwimlanes(ws.plan, ws.index));
+	const rows = $derived(
+		board.lanes.flatMap((lane) => [
+			...KANBAN_COLUMNS.flatMap((column) =>
+				lane.cells[column].map((card) => ({
+					id: card.id,
+					isParent: card.isParent,
+					expanded: viewer.isExpanded(ws.plan.id, card.id)
+				}))
+			),
+			...lane.families.flatMap((family) =>
+				viewer.isExpanded(ws.plan.id, family.parentId)
+					? family.children.map((item) => ({ id: item.id, isParent: false, expanded: false }))
+					: []
+			)
+		])
 	);
-	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, s.color])));
+	const ids = $derived(rows.map((row) => row.id));
+	const targets = diagramRouteTargets(() => ids);
+	const edges = $derived(
+		kanbanNodeEdges(ws.index, new Set(ids), (id) => ws.index.byId.get(id)?.parentId ?? null)
+	);
+	const graph = $derived(effectiveDependencyGraph(ws.index));
+	const route = $derived(routeFocusModel(graph, ws.index, rows, edges, editing.routeId));
 	let root = $state<HTMLElement>(undefined!);
 	let vertical: HTMLDivElement;
 	let strip: HTMLDivElement;
@@ -56,14 +70,15 @@
 		if (vertical) scrollTop = vertical.scrollTop;
 		cancelAnimationFrame(frame);
 		frame = requestAnimationFrame(() => {
-			if (!root || !vertical || !strip) return;
+			if (!root?.isConnected || !vertical || !strip) return;
 			const base = root.getBoundingClientRect();
 			const v = vertical.getBoundingClientRect(),
 				h = strip.getBoundingClientRect();
 			const heading = root
 				.querySelector<HTMLElement>('[data-testid="kanban-heading"]')
 				?.getBoundingClientRect();
-			const left = Math.max(v.left, h.left),
+			const left =
+					Math.max(v.left, h.left) + parseFloat(getComputedStyle(strip).scrollPaddingInlineStart),
 				top = Math.max(v.top, h.top) + (heading?.height ?? 0);
 			viewport = {
 				x: left - base.left,
@@ -72,7 +87,9 @@
 				h: Math.max(0, Math.min(v.bottom, h.bottom) - top)
 			};
 			const next = new SvelteMap<string, KanbanCardGeometry>();
+			const visibleIds = new Set(ids);
 			for (const node of root.querySelectorAll<HTMLElement>('[data-diagram-task]')) {
+				if (!visibleIds.has(node.dataset.diagramTask!)) continue;
 				const box = node.getBoundingClientRect(),
 					dot = node.querySelector<HTMLElement>('[data-diagram-station]')?.getBoundingClientRect();
 				if (dot)
@@ -100,50 +117,20 @@
 		window.addEventListener('resize', measure);
 		measure();
 		return () => {
+			motionRevision++;
 			observer.disconnect();
 			window.removeEventListener('resize', measure);
 			cancelAnimationFrame(frame);
 			cancelAnimationFrame(motionFrame);
 			for (const animation of animations.values()) animation.cancel();
 			animations.clear();
+			cancelAnimationFrame(frame);
 		};
 	});
-	// Offset positions describe layout without the stage's temporary transforms.
-	function layoutPosition(element: HTMLElement) {
-		let x = 0;
-		let y = 0;
-		let current: HTMLElement | null = element;
-		while (current) {
-			const parent: HTMLElement | null = current.offsetParent as HTMLElement | null;
-			x += current.offsetLeft + (parent?.clientLeft ?? 0);
-			y += current.offsetTop + (parent?.clientTop ?? 0);
-			current = parent;
-		}
-		return { x, y };
-	}
 	function reveal(id: string) {
-		const action = root.querySelector<HTMLElement>(`[data-diagram-task="${CSS.escape(id)}"]`);
-		if (!action) return;
-		const position = layoutPosition(action);
-		const verticalPosition = layoutPosition(vertical);
-		const stripPosition = layoutPosition(strip);
-		const top = position.y - verticalPosition.y - vertical.clientTop;
-		const left = position.x - stripPosition.x - strip.clientLeft;
-		const heading =
-			root.querySelector<HTMLElement>('[data-testid="kanban-heading"]')?.offsetHeight ?? 0;
-		const visibleTop = vertical.scrollTop + heading;
-		const visibleBottom = vertical.scrollTop + vertical.clientHeight;
-		const visibleLeft = strip.scrollLeft;
-		const visibleRight = strip.scrollLeft + strip.clientWidth;
-		if (top < visibleTop) vertical.scrollTop = top - heading;
-		else if (top + action.offsetHeight > visibleBottom)
-			vertical.scrollTop = top + action.offsetHeight - vertical.clientHeight;
-		if (left < visibleLeft) strip.scrollLeft = left;
-		else if (left + action.offsetWidth > visibleRight)
-			strip.scrollLeft = left + action.offsetWidth - strip.clientWidth;
-		const viewportTop = vertical.getBoundingClientRect().top + vertical.clientTop;
-		const revealedTop = viewportTop + top - vertical.scrollTop;
-		onReveal({ top: revealedTop, bottom: revealedTop + action.offsetHeight });
+		const action = taskFocusTarget(root, id);
+		const box = action?.closest<HTMLElement>('[data-diagram-task]');
+		if (box) revealTarget(box, root, onReveal);
 	}
 
 	function revealFocused(event: FocusEvent) {
@@ -156,38 +143,65 @@
 		const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
 		if (!keys.includes(event.key)) return;
 		event.preventDefault();
-		let col = board.columns.findIndex((c) => c.cards.some((card) => card.id === id));
-		const cards = board.columns[col].cards;
-		let row = cards.findIndex((c) => c.id === id);
-		if (event.key === 'Home') row = 0;
-		else if (event.key === 'End') row = cards.length - 1;
-		else if (event.key === 'ArrowUp') row = Math.max(0, row - 1);
-		else if (event.key === 'ArrowDown') row = Math.min(cards.length - 1, row + 1);
-		else {
+		const lane = board.lanes.find((lane) =>
+			KANBAN_COLUMNS.some((column) => lane.cells[column].some((card) => card.id === id))
+		);
+		if (!lane) return;
+		const col = KANBAN_COLUMNS.findIndex((column) =>
+			lane.cells[column].some((card) => card.id === id)
+		);
+		const column = KANBAN_COLUMNS[col];
+		let next = id;
+		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+			const ordinal = lane.cells[column].findIndex((card) => card.id === id);
 			const step = event.key === 'ArrowRight' ? 1 : -1;
-			let next = col + step;
-			while (next >= 0 && next < board.columns.length && !board.columns[next].count) next += step;
-			if (next >= 0 && next < board.columns.length) {
-				col = next;
-				row = Math.min(row, board.columns[col].count - 1);
+			let neighbor = col + step;
+			while (
+				neighbor >= 0 &&
+				neighbor < KANBAN_COLUMNS.length &&
+				!lane.cells[KANBAN_COLUMNS[neighbor]].length
+			)
+				neighbor += step;
+			if (neighbor >= 0 && neighbor < KANBAN_COLUMNS.length) {
+				const cards = lane.cells[KANBAN_COLUMNS[neighbor]];
+				next = cards[Math.min(ordinal, cards.length - 1)].id;
 			}
+		} else {
+			const cards = board.lanes.flatMap((lane) => lane.cells[column]);
+			let ordinal = cards.findIndex((card) => card.id === id);
+			if (event.key === 'Home') ordinal = 0;
+			else if (event.key === 'End') ordinal = cards.length - 1;
+			else if (event.key === 'ArrowUp') ordinal = Math.max(0, ordinal - 1);
+			else ordinal = Math.min(cards.length - 1, ordinal + 1);
+			next = cards[ordinal].id;
 		}
-		const next = board.columns[col].cards[row]?.id;
 		if (next) {
-			root
-				.querySelector<HTMLElement>(`[data-diagram-label="${CSS.escape(next)}"]`)
-				?.focus({ preventScroll: true });
+			taskFocusTarget(root, next)?.focus({ preventScroll: true });
 			reveal(next);
 		}
 	}
-	let previous = untrack(() => board.columns.map((c) => c.cards.map((card) => card.id)));
+	const columnIds = () =>
+		KANBAN_COLUMNS.map((column) =>
+			board.lanes.flatMap((lane) => lane.cells[column].map((card) => card.id))
+		);
+	let previous = untrack(columnIds);
 	let planId = untrack(() => ws.plan.id);
+	let motionRevision = 0;
+	const movingSelector =
+		'[data-testid="kanban-swimlane"], [data-testid="kanban-family"], [data-diagram-task]';
+	function motionKey(node: HTMLElement): string {
+		if (node.dataset.diagramTask) return `task:${node.dataset.diagramTask}`;
+		if (node.dataset.parent) return `family:${node.dataset.parent}`;
+		return `lane:${node.dataset.stage}`;
+	}
 	$effect.pre(() => {
-		const columns = board.columns.map((column) => column.cards.map((card) => card.id));
+		void board;
+		void rows;
 		if (!root) return;
+		const revision = ++motionRevision;
 		const before = new SvelteMap<string, DOMRect>();
-		for (const node of root.querySelectorAll<HTMLElement>('[data-diagram-task]')) {
-			before.set(node.dataset.diagramTask!, node.getBoundingClientRect());
+		for (const node of root.querySelectorAll<HTMLElement>(movingSelector)) {
+			before.set(motionKey(node), node.getBoundingClientRect());
 		}
 		untrack(() => {
 			for (const animation of animations.values()) animation.cancel();
@@ -195,36 +209,56 @@
 		});
 		tick().then(() => {
 			const duration = motionDuration(GEOMETRY_MOTION_MS);
-			if (!root || !duration) {
+			if (!root?.isConnected || revision !== motionRevision) return;
+			if (!duration) {
 				measure();
 				return;
 			}
-			for (const id of columns.flat()) {
-				const node = root.querySelector<HTMLElement>(`[data-diagram-task="${CSS.escape(id)}"]`);
-				const old = before.get(id);
-				if (!node || !old) continue;
-				const next = node.getBoundingClientRect();
-				const x = old.left - next.left,
-					y = old.top - next.top;
+			const nodes = [...root.querySelectorAll<HTMLElement>(movingSelector)];
+			const deltas = new Map<HTMLElement, { x: number; y: number }>(
+				nodes.map((node) => {
+					const old = before.get(motionKey(node));
+					const next = node.getBoundingClientRect();
+					return [node, { x: old ? old.left - next.left : 0, y: old ? old.top - next.top : 0 }];
+				})
+			);
+			for (const node of nodes) {
+				const key = motionKey(node);
+				if (!before.has(key)) continue;
+				// A child receives only the part of the move that its ancestor does not carry.
+				const parent = node.parentElement?.closest<HTMLElement>(movingSelector);
+				const ancestor = parent ? deltas.get(parent) : undefined;
+				const delta = deltas.get(node)!;
+				const x = delta.x - (ancestor?.x ?? 0),
+					y = delta.y - (ancestor?.y ?? 0);
 				if (!x && !y) continue;
 				const animation = node.animate(
 					[{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }],
 					{ duration, easing: 'ease-out' }
 				);
-				animations.set(id, animation);
+				animations.set(key, animation);
 				const finish = () => {
-					if (animations.get(id) === animation) animations.delete(id);
+					if (animations.get(key) !== animation) return;
+					animations.delete(key);
 					measure();
+					const active = document.activeElement;
+					if (active instanceof HTMLElement && root?.contains(active)) {
+						const id = active.closest<HTMLElement>('[data-diagram-task]')?.dataset.diagramTask;
+						if (id) reveal(id);
+					}
 				};
 				animation.onfinish = finish;
-				animation.oncancel = finish;
+				animation.oncancel = () => {
+					if (animations.get(key) === animation) animations.delete(key);
+					measure();
+				};
 			}
 			cancelAnimationFrame(motionFrame);
 			sampleMotion();
 		});
 	});
 	$effect.pre(() => {
-		const current = board.columns.map((c) => c.cards.map((card) => card.id));
+		const current = columnIds();
 		const nextPlan = ws.plan.id;
 		const active = document.activeElement as HTMLElement | null;
 		const card = active?.closest<HTMLElement>('[data-diagram-task]');
@@ -283,27 +317,42 @@
 			aria-label={m.kanban_strip()}
 			class="relative z-[1] min-w-0 overflow-x-auto"
 			style:container-type="inline-size"
+			style:scroll-padding-inline-start="6rem"
 			style:--kanban-scroll-top="{scrollTop}px"
 			data-testid="kanban-strip"
 			data-diagram-scroller
 		>
-			<div class="flex min-w-max" style="--column-width: min(100cqw, max(16rem, 25cqw));">
-				{#each board.columns as column (column.id)}<div
-						class="w-(--column-width) min-w-0 border-r last:border-r-0"
-					>
-						<KanbanColumn
-							{column}
-							{colors}
-							dimmed={scene.dimmedCardIds}
-							target={targets.target}
-							onNavigate={navigate}
-						/>
-					</div>{/each}
+			<div class="min-w-[36rem]" style="--kanban-tracks: 6rem repeat(4, minmax(7.5rem, 1fr));">
+				<div
+					class="headings relative z-30 grid border-b bg-background"
+					style:grid-template-columns="var(--kanban-tracks)"
+					style:transform="translateY(var(--kanban-scroll-top, 0px))"
+				>
+					<div class="sticky start-0 z-10 bg-background" aria-hidden="true"></div>
+					{#each board.columns as column (column.id)}
+						<h3
+							class="flex h-10 min-w-0 items-center justify-between gap-1 px-2 text-sm font-semibold"
+							data-testid="kanban-heading"
+							data-column={column.id}
+						>
+							{kanbanColumnLabel(column.id)} <span data-testid="kanban-count">{column.count}</span>
+						</h3>
+					{/each}
+				</div>
+				{#each board.lanes as lane (lane.stageId)}
+					<KanbanSwimlane
+						{lane}
+						dimmed={scene.dimmedCardIds}
+						target={targets.target}
+						onNavigate={navigate}
+					/>
+				{/each}
 			</div>
 		</div>
 		{#if board.emptyKind !== 'none'}<p class="p-3 text-sm" data-testid="kanban-empty">
 				{board.emptyKind === 'no-tasks' ? m.kanban_empty_tasks() : m.kanban_empty_canceled()}
 			</p>{/if}
+		<div class="space-y-1 border-t px-3 py-2 text-xs text-muted-foreground"><StatusKey /></div>
 	</div>
 	<svg class="pointer-events-none absolute inset-0 z-0 size-full" aria-hidden="true"
 		><defs

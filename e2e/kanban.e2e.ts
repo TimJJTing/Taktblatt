@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
+import { STAGE_COLORS } from '#lib/domain/palette.ts';
 import { makePlan } from '#lib/domain/test-helpers.ts';
 import {
 	done300,
+	garden,
+	isolatedParent,
 	kanbanTask,
-	mixedBoard,
 	unrelatedCycle
 } from '#lib/scene/kanban-fixtures.test-helper.ts';
 import {
@@ -13,9 +15,12 @@ import {
 	expectKanbanFocusContained,
 	expectView,
 	focusPreviousControl,
+	ganttRow,
 	importJson,
 	openApp,
 	openPreview,
+	row,
+	resizePlanPane,
 	setTaskStatus,
 	startTimelineIslandMonitor,
 	timelineHandle,
@@ -30,7 +35,7 @@ const board = (page: Page) => page.getByTestId('kanban');
 const vertical = (page: Page) => board(page).getByTestId('kanban-scroll');
 const strip = (page: Page) => board(page).getByTestId('kanban-strip');
 const column = (page: Page, id: string) =>
-	board(page).locator(`[data-testid="kanban-column"][data-column="${id}"]`);
+	board(page).locator(`[data-testid="kanban-cell"][data-column="${id}"]`);
 const action = (page: Page, id: string) => board(page).locator(`[data-diagram-label="${id}"]`);
 const card = (page: Page, id: string) => board(page).locator(`[data-diagram-task="${id}"]`);
 const station = (page: Page, id: string) =>
@@ -45,11 +50,11 @@ async function load(page: Page, plan: Plan) {
 }
 
 async function expectCounts(page: Page, counts: number[]) {
-	const columns = board(page).getByTestId('kanban-column');
+	const columns = board(page).getByTestId('kanban-heading');
 	await expect(columns).toHaveCount(4);
 	for (const [i, id] of ['blocked', 'todo', 'in_progress', 'done'].entries()) {
 		await expect(columns.nth(i)).toHaveAttribute('data-column', id);
-		await expect(column(page, id).getByTestId('kanban-count')).toHaveText(String(counts[i]));
+		await expect(columns.nth(i).getByTestId('kanban-count')).toHaveText(String(counts[i]));
 	}
 }
 
@@ -59,20 +64,37 @@ async function keyboardFocus(page: Page, target: ReturnType<typeof action>) {
 	await expect(target).toBeFocused();
 }
 
+async function routePaint(page: Page, id: string) {
+	return card(page, id).evaluate((node, taskId) => {
+		const icon = node.querySelector<SVGElement>(`[data-diagram-station="${taskId}"] svg`)!;
+		return { border: getComputedStyle(node).borderLeftColor, icon: getComputedStyle(icon).color };
+	}, id);
+}
+
+async function routeEdges(page: Page) {
+	return board(page)
+		.getByTestId('kanban-dependency')
+		.evaluateAll((lines) =>
+			lines
+				.map((line) => `${line.getAttribute('data-from')}->${line.getAttribute('data-to')}`)
+				.sort()
+		);
+}
+
 test('selects Kanban in the existing Timeline and keeps Gantt available', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
-	await load(page, mixedBoard());
+	await load(page, garden());
 	await expectView(page, 'kanban');
-	await expectCounts(page, [1, 3, 1, 3]);
-	await expect(board(page).locator('[data-diagram-task]')).toHaveCount(8);
+	await expectCounts(page, [2, 3, 1, 1]);
+	await expect(board(page).getByTestId('kanban-card')).toHaveCount(7);
 	await expect(page.getByTestId('diagram-view-gantt')).toBeVisible();
 	await chooseView(page, 'gantt');
 	await expect(page.getByTestId('gantt')).toBeVisible();
 	await chooseView(page, 'kanban');
-	await expectCounts(page, [1, 3, 1, 3]);
+	await expectCounts(page, [2, 3, 1, 1]);
 });
 
-test('retains done-300 with equal cards, an unbroken title, sticky headings and keyboard endpoints', async ({
+test('retains done-300 with an unbroken title, sticky headings and keyboard endpoints', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
@@ -84,13 +106,24 @@ test('retains done-300 with equal cards, an unbroken title, sticky headings and 
 	await expect
 		.poll(() =>
 			board(page).evaluate((root) => {
-				const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-				const cards = [...root.querySelectorAll<HTMLElement>('[data-diagram-task]')];
-				const done = root.querySelector<HTMLElement>('[data-column="done"]')!;
+				const done = root.querySelector<HTMLElement>(
+					'[data-testid="kanban-cell"][data-column="done"]'
+				)!;
 				const long = root.querySelector<HTMLElement>('[data-diagram-task="D150"]')!;
+				const title = [...long.querySelectorAll<HTMLElement>('*')].find(
+					(node) =>
+						node.textContent === 'W'.repeat(512) &&
+						![...node.children].some((child) => child.textContent === node.textContent)
+				);
+				if (!title) return false;
+				const style = getComputedStyle(title);
+				const cellStyle = getComputedStyle(done);
+				const contentWidth =
+					done.clientWidth - parseFloat(cellStyle.paddingLeft) - parseFloat(cellStyle.paddingRight);
 				return (
-					cards.every((node) => Math.abs(node.getBoundingClientRect().height - 11 * rem) < 0.6) &&
-					long.getBoundingClientRect().width <= done.getBoundingClientRect().width + 0.5 &&
+					Math.abs(long.getBoundingClientRect().width - contentWidth) <= 1 &&
+					title.getBoundingClientRect().height <= 2 * parseFloat(style.lineHeight) + 1 &&
+					long.scrollWidth <= long.clientWidth + 1 &&
 					done.scrollWidth <= done.clientWidth + 1
 				);
 			})
@@ -185,20 +218,291 @@ test('keeps a horizontal board strip inside a narrow page', async ({ page }) => 
 		.toBe(true);
 });
 
-test('fits a whole column when the board strip is narrower than 16rem', async ({ page }) => {
+test('fits four aligned columns at 640px and scrolls one sticky strip at 480px', async ({
+	page
+}) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
-	await load(page, makePlan([kanbanTask('A')]));
-	await board(page).evaluate((element) => (element.style.maxWidth = '200px'));
+	await load(page, garden());
+	await resizePlanPane(page, 640);
+	await expect(board(page).getByTestId('kanban-swimlane')).toHaveCount(3);
+	await expect
+		.poll(() => strip(page).evaluate((element) => element.scrollWidth <= element.clientWidth + 1))
+		.toBe(true);
 	await expect
 		.poll(() =>
 			strip(page).evaluate((element) => {
-				const column = element.querySelector<HTMLElement>('[data-column="todo"]')!;
-				return column.getBoundingClientRect().width <= element.clientWidth + 1;
+				const bounds = element.getBoundingClientRect();
+				const headings = [
+					...element.querySelectorAll<HTMLElement>('[data-testid="kanban-heading"]')
+				];
+				return (
+					headings.length === 4 &&
+					headings.every((heading) => {
+						const rect = heading.getBoundingClientRect();
+						return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+					})
+				);
+			})
+		)
+		.toBe(true);
+	await page.setViewportSize({ width: 480, height: 844 });
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'tabs');
+	await expect
+		.poll(() => strip(page).evaluate((element) => element.scrollWidth > element.clientWidth))
+		.toBe(true);
+	await expect
+		.poll(() =>
+			board(page)
+				.getByTestId('kanban-heading')
+				.evaluateAll((headings) => {
+					const top = headings[0]?.getBoundingClientRect().top;
+					return (
+						headings.length === 4 &&
+						headings.every((heading) => Math.abs(heading.getBoundingClientRect().top - top) <= 1)
+					);
+				})
+		)
+		.toBe(true);
+	await strip(page).evaluate((element) => (element.scrollLeft = element.scrollWidth));
+	await expect.poll(() => strip(page).evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+	await expect
+		.poll(() =>
+			board(page).evaluate((root) => {
+				const strip = root.querySelector<HTMLElement>('[data-testid="kanban-strip"]')!;
+				const heading = root.querySelector<HTMLElement>('[data-testid="kanban-stage-heading"]')!;
+				return (
+					Math.abs(heading.getBoundingClientRect().left - strip.getBoundingClientRect().left) <= 1
+				);
 			})
 		)
 		.toBe(true);
 	await expect
-		.poll(() => strip(page).evaluate((element) => element.scrollWidth > element.clientWidth))
+		.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+		.toBe(true);
+});
+
+test('keeps garden counts and same-lane card geometry while a family opens and closes', async ({
+	page
+}) => {
+	const plan = garden();
+	const parent = plan.tasks.find((task) => task.title === 'Soil preparation')!;
+	await load(page, plan);
+	await expectCounts(page, [2, 3, 1, 1]);
+	const lanes = board(page).getByTestId('kanban-swimlane');
+	await expect(lanes).toHaveCount(3);
+	const snapshot = () =>
+		lanes.first().evaluate((lane) =>
+			[...lane.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]')].map((card) => ({
+				id: card.dataset.diagramTask,
+				column: card.closest<HTMLElement>('[data-testid="kanban-cell"]')?.dataset.column,
+				x: card.getBoundingClientRect().x,
+				y: card.getBoundingClientRect().y,
+				width: card.getBoundingClientRect().width,
+				height: card.getBoundingClientRect().height
+			}))
+		);
+	const before = await snapshot();
+	const top = (await lanes.nth(1).boundingBox())!.y;
+	const toggle = board(page)
+		.locator(`[data-testid="kanban-family"][data-parent="${parent.id}"]`)
+		.getByTestId('kanban-family-toggle');
+	await toggle.click();
+	await expect(board(page).getByTestId('kanban-item')).toHaveCount(2);
+	await waitForAnimations(board(page));
+	expect(await snapshot()).toEqual(before);
+	expect((await lanes.nth(1).boundingBox())!.y).toBeGreaterThan(top);
+	await expectCounts(page, [2, 3, 1, 1]);
+	await toggle.click();
+	await expect(board(page).getByTestId('kanban-item')).toHaveCount(0);
+	await waitForAnimations(board(page));
+	expect(await snapshot()).toEqual(before);
+	expect((await lanes.nth(1).boundingBox())!.y).toBeCloseTo(top, 0);
+	await expectCounts(page, [2, 3, 1, 1]);
+});
+
+test('shares expansion with Work plan and Gantt and restores it after reload', async ({ page }) => {
+	await page.setViewportSize({ width: 1600, height: 1000 });
+	const plan = garden();
+	const parent = plan.tasks.find((task) => task.title === 'Neighbourhood stall')!;
+	await load(page, plan);
+	const toggle = () =>
+		board(page)
+			.locator(`[data-testid="kanban-family"][data-parent="${parent.id}"]`)
+			.getByTestId('kanban-family-toggle');
+	await expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+	await toggle().click();
+	await expect(row(page, 'Neighbourhood stall').getByTestId('task-toggle')).toHaveAttribute(
+		'aria-expanded',
+		'true'
+	);
+	await chooseView(page, 'gantt');
+	await expect(ganttRow(page, 'Neighbourhood stall').getByTestId('gantt-toggle')).toHaveAttribute(
+		'aria-expanded',
+		'true'
+	);
+	await page.reload();
+	await expectView(page, 'gantt');
+	await expect(ganttRow(page, 'Neighbourhood stall').getByTestId('gantt-toggle')).toHaveAttribute(
+		'aria-expanded',
+		'true'
+	);
+	await chooseView(page, 'kanban');
+	await expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('transfers an expanded Gantt subtask to its Kanban item and reveals it past both sticky axes', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.setViewportSize({ width: 480, height: 800 });
+	const plan = garden();
+	const child = plan.tasks.find((task) => task.title === 'Book a table')!;
+	const parent = plan.tasks.find((task) => task.title === 'Neighbourhood stall')!;
+	await load(page, plan);
+	const toggle = board(page)
+		.locator(`[data-testid="kanban-family"][data-parent="${parent.id}"]`)
+		.getByTestId('kanban-family-toggle');
+	await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	await toggle.click();
+	await chooseView(page, 'gantt');
+	const target = page.locator(`[data-diagram-view="gantt"] [data-diagram-task="${child.id}"]`);
+	await target.focus();
+	await expect(target).toBeFocused();
+	await page
+		.getByTestId('diagram-view-kanban')
+		.evaluate((choice) => (choice as HTMLElement).click());
+	await expectView(page, 'kanban');
+	await expect(
+		board(page).locator(`[data-testid="kanban-item"][data-diagram-task="${child.id}"]`)
+	).toHaveCount(1);
+	await expect(action(page, child.id)).toBeFocused();
+	await expectKanbanFocusContained(action(page, child.id));
+});
+
+test('aligns the stage stems and every status track across the garden', async ({ page }) => {
+	await load(page, garden());
+	const lanes = board(page).getByTestId('kanban-swimlane');
+	await expect(lanes).toHaveCount(3);
+	await expect
+		.poll(() =>
+			board(page).evaluate((root) => {
+				const headings = [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-heading"]')];
+				if (headings.length !== 4) return false;
+				return [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-swimlane"]')].every(
+					(lane) => {
+						const stem = lane.querySelector<HTMLElement>('[data-testid="kanban-stem"]');
+						const badge = lane.querySelector<HTMLElement>(
+							'[data-testid="kanban-stage-heading"] .stage-badge'
+						);
+						const title = lane.querySelector<HTMLElement>('[data-testid="kanban-stage-title"]');
+						const cells = [...lane.querySelectorAll<HTMLElement>('[data-testid="kanban-cell"]')];
+						if (!stem || !badge || !title || cells.length !== 4) return false;
+						const stemBox = stem.getBoundingClientRect();
+						const titleBox = title.getBoundingClientRect();
+						return (
+							Math.abs(stemBox.left - badge.getBoundingClientRect().left) <= 0.5 &&
+							Math.abs(stemBox.width - 4) <= 0.5 &&
+							titleBox.left >= stemBox.right &&
+							titleBox.right <= cells[0].getBoundingClientRect().left + 1 &&
+							cells.every((cell, i) => {
+								const box = cell.getBoundingClientRect();
+								const heading = headings[i].getBoundingClientRect();
+								return (
+									Math.abs(box.left - heading.left) <= 1 && Math.abs(box.width - heading.width) <= 1
+								);
+							})
+						);
+					}
+				);
+			})
+		)
+		.toBe(true);
+});
+
+test('keeps stems, card borders and the status key legible in dark and forced colors', async ({
+	page
+}) => {
+	await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+	const plan = garden();
+	await load(page, plan);
+	const lanes = board(page).getByTestId('kanban-swimlane');
+	await expect(lanes).toHaveCount(3);
+	await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+	for (const [i, stage] of plan.stages.entries()) {
+		const stem = lanes.nth(i).getByTestId('kanban-stem');
+		await expect(stem).toHaveCSS(
+			'background-color',
+			`rgb(${STAGE_COLORS[stage.color].dark
+				.match(/\w\w/g)!
+				.slice(0)
+				.map((part) => parseInt(part, 16))
+				.join(', ')})`
+		);
+	}
+	const dark = await board(page).evaluate((root) => {
+		const ground = 'rgb(255, 255, 255)';
+		const stems = [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-stem"]')];
+		const cards = [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]')];
+		const key = root.querySelector<HTMLElement>('ul[aria-label="Status"]');
+		return (
+			stems.length > 0 &&
+			cards.length > 0 &&
+			!!key &&
+			stems.every((node) => getComputedStyle(node).backgroundColor !== ground) &&
+			cards.every((node) => getComputedStyle(node).borderLeftColor !== ground) &&
+			[...key.querySelectorAll('li')].every((node) => getComputedStyle(node).color !== ground)
+		);
+	});
+	expect(dark).toBe(true);
+	await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+	await expect
+		.poll(() =>
+			board(page).evaluate((root) => {
+				const probe = document.createElement('span');
+				root.append(probe);
+				const system = (color: string) => {
+					probe.style.color = color;
+					return getComputedStyle(probe).color;
+				};
+				const canvas = system('Canvas');
+				const ink = ['CanvasText', 'ButtonText', 'LinkText', 'Highlight', 'HighlightText'].map(
+					system
+				);
+				const stems = [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-stem"]')];
+				const cards = [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]')];
+				const icons = [...root.querySelectorAll<SVGElement>('[data-diagram-station] svg')];
+				const entries = [...root.querySelectorAll<HTMLElement>('ul[aria-label="Status"] li')];
+				const visible = (element: Element) =>
+					getComputedStyle(element).visibility === 'visible' &&
+					Number(getComputedStyle(element).opacity) > 0;
+				const result =
+					stems.length > 0 &&
+					cards.length > 0 &&
+					icons.length > 0 &&
+					entries.length === 4 &&
+					stems.every(
+						(node) =>
+							visible(node) &&
+							ink.includes(getComputedStyle(node).backgroundColor) &&
+							getComputedStyle(node).backgroundColor !== canvas
+					) &&
+					cards.every(
+						(node) =>
+							visible(node) &&
+							parseFloat(getComputedStyle(node).borderLeftWidth) > 0 &&
+							ink.includes(getComputedStyle(node).borderLeftColor)
+					) &&
+					icons.every((node) => visible(node) && ink.includes(getComputedStyle(node).color)) &&
+					entries.every(
+						(node) =>
+							visible(node) &&
+							ink.includes(getComputedStyle(node).color) &&
+							getComputedStyle(node).color !== canvas
+					);
+				probe.remove();
+				return result;
+			})
+		)
 		.toBe(true);
 });
 
@@ -305,14 +609,158 @@ test('opens Task details and returns focus to the same main action on Escape', a
 	await expect(action(page, 'A')).toBeFocused();
 });
 
+test('applies reduced-motion route paint and expansion in the update task without animation', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	const plan = garden();
+	const parent = plan.tasks.find((task) => task.title === 'Soil preparation')!;
+	const other = plan.tasks.find((task) => task.title === 'Order seeds')!;
+	await load(page, plan);
+	await expect(board(page).getByTestId('kanban-swimlane')).toHaveCount(3);
+	await waitForAnimations(board(page));
+	await page.mouse.move(0, 0);
+	await page.keyboard.press('Tab');
+	await page.getByTestId('diagram-view-kanban').focus();
+	const sample = await board(page).evaluate(
+		async (root, ids) => {
+			const lanes = [...root.querySelectorAll<HTMLElement>('[data-testid="kanban-swimlane"]')];
+			const parentAction = root.querySelector<HTMLButtonElement>(
+				`[data-diagram-label="${ids.parent}"]`
+			)!;
+			const otherMark = root.querySelector<HTMLElement>(`[data-diagram-station="${ids.other}"]`)!;
+			const toggle = root.querySelector<HTMLButtonElement>(
+				`[data-testid="kanban-family"][data-parent="${ids.parent}"] [data-testid="kanban-family-toggle"]`
+			)!;
+			const created: string[] = [];
+			const original = Element.prototype.animate;
+			Element.prototype.animate = function (keyframes, options) {
+				const animation = original.call(this, keyframes, options);
+				if (this.closest('[data-testid="kanban-card"], [data-testid="kanban-item"]'))
+					created.push(this.tagName);
+				return animation;
+			};
+			const scopedRunning = () =>
+				[
+					...root.querySelectorAll<HTMLElement>(
+						'[data-testid="kanban-card"], [data-testid="kanban-item"]'
+					)
+				].flatMap((node) =>
+					node
+						.getAnimations({ subtree: true })
+						.filter(
+							(animation) =>
+								animation.playState === 'running' &&
+								!(
+									animation instanceof CSSTransition &&
+									animation.transitionProperty.startsWith('outline')
+								)
+						)
+				);
+			const colorsMatch = () =>
+				[...root.querySelectorAll<HTMLElement>('[data-diagram-station]')].every((wrapper) => {
+					const color = getComputedStyle(wrapper).color;
+					return [...wrapper.querySelectorAll<SVGElement>('svg, svg *')].every(
+						(node) => getComputedStyle(node).color === color
+					);
+				});
+			try {
+				const fullColor = getComputedStyle(otherMark).color;
+				parentAction.focus();
+				const focusVisible = parentAction.matches(':focus-visible');
+				await Promise.resolve();
+				await Promise.resolve();
+				const routeColor = getComputedStyle(otherMark).color;
+				const routeRunning = scopedRunning().length;
+				const routeColorsMatch = colorsMatch();
+				const oldTop = lanes[1].getBoundingClientRect().top;
+				toggle.click();
+				await Promise.resolve();
+				await Promise.resolve();
+				const newTop = lanes[1].getBoundingClientRect().top;
+				const items = root.querySelectorAll('[data-testid="kanban-item"]').length;
+				const expandedRunning = scopedRunning().length;
+				const expandedColorsMatch = colorsMatch();
+				return {
+					focusVisible,
+					fullColor,
+					routeColor,
+					routeRunning,
+					routeColorsMatch,
+					oldTop,
+					newTop,
+					items,
+					expandedRunning,
+					expandedColorsMatch,
+					created
+				};
+			} finally {
+				Element.prototype.animate = original;
+			}
+		},
+		{ parent: parent.id, other: other.id }
+	);
+	expect(sample.focusVisible).toBe(true);
+	expect(sample.routeColor).not.toBe(sample.fullColor);
+	expect(sample.routeRunning).toBe(0);
+	expect(sample.routeColorsMatch).toBe(true);
+	expect(sample.items).toBe(2);
+	expect(sample.newTop).toBeGreaterThan(sample.oldTop);
+	expect(sample.expandedRunning).toBe(0);
+	expect(sample.expandedColorsMatch).toBe(true);
+	expect(sample.created).toEqual([]);
+});
+
+test('projects a parent route collapsed and a subtask route expanded', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await load(page, isolatedParent(true));
+	await expect(board(page).getByTestId('kanban-family')).toHaveCount(1);
+	await page.mouse.move(0, 0);
+	await expect.poll(() => routeEdges(page)).toEqual([]);
+	const p = await routePaint(page, 'P');
+	const u = await routePaint(page, 'U');
+	await keyboardFocus(page, action(page, 'P'));
+	await expect.poll(async () => (await routePaint(page, 'U')).border).not.toBe(u.border);
+	expect((await routePaint(page, 'U')).icon).not.toBe(u.icon);
+	expect(await routePaint(page, 'P')).toEqual(p);
+	expect(await routeEdges(page)).toEqual([]);
+	const toggle = board(page).getByTestId('kanban-family-toggle');
+	await toggle.click();
+	await page.mouse.move(0, 0);
+	await expect(board(page).getByTestId('kanban-item')).toHaveCount(2);
+	await expect.poll(() => routePaint(page, 'U')).toEqual(u);
+	const baseline = Object.fromEntries(
+		await Promise.all(
+			['P', 'U', 'C1', 'C2'].map(async (id) => [id, await routePaint(page, id)] as const)
+		)
+	);
+	await keyboardFocus(page, action(page, 'C2'));
+	await expect.poll(() => routeEdges(page)).toEqual(['C1->C2']);
+	for (const id of ['C1', 'C2']) expect(await routePaint(page, id)).toEqual(baseline[id]);
+	for (const id of ['P', 'U']) {
+		const paint = await routePaint(page, id);
+		expect(paint.border).not.toBe(baseline[id].border);
+		expect(paint.icon).not.toBe(baseline[id].icon);
+	}
+});
+
 test('keeps unrelated cycle connectors hidden until their own route is focused', async ({
 	page
 }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.setViewportSize({ width: 1440, height: 1800 });
 	await load(page, unrelatedCycle());
+	await expect(board(page).getByTestId('kanban-card')).toHaveCount(4);
 	const lines = board(page).getByTestId('kanban-dependency');
 	await page.mouse.move(0, 0);
 	await expect(lines).toHaveCount(0);
+	const baseline = Object.fromEntries(
+		await Promise.all(
+			['A', 'B', 'X', 'Y'].map(async (id) => [id, await routePaint(page, id)] as const)
+		)
+	);
 	await keyboardFocus(page, station(page, 'A'));
 	await expect
 		.poll(() =>
@@ -321,6 +769,12 @@ test('keeps unrelated cycle connectors hidden until their own route is focused',
 			)
 		)
 		.toEqual(['A->B']);
+	for (const id of ['A', 'B']) expect(await routePaint(page, id)).toEqual(baseline[id]);
+	for (const id of ['X', 'Y']) {
+		const paint = await routePaint(page, id);
+		expect(paint.border).not.toBe(baseline[id].border);
+		expect(paint.icon).not.toBe(baseline[id].icon);
+	}
 	await keyboardFocus(page, station(page, 'X'));
 	await expect
 		.poll(() =>
@@ -331,6 +785,12 @@ test('keeps unrelated cycle connectors hidden until their own route is focused',
 			)
 		)
 		.toEqual(['X->Y', 'Y->X']);
+	for (const id of ['X', 'Y']) expect(await routePaint(page, id)).toEqual(baseline[id]);
+	for (const id of ['A', 'B']) {
+		const paint = await routePaint(page, id);
+		expect(paint.border).not.toBe(baseline[id].border);
+		expect(paint.icon).not.toBe(baseline[id].icon);
+	}
 	for (const line of await lines.all()) {
 		await expect(line).toHaveAttribute('data-cycle', 'true');
 		await expect(line).toHaveCSS('stroke-dasharray', '1px, 4px');
@@ -351,7 +811,6 @@ test('hovering the whole card activates its route and moving between its actions
 	await expect(lines).toHaveCount(1);
 	await expect(lines.first()).toHaveAttribute('data-from', 'A');
 	await station(page, 'A').hover();
-	await page.waitForTimeout(350);
 	await expect(lines).toHaveCount(1);
 	await page.mouse.move(0, 0);
 	await expect(lines).toHaveCount(0);

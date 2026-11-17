@@ -13,6 +13,6 @@ describe('Kanban self-registration', () => {
 		expect(view.order).toBe(VIEW_ORDER.kanban);
 		expect(view.paper.orientation).toBe('landscape');
 		expect(view.paper.component).toBeDefined();
-		expect(view.motion).toEqual({ routerId: 'kanban', connectorSchema: 'kanban-v1' });
+		expect(view.motion).toEqual({ routerId: 'kanban', connectorSchema: 'kanban-v2' });
 	});
 });
