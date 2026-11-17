@@ -96,7 +96,7 @@
 				(row.level === 1 ? 'border-paper-rule-3' : 'border-paper-rule-2')}
 			<tr data-item={from + i} data-testid="sheet-task-row" class={cn(muted && 'text-paper-ink-3')}>
 				<td class={cn(cell, 'pr-0')}>
-					<TaskStatusIcon status={row.eff.status} class="size-2.5 text-paper-ink" />
+					<TaskStatusIcon status={row.eff.status} class="size-3 text-paper-ink" />
 					<span class="sr-only">{taskStatusLabel(row.eff.status)}</span>
 				</td>
 				<td class={cell}>

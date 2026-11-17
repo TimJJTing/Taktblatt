@@ -8,13 +8,21 @@ import { getEditing } from '#lib/state/editing.svelte.ts';
 
 export interface DiagramLayer {
 	readonly active: boolean;
+	/** Captures task identity now and resolves the dialog return target at close time. */
+	readonly returnFocus?: (taskId: string, from: HTMLElement | null) => () => HTMLElement | null;
 }
 
 const CONTEXT = Symbol('diagram-layer');
 const ALWAYS: DiagramLayer = { active: true };
 
 export function setDiagramLayer(layer: DiagramLayer): DiagramLayer {
-	return setContext(CONTEXT, layer);
+	const parent = getContext<DiagramLayer | undefined>(CONTEXT);
+	return setContext(CONTEXT, {
+		get active() {
+			return layer.active;
+		},
+		returnFocus: layer.returnFocus ?? parent?.returnFocus
+	});
 }
 
 export function getDiagramLayer(): DiagramLayer {

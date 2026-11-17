@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.ts';
+	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
 	import { setEditing, EditingState } from '#lib/state/editing.svelte.ts';
 	import { setViewer, type ViewerState } from '#lib/state/viewer.svelte.ts';
 	import { setWorkspace, type Workspace } from '#lib/state/workspace.svelte.ts';
@@ -12,12 +13,16 @@
 		workspace,
 		viewer,
 		registry,
-		editing = new EditingState()
+		editing = new EditingState(),
+		onReveal = () => {},
+		withDialog = false
 	}: {
 		workspace: Workspace;
 		viewer: ViewerState;
 		registry: ViewRegistry;
 		editing?: EditingState;
+		onReveal?: (row: { top: number; bottom: number }) => void;
+		withDialog?: boolean;
 	} = $props();
 	setWorkspace(untrack(() => workspace));
 	setViewer(untrack(() => viewer));
@@ -35,7 +40,8 @@
 			todayDate="2027-01-10"
 			onBand={() => {}}
 			onMilestone={() => {}}
-			onReveal={() => {}}
+			{onReveal}
 		/>
 	</div>
+	{#if withDialog}<TaskDialog />{/if}
 </Tooltip.Provider>

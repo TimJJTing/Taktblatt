@@ -1,6 +1,6 @@
 import type { Component } from 'svelte';
 import { describe, expect, it } from 'vitest';
-import type { DiagramViewDefinition, DiagramViewProps } from './view-contract.ts';
+import { VIEW_ORDER, type DiagramViewDefinition, type DiagramViewProps } from './view-contract.ts';
 import { appViewRegistry, createViewRegistry } from './view-registry.ts';
 
 /** A small fake view. The registry does not render it. */
@@ -48,11 +48,18 @@ describe('createViewRegistry', () => {
 });
 
 describe('appViewRegistry', () => {
-	it('contains only the real Gantt view in a build without fixtures', () => {
+	// Other slices add real views. This test does not assert the exact set of real views.
+	it('puts Gantt first and contains only reserved real views in a build without fixtures', () => {
 		const registry = appViewRegistry();
-		expect(registry.ids).toEqual(['gantt']);
+		expect(registry.ids[0]).toBe('gantt');
 		expect(registry.get('gantt')?.order).toBe(0);
 		expect(registry.get('gantt')?.label()).toBe('Gantt');
+		expect(registry.has('test-list')).toBe(false);
+		expect(registry.has('test-board')).toBe(false);
+		for (const view of registry.views) {
+			expect(Object.keys(VIEW_ORDER), view.id).toContain(view.id);
+			expect(view.order, view.id).toBe(VIEW_ORDER[view.id as keyof typeof VIEW_ORDER]);
+		}
 		expect(appViewRegistry()).toBe(registry);
 	});
 });

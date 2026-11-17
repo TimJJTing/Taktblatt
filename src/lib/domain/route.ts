@@ -89,11 +89,6 @@ function reachable(graph: ReadonlyMap<string, ReadonlySet<string>>, focus: strin
 	return seen;
 }
 
-/** Find all predecessors and dependents. Each walk stops at tasks it has already visited. */
-export function dependencyRoute(index: TaskIndex, focus: string): DependencyRoute {
-	return graphDependencyRoute(effectiveDependencyGraph(index), focus);
-}
-
 /** Walk each side independently so a shortcut cannot join opposite sides. */
 function graphDependencyRoute(graph: EffectiveDependencyGraph, focus: string): DependencyRoute {
 	return {

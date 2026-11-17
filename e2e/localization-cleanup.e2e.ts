@@ -10,7 +10,8 @@ import {
 	stage,
 	storedPlan,
 	waitForAnimations,
-	writeStoredPlan
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 const localizedProse = {
@@ -108,7 +109,7 @@ for (const [locale, separator] of [
 			row(page, 'Site survey').getByTestId('task-owners').getByRole('button')
 		).toHaveAccessibleName(new RegExp(names));
 		await stage(page, 0).getByTestId('stage-color').click();
-		const palette = page.getByRole('radiogroup');
+		const palette = stageColorPalette(page);
 		await expect(palette).toBeVisible();
 		await waitForAnimations(palette.locator('..'));
 		const amberName = await palette

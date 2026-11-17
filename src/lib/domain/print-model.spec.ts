@@ -31,7 +31,7 @@ describe('buildPrintModel and itemCount', () => {
 		const base = buildPrintModel({
 			plan,
 			index: indexTasks(plan.tasks),
-			isExpanded: () => false,
+			showSubtasks: () => false,
 			today: '2027-01-10'
 		});
 		expect(base.map((s) => s.id)).toEqual([
@@ -50,7 +50,7 @@ describe('buildPrintModel and itemCount', () => {
 		const full = buildPrintModel({
 			plan,
 			index: indexTasks(plan.tasks),
-			isExpanded: () => false,
+			showSubtasks: () => false,
 			today: '2027-01-10'
 		});
 		expect(full.map((s) => s.id)).toEqual([
@@ -77,7 +77,7 @@ describe('buildPrintModel and itemCount', () => {
 		const segments = buildPrintModel({
 			plan,
 			index: indexTasks(plan.tasks),
-			isExpanded: () => false,
+			showSubtasks: () => false,
 			today: '2027-01-10'
 		});
 		const cards = segments.find((s): s is CardsSegment => s.kind === 'cards')!;
@@ -109,7 +109,7 @@ describe('buildPrintModel and itemCount', () => {
 		const segments = buildPrintModel({
 			plan,
 			index: indexTasks(plan.tasks),
-			isExpanded: () => true,
+			showSubtasks: () => true,
 			today: '2027-01-10'
 		});
 		const stage = segments.find((segment): segment is StageSegment => segment.kind === 'stage')!;
@@ -127,7 +127,7 @@ describe('buildPrintModel and itemCount', () => {
 			const segments = buildPrintModel({
 				plan,
 				index: indexTasks(plan.tasks),
-				isExpanded: () => true,
+				showSubtasks: () => true,
 				today: '2027-01-10'
 			});
 			return segments.find((segment): segment is StageSegment => segment.kind === 'stage')!;
@@ -158,7 +158,7 @@ describe('buildPrintModel and itemCount', () => {
 		const segments = buildPrintModel({
 			plan,
 			index: indexTasks(plan.tasks),
-			isExpanded: () => true,
+			showSubtasks: () => true,
 			today: '2027-01-10'
 		});
 		const stage = segments.find((segment): segment is StageSegment => segment.kind === 'stage')!;
@@ -172,7 +172,39 @@ describe('buildPrintModel and itemCount', () => {
 		]);
 	});
 
-	it('includes subtask rows in stage tables only when the parent is expanded', () => {
+	it('always includes every subtask row in Work plan stage tables even when showSubtasks is false', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p', stageId: 's1' }),
+			makeTask({ id: 'c1', stageId: 's1', parentId: 'p' }),
+			makeTask({ id: 'c2', stageId: 's1', parentId: 'p' })
+		]);
+		const index = indexTasks(plan.tasks);
+		const expectedRow = (task: (typeof plan.tasks)[number], level: 0 | 1) => ({
+			task,
+			level,
+			eff: index.state.get(task.id)!.eff,
+			readiness: index.state.get(task.id)!.readiness
+		});
+		const expected = [
+			expectedRow(plan.tasks[0], 0),
+			expectedRow(plan.tasks[1], 1),
+			expectedRow(plan.tasks[2], 1)
+		];
+
+		for (const showSubtasks of [() => false, () => true]) {
+			const model = buildPrintModel({
+				plan,
+				index,
+				showSubtasks,
+				today: '2027-01-10'
+			});
+			const stage = model.find((s): s is StageSegment => s.kind === 'stage')!;
+			expect(stage.rows).toEqual(expected);
+			expect(itemCount(stage)).toBe(3);
+		}
+	});
+
+	it('includes subtask rows in the Gantt segment only when showSubtasks returns true', () => {
 		const plan = makePlan([
 			makeTask({ id: 'p', stageId: 's1' }),
 			makeTask({ id: 'c1', stageId: 's1', parentId: 'p' }),
@@ -180,39 +212,25 @@ describe('buildPrintModel and itemCount', () => {
 		]);
 		const index = indexTasks(plan.tasks);
 
-		const collapsed = buildPrintModel({
+		const hidden = buildPrintModel({
 			plan,
 			index,
-			isExpanded: () => false,
+			showSubtasks: () => false,
 			today: '2027-01-10'
 		});
-		const collapsedStage = collapsed.find((s): s is StageSegment => s.kind === 'stage')!;
-		const collapsedGantt = collapsed.find((s) => s.kind === 'gantt')!;
-		const expectedRow = (task: (typeof plan.tasks)[number], level: 0 | 1) => ({
-			task,
-			level,
-			eff: index.state.get(task.id)!.eff,
-			readiness: index.state.get(task.id)!.readiness
-		});
-		expect(collapsedStage.rows).toEqual([expectedRow(plan.tasks[0], 0)]);
-		expect(itemCount(collapsedStage)).toBe(1);
-		expect(itemCount(collapsedGantt)).toBe(1);
+		const hiddenGantt = hidden.find((s) => s.kind === 'gantt')!;
+		expect(hiddenGantt.rows.map((r) => r.id)).toEqual(['p']);
+		expect(itemCount(hiddenGantt)).toBe(1);
 
-		const expanded = buildPrintModel({
+		const shown = buildPrintModel({
 			plan,
 			index,
-			isExpanded: (id) => id === 'p',
+			showSubtasks: (id) => id === 'p',
 			today: '2027-01-10'
 		});
-		const expandedStage = expanded.find((s): s is StageSegment => s.kind === 'stage')!;
-		const expandedGantt = expanded.find((s) => s.kind === 'gantt')!;
-		expect(expandedStage.rows).toEqual([
-			expectedRow(plan.tasks[0], 0),
-			expectedRow(plan.tasks[1], 1),
-			expectedRow(plan.tasks[2], 1)
-		]);
-		expect(itemCount(expandedStage)).toBe(3);
-		expect(itemCount(expandedGantt)).toBe(3);
+		const shownGantt = shown.find((s) => s.kind === 'gantt')!;
+		expect(shownGantt.rows.map((r) => r.id)).toEqual(['p', 'c1', 'c2']);
+		expect(itemCount(shownGantt)).toBe(3);
 	});
 });
 
@@ -222,7 +240,7 @@ describe('buildPrintModel with selected diagrams', () => {
 	const input: PrintModelInput = {
 		plan,
 		index: indexTasks(plan.tasks),
-		isExpanded: () => false,
+		showSubtasks: () => false,
 		today: '2027-01-10'
 	};
 

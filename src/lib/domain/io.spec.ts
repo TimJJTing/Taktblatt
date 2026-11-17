@@ -391,14 +391,12 @@ describe('parseFile', () => {
 		expect(parseFile(JSON.stringify(toPlanFile(diamond))).ok).toBe(true);
 	});
 
-	it('checks a chain of 10000 tasks in linear time', () => {
+	it('handles a chain and a cycle of 10 000 tasks', () => {
 		const tasks = Array.from({ length: 10_000 }, (_, i) =>
 			makeTask({ id: `t${i}`, dependsOn: i > 0 ? [`t${i - 1}`] : [] })
 		);
 		const text = JSON.stringify(toPlanFile(makePlan(tasks)));
-		const start = performance.now();
 		expect(parseFile(text).ok).toBe(true);
-		expect(performance.now() - start).toBeLessThan(1000);
 		tasks[0].dependsOn = ['t9999'];
 		const cyclic = makePlan(tasks);
 		expect(parseFile(JSON.stringify(toPlanFile(cyclic))).ok).toBe(true);

@@ -1,3 +1,4 @@
+import type { Task } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	expectCyclePaint,
@@ -18,7 +19,7 @@ async function openCyclePlan(page: Page, inherited = false) {
 	await openExample(page);
 	await writeStoredPlan(page, (plan) => {
 		plan.range = { start: '2027-01-01', end: '2027-02-28' };
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -95,7 +96,7 @@ test('a cycle candidate sorts last, exposes a hint, and commits one warning toas
 	await expect
 		.poll(() =>
 			storedPlan(page).then(
-				(plan) => plan.tasks.find((t: { id: string }) => t.id === 'b').dependsOn
+				(plan) => plan.tasks.find((t: { id: string }) => t.id === 'b')!.dependsOn
 			)
 		)
 		.toEqual([]);
@@ -127,8 +128,8 @@ test('a cycle candidate sorts last, exposes a hint, and commits one warning toas
 test('a candidate with cycle and date warnings shows two complete sentences', async ({ page }) => {
 	await openCyclePlan(page);
 	await writeStoredPlan(page, (plan) => {
-		plan.tasks.find((task: { id: string }) => task.id === 'a').start = '2027-02-01';
-		plan.tasks.find((task: { id: string }) => task.id === 'a').end = '2027-02-02';
+		plan.tasks.find((task: { id: string }) => task.id === 'a')!.start = '2027-02-01';
+		plan.tasks.find((task: { id: string }) => task.id === 'a')!.end = '2027-02-02';
 	});
 	const dialog = await openDetails(page, 'Approve brief');
 	await dialog.getByTestId('dependency-input').fill('Prepare');
@@ -166,9 +167,12 @@ test('an inherited From parent chip warns for the parent-stored edge and both Ga
 		await expectCyclePaint(line);
 	}
 	const preview = await openPreview(page);
+	await preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
 	await page.evaluate(() => document.fonts.ready);
 	const printed = preview.getByTestId('sheet-gantt-dependency');
 	await expect(printed).toHaveCount(2);
+	await expect(printed.and(page.locator('[data-from="x"][data-to="p"]'))).toHaveCount(1);
+	await expect(printed.and(page.locator('[data-from="s"][data-to="x"]'))).toHaveCount(1);
 	for (const line of await printed.all()) {
 		await expectCyclePaint(line, true);
 	}
@@ -185,9 +189,9 @@ test('import counts stored rows with cycle and date warnings once without a comm
 	await openCyclePlan(page);
 	const plan = await storedPlan(page);
 	plan.id = 'imported-cycle';
-	plan.tasks.find((task: { id: string }) => task.id === 'b').dependsOn = ['a'];
-	plan.tasks.find((task: { id: string }) => task.id === 'a').start = '2027-02-01';
-	plan.tasks.find((task: { id: string }) => task.id === 'a').end = '2027-02-02';
+	plan.tasks.find((task: { id: string }) => task.id === 'b')!.dependsOn = ['a'];
+	plan.tasks.find((task: { id: string }) => task.id === 'a')!.start = '2027-02-01';
+	plan.tasks.find((task: { id: string }) => task.id === 'a')!.end = '2027-02-02';
 	await importJson(page, { schemaVersion: 1, kind: 'plan', plan });
 	await expect(page.getByText('Plan imported', { exact: true })).toBeVisible();
 	await expect(page.getByText(/(?:Dependencies|Dependency).*: 2/)).toBeVisible();
@@ -206,7 +210,7 @@ test('a forward move that creates an inherited cycle shows one toast for both ne
 }) => {
 	await openCyclePlan(page, true);
 	await writeStoredPlan(page, (plan) => {
-		plan.tasks.find((task: { id: string }) => task.id === 's').parentId = null;
+		plan.tasks.find((task: { id: string }) => task.id === 's')!.parentId = null;
 	});
 	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
 	await expect(page.getByText(cycleToast, { exact: true })).toHaveCount(0);
@@ -227,14 +231,18 @@ test('a forward move that creates an inherited cycle shows one toast for both ne
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	await expect
 		.poll(() =>
-			storedPlan(page).then((plan) => plan.tasks.find((t: { id: string }) => t.id === 's').parentId)
+			storedPlan(page).then(
+				(plan) => plan.tasks.find((t: { id: string }) => t.id === 's')!.parentId
+			)
 		)
 		.toBeNull();
 	await expect(toast).toHaveCount(0);
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();
 	await expect
 		.poll(() =>
-			storedPlan(page).then((plan) => plan.tasks.find((t: { id: string }) => t.id === 's').parentId)
+			storedPlan(page).then(
+				(plan) => plan.tasks.find((t: { id: string }) => t.id === 's')!.parentId
+			)
 		)
 		.toBe('p');
 	await expect(toast).toHaveCount(0);

@@ -8,7 +8,7 @@
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { readyLight, type Readiness } from '#lib/domain/derive.ts';
 	import { motionDuration } from '#lib/motion.ts';
-	import { m } from '#lib/paraglide/messages.js';
+	import { readyLightText } from './ready-light-text.ts';
 
 	interface Props {
 		/** The task readiness. */
@@ -21,13 +21,7 @@
 
 	let { readiness, still = false, reserve = false }: Props = $props();
 	const lightData = $derived(readyLight(readiness));
-	const label = $derived(
-		lightData?.via === 'subtasks'
-			? m.ready_label_subtasks({ count: lightData.count })
-			: lightData?.count
-				? m.ready_label({ count: lightData.count })
-				: m.ready_label_plain()
-	);
+	const label = $derived(readyLightText(readiness));
 </script>
 
 {#snippet light()}

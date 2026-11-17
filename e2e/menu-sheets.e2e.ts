@@ -18,6 +18,12 @@ import {
 
 type SheetReturnTrace = { tops: number[]; releasedTop: number; done: boolean };
 
+declare global {
+	interface Window {
+		sheetReturnTrace: SheetReturnTrace;
+	}
+}
+
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
 test.beforeEach(async ({ page }) => {
@@ -72,7 +78,7 @@ test('Esc during the return slides the bottom sheet out from its current positio
 	const start = await titleDragStart(sheet);
 	await touchDrag(page, start, dragSteps(start, box.height * 0.15), 100, async () => {
 		await page.evaluate(() => {
-			const state = window as Window & { sheetReturnTrace: SheetReturnTrace };
+			const state = window;
 			state.sheetReturnTrace = { tops: [], releasedTop: 0, done: false };
 			window.addEventListener(
 				'touchend',
@@ -101,16 +107,8 @@ test('Esc during the return slides the bottom sheet out from its current positio
 			);
 		});
 	});
-	await expect
-		.poll(() =>
-			page.evaluate(
-				() => (window as Window & { sheetReturnTrace: SheetReturnTrace }).sheetReturnTrace.done
-			)
-		)
-		.toBe(true);
-	const { tops, releasedTop } = await page.evaluate(
-		() => (window as Window & { sheetReturnTrace: SheetReturnTrace }).sheetReturnTrace
-	);
+	await expect.poll(() => page.evaluate(() => window.sheetReturnTrace.done)).toBe(true);
+	const { tops, releasedTop } = await page.evaluate(() => window.sheetReturnTrace);
 	expect(tops.length).toBeGreaterThan(1);
 	// The first top stays between the open position and the position before Esc.
 	expect(tops[0]).toBeGreaterThan(box.y);
