@@ -15,6 +15,9 @@ export const PAPER: Record<PaperSize, { width: string; height: string; css: stri
 	letter: { width: '8.5in', height: '11in', css: 'letter' }
 };
 
+/** The named page rule of landscape diagram sheets (ADR 20). */
+export const LANDSCAPE_PAGE = 'taktblatt-landscape';
+
 export const GANTT_MONTH_HEIGHT = 20;
 /** The fixed paper tag width keeps its side independent of font and paint timing. */
 export const GANTT_TODAY_TAG_WIDTH = 28;

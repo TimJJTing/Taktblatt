@@ -1,8 +1,9 @@
 <!--
 	The task modal. It shows all fields of a task, plus Stage, Parent, Note and Dependencies.
-	Each field saves on blur. Esc closes the modal. The focus goes back to the "…" button.
+	Each field saves on blur. Esc closes the modal. The caller supplies the focus return target.
 -->
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { overlayScrollbarInside } from '#lib/components/app/overlay-scrollbar.ts';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
@@ -79,6 +80,18 @@
 		editing.detailsTaskId = null;
 	}
 
+	async function returnFocus(event: Event) {
+		event.preventDefault();
+		const resolve = editing.detailsReturnResolver;
+		const from = editing.detailsReturnFocus;
+		editing.detailsReturnResolver = null;
+		// Let both the task dialog and its delete confirmation release their focus scopes.
+		await tick();
+		if (open) return;
+		const target = resolve ? resolve() : from;
+		target?.focus({ preventScroll: !!resolve });
+	}
+
 	function requestMove(target: MoveTarget) {
 		if (!task) return;
 		const conflicts = moveConflicts(ws.plan, task.id, target);
@@ -111,10 +124,7 @@
 	<Dialog.Content
 		{@attach overlayScrollbarInside}
 		class="max-h-[90vh] overflow-y-auto sm:max-w-xl"
-		onCloseAutoFocus={(e) => {
-			e.preventDefault();
-			editing.detailsReturnFocus?.focus();
-		}}
+		onCloseAutoFocus={returnFocus}
 		data-testid="task-dialog"
 	>
 		{#if task && eff}

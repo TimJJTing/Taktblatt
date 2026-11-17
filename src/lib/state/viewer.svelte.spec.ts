@@ -370,3 +370,216 @@ describe('ViewerState', () => {
 		expect(new ViewerState(storage).ganttHeight).toBe(GANTT_HEIGHT.default);
 	});
 });
+
+describe('ViewerState diagram views', () => {
+	const THREE = ['gantt', 'test-list', 'test-board'] as const;
+
+	/** Stores viewer data with valid older fields next to the given diagram fields. */
+	const stored = (fields: Record<string, unknown>) => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({ splitRatio: 0.63, ganttPinned: true, ganttHeight: 0.42, ...fields })
+		);
+		return storage;
+	};
+
+	const expectOlderFields = (viewer: ViewerState) => {
+		expect(viewer.splitRatio).toBe(0.63);
+		expect(viewer.ganttPinned).toBe(true);
+		expect(viewer.ganttHeight).toBe(0.42);
+	};
+
+	it('defaults the view to Gantt, the print selection to Gantt only, and printSubtasks to false', () => {
+		const viewer = new ViewerState(new MemoryStorage());
+		expect(viewer.diagramView).toBe('gantt');
+		expect(viewer.printDiagrams).toEqual(['gantt']);
+		expect(viewer.printSubtasks).toBe(false);
+	});
+
+	it('keeps a stored registered view', () => {
+		const viewer = new ViewerState(stored({ diagramView: 'test-list' }), THREE);
+		expect(viewer.diagramView).toBe('test-list');
+		expectOlderFields(viewer);
+	});
+
+	it.each([
+		['an unknown id', 'other'],
+		['a number', 1],
+		['null', null],
+		['an object', { id: 'test-list' }]
+	])('resolves %s as the stored view to Gantt and keeps other fields', (_, diagramView) => {
+		const viewer = new ViewerState(stored({ diagramView }), THREE);
+		expect(viewer.diagramView).toBe('gantt');
+		expectOlderFields(viewer);
+	});
+
+	it('resolves a stored view that is not registered to Gantt', () => {
+		const viewer = new ViewerState(stored({ diagramView: 'route-map' }));
+		expect(viewer.diagramView).toBe('gantt');
+		expectOlderFields(viewer);
+	});
+
+	it.each([
+		['absent', undefined],
+		['null', null],
+		['a scalar', 'test-list'],
+		['an object', { 0: 'test-list' }],
+		['an empty array', []],
+		['only unknown ids', ['other', 'route-map']],
+		['only non-string values', [1, null, {}]]
+	])('uses Gantt only when the stored print selection is %s', (_, printDiagrams) => {
+		const viewer = new ViewerState(stored({ printDiagrams }), THREE);
+		expect(viewer.printDiagrams).toEqual(['gantt']);
+		expectOlderFields(viewer);
+	});
+
+	it('uses Gantt only for a stored Route map and Kanban selection when only Gantt is registered', () => {
+		const viewer = new ViewerState(stored({ printDiagrams: ['route-map', 'kanban'] }));
+		expect(viewer.printDiagrams).toEqual(['gantt']);
+		expectOlderFields(viewer);
+	});
+
+	it('keeps only valid registered ids, removes duplicates and uses registry order', () => {
+		const viewer = new ViewerState(
+			stored({
+				printDiagrams: ['test-board', 7, 'other', 'test-list', 'test-board', null, 'test-list']
+			}),
+			THREE
+		);
+		expect(viewer.printDiagrams).toEqual(['test-list', 'test-board']);
+		expectOlderFields(viewer);
+	});
+
+	it('sorts a stored print selection in registry order', () => {
+		const viewer = new ViewerState(
+			stored({ printDiagrams: ['test-board', 'gantt', 'test-list'] }),
+			THREE
+		);
+		expect(viewer.printDiagrams).toEqual(['gantt', 'test-list', 'test-board']);
+	});
+
+	it('does not need Gantt in a valid stored print selection', () => {
+		const viewer = new ViewerState(stored({ printDiagrams: ['test-board'] }), THREE);
+		expect(viewer.printDiagrams).toEqual(['test-board']);
+	});
+
+	it('keeps the view and the print selection independent', () => {
+		const viewer = new ViewerState(
+			stored({ diagramView: 'test-board', printDiagrams: ['test-list'] }),
+			THREE
+		);
+		expect(viewer.diagramView).toBe('test-board');
+		expect(viewer.printDiagrams).toEqual(['test-list']);
+	});
+
+	it('sets a registered view, persists it and ignores unregistered ids', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage, THREE);
+		viewer.setGanttHeight(0.42);
+		viewer.setDiagramView('test-board');
+		expect(viewer.diagramView).toBe('test-board');
+		viewer.setDiagramView('route-map');
+		expect(viewer.diagramView).toBe('test-board');
+		const again = new ViewerState(storage, THREE);
+		expect(again.diagramView).toBe('test-board');
+		expect(again.printDiagrams).toEqual(['gantt']);
+		expect(again.ganttHeight).toBe(0.42);
+		expect(JSON.parse(storage.getItem(KEYS.viewer)!).diagramView).toBe('test-board');
+	});
+
+	it('keeps the print selection in registry order regardless of the click order', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage, THREE);
+		viewer.setPrintDiagram('test-board', true);
+		viewer.setPrintDiagram('test-list', true);
+		expect(viewer.printDiagrams).toEqual(['gantt', 'test-list', 'test-board']);
+		viewer.setPrintDiagram('gantt', false);
+		expect(viewer.printDiagrams).toEqual(['test-list', 'test-board']);
+		viewer.setPrintDiagram('gantt', true);
+		expect(viewer.printDiagrams).toEqual(['gantt', 'test-list', 'test-board']);
+		viewer.setPrintDiagram('route-map', true);
+		expect(viewer.printDiagrams).toEqual(['gantt', 'test-list', 'test-board']);
+		const again = new ViewerState(storage, THREE);
+		expect(again.printDiagrams).toEqual(['gantt', 'test-list', 'test-board']);
+		expect(again.diagramView).toBe('gantt');
+	});
+
+	it('does not clear the last selected print diagram', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage, THREE);
+		viewer.setPrintDiagram('test-list', true);
+		viewer.setPrintDiagram('gantt', false);
+		expect(viewer.printDiagrams).toEqual(['test-list']);
+		viewer.setPrintDiagram('test-list', false);
+		expect(viewer.printDiagrams).toEqual(['test-list']);
+		expect(new ViewerState(storage, THREE).printDiagrams).toEqual(['test-list']);
+	});
+
+	it('keeps the diagram fields when other viewer settings are saved', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage, THREE);
+		viewer.setDiagramView('test-list');
+		viewer.setPrintDiagram('test-board', true);
+		viewer.setSplitRatio(0.3);
+		viewer.setExpanded('p1', 't1', true);
+		const again = new ViewerState(storage, THREE);
+		expect(again.diagramView).toBe('test-list');
+		expect(again.printDiagrams).toEqual(['gantt', 'test-board']);
+	});
+});
+
+describe('ViewerState printSubtasks', () => {
+	const THREE = ['gantt', 'test-list', 'test-board'] as const;
+
+	const stored = (fields: Record<string, unknown>) => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({
+				expanded: { p1: ['t1'] },
+				printDiagrams: ['test-board'],
+				splitRatio: 0.63,
+				ganttPinned: true,
+				ganttHeight: 0.42,
+				...fields
+			})
+		);
+		return storage;
+	};
+
+	const expectOtherFields = (viewer: ViewerState) => {
+		expect(viewer.expandedIds('p1')).toEqual(['t1']);
+		expect(viewer.printDiagrams).toEqual(['test-board']);
+		expect(viewer.splitRatio).toBe(0.63);
+		expect(viewer.ganttPinned).toBe(true);
+		expect(viewer.ganttHeight).toBe(0.42);
+	};
+
+	it('falls back to false when stored printSubtasks is invalid and keeps other fields', () => {
+		const viewer = new ViewerState(stored({ printSubtasks: 'true' }), THREE);
+		expect(viewer.printSubtasks).toBe(false);
+		expectOtherFields(viewer);
+	});
+
+	it('persists printSubtasks under taktblatt:ui independently of expansion and printDiagrams', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage, THREE);
+		viewer.setExpanded('p1', 't1', true);
+		viewer.setPrintDiagram('test-list', true);
+		expect(viewer.printSubtasks).toBe(false);
+
+		viewer.setPrintSubtasks(true);
+		expect(viewer.printSubtasks).toBe(true);
+		expect(JSON.parse(storage.getItem(KEYS.viewer)!).printSubtasks).toBe(true);
+		viewer.setSplitRatio(0.3);
+
+		const reloaded = new ViewerState(storage, THREE);
+		expect(reloaded.printSubtasks).toBe(true);
+		expect(reloaded.expandedIds('p1')).toEqual(['t1']);
+		expect(reloaded.printDiagrams).toEqual(['gantt', 'test-list']);
+
+		reloaded.setPrintSubtasks(false);
+		expect(new ViewerState(storage, THREE).printSubtasks).toBe(false);
+	});
+});

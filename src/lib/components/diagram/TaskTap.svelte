@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { motionDuration } from '#lib/motion.ts';
+	import { markColorLevel, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { untrack } from 'svelte';
 	import { GeometryTween } from './geometry-tween.svelte.ts';
 	import type { Junction } from '#lib/scene/types.ts';
@@ -6,8 +8,25 @@
 		tap,
 		width,
 		left,
-		still = false
-	}: { tap: Junction; width: number; left: number; still?: boolean } = $props();
+		still = false,
+		route = null
+	}: {
+		tap: Junction;
+		width: number;
+		left: number;
+		still?: boolean;
+		route?: RoutePaint;
+	} = $props();
+	const paint = $derived(still ? null : route);
+	const ink = $derived(
+		still
+			? 'var(--color-paper-ink-3)'
+			: paint === 'lit'
+				? 'var(--foreground)'
+				: paint === 'off'
+					? `color-mix(in oklab, var(--muted-foreground) ${markColorLevel('todo', 'connector', true)}%, var(--background, #FFFFFF))`
+					: 'var(--muted-foreground)'
+	);
 	const x = () => tap.point.x.f * width + tap.point.x.px;
 	const pos = new GeometryTween(
 		untrack(x),
@@ -24,16 +43,21 @@
 	style:width="{still ? 4 : 6}px"
 	style:height="{still ? 4 : 6}px"
 	aria-hidden="true"
+	data-junction-key={tap.key}
+	data-route={paint ?? undefined}
 	data-testid={still ? 'sheet-gantt-tap' : 'gantt-tap'}
 	data-source={tap.source}
 >
 	<svg width={still ? 4 : 6} height={still ? 4 : 6} aria-hidden="true"
 		><circle
+			class:route-lit={paint === 'lit'}
+			style:transition-property="stroke"
+			style:transition-duration={`${motionDuration(still ? 0 : 150)}ms`}
 			cx={still ? 2 : 3}
 			cy={still ? 2 : 3}
 			r={still ? 1.5 : 2.5}
 			fill={still ? '#FFFFFF' : 'var(--background, #FFFFFF)'}
-			stroke={still ? 'var(--color-paper-ink-3)' : 'var(--muted-foreground)'}
+			stroke={ink}
 		/></svg
 	>
 </span>
@@ -44,6 +68,9 @@
 			forced-color-adjust: none;
 			fill: Canvas;
 			stroke: CanvasText;
+		}
+		circle.route-lit {
+			stroke: Highlight;
 		}
 	}
 </style>

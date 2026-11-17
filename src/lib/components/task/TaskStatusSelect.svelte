@@ -61,9 +61,7 @@
 					data-testid="task-status"
 					style={`transition-duration: ${motionDuration(150)}ms`}
 				>
-					<span class="flex items-center gap-1.5"
-						><TaskStatusIcon {status} />{#if !compact}{label}{/if}</span
-					>
+					<span class="flex items-center gap-1.5"><TaskStatusIcon {status} /></span>
 				</Select.Trigger>
 			{/snippet}
 		</Hint>

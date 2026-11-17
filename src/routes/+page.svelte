@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { loadExample } from '#lib/state/commands.ts';
 	import { toast } from 'svelte-sonner';
 	import WorkspaceShell from '#lib/components/app/WorkspaceShell.svelte';
@@ -16,6 +17,7 @@
 	import Remarks from '#lib/components/remarks/Remarks.svelte';
 	import WorkPlan from '#lib/components/plan/WorkPlan.svelte';
 	import TaskDialog from '#lib/components/task/TaskDialog.svelte';
+	import { appViewRegistry, setViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import { EditingState, setEditing } from '#lib/state/editing.svelte.ts';
 	import { PreviewState, setPreview } from '#lib/state/preview.svelte.ts';
 	import { LanguageReload, setLanguageReload } from '#lib/state/language-reload.svelte.ts';
@@ -25,8 +27,10 @@
 	const ws = setWorkspace(
 		new Workspace(localStorage, () => toast.warning(m.toast_cycle_created()))
 	);
-	setViewer(new ViewerState(localStorage));
-	setEditing(new EditingState());
+	const views = setViewRegistry(appViewRegistry());
+	setViewer(new ViewerState(localStorage, views.ids));
+	const editing = setEditing(new EditingState());
+	onMount(() => editing.routeFocus.attach(ws));
 	const preview = setPreview(new PreviewState());
 	const languageReload = setLanguageReload(new LanguageReload(ws, preview));
 

@@ -27,7 +27,8 @@ import {
 	startDependencyMonitor,
 	changePlanInOtherTab,
 	waitForFrames,
-	waitForAnimations
+	waitForAnimations,
+	holdAnimationFrames
 } from './helpers.ts';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
@@ -105,6 +106,9 @@ test('tiny, point and clipped marks use exact ports and flat cuts', async ({ pag
 test('finished marks cover crossing connectors in both themes', async ({ page }) => {
 	await openLinePlan(page);
 	await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+	// Sample status paint with route focus inactive after the chevron hover.
+	await page.mouse.move(0, 0);
+	await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 	for (const colorScheme of ['light', 'dark'] as const) {
 		await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
 		const mark = ganttRow(page, 'Crossing').getByTestId('gantt-bar');
@@ -384,8 +388,27 @@ for (const surface of ['table', 'Gantt'] as const) {
 			await toggle.scrollIntoViewIfNeeded();
 			const box = (await toggle.boundingBox())!;
 			const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-			await recordHighlightAfterClick(page);
-			await page.mouse.click(pointer.x, pointer.y);
+			await page.mouse.move(0, 0);
+			await waitForFrames(page);
+			const frames = surface === 'Gantt' ? await holdAnimationFrames(page) : null;
+			try {
+				await recordHighlightAfterClick(page);
+				await page.mouse.move(pointer.x, pointer.y);
+				const beforeDown = await frames?.state();
+				if (beforeDown) {
+					expect(beforeDown.pending).toBeGreaterThan(0);
+					// The new hover has not painted. It must flush during pointerdown.
+					await expect(ganttRow(page, 'Soil preparation')).not.toHaveAttribute('data-highlighted');
+				}
+				await page.mouse.down();
+				if (frames) expect((await frames.state()).cancelled).toBeGreaterThan(beforeDown!.cancelled);
+				await page.mouse.up();
+				if (frames) expect(await page.locator(HIGHLIGHTED).count()).toBe(0);
+			} finally {
+				await frames?.release();
+			}
+			// Deliver the held callbacks. A stale hover frame must not restore the highlight.
+			if (frames) expect(await page.locator(HIGHLIGHTED).count()).toBe(0);
 			await expect(tableToggle).toHaveAttribute('aria-expanded', String(expanding));
 			await expect(ganttToggle).toHaveAttribute('aria-expanded', String(expanding));
 			await expect(row(page, 'Soil test')).toHaveCount(expanding ? 1 : 0);
@@ -508,9 +531,41 @@ test('the pinned Timeline section resizes with the keyboard within its limits', 
 
 test('a band click opens the band dialog', async ({ page }) => {
 	await openExample(page);
-	await gantt(page)
-		.getByTestId('gantt-band')
-		.click({ position: { x: 4, y: 4 } });
+	const point = await gantt(page).evaluate((chart) => {
+		const band = chart.querySelector('[data-testid="gantt-band"]')!.getBoundingClientRect();
+		const view = chart.querySelector('[data-testid="gantt-scroller"]')!.getBoundingClientRect();
+		for (const row of chart.querySelectorAll('[data-testid="gantt-row"]')) {
+			const bounds = row.getBoundingClientRect();
+			const label = row
+				.querySelector('[data-testid="gantt-label"]')!
+				.parentElement!.getBoundingClientRect();
+			const mark = row
+				.querySelector('[data-testid="gantt-bar"], [data-testid="gantt-point"]')
+				?.getBoundingClientRect();
+			const left = Math.max(band.left, label.right, view.left) + 2;
+			const right = Math.min(band.right, bounds.right, view.right) - 2;
+			const top = Math.max(band.top, bounds.top, view.top);
+			const bottom = Math.min(band.bottom, bounds.bottom, view.bottom);
+			const x = (left + right) / 2;
+			const y = bottom - 3;
+			if (
+				left >= right ||
+				y <= top ||
+				(mark && x >= mark.left && x <= mark.right && y >= mark.top && y <= mark.bottom)
+			)
+				continue;
+			return {
+				x,
+				y,
+				inBand: x > band.left && x < band.right && y > band.top && y < band.bottom,
+				inRow: x > bounds.left && x < bounds.right && y > bounds.top && y < bounds.bottom
+			};
+		}
+		throw new Error('No visible band and task row intersection outside labels and marks');
+	});
+	expect(point.inBand).toBe(true);
+	expect(point.inRow).toBe(true);
+	await page.mouse.click(point.x, point.y);
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Frost risk');
