@@ -1,6 +1,6 @@
 /**
  * Dependencies, validation, deletion and move conflicts.
- * Refer to docs/spec.md, section 3, and ADR 6.
+ * Refer to docs/spec/dependencies.md#3-dependencies, and ADR 6.
  */
 import { effectiveDependencies, effectiveOf, indexTasks, type TaskIndex } from './derive.ts';
 import type { Plan, Task } from './schema.ts';

@@ -1,6 +1,6 @@
 /**
  * The paginator. It puts measured blocks on fixed sheets. It does not use Svelte or the DOM.
- * Refer to docs/spec.md, section 7, and ADR 2.
+ * Refer to docs/spec/print.md#7-preview-and-print, and ADR 2.
  *
  * A plan is a list of segments. A segment is one block that can split between its items:
  * the Gantt (items: rows), a stage table (items: rows), the stage cards (items: card rows),

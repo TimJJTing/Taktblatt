@@ -1,6 +1,6 @@
 /**
  * Shared diagram focus, reveal, and task-dialog return-focus helpers.
- * Refer to docs/spec.md, section 5.13, and ADR 20.
+ * Refer to docs/spec/diagram-views.md#513-diagram-views, and ADR 20.
  */
 import type { TaskIndex } from '#lib/domain/derive.ts';
 import {

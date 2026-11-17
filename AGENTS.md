@@ -31,13 +31,13 @@ Reuse an established pattern when it serves the same purpose across the project.
 
 Use ASD-STE100 style for comments and all user-facing documentation. Use short sentences, direct instructions, consistent terms, and one topic per paragraph.
 
-Keep documentation current with every change. Update affected guides, specifications, and examples in the same change. Record behavior changes in `docs/spec.md`, data-contract changes in `docs/data-model.md`, and architecture decisions in `docs/adr/`.
+Keep documentation current with every change. Update affected guides, specifications, and examples in the same change. Record behavior changes in the affected topic under `docs/spec/`. Use [the specification index](docs/spec.md) to find the topic. Record data-contract changes in `docs/data-model.md`, and architecture decisions in `docs/adr/`.
 
 ## UI, Motion & Accessibility
 
 Animate or transition every change in an element's position so users can follow the change. Route all motion durations through `motionDuration(ms)` from `src/lib/motion.ts`. This includes CSS transitions and animations, Svelte transitions, `animate:flip`, and `Tween`. When the user prefers reduced motion, the helper returns `0`; position changes must then be immediate.
 
-Show hints with `src/lib/components/app/Hint.svelte`, which wraps the Tooltip. Do not use the native `title` attribute; `src/lib/components/no-native-title.spec.ts` checks this. Keep the text alternative in `aria-label`. Refer to `docs/spec.md`, section 5.10.
+Show hints with `src/lib/components/app/Hint.svelte`, which wraps the Tooltip. Do not use the native `title` attribute; `src/lib/components/no-native-title.spec.ts` checks this. Keep the text alternative in `aria-label`. Refer to [specification section 5.10](docs/spec/workspace.md#510-hints).
 
 Provide text alternatives for SVGs and graphics that convey information. Hide purely decorative graphics from assistive technology. Ensure interactive bars, labels, and milestones have accessible names and support keyboard focus and activation.
 

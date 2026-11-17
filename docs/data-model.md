@@ -15,7 +15,7 @@ There are two kinds of file. Each file has a `schemaVersion` and a `kind`.
 
 The current `schemaVersion` is `1`.
 
-The UI language, screen theme, diagram view (`diagramView`), print selection (`printDiagrams`), print detail (`printSubtasks`) and expanded tasks are browser preferences. Plan files and backup files do not include them. An import does not change them. Refer to [specification section 4.4](spec.md#44-viewer-state).
+The UI language, screen theme, diagram view (`diagramView`), print selection (`printDiagrams`), print detail (`printSubtasks`) and expanded tasks are browser preferences. Plan files and backup files do not include them. An import does not change them. Refer to [specification section 4.4](spec/storage.md#44-viewer-state).
 
 ```json
 { "schemaVersion": 1, "kind": "plan", "plan": { "id": "…", "heading": "…" } }
@@ -86,7 +86,7 @@ The app expands these stored values after each edit, load and import. A wider wi
 
 The app derives and stores parent `status` from its subtasks on each edit, load and import. It ignores canceled subtasks unless all are canceled. When the last subtask is deleted or moved out, the task keeps its stored dates, owners and status. The action and any expansion form one undo step.
 
-These semantics use the existing fields. The file shape and `schemaVersion` stay unchanged at version 1. Refer to [spec.md](spec.md), section 2, and [ADR 15](adr/0015-parent-planned-window.md).
+These semantics use the existing fields. The file shape and `schemaVersion` stay unchanged at version 1. Refer to [specification section 2](spec/derived-values.md#2-derived-values-and-planned-windows), and [ADR 15](adr/0015-parent-planned-window.md).
 
 ## Milestone
 

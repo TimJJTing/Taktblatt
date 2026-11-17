@@ -1,7 +1,7 @@
 <!--
 	The ready light: a small green dot. It fades in with one soft pulse.
 	When it is off, it renders nothing. Set `reserve` in rows: then it keeps an empty slot,
-	so that titles stay aligned. Refer to docs/spec.md, section 3.4.
+	so that titles stay aligned. Refer to docs/spec/dependencies.md#34-ready-light.
 -->
 <script lang="ts">
 	import { scale } from 'svelte/transition';

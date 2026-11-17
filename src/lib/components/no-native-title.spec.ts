@@ -1,5 +1,5 @@
 /**
- * Hints use the Tooltip, not the native `title` attribute. Refer to docs/spec.md.
+ * Hints use the Tooltip, not the native `title` attribute. Refer to docs/spec/workspace.md#510-hints.
  * This spec parses every app component and lists each HTML `title` attribute.
  * It checks HTML elements and the vendored UI primitives, because these pass `title` to the DOM.
  * A prop named `title` on an app component is data, not an HTML attribute, so the spec allows it.

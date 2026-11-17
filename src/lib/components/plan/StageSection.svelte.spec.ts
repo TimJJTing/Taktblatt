@@ -212,7 +212,7 @@ describe('Work plan route input', () => {
 		await expect.poll(() => editing.routeId).toBe('other');
 		await userEvent.hover(screen.getByTestId('outside-row'));
 		await expect.poll(() => editing.routeId).toBe('b');
-		// End the title edit before the pointer click. Refer to spec 5.2.
+		// End the title edit before the pointer click. Refer to docs/spec/workspace.md#52-edit-fields.
 		await userEvent.keyboard('{Escape}');
 		await expect
 			.poll(() =>

@@ -2,7 +2,7 @@
 
 Status: Accepted (2026-11-14). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): notation, dependency projection and paper detail.
 
-Extends [ADR 19](0019-scene-model.md) through [ADR 20](0020-diagram-views.md). Applies [ADR 13](0013-cycles-are-warnings.md) and [ADR 14](0014-subtasks-depend-only-on-siblings.md). [Section 5.14](../spec.md#514-route-map) defines the behavior.
+Extends [ADR 19](0019-scene-model.md) through [ADR 20](0020-diagram-views.md). Applies [ADR 13](0013-cycles-are-warnings.md) and [ADR 14](0014-subtasks-depend-only-on-siblings.md). [Section 5.14](../spec/route-map.md#514-route-map) defines the behavior.
 
 ## Context
 
@@ -36,7 +36,7 @@ Show effective task dates only in the station Hint on hover or keyboard focus of
 
 ### Shared behavior and ownership
 
-Reuse shared route-focus ownership, task-dialog activation, focus return, expansion state, `Hint`, `joinList()` and `DIAGRAM_ATTR` marks. Preserve the parent identity and separate title and chevron controls. Expansion changes no plan content or history. **Amended by ADR 23:** the chevron is the shared expansion control. Focus return and missing focus targets follow the shared rules of spec section 5.13.
+Reuse shared route-focus ownership, task-dialog activation, focus return, expansion state, `Hint`, `joinList()` and `DIAGRAM_ATTR` marks. Preserve the parent identity and separate title and chevron controls. Expansion changes no plan content or history. **Amended by ADR 23:** the chevron is the shared expansion control. Focus return and missing focus targets follow the shared rules of [spec section 5.13](../spec/diagram-views.md#513-diagram-views).
 
 Route position changes through `motionDuration()`. Retarget interrupted motion from its current frame. Fade connectors on every view change. Reduced motion applies geometry immediately. Keep shared Gantt routing and view contracts unchanged.
 
@@ -44,7 +44,7 @@ Register locally through the diagram view contract. Use owned `route_map_` messa
 
 ### Paper
 
-Build a separate readable landscape A4/Letter scene with the same workflow and status icons. **Amended by ADR 23:** paper does not use the screen expansion state. The print detail preference collapses or expands all families (spec section 7). Keep a fitting panel whole. Split oversized panels at legal boundaries and preserve every station-label pair exactly once.
+Build a separate readable landscape A4/Letter scene with the same workflow and status icons. **Amended by ADR 23:** paper does not use the screen expansion state. The print detail preference collapses or expands all families ([spec section 7](../spec/print.md#7-preview-and-print)). Keep a fitting panel whole. Split oversized panels at legal boundaries and preserve every station-label pair exactly once.
 
 Wrap labels at word boundaries. Use stable references with a 3 px gap and secondary ink. Preserve complete titles in splittable continuations. Add paired connector stubs only at actual panel or item boundaries. Repeat relevant stage and parent references and the local sign key.
 

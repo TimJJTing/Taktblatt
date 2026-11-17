@@ -1,5 +1,5 @@
 <!--
-	The Gantt chart of the plan. Refer to docs/spec.md, section 5.4.
+	The Gantt chart of the plan. Refer to docs/spec/timeline.md#54-timeline-gantt.
 	A label column and a timeline area. The timeline area has a minimum width, so the chart scrolls
 	horizontally on a phone. Bands, the today line and the dependency lines are behind the bars.
 	Timeline owns the pin and section height. The pinned chart has its own vertical scroll.

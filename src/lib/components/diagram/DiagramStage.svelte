@@ -1,5 +1,5 @@
 <!--
-	The diagram stage in the Timeline body. Refer to docs/spec.md, section 5.13, and ADR 20.
+	The diagram stage in the Timeline body. Refer to docs/spec/diagram-views.md#513-diagram-views, and ADR 20.
 	It renders the selected view from the registry. A view change:
 	1. captures running cue copies, cancels their flight and captures every current view layer,
 	2. merges cue positions and elements, then mounts the incoming view with outgoing input off,

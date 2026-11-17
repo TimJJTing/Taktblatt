@@ -1,9 +1,9 @@
 <!--
-	The diagram view switch in the Timeline heading. Refer to docs/spec.md, section 5.13.
+	The diagram view switch in the Timeline heading. Refer to docs/spec/diagram-views.md#513-diagram-views.
 	One radio group. Only the selected choice is in the Tab order. Arrows wrap; Home and End go
 	to the first and last choice. The switch is absent when only Gantt is registered.
 	The frame and the focus ring are inset outlines. They add no height to the heading row
-	(section 5.4), and the next row cannot cover them.
+	(docs/spec/timeline.md#54-timeline-gantt), and the next row cannot cover them.
 -->
 <script lang="ts">
 	import { focusRadio, radioGroupIndex } from '#lib/browser/keyboard.ts';
