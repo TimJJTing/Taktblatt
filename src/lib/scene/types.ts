@@ -42,6 +42,8 @@ export interface EdgeGeom extends EdgeRef {
 }
 
 export interface Junction {
+	/** Same-trunk edges through this ordinary ring. */
+	edges?: readonly string[];
 	key: string;
 	trunk: string;
 	point: Pt;

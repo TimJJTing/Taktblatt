@@ -1,7 +1,8 @@
-import { MILESTONE_SYMBOLS } from '#lib/domain/schema.ts';
+import { MILESTONE_SYMBOLS, type Plan } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
+	expectRouteMapPaperKeys,
 	appFontLoaded,
 	expectMilestoneRing,
 	expectMilestoneDatePosition,
@@ -22,9 +23,12 @@ import {
 	openPreview,
 	row,
 	storedPlan,
+	storedViewer,
 	writeStoredPlan,
 	setTaskStatus,
 	openLinePlan,
+	openRoutePlan,
+	ganttRow,
 	openContinuationPlan,
 	expectCoveredCrossing,
 	expectLocalTap,
@@ -48,9 +52,9 @@ test('paper marks use physical sizes, opaque status paint and source-local taps 
 	page
 }) => {
 	await openLinePlan(page);
-	await row(page, 'Crossing').getByTestId('task-toggle').click();
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await openPreview(page);
+	await page.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
 	for (const paper of ['a4', 'letter']) {
 		await page.getByTestId(`paper-${paper}`).click();
 		const first = sheets(page).first();
@@ -202,7 +206,7 @@ test('Preview and printed tables show four status icons and mute done and cancel
 			task.title = ['Status done', 'Status working', 'Status todo', 'Status canceled'][index];
 			task.start = plan.range.start;
 			task.end = null;
-			task.status = ['done', 'in_progress', 'todo', 'canceled'][index];
+			task.status = (['done', 'in_progress', 'todo', 'canceled'] as const)[index];
 			task.dependsOn = [];
 		}
 	});
@@ -478,20 +482,137 @@ test('the paper size changes the sheet size, is one undo step, and persists', as
 	await assertPaper('letter');
 });
 
-test('expanding a parent adds rows to the preview', async ({ page }) => {
+test('Route map paper shows summaries with and without subtask routes', async ({ page }) => {
 	await openExample(page);
-	await openPreview(page);
-	const rows = page.getByTestId('sheets').getByTestId('sheet-task-row');
-	const ganttRows = page.getByTestId('sheets').getByTestId('sheet-gantt-row');
-	await expect(rows).toHaveCount(7);
+	const plan = await storedPlan(page);
+	const preview = await openPreview(page);
+	await preview.getByTestId('print-diagram-route-map').click();
+	await preview.getByTestId('print-diagram-gantt').click();
+	const detail = preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+	const paper = preview.locator('[data-fragment="route-map-scene"]');
+	for (const expanded of [false, true]) {
+		if (expanded) await detail.click();
+		await expect(detail).toHaveAttribute('aria-checked', String(expanded));
+		for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
+			const id = plan.tasks.find((task: { title: string }) => task.title === title)!.id;
+			await expect(paper.locator(`[data-paper-station="${id}"]`)).toHaveCount(expanded ? 1 : 0);
+		}
+		for (const [title, summary] of [
+			['Soil preparation', '1 in progress and 1 done'],
+			['Neighbourhood stall', '1 ready and 1 blocked']
+		]) {
+			const id = plan.tasks.find((task: { title: string }) => task.title === title)!.id;
+			await expect(
+				paper.locator(`[data-paper-station="${id}"] + .paper-label [data-paper-summary]`)
+			).toHaveText(summary);
+		}
+		if (expanded) {
+			await expect(paper.locator('[data-family-branch]').first()).toBeVisible();
+			const branch = paper.locator('[data-family-branch]').first();
+			await expect(branch).toHaveCSS('stroke-width', '3.5px');
+			await expect(branch.locator('xpath=following-sibling::*[1]')).toHaveCSS(
+				'stroke-width',
+				'1.5px'
+			);
+			await expect(branch.locator('xpath=following-sibling::*[1]')).toHaveCSS(
+				'stroke',
+				'rgb(255, 255, 255)'
+			);
+		}
+		await expectRouteMapPaperKeys(page);
+	}
+});
+
+test('print detail is independent of screen expansion', async ({ page, context }) => {
+	await openExample(page);
+	await page.reload();
+	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+	const undo = page.getByRole('button', { name: 'Undo', exact: true });
+	await expect(undo).toBeDisabled();
+
+	const preview = await openPreview(page);
+	await preview.getByTestId('print-diagram-kanban').click();
+	const kanbanLines = preview
+		.locator('[data-fragment="kanban-scene"]')
+		.getByTestId('sheet-kanban-line');
+	await expect(kanbanLines).toHaveCount(0);
+	const tableRows = preview.getByTestId('sheets').getByTestId('sheet-task-row');
+	const ganttRows = preview.getByTestId('sheets').getByTestId('sheet-gantt-row');
+	await expect(tableRows).toHaveCount(11);
 	await expect(ganttRows).toHaveCount(7);
+	await expect(tableRows.filter({ hasText: 'Soil test' })).toHaveCount(1);
+	await expect(ganttRows.filter({ hasText: 'Soil test' })).toHaveCount(0);
 	await page.keyboard.press('Escape');
 
 	await row(page, 'Soil preparation').getByTestId('task-toggle').click();
 	await openPreview(page);
-	await expect(rows).toHaveCount(9);
-	await expect(ganttRows).toHaveCount(9);
-	await expect(page.getByTestId('sheets').getByText('Soil test')).toHaveCount(2);
+	const checkbox = preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+	await expect(checkbox).toHaveAttribute('aria-checked', 'false');
+	await expect(ganttRows).toHaveCount(7);
+	await expect(kanbanLines).toHaveCount(0);
+	await expect(tableRows).toHaveCount(11);
+	const summaries = preview
+		.locator('[data-fragment="kanban-scene"]')
+		.getByTestId('sheet-kanban-card-summary');
+	await expect(summaries).toHaveCount(2);
+
+	await checkbox.focus();
+	await page.keyboard.press('Space');
+	await expect(checkbox).toHaveAttribute('aria-checked', 'true');
+	await expect(ganttRows).toHaveCount(11);
+	await expect(kanbanLines).toHaveCount(4);
+	await expect(summaries).toHaveCount(2);
+	for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
+		await expect(kanbanLines.filter({ hasText: title })).toHaveCount(1);
+	}
+	await expect(tableRows).toHaveCount(11);
+	for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
+		await expect(ganttRows.filter({ hasText: title })).toHaveCount(1);
+	}
+	await expect.poll(async () => (await storedViewer(page)).printSubtasks).toBe(true);
+
+	await page.keyboard.press('Escape');
+	await expect(undo).toBeDisabled();
+	await row(page, 'Soil preparation').getByTestId('task-toggle').click();
+	await expect(row(page, 'Soil test')).toHaveCount(0);
+	await openPreview(page);
+	await expect(kanbanLines).toHaveCount(4);
+	await page.keyboard.press('Escape');
+
+	await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+	await expect
+		.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
+		.toBe(true);
+	try {
+		await context.setOffline(true);
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		await expect(row(page, 'Soil test')).toHaveCount(0);
+		expect((await storedViewer(page)).printSubtasks).toBe(true);
+
+		await page.evaluate(() => {
+			window.__printedSheets = [];
+			window.print = () => {
+				window.__printedSheets.push(
+					document.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-gantt-row"]')
+						.length,
+					document.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-task-row"]').length
+				);
+			};
+		});
+		await page.keyboard.press('ControlOrMeta+p');
+		expect(await page.evaluate(() => window.__printedSheets)).toEqual([11, 11]);
+		// A click resets the print state after the stubbed print call.
+		await page.getByTestId('plan-heading').click();
+		await expect(sheets(page)).toHaveCount(0);
+
+		await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await expect(sheets(page).getByTestId('sheet-gantt-row')).toHaveCount(11);
+		await expect(sheets(page).getByTestId('sheet-task-row')).toHaveCount(11);
+		await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+	} finally {
+		await context.setOffline(false);
+	}
 });
 
 test('the Gantt continues on the next sheet with the month header, and the table header repeats', async ({
@@ -529,7 +650,7 @@ test('the Gantt continues on the next sheet with the month header, and the table
 		1
 	);
 
-	// The first stage has 103 rows in the table. Its table continues, and the header repeats.
+	// The first stage has 105 rows in the table. Its table continues, and the header repeats.
 	let tableSheets = 0;
 	let taskRows = 0;
 	for (let i = 0; i < count; i++) {
@@ -543,7 +664,7 @@ test('the Gantt continues on the next sheet with the month header, and the table
 		tableSheets += 1;
 	}
 	expect(tableSheets).toBeGreaterThanOrEqual(3);
-	expect(taskRows).toBe(107);
+	expect(taskRows).toBe(111);
 	// The stage header shows once. The work plan title shows once.
 	await expect(
 		page.getByTestId('sheets').getByRole('heading', { name: /S1.*Prepare/ })
@@ -717,16 +838,19 @@ for (const source of ['preview', 'direct'] as const) {
 				-3
 			);
 		});
-		await row(page, 'Soil preparation').getByTestId('task-toggle').click();
-		if (source === 'preview') await openPreview(page);
-		else await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await openPreview(page);
+		await page.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
+		if (source === 'direct') {
+			await page.keyboard.press('Escape');
+			await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		}
 		await page.emulateMedia({ media: 'print' });
 		const first = sheets(page).first();
-		await expect(first.getByTestId('sheet-gantt-row')).toHaveCount(9);
-		await expect(first.getByTestId('sheet-gantt-bar')).toHaveCount(8);
+		await expect(first.getByTestId('sheet-gantt-row')).toHaveCount(11);
+		await expect(first.getByTestId('sheet-gantt-bar')).toHaveCount(10);
 		await expect(first.getByTestId('sheet-gantt-point')).toHaveCount(1);
 		await expect(first.getByTestId('sheet-gantt-band')).toHaveCount(1);
-		await expect(first.getByTestId('sheet-gantt-dependency')).toHaveCount(5);
+		await expect(first.getByTestId('sheet-gantt-dependency')).toHaveCount(6);
 		await expectMilestoneRing(first.getByRole('img', { name: /^Milestone M1:/ }));
 		await expect(
 			first.getByRole('img', { name: /^Milestone M2:/ }).locator('svg.lucide-hexagon')
@@ -809,7 +933,7 @@ test('the sheets use the UI language, whatever an old file says', async ({ page 
 	await openExample(page);
 	// An old plan can still have a language key. It must change nothing. The UI stays English.
 	await writeStoredPlan(page, (plan) => {
-		plan.locale = 'ja';
+		(plan as Plan & { locale?: string }).locale = 'ja';
 	});
 	await openPreview(page);
 	const first = sheets(page).first();
@@ -818,7 +942,7 @@ test('the sheets use the UI language, whatever an old file says', async ({ page 
 	await expect(first).toContainText('Today');
 	await expect(first).not.toContainText('目標');
 	await expect(first.locator('.sheet-footer')).toContainText(
-		formatted((await storedPlan(page)).footer.date)
+		formatted((await storedPlan(page)).footer.date!)
 	);
 });
 
@@ -1527,4 +1651,26 @@ test('Preview and direct A4 and Letter PDFs keep solid break signs and cycle cas
 		await page.reload();
 		await expect(page.getByTestId('plan-heading')).toBeVisible();
 	}
+});
+
+test.describe('route paper isolation', () => {
+	test.use({ hasTouch: true });
+	test('Preview keeps normal status paint while the workspace route is active', async ({
+		page
+	}) => {
+		await openRoutePlan(page);
+		await ganttRow(page, 'Route parent').getByTestId('gantt-bar').tap();
+		await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
+		await expect(page.locator('[data-route-layer="ink"]')).not.toHaveCount(0);
+		// Menu clicks use the mouse. They preserve the touch candidate.
+		const preview = await openPreview(page);
+		await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
+		await expect(preview.getByTestId('sheet').first()).toBeVisible();
+		await expect(preview.locator('[data-route], [data-route-layer]')).toHaveCount(0);
+		const satisfied = preview
+			.locator('[data-testid="sheet-gantt-dependency"][data-from="up"][data-to="parent"]')
+			.first();
+		await expect(satisfied).toBeAttached();
+		await expectTokenPaint(satisfied, 'stroke', '--color-paper-ink-3', 0.4, true, 'oklab');
+	});
 });

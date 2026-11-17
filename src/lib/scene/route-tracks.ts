@@ -221,6 +221,7 @@ function trunkJunctions(
 	const junctions: Junction[] = [];
 	for (const [y, keys] of positions) {
 		const arms = new Set<string>();
+		const members = new Set<string>();
 		for (const edge of edges) {
 			for (let i = 1; i < edge.points.length; i++) {
 				const a = edge.points[i - 1];
@@ -236,6 +237,7 @@ function trunkJunctions(
 					y > Math.max(a.y.px, b.y.px)
 				)
 					continue;
+				members.add(edge.key);
 				for (const p of [a, b]) {
 					const xDirection = Math.sign(p.x.px - trunk.x);
 					const yDirection = Math.sign(p.y.px - y);
@@ -260,12 +262,13 @@ function trunkJunctions(
 			key: JSON.stringify([trunk.key, 'junction', role]),
 			trunk: trunk.key,
 			point: point(trunk.x, y),
-			kind: 'junction'
+			kind: 'junction',
+			edges: [...members]
 		});
 	}
 	for (const source of trunk.sources) {
 		if (trunk.x >= source.outX) continue;
-		// D24 keeps taps even when the source port is inside ordinary clearance.
+		// Keep taps even when the source port is inside ordinary clearance.
 		junctions.push({
 			key: JSON.stringify([trunk.key, 'tap', source.id]),
 			trunk: trunk.key,

@@ -1,3 +1,4 @@
+import type { Plan } from '#lib/domain/schema.ts';
 import { expect, test } from '@playwright/test';
 import {
 	chooseOption,
@@ -219,7 +220,7 @@ test('legend dates use the UI language, whatever an old file says', async ({ pag
 	await openExample(page);
 	// An old plan can still have a language key. It must change nothing. The UI stays English.
 	await writeStoredPlan(page, (plan) => {
-		plan.locale = 'ja';
+		(plan as Plan & { locale?: string }).locale = 'ja';
 	});
 	await expect(page.getByRole('button', { name: 'Add milestone', exact: true })).toBeVisible();
 	const milestone = (await storedPlan(page)).milestones[0];

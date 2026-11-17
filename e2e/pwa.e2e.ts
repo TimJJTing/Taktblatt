@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 import {
 	appFontLoaded,
+	chooseView,
+	diagramStage,
+	expectView,
+	storedViewer,
+	storedPlan,
 	expectExampleSheetLegends,
 	expectMilestoneRing,
 	expectStageRule,
@@ -83,6 +88,72 @@ test.describe('PWA', () => {
 		await expect(bands).toContainText('Frost risk');
 		await expectStickyStageStack(stage(page, 0));
 		await context.setOffline(false);
+	});
+
+	test('diagram viewer choices and printed detail survive an offline reload', async ({
+		page,
+		context
+	}) => {
+		await openExample(page);
+		await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+		await expect
+			.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
+			.toBe(true);
+		await chooseView(page, 'kanban');
+		const toggle = diagramStage(page).getByRole('button', {
+			name: /^(Expand|Collapse) Soil preparation$/
+		});
+		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+		const preview = await openPreview(page);
+		await preview.getByTestId('print-diagram-route-map').click();
+		await preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
+		await expect
+			.poll(async () => (await storedViewer(page)).printDiagrams)
+			.toEqual(['gantt', 'route-map']);
+		await expect.poll(async () => (await storedViewer(page)).printSubtasks).toBe(true);
+		await expect.poll(async () => (await storedViewer(page)).diagramView).toBe('kanban');
+		const plan = await storedPlan(page);
+		const parent = plan.tasks.find((task: { title: string }) => task.title === 'Soil preparation')!;
+		const child = plan.tasks.find((task: { title: string }) => task.title === 'Soil test')!;
+		await expect
+			.poll(async () => (await storedViewer(page)).expanded[plan.id])
+			.toContain(parent.id);
+		await page.keyboard.press('Escape');
+		try {
+			await context.setOffline(true);
+			await page.reload();
+			await expectView(page, 'kanban');
+			await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+			const restored = await openPreview(page);
+			await expect(restored.getByTestId('print-diagram-gantt')).toHaveAttribute(
+				'aria-checked',
+				'true'
+			);
+			await expect(restored.getByTestId('print-diagram-route-map')).toHaveAttribute(
+				'aria-checked',
+				'true'
+			);
+			await expect(restored.getByTestId('print-diagram-kanban')).toHaveAttribute(
+				'aria-checked',
+				'false'
+			);
+			await expect(
+				restored.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' })
+			).toHaveAttribute('aria-checked', 'true');
+			await page.keyboard.press('Escape');
+			await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+			await expect(
+				page
+					.getByTestId('sheet')
+					.locator('[data-fragment="route-map-scene"]')
+					.locator(`[data-paper-station="${child.id}"]`)
+			).toHaveCount(1);
+			await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+		} finally {
+			await context.setOffline(false);
+		}
 	});
 
 	test('tabs Keep open, handle collapse and Preview work after an offline reload', async ({

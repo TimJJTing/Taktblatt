@@ -43,3 +43,5 @@ docs/plans/
 # Local agent state and nested worktrees
 /.codex/
 /.claude/worktrees/
+/.svelte-kit-fixtures
+/build-fixtures

@@ -19,7 +19,8 @@ import {
 	todayTagGeometry,
 	waitForAnimations,
 	waitForFrames,
-	writeStoredPlan
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 for (const width of [1800, 390]) {
@@ -65,7 +66,7 @@ test('headings, split legends, tabs rail and paper use matching badges after a k
 	const picker = stage(page, 0).getByTestId('stage-color');
 	await picker.focus();
 	await picker.press('Enter');
-	const palette = page.getByRole('radiogroup');
+	const palette = stageColorPalette(page);
 	await expect(palette).toBeVisible();
 	await waitForAnimations(page.locator('[data-slot="popover-content"]'));
 	await page.keyboard.press('End');
@@ -329,7 +330,7 @@ test.describe('Today tag geometry', () => {
 		const before = await todayTagGeometry(chart);
 		expect(before.tagLeft).toBeGreaterThanOrEqual(before.line);
 		// Exercise a width change without remounting or moving the milestone.
-		// The wider tag must still fit left of the line, so D30 does not keep it on the right.
+		// The wider tag must still fit left of the line, so the placement rule does not keep it on the right.
 		await chart.getByTestId('gantt-today-label').evaluate((tag) => {
 			(tag as HTMLElement).style.paddingInline = '40px';
 		});

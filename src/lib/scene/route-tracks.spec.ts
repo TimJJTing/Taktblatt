@@ -984,3 +984,57 @@ describe('routeTracks', () => {
 		expect({ tracks, edges }).toEqual(before);
 	}, 60_000);
 });
+
+describe('route junction membership', () => {
+	it('records only edges through each ring, rather than every branch in its trunk', () => {
+		const { tracks, edges } = fanOut();
+		tracks.push(track('middle', 5, 350, 420));
+		edges.push(edge('source', 'middle'));
+		const result = routed(tracks, edges);
+		const first = result.junctions.find(
+			(j) => resolve(j.point).y === points(result.edges.find((e) => e.to === 'first')!)[2].y
+		)!;
+		const middle = result.junctions.find(
+			(j) => resolve(j.point).y === points(result.edges.find((e) => e.to === 'middle')!)[2].y
+		)!;
+		expect(first.edges).toEqual(['source->first', 'source->last', 'source->middle']);
+		expect(middle.edges).toEqual(['source->last', 'source->middle']);
+	});
+
+	it('deduplicates members at coincident branch and join roles with repeated points', () => {
+		const m = SCREEN_ROUTE_METRICS(600, 12);
+		const tracks: Track[] = [
+			track('above', 0, 7, 103, m, 3),
+			track('same', 4, 7, 103, m, 3),
+			track('below', 6, 7, 103, m, 3),
+			track('target', 4, 117, 153, m, 3),
+			track('far', 10, 397, 473, m, 3)
+		].map((t) => ({ ...t, span: null }));
+		tracks.push(track('obstacle', 2, 122, 134, m, 3));
+		const edges = ['above', 'same', 'below'].flatMap((id) => [edge(id, 'target'), edge(id, 'far')]);
+		const result = routed(tracks, edges, m);
+		const ring = result.junctions.find((j) => resolve(j.point, m).y === 164)!;
+		expect(ring.edges).toEqual(['above->far', 'below->target', 'same->far']);
+		expect(routed([...tracks].reverse(), [...edges].reverse(), m).junctions).toEqual(
+			result.junctions
+		);
+	});
+
+	it('excludes a geometrically crossing edge from another trunk', () => {
+		const { tracks, edges } = fanOut();
+		const original = routed(tracks, edges).junctions[0];
+		const p = resolve(original.point);
+		const crossingSource = { ...track('cross-source', 1, 20, 70), center: p.y, span: null };
+		const crossingTarget = { ...track('cross-target', 1, 500, 570), center: p.y, span: null };
+		const result = routed(
+			[...tracks, crossingSource, crossingTarget],
+			[...edges, edge('cross-source', 'cross-target')]
+		);
+		const ring = result.junctions.find((j) => j.key === original.key)!;
+		const crossing = result.edges.find((e) => e.from === 'cross-source')!;
+		expect(points(crossing)[0].y).toBe(p.y);
+		expect(points(crossing)[0].x).toBeLessThan(p.x);
+		expect(points(crossing).at(-1)!.x).toBeGreaterThan(p.x);
+		expect(ring.edges).toEqual(['source->first', 'source->last']);
+	});
+});

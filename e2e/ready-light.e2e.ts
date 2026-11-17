@@ -1,10 +1,11 @@
+import type { Task } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { openExample, row, setTaskStatus, waitForAnimations, writeStoredPlan } from './helpers.ts';
 
 async function openReadyPlan(page: Page) {
 	await openExample(page);
 	await writeStoredPlan(page, (plan) => {
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,

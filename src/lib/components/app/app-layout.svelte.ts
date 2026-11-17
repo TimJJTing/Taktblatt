@@ -19,18 +19,22 @@ export function isTimelinePinned(viewer: { ganttPinned: boolean }): boolean {
  */
 export const timelineLayout = $state({ autoCollapsed: false, changing: false, revision: 0 });
 
-let timelineChangeOwner: symbol | undefined;
+// Plain bookkeeping. `timelineLayout.changing` is the reactive value.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const timelineChanges = new Set<symbol>();
 
-/** Starts a height change. Only this run can release it. */
+/**
+ * Starts a layout change, for example a height change or a diagram view change.
+ * `changing` stays true until every started change ends. Only its own run can end a change.
+ */
 export function beginTimelineLayoutChange(): symbol {
 	const token = Symbol();
-	timelineChangeOwner = token;
+	timelineChanges.add(token);
 	timelineLayout.changing = true;
 	return token;
 }
 
 export function endTimelineLayoutChange(token: symbol): void {
-	if (timelineChangeOwner !== token) return;
-	timelineChangeOwner = undefined;
-	timelineLayout.changing = false;
+	if (!timelineChanges.delete(token)) return;
+	timelineLayout.changing = timelineChanges.size > 0;
 }
