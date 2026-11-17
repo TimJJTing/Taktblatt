@@ -406,6 +406,9 @@ describe('Work plan route input', () => {
 			expect(editing.routeId).toBe('b');
 			const input = document.activeElement as HTMLElement;
 			expect(input.closest('tr')?.dataset.taskId).toBe('b');
+			await userEvent.hover(screen.getByTestId('outside-row'));
+			expect(document.activeElement).toBe(input);
+			expect(editing.routeId).toBe('b');
 			// A blur to non-focusable space has no related target and no following focusin.
 			input.blur();
 			expect(document.activeElement).toBe(document.body);
