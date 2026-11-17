@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { svgPolyline } from '#lib/components/diagram/svg-polyline.ts';
 	import type { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { markColorLevel, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -11,7 +12,7 @@
 		route?: RoutePaint;
 	}
 	let { line, muted, strokeWidth = 2, tween, route = null }: Props = $props();
-	const d = $derived(tween.current.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '));
+	const d = $derived(svgPolyline(tween.current));
 	const offRoute = $derived(!line.cycle && route === 'off');
 </script>
 

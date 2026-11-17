@@ -36,21 +36,39 @@ export function fixtureTasks(plan: Plan): FixtureTask[] {
 	}));
 }
 
+export interface FixtureScrollOptions {
+	height?: number;
+	width?: number;
+	paddingTop?: number;
+	paddingLeft?: number;
+}
+
 export interface FixtureViewOptions {
 	order: number;
 	label: string;
 	layout?: FixtureLayout;
 	/** Task ids that the screen renderer does not show. */
 	omit?: readonly string[];
+	/** Omit subtasks (`parentId !== null`) while keeping their parents. */
+	omitSubtasks?: boolean;
+	/** Nested scroller bounds and sticky-header clearance. */
+	scroll?: FixtureScrollOptions;
 	orientation?: DiagramOrientation;
 	motion?: DiagramMotionInfo;
 }
 
 export function fixtureView(id: string, options: FixtureViewOptions): DiagramViewDefinition {
-	const { layout = 'list', omit = [], orientation = 'portrait', label } = options;
+	const {
+		layout = 'list',
+		omit = [],
+		omitSubtasks = false,
+		scroll,
+		orientation = 'portrait',
+		label
+	} = options;
 	// A Svelte 5 component is a function. This one gives the fixed layout props to the view.
 	const component: Component<DiagramViewProps> = (internals, props) =>
-		FixtureView(internals, { ...props, layout, omit });
+		FixtureView(internals, { ...props, layout, omit, omitSubtasks, scroll });
 	return {
 		id,
 		order: options.order,

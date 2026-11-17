@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openExample, row, stage, storedPlan, writeStoredPlan } from './helpers.ts';
+import { chooseView, openExample, row, stage, storedPlan, writeStoredPlan } from './helpers.ts';
 
 async function openDetails(page: Page, title: string) {
 	await row(page, title).getByTestId('task-details').click();
@@ -17,6 +17,22 @@ async function setDates(page: Page, title: string, start: string, end: string) {
 test.describe('task dialog', () => {
 	test('Esc closes the dialog and the focus goes back to the "…" button', async ({ page }) => {
 		await openExample(page);
+		await openDetails(page, 'Sowing');
+		await page.keyboard.press('Escape');
+		await expect(page.getByTestId('task-dialog')).toBeHidden();
+		await expect(row(page, 'Sowing').getByTestId('task-details')).toBeFocused();
+	});
+
+	test('a Work plan trigger keeps the stored-element return path after diagram dialogs', async ({
+		page
+	}) => {
+		await openExample(page);
+		await chooseView(page, 'kanban');
+		await page.locator('[data-diagram-label]').first().click();
+		await expect(page.getByTestId('task-dialog')).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(page.getByTestId('task-dialog')).toBeHidden();
+
 		await openDetails(page, 'Sowing');
 		await page.keyboard.press('Escape');
 		await expect(page.getByTestId('task-dialog')).toBeHidden();

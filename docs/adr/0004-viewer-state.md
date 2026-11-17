@@ -1,14 +1,14 @@
 # 4. Viewer state is not in the plan
 
-Status: Accepted (2026-11-04). Amended by [ADR 17](0017-menus-by-scope.md).
+Status: Accepted (2026-11-04). Amended by [ADR 17](0017-menus-by-scope.md). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): expand state scope and print detail.
 
 ## Context
 
-Some settings are personal: the expanded tasks, the pinned Timeline section, its height, the collapsed Timeline legends, the UI language and the screen theme. If these are in the plan, an import from a different person changes your view.
+Some settings are personal: the diagram view, print selection, print detail, expanded tasks, pinned Timeline section, its height, collapsed Timeline legends, UI language and screen theme. If these are in the plan, an import from a different person changes your view.
 
 ## Decision
 
-- These settings are **viewer state**. The app keeps the UI language under `taktblatt:locale` and the screen theme under `taktblatt:theme`. It keeps the other viewer settings (`expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab`, `timelineCollapsed` and `timelineKeepOpen`) under `taktblatt:ui`.
+- These settings are **viewer state**. The app keeps the UI language under `taktblatt:locale` and the screen theme under `taktblatt:theme`. It keeps the other viewer settings (`diagramView`, `printDiagrams`, `printSubtasks`, `expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab`, `timelineCollapsed` and `timelineKeepOpen`) under `taktblatt:ui`.
 - The stored keys `ganttPinned` and `ganttHeight` keep their old names for compatibility, although they now apply to the whole Timeline section.
 - `timelineLegendsCollapsed` is the legend state in split view. With tabs, the legends cannot be hidden. They show as one line of chips while the Timeline section is expanded (ADR 17). The app ignores the older field `narrowLegendsCollapsed`. An explicit stored boolean for `timelineLegendsCollapsed` takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the split view legends start expanded and the Timeline section starts unpinned in split view. Unreadable or invalid viewer data gives these defaults. After this initial default, pin and unpin do not change the legend setting.
 - `timelineCollapsed` records only a collapse of the narrow Timeline by the user. An automatic collapse on scroll is not stored. `timelineKeepOpen` turns off the automatic collapse. It defaults to `false`.
@@ -16,12 +16,12 @@ Some settings are personal: the expanded tasks, the pinned Timeline section, its
 - The app starts on the client only. ModeWatcher cannot apply the saved theme before the first paint. A startup script in `src/app.html` does this. `src/hooks.server.ts` writes the script into the prerendered page shell from `src/lib/theme.ts`. Thus the storage key and the theme colors have one source.
 - `src/app.html` has the only theme-color tag. The layout keeps it current. ModeWatcher does not get `themeColors`, because it would add a second tag after the start.
 - The export does not include viewer state.
-- The Gantt and the table share one expand state for each plan.
-- Print uses the current expand state.
+- The Gantt and the table share one expand state for each plan. **Amended by ADR 23:** the Work plan, Gantt, Route map and Kanban share this state.
+- Print uses the current expand state. **Superseded by ADR 23:** print does not use the screen expand state. The viewer preference `printSubtasks` under `taktblatt:ui` sets the subtask detail of printed diagrams. Its default is off. The printed Work plan always shows all subtasks.
 - Preview and print show all Timeline legends. The screen legend setting does not change them.
 - Preview sheets and printed sheets stay light for each screen theme.
 
 ## Consequences
 
 - Two persons can have different views of the same plan file.
-- A printed plan depends on the expand state of the person who prints it.
+- A printed plan depends on the expand state of the person who prints it. **Superseded by ADR 23:** a printed plan depends on the print detail preference of the person who prints it, not on the expand state.

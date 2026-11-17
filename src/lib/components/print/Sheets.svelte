@@ -10,10 +10,10 @@
 	The selected diagrams (viewer `printDiagrams`) come from the view registry, in print order (ADR 20).
 	A landscape diagram is measured in a landscape sheet and prints on landscape sheets.
 
-	The measurement runs again when the plan, the expand state, the selection or the paper size changes,
+	The measurement runs again when the plan, print detail, the selection or the paper size changes,
 	and when the fonts finish loading. The measurement is synchronous after the first render,
 	so a print that starts in the `beforeprint` event gets the sheets before the browser lays out the page.
-	The sheets have fixed sizes. They show the current expand state. They have no controls and no motion.
+	The sheets have fixed sizes. They use the print detail preference. They have no controls and no motion.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -50,10 +50,11 @@
 
 	const paper = $derived(ws.plan.paper);
 	const model = $derived.by(() => {
+		const showSubtasks = viewer.printSubtasks;
 		const input: PrintModelInput = {
 			plan: ws.plan,
 			index: ws.index,
-			isExpanded: (id) => viewer.isExpanded(ws.plan.id, id),
+			showSubtasks: () => showSubtasks,
 			today: printToday(ws.plan, todayISO())
 		};
 		const diagrams = registry.views

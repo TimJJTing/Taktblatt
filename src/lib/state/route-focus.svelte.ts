@@ -421,6 +421,9 @@ export class RouteFocusState {
 	/** Resolve a neutral owner or the trigger owner of controlled content. */
 	rowOwner(target: EventTarget | null): RowFocusOwner | null {
 		if (!(target instanceof Element)) return null;
+		// Direct keyboard targets use resolveFocus's active and focus-visible checks.
+		if (target.closest<HTMLElement>('[data-route-target]')?.dataset.routeFocus === 'keyboard')
+			return null;
 		const owner = this.#directOwner(target);
 		if (owner) return owner;
 		this.#syncFloating();

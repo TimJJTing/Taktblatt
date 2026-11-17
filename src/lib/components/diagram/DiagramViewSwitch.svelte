@@ -5,20 +5,8 @@
 	The frame and the focus ring are inset outlines. They add no height to the heading row
 	(section 5.4), and the next row cannot cover them.
 -->
-<script lang="ts" module>
-	import { focusRadio, radioGroupIndex } from '#lib/browser/keyboard.ts';
-
-	/** Focuses the selected choice of the switch that controls the region `controls`. */
-	export function focusSelectedChoice(controls: string): void {
-		document
-			.querySelector<HTMLElement>(
-				`[role="radio"][aria-controls="${CSS.escape(controls)}"][aria-checked="true"]`
-			)
-			?.focus();
-	}
-</script>
-
 <script lang="ts">
+	import { focusRadio, radioGroupIndex } from '#lib/browser/keyboard.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { cn } from '#lib/utils.ts';

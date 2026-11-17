@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import {
 	addWorkspaceOverflow,
 	COLLAPSED_TIMELINE_HEIGHT,
@@ -17,6 +17,39 @@ import {
 	row,
 	writeStoredPlan
 } from './helpers.ts';
+
+async function settleRemainingScroll(pane: Locator, remaining: number, includeTimeline = false) {
+	await expect
+		.poll(() =>
+			pane.evaluate(
+				async (element, { remaining, includeTimeline, collapsedHeight }) => {
+					const distance = () =>
+						remaining +
+						(includeTimeline
+							? document.querySelector('#timeline')!.getBoundingClientRect().height -
+								collapsedHeight +
+								48
+							: 0);
+					const max = element.scrollHeight - element.clientHeight;
+					const target = distance();
+					element.scrollTop = max - target;
+					for (let i = 0; i < 2; i++) {
+						await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+						const currentMax = element.scrollHeight - element.clientHeight;
+						if (
+							currentMax !== max ||
+							Math.abs(distance() - target) >= 0.5 ||
+							Math.abs(currentMax - element.scrollTop - target) >= 0.5
+						)
+							return false;
+					}
+					return true;
+				},
+				{ remaining, includeTimeline, collapsedHeight: COLLAPSED_TIMELINE_HEIGHT }
+			)
+		)
+		.toBe(true);
+}
 
 test.beforeEach(async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -124,33 +157,20 @@ test('pointer focus after turning Keep open on and off allows automatic collapse
 	await expectTimelineCollapsed(page);
 });
 
-test('collapse requires 48 pixels of remaining scroll after the height change', async ({
-	page
-}) => {
-	const pane = workspaceContent(page);
-	for (const remaining of [47, 49]) {
-		// WorkspaceShell.svelte accepts scrolls as user input for 200 ms after input.
-		// Let that window expire before the next app scroll.
-		await page.waitForTimeout(250);
-		await pane.evaluate(
-			(e, { remaining, collapsedHeight }) => {
-				const height = document.querySelector('#timeline')!.getBoundingClientRect().height;
-				e.scrollTop = e.scrollHeight - e.clientHeight - (height - collapsedHeight) - remaining - 48;
-			},
-			{ remaining, collapsedHeight: COLLAPSED_TIMELINE_HEIGHT }
-		);
-		await pane.evaluate(async () => {
-			await new Promise(requestAnimationFrame);
-			await new Promise(requestAnimationFrame);
-		});
+for (const remaining of [47, 49]) {
+	test(`collapse requires 48 pixels of remaining scroll after the height change (${remaining} px)`, async ({
+		page
+	}) => {
+		const pane = workspaceContent(page);
+		await waitForAnimations(pane);
+		await settleRemainingScroll(pane, remaining, true);
 		await userScroll(page, pane, 48);
 		await expect(timelineHandle(page)).toHaveAttribute(
 			'aria-expanded',
 			remaining === 47 ? 'true' : 'false'
 		);
-		if (remaining === 49) await expandTimeline(page);
-	}
-});
+	});
+}
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 	test(`layout scroll adjustments do not reverse collapse or resize the island (${reducedMotion})`, async ({
@@ -160,7 +180,7 @@ for (const reducedMotion of ['reduce', 'no-preference'] as const) {
 		const pane = workspaceContent(page);
 		// Setup animations can change the scroll height. Measure the final layout.
 		await waitForAnimations(pane);
-		await pane.evaluate((e) => (e.scrollTop = e.scrollHeight - e.clientHeight - 400));
+		await settleRemainingScroll(pane, 400);
 		const monitor = await page.evaluateHandle(() => {
 			const state = {
 				frames: [] as { expanded: string | null; island: number; scroll: number }[],
@@ -253,14 +273,11 @@ test('a group too short to scroll after collapse stays expanded', async ({ page 
 test('a manual collapse does not resize a partly compact island', async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: 'no-preference' });
 	const pane = workspaceContent(page);
-	await pane.evaluate((e) => (e.scrollTop = e.scrollHeight - e.clientHeight - 400));
-	await pane.evaluate(async () => {
-		await new Promise(requestAnimationFrame);
-		await new Promise(requestAnimationFrame);
-	});
+	await settleRemainingScroll(pane, 400);
 	const island = page.getByTestId('workspace-tabs');
 	const full = (await island.boundingBox())!.height;
 	await userScroll(page, pane, 24);
+	await expect.poll(async () => (await island.boundingBox())!.height).toBeLessThan(full);
 	await waitForAnimations(island);
 	const partial = (await island.boundingBox())!.height;
 	expect(partial).toBeLessThan(full);
@@ -297,10 +314,7 @@ test.describe('touch Timeline automatic collapse', () => {
 		await expect(handle).toHaveAttribute('aria-expanded', 'true');
 		await waitForAnimations(page.locator('#timeline'));
 		const pane = workspaceContent(page);
-		await pane.evaluate((e) => (e.scrollTop = e.scrollHeight - e.clientHeight - 500));
-		await expect
-			.poll(() => pane.evaluate((e) => e.scrollHeight - e.clientHeight - e.scrollTop))
-			.toBeCloseTo(500, 0);
+		await settleRemainingScroll(pane, 500);
 		const monitor = await page.evaluateHandle(() => {
 			const state = { collapsed: [] as boolean[], stop: false };
 			const sample = () => {

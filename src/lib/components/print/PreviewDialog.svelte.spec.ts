@@ -64,7 +64,7 @@ async function mount(registry: ViewRegistry) {
 		)
 	];
 	await expect.poll(() => sheets().length).toBeGreaterThan(0);
-	return { container, viewer, checkbox, sheets, layout, diagramOrder };
+	return { screen, container, viewer, checkbox, sheets, layout, diagramOrder };
 }
 
 const threeViews = () => createViewRegistry([boardView, ganttView, listView]);
@@ -151,5 +151,72 @@ describe('Preview diagram selection', () => {
 		const { container, diagramOrder } = await mount(createViewRegistry([ganttView]));
 		expect(container.querySelector('[data-testid="print-diagrams"]')).toBeNull();
 		expect(diagramOrder()).toEqual(['gantt']);
+	});
+
+	it('shows the print detail checkbox after the diagram group and before Print, and rebuilds sheets on Space', async () => {
+		ws.commit((plan) => {
+			plan.tasks.push(
+				makeTask({
+					id: 'child-0',
+					title: 'Child 0',
+					stageId: plan.stages[0].id,
+					parentId: 'task-0',
+					start: '2027-01-05',
+					end: '2027-01-20'
+				})
+			);
+		});
+		const { screen, container } = await mount(threeViews());
+		const checkbox = screen.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+		await expect.element(checkbox).toBeVisible();
+		await expect.element(checkbox).toHaveAttribute('aria-checked', 'false');
+
+		const group = container.querySelector<HTMLElement>('[data-testid="print-diagrams"]')!;
+		const printButton = container.querySelector<HTMLElement>('[data-testid="preview-print"]')!;
+		const el = checkbox.element() as HTMLElement;
+		expect(group.contains(el)).toBe(false);
+		expect(Boolean(group.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
+			true
+		);
+		expect(
+			Boolean(el.compareDocumentPosition(printButton) & Node.DOCUMENT_POSITION_FOLLOWING)
+		).toBe(true);
+
+		expect(
+			container.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-gantt-row"]')
+		).toHaveLength(6);
+		el.focus();
+		await userEvent.keyboard(' ');
+		await expect.element(checkbox).toHaveAttribute('aria-checked', 'true');
+		await expect
+			.poll(
+				() =>
+					container.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-gantt-row"]')
+						.length
+			)
+			.toBe(7);
+
+		await userEvent.keyboard(' ');
+		await expect.element(checkbox).toHaveAttribute('aria-checked', 'false');
+		await expect
+			.poll(
+				() =>
+					container.querySelectorAll('[data-testid="sheets"] [data-testid="sheet-gantt-row"]')
+						.length
+			)
+			.toBe(6);
+	});
+
+	it('shows the print detail checkbox even when only Gantt is registered', async () => {
+		const { screen, container } = await mount(createViewRegistry([ganttView]));
+		expect(container.querySelector('[data-testid="print-diagrams"]')).toBeNull();
+		const checkbox = screen.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+		await expect.element(checkbox).toBeVisible();
+		await expect.element(checkbox).toHaveAttribute('aria-checked', 'false');
+		const printButton = container.querySelector<HTMLElement>('[data-testid="preview-print"]')!;
+		const el = checkbox.element() as HTMLElement;
+		expect(
+			Boolean(el.compareDocumentPosition(printButton) & Node.DOCUMENT_POSITION_FOLLOWING)
+		).toBe(true);
 	});
 });

@@ -1,6 +1,10 @@
+import { flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { indexTasks } from '#lib/domain/derive.ts';
 import { makeTask } from '#lib/domain/test-helpers.ts';
+import { MemoryStorage } from './memory-storage.ts';
+import { Workspace } from './workspace.svelte.ts';
 import {
 	HOVER_COLD_MS,
 	HOVER_WARM_MS,
@@ -487,5 +491,107 @@ describe('RouteFocusState', () => {
 		tick();
 		expect(route.resolve()).toBeNull();
 		expect(vi.getTimerCount()).toBe(0);
+	});
+});
+
+describe('RouteFocusState controlled content and keyboard stations', () => {
+	it('keeps direct keyboard station ownership inside controlled family content while floating content keeps the trigger owner', async () => {
+		const workspace = new Workspace(new MemoryStorage());
+		workspace.commit((plan) => {
+			const stageId = plan.stages[0].id;
+			plan.tasks = [
+				makeTask({ id: 'P', stageId }),
+				makeTask({ id: 'child', stageId, parentId: 'P' })
+			];
+		});
+		const route = new RouteFocusState();
+		const container = document.createElement('div');
+		const before = document.createElement('button');
+		before.type = 'button';
+		before.textContent = 'Before';
+
+		const parentGroup = document.createElement('div');
+		parentGroup.dataset.routeTarget = 'P';
+		const expandTrigger = document.createElement('button');
+		expandTrigger.type = 'button';
+		expandTrigger.textContent = 'Toggle subtasks';
+		expandTrigger.dataset.routeTarget = 'P';
+		expandTrigger.setAttribute('aria-expanded', 'true');
+		expandTrigger.setAttribute('aria-controls', 'family-P');
+
+		const floatingTrigger = document.createElement('button');
+		floatingTrigger.type = 'button';
+		floatingTrigger.textContent = 'Open floating';
+		floatingTrigger.dataset.routeTarget = 'P';
+		floatingTrigger.setAttribute('aria-expanded', 'true');
+		floatingTrigger.setAttribute('aria-controls', 'floating-P');
+		parentGroup.append(expandTrigger, floatingTrigger);
+
+		const familyContent = document.createElement('div');
+		familyContent.id = 'family-P';
+		const childGroup = document.createElement('div');
+		childGroup.dataset.routeTarget = 'child';
+		const childStation = document.createElement('button');
+		childStation.type = 'button';
+		childStation.textContent = 'Child station';
+		childStation.dataset.routeTarget = 'child';
+		childStation.dataset.routeFocus = 'keyboard';
+		childGroup.append(childStation);
+		familyContent.append(childGroup);
+
+		const floatingContent = document.createElement('div');
+		floatingContent.id = 'floating-P';
+		const floatingField = document.createElement('input');
+		floatingField.setAttribute('aria-label', 'Floating field');
+		floatingContent.append(floatingField);
+
+		container.append(before, parentGroup, familyContent);
+		document.body.append(container, floatingContent);
+
+		const detach = route.attach(workspace);
+		const registrations = [
+			route.target(parentGroup, 'P'),
+			route.target(expandTrigger, 'P'),
+			route.target(floatingTrigger, 'P'),
+			route.target(childGroup, 'child'),
+			route.target(childStation, 'child')
+		];
+		flushSync();
+
+		try {
+			// Real floating content without a direct route target retains the trigger owner.
+			expect(route.rowOwner(floatingField)?.id).toBe('P');
+			floatingField.focus();
+			expect(document.activeElement).toBe(floatingField);
+			expect(route.resolve()).toBe('P');
+
+			before.focus();
+			expect(route.resolve()).toBeNull();
+
+			await userEvent.tab();
+			expect(document.activeElement).toBe(expandTrigger);
+			expect(route.resolve()).toBe('P');
+
+			await userEvent.tab();
+			expect(document.activeElement).toBe(floatingTrigger);
+			expect(route.resolve()).toBe('P');
+
+			await userEvent.tab();
+			expect(document.activeElement).toBe(childStation);
+			expect(childStation.matches(':focus-visible')).toBe(true);
+			expect(route.resolve()).toBe('child');
+			expect(route.rowOwner(childStation)).toBeNull();
+
+			// Pointer focus on the keyboard-only station must not fall back to the parent trigger.
+			await userEvent.click(before);
+			childStation.focus();
+			expect(childStation.matches(':focus-visible')).toBe(false);
+			expect(route.resolve()).toBeNull();
+		} finally {
+			for (const registration of registrations) registration.destroy();
+			detach();
+			container.remove();
+			floatingContent.remove();
+		}
 	});
 });
