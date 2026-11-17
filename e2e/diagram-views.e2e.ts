@@ -6,12 +6,15 @@
  * the test-only views `test-list` (portrait) and `test-board` (landscape).
  */
 import { expect, test, type Page } from '@playwright/test';
+import { SCHEMA_VERSION } from '#lib/domain/schema.ts';
+import { done300 } from '#lib/scene/kanban-fixtures.test-helper.ts';
 import {
 	chooseView,
 	diagramStage,
 	expectPanelHeight,
 	expectView,
 	importJson,
+	holdViewChange,
 	MIN_CHART_HEIGHT,
 	openApp,
 	openExample,
@@ -22,6 +25,7 @@ import {
 	storedPlan,
 	storedViewer,
 	waitForAnimations,
+	VIEW_MOTION_MS,
 	workspaceContent,
 	writeStoredPlan
 } from './helpers.ts';
@@ -29,6 +33,7 @@ import {
 declare global {
 	interface Window {
 		__printedDiagrams: { orientation: string; fragments: string[] }[][];
+		testAnnouncements: string[];
 	}
 }
 
@@ -349,4 +354,386 @@ test.describe('fixture views', () => {
 			await expect(page.getByTestId('diagram-view-announcement')).toHaveText(names[view]);
 		}
 	});
+});
+
+/** Read copy and real-cue boxes at the same paused frame. */
+async function flightSnapshot(page: Page) {
+	return diagramStage(page).evaluate((stage) => {
+		const center = (element: Element) => {
+			const r = element.getBoundingClientRect();
+			return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+		};
+		const layers = [...stage.querySelectorAll<HTMLElement>('[data-diagram-layer]')];
+		const flight = stage.querySelector<HTMLElement>('[data-diagram-flight]');
+		return {
+			flight: !!flight,
+			layers: layers.map((layer) => ({
+				view: layer.dataset.diagramView,
+				opacity: Number(getComputedStyle(layer).opacity)
+			})),
+			connectors: flight?.querySelectorAll('[data-testid="gantt-dependency"]').length ?? -1,
+			copies: [...(flight?.querySelectorAll<HTMLElement>('[data-flight-copy]') ?? [])].map(
+				(copy) => {
+					const id = copy.dataset.flightCopy!;
+					const cues = layers.map((layer) =>
+						layer.querySelector<HTMLElement>(`[data-diagram-station="${CSS.escape(id)}"]`)
+					);
+					return {
+						id,
+						copy: center(copy),
+						cues: cues.map(
+							(cue) => cue && { center: center(cue), visibility: getComputedStyle(cue).visibility }
+						)
+					};
+				}
+			)
+		};
+	});
+}
+
+function expectCenters(a: { x: number; y: number }, b: { x: number; y: number }, tolerance = 1) {
+	expect(Math.abs(a.x - b.x)).toBeLessThanOrEqual(tolerance);
+	expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(tolerance);
+}
+
+async function prepareMotionPlan(page: Page) {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		const template = plan.tasks.find((task) => task.parentId === null)!;
+		plan.range = { start: '2027-01-01', end: '2027-02-01' };
+		plan.tasks = Array.from({ length: 48 }, (_, index) => ({
+			...template,
+			id: `motion-${index}`,
+			title: `Motion task ${index}`,
+			stageId: plan.stages[Math.floor(index / 16)].id,
+			parentId: null,
+			status: 'todo' as const,
+			start: '2027-01-02',
+			end: '2027-01-04',
+			dependsOn: [],
+			createdAt: new Date(Date.UTC(2027, 0, 1, 0, 0, index)).toISOString()
+		}));
+	});
+}
+
+test('real views carry station cues across view changes and clean up', async ({ page }) => {
+	await page.setViewportSize({ width: 900, height: 700 });
+	await prepareMotionPlan(page);
+	const taskId = 'motion-47';
+	for (const [from, to] of [
+		['gantt', 'route-map'],
+		['route-map', 'kanban'],
+		['kanban', 'gantt'],
+		['gantt', 'kanban'],
+		['kanban', 'route-map'],
+		['route-map', 'gantt']
+	] as const) {
+		await expectView(page, from);
+		const outgoingLabel = diagramStage(page).locator(
+			`[data-diagram-view="${from}"] [data-diagram-label="${taskId}"]`
+		);
+		await outgoingLabel.focus();
+		await expect(outgoingLabel).toBeFocused();
+		const outgoingScrolled = await diagramStage(page)
+			.locator(`[data-diagram-view="${from}"] [data-diagram-scroller]`)
+			.evaluateAll((scrollers) => {
+				for (const node of scrollers) {
+					if (node.scrollTop === 0) node.scrollTop = 50;
+					if (node.scrollLeft === 0) node.scrollLeft = 50;
+				}
+				return scrollers.some((node) => node.scrollTop > 0 || node.scrollLeft > 0);
+			});
+		expect(outgoingScrolled).toBe(true);
+		const held = await holdViewChange(page, to, 0);
+		let endCenters: { id: string; copy: { x: number; y: number } }[];
+		try {
+			await held.seek(0);
+			let snapshot = await flightSnapshot(page);
+			expect(snapshot.flight).toBe(true);
+			expect(snapshot.copies.length).toBeGreaterThan(0);
+			const outgoing = snapshot.layers.findIndex((layer) => layer.view === from);
+			const incoming = snapshot.layers.findIndex((layer) => layer.view === to);
+			const incomingScrolled = await diagramStage(page)
+				.locator(`[data-diagram-view="${to}"] [data-diagram-scroller]`)
+				.evaluateAll((scrollers) =>
+					scrollers.some((node) => node.scrollTop > 0 || node.scrollLeft > 0)
+				);
+			expect(incomingScrolled).toBe(true);
+			const outgoingCopies = snapshot.copies.filter((item) => item.cues[outgoing]);
+			expect(outgoingCopies.length).toBeGreaterThan(0);
+			for (const item of outgoingCopies) expectCenters(item.copy, item.cues[outgoing]!.center);
+			await held.seek(1);
+			snapshot = await flightSnapshot(page);
+			const incomingCopies = snapshot.copies.filter((item) => item.cues[incoming]);
+			expect(incomingCopies.length).toBeGreaterThan(0);
+			expect(incomingCopies.length).toBe(snapshot.copies.length);
+			for (const item of incomingCopies) expectCenters(item.copy, item.cues[incoming]!.center);
+			endCenters = incomingCopies.map(({ id, copy }) => ({ id, copy }));
+			await held.seek(0.5);
+			snapshot = await flightSnapshot(page);
+			expect(snapshot.layers.every((layer) => layer.opacity === 0)).toBe(true);
+			expect(snapshot.connectors).toBe(0);
+			for (const item of snapshot.copies)
+				for (const cue of item.cues) if (cue) expect(cue.visibility).toBe('hidden');
+		} finally {
+			await held.release();
+		}
+		await expect(diagramStage(page).locator('[data-flight-copy]')).toHaveCount(0);
+		await waitForAnimations(diagramStage(page));
+		const settledCues = await diagramStage(page).evaluate(
+			(stage, { to, ids }) => {
+				const layer = stage.querySelector(`[data-diagram-view="${to}"]`)!;
+				return ids.map((id) => {
+					const station = layer.querySelector(`[data-diagram-station="${CSS.escape(id)}"]`);
+					if (!station) return null;
+					const rect = station.getBoundingClientRect();
+					return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+				});
+			},
+			{ to, ids: endCenters.map(({ id }) => id) }
+		);
+		for (const [index, { copy }] of endCenters.entries()) {
+			expect(
+				settledCues[index],
+				`${from} → ${to}: ${endCenters[index].id} has a station`
+			).not.toBeNull();
+			expectCenters(copy, settledCues[index]!);
+		}
+		expect(
+			await diagramStage(page)
+				.locator('[data-diagram-station], [data-diagram-label]')
+				.evaluateAll((nodes) =>
+					nodes.some((node) => getComputedStyle(node).visibility === 'hidden')
+				)
+		).toBe(false);
+	}
+});
+
+test('Kanban flight endpoints match the settled stations while board frames run', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 900, height: 700 });
+	await prepareMotionPlan(page);
+	for (const from of ['route-map', 'gantt']) {
+		await chooseView(page, from);
+		await waitForAnimations(diagramStage(page));
+		const label = diagramStage(page).locator(
+			`[data-diagram-view="${from}"] [data-diagram-label="motion-47"]`
+		);
+		await label.focus();
+		await expect(label).toBeFocused();
+		const held = await holdViewChange(page, 'kanban', 1, { holdFrames: false });
+		let ends: { id: string; x: number; y: number; animations: number }[];
+		try {
+			ends = await page.evaluate((duration) => {
+				for (const animation of document.getAnimations()) {
+					animation.pause();
+					animation.currentTime = duration;
+				}
+				return [
+					...document.querySelectorAll<HTMLElement>('[data-diagram-flight] [data-flight-copy]')
+				].map((copy) => {
+					const rect = copy.getBoundingClientRect();
+					return {
+						id: copy.dataset.flightCopy!,
+						x: rect.left + rect.width / 2,
+						y: rect.top + rect.height / 2,
+						animations: copy.getAnimations().length
+					};
+				});
+			}, VIEW_MOTION_MS);
+		} finally {
+			await held.release();
+		}
+		expect(ends.length, `${from} → kanban has flight copies`).toBeGreaterThan(0);
+		expect(
+			ends.some((copy) => copy.id === 'motion-47'),
+			`${from} → kanban carries the focused task`
+		).toBe(true);
+		expect(ends.every((copy) => copy.animations > 0)).toBe(true);
+		await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+		await expect(diagramStage(page).locator('[data-diagram-flight] > *')).toHaveCount(0);
+		await waitForAnimations(diagramStage(page));
+		const stations = await diagramStage(page).evaluate(
+			(stage, ids) =>
+				ids.map((id) => {
+					const station = stage.querySelector(
+						`[data-diagram-view="kanban"] [data-diagram-station="${CSS.escape(id)}"]`
+					);
+					if (!station) return null;
+					const rect = station.getBoundingClientRect();
+					return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+				}),
+			ends.map(({ id }) => id)
+		);
+		for (const [index, copy] of ends.entries()) {
+			expect(stations[index], `${from} → kanban: ${copy.id} has a station`).not.toBeNull();
+			expectCenters(copy, stations[index]!);
+		}
+	}
+});
+
+test('interrupted flight continues from its copies and announces the final view', async ({
+	page
+}) => {
+	await openExample(page);
+	await page.evaluate(() => {
+		const region = document.querySelector('[data-testid="diagram-view-announcement"]')!;
+		window.testAnnouncements = [];
+		new MutationObserver(() => {
+			const text = region.textContent?.trim();
+			if (text) window.testAnnouncements.push(text);
+		}).observe(region, { childList: true, characterData: true, subtree: true });
+	});
+	const held = await holdViewChange(page, 'route-map', 0.5);
+	try {
+		const before = await held.switchTo('kanban', 0, 0.5);
+		expect(before.length).toBeGreaterThan(0);
+		await held.seek(0);
+		const after = await flightSnapshot(page);
+		for (const item of after.copies) {
+			const previous = before.find((copy) => copy.id === item.id);
+			if (previous) expectCenters(item.copy, previous, 2);
+		}
+		expect(after.copies.length).toBeGreaterThan(0);
+	} finally {
+		await held.release();
+	}
+	await expect(page.getByTestId('diagram-view-announcement')).toHaveText('Kanban view');
+	expect(await page.evaluate(() => window.testAnnouncements)).toEqual(['Kanban view']);
+	await expect(diagramStage(page).locator('[data-flight-copy]')).toHaveCount(0);
+});
+
+test('reduced motion switches without a flight copy', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await openExample(page);
+	const result = await page.getByTestId('diagram-view-route-map').evaluate(async (choice) => {
+		(choice as HTMLElement).click();
+		await new Promise(requestAnimationFrame);
+		const stage = document.querySelector('[data-testid="diagram-stage"]')!;
+		return {
+			flight: stage.querySelectorAll('[data-diagram-flight]').length,
+			copies: stage.querySelectorAll('[data-flight-copy]').length,
+			layers: stage.querySelectorAll('[data-diagram-layer]').length,
+			animations: stage
+				.getAnimations({ subtree: true })
+				.filter((animation) => Number(animation.effect?.getComputedTiming().duration) > 1).length
+		};
+	});
+	expect(result).toEqual({ flight: 1, copies: 0, layers: 1, animations: 0 });
+});
+
+test('a label-only Gantt task retains focus while its label is the cue', async ({ page }) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		const task = plan.tasks.find((item) => item.title === 'Site survey')!;
+		task.start = null;
+		task.end = null;
+	});
+	const id = (await storedPlan(page)).tasks.find((item) => item.title === 'Site survey')!.id;
+	await chooseView(page, 'route-map');
+	await diagramStage(page)
+		.locator(`[data-diagram-view="route-map"] [data-diagram-task="${id}"]`)
+		.focus();
+	const held = await holdViewChange(page, 'gantt', 0);
+	try {
+		const copy = diagramStage(page).locator(`[data-flight-copy="${id}"]`);
+		await expect(copy).toHaveCount(1);
+		const source = diagramStage(page).locator(
+			`[data-diagram-view="route-map"] [data-diagram-station="${id}"]`
+		);
+		await held.seek(0);
+		const sourceBox = await source.boundingBox();
+		await held.seek(0);
+		const initialBox = await copy.boundingBox();
+		expect(sourceBox).not.toBeNull();
+		expect(initialBox).not.toBeNull();
+		expectCenters(initialBox!, {
+			x: sourceBox!.x + sourceBox!.width / 2,
+			y: sourceBox!.y + sourceBox!.height / 2
+		});
+		await held.seek(0.5);
+		const label = diagramStage(page).locator(
+			`[data-diagram-view="gantt"] [data-diagram-label="${id}"]`
+		);
+		await expect(label).toBeFocused();
+		await held.seek(1);
+		const copyBox = await copy.boundingBox();
+		await held.seek(1);
+		const labelBox = await label.boundingBox();
+		expect(copyBox).not.toBeNull();
+		expect(labelBox).not.toBeNull();
+		expectCenters(copyBox!, labelBox!);
+	} finally {
+		await held.release();
+	}
+	await expect(
+		diagramStage(page).locator(`[data-diagram-view="gantt"] [data-diagram-label="${id}"]`)
+	).toBeFocused();
+});
+
+test('connectors fade for compatible and incompatible fixture routers @diagram-fixtures', async ({
+	page
+}) => {
+	await openExample(page);
+	let previous = 'gantt';
+	for (const view of ['test-list', 'gantt', 'test-board', 'gantt']) {
+		const held = await holdViewChange(page, view, 0.5);
+		try {
+			const snapshot = await diagramStage(page).evaluate((stage) => {
+				const effective = (element: Element) => {
+					let opacity = 1;
+					for (
+						let node: Element | null = element;
+						node && node !== stage;
+						node = node.parentElement
+					)
+						opacity *= Number(getComputedStyle(node).opacity);
+					return opacity;
+				};
+				const flight = stage.querySelector('[data-diagram-flight]');
+				return {
+					flight: !!flight,
+					copies: flight?.querySelectorAll('[data-flight-copy]').length ?? 0,
+					connectors: flight?.querySelectorAll('[data-testid="gantt-dependency"]').length ?? -1,
+					opacity: [...stage.querySelectorAll('[data-testid="gantt-dependency"]')].map(effective)
+				};
+			});
+			expect(snapshot.flight).toBe(true);
+			expect(snapshot.copies).toBeGreaterThan(0);
+			expect(snapshot.connectors).toBe(0);
+			expect(
+				snapshot.opacity.every((value) => value === 0),
+				`${previous} → ${view}: connector opacities ${JSON.stringify(snapshot.opacity)}`
+			).toBe(true);
+		} finally {
+			await held.release();
+		}
+		previous = view;
+	}
+});
+
+test('culls offstage cues on the 300-card Done board', async ({ page }) => {
+	await page.setViewportSize({ width: 1000, height: 700 });
+	const plan = done300();
+	for (const task of plan.tasks) {
+		task.start = '2027-01-02';
+		task.end = '2027-01-04';
+	}
+	await openApp(page);
+	await importJson(page, { schemaVersion: SCHEMA_VERSION, kind: 'plan', plan });
+	await chooseView(page, 'kanban');
+	await expect(
+		diagramStage(page).locator('[data-diagram-view="kanban"] [data-diagram-task]')
+	).toHaveCount(300);
+	const held = await holdViewChange(page, 'gantt', 0.5);
+	try {
+		const flight = diagramStage(page).locator('[data-diagram-flight]');
+		await expect(flight).toHaveCount(1);
+		const count = await flight.locator('[data-flight-copy]').count();
+		expect(count).toBeGreaterThan(0);
+		expect(count).toBeLessThan(300);
+	} finally {
+		await held.release();
+	}
 });

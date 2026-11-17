@@ -41,6 +41,9 @@ const motionSource = readFileSync(new URL('../src/lib/motion.ts', import.meta.ur
 const geometryMotion = motionSource.match(/export const GEOMETRY_MOTION_MS\s*=\s*(\d+);/)?.[1];
 if (!geometryMotion) throw new Error('Missing GEOMETRY_MOTION_MS');
 const GEOMETRY_MOTION_MS = Number(geometryMotion);
+const viewMotion = motionSource.match(/export const VIEW_MOTION_MS\s*=\s*(\d+);/)?.[1];
+if (!viewMotion) throw new Error('Missing VIEW_MOTION_MS');
+export const VIEW_MOTION_MS = Number(viewMotion);
 export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
 export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
@@ -2115,4 +2118,125 @@ export async function expectRouteMapPaperKeys(page: Page) {
 			await expect(icon).toHaveCSS('height', '12px');
 		}
 	}
+}
+
+/** Pause new Web Animations at creation while a view switch is under inspection. */
+export async function holdViewChange(
+	page: Page,
+	view: string,
+	fraction: number,
+	options: { holdFrames?: boolean } = {}
+) {
+	const frames = options.holdFrames === false ? null : await holdAnimationFrames(page);
+	type MotionWindow = Window & {
+		testMotionHold?: { original: typeof Element.prototype.animate; created: Animation[] };
+	};
+	await page.evaluate(() => {
+		const target = window as MotionWindow;
+		const state = { original: Element.prototype.animate, created: [] as Animation[] };
+		target.testMotionHold = state;
+		Element.prototype.animate = function (
+			this: Element,
+			...args: Parameters<typeof Element.prototype.animate>
+		) {
+			const animation = state.original.apply(this, args);
+			if (Number(animation.effect?.getComputedTiming().duration) > 0) animation.pause();
+			state.created.push(animation);
+			return animation;
+		};
+	});
+	const restore = () =>
+		page.evaluate(() => {
+			const target = window as MotionWindow;
+			if (target.testMotionHold) Element.prototype.animate = target.testMotionHold.original;
+			delete target.testMotionHold;
+		});
+	const switchTo = (next: string, progress: number, previous?: number) =>
+		page.evaluate(
+			async ({ next, progress, previous, duration }) => {
+				const state = (window as MotionWindow).testMotionHold!;
+				const setFrame = (fraction: number) => {
+					for (const animation of document.getAnimations()) {
+						animation.pause();
+						animation.currentTime = duration * fraction;
+					}
+				};
+				if (previous !== undefined) setFrame(previous);
+				const stage = document.querySelector('[data-testid="diagram-stage"]')!;
+				const before = [...stage.querySelectorAll<HTMLElement>('[data-flight-copy]')].map(
+					(copy) => {
+						const rect = copy.getBoundingClientRect();
+						return {
+							id: copy.dataset.flightCopy!,
+							x: rect.left + rect.width / 2,
+							y: rect.top + rect.height / 2
+						};
+					}
+				);
+				const outgoing = stage.querySelector('[data-diagram-layer]:not([inert])');
+				const first = state.created.length;
+				document.querySelector<HTMLElement>(`[data-testid="diagram-view-${next}"]`)!.click();
+				for (let attempt = 0; attempt < 100; attempt++) {
+					await new Promise((resolve) => setTimeout(resolve));
+					const incoming = stage.querySelector(`[data-diagram-view="${next}"]:not([inert])`);
+					const created = new Set(state.created.slice(first));
+					const hasNew = (element: Element | null) =>
+						element
+							?.getAnimations()
+							.some(
+								(animation) =>
+									created.has(animation) &&
+									Number(animation.effect?.getComputedTiming().duration) > 0
+							);
+					const copyReady = [
+						...stage.querySelectorAll('[data-diagram-flight] [data-flight-copy]')
+					].some((copy) => hasNew(copy));
+					if (
+						stage.querySelectorAll('[data-diagram-layer]').length >= 2 &&
+						hasNew(outgoing) &&
+						hasNew(incoming) &&
+						(duration <= 0 || copyReady)
+					) {
+						setFrame(progress);
+						return { ready: true, before };
+					}
+				}
+				return { ready: false, before };
+			},
+			{ next, progress, previous, duration: VIEW_MOTION_MS }
+		);
+	const seek = (progress: number) =>
+		page.evaluate(
+			({ value, duration }) => {
+				for (const animation of document.getAnimations()) {
+					animation.pause();
+					animation.currentTime = duration * value;
+				}
+			},
+			{ value: progress, duration: VIEW_MOTION_MS }
+		);
+	try {
+		expect((await switchTo(view, fraction)).ready).toBe(true);
+	} catch (error) {
+		await restore();
+		if (frames) await frames.release();
+		throw error;
+	}
+	return {
+		seek,
+		switchTo: async (next: string, progress: number, previous: number) => {
+			const result = await switchTo(next, progress, previous);
+			expect(result.ready).toBe(true);
+			return result.before;
+		},
+		release: async () => {
+			await restore();
+			await page.evaluate(() => {
+				for (const animation of document.getAnimations()) animation.play();
+			});
+			if (frames) await frames.release();
+			await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+			await expect(diagramStage(page).locator('[data-diagram-flight] > *')).toHaveCount(0);
+		}
+	};
 }

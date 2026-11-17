@@ -14,6 +14,7 @@ import {
 	diagramStage,
 	expectKanbanFocusContained,
 	expectView,
+	holdViewChange,
 	focusPreviousControl,
 	ganttRow,
 	importJson,
@@ -1158,7 +1159,28 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
 				expect(immediate).toMatchObject({ view, layers: 1, task: 'D150', moving: 0 });
 				if (view === 'kanban') expect(immediate.label).toBe('D150');
 			} else {
-				await choice.evaluate((choice) => (choice as HTMLElement).click());
+				const held = await holdViewChange(page, view, 0.5);
+				try {
+					await held.seek(0.5);
+					const motion = await diagramStage(page).evaluate((stage) => ({
+						flight: !!stage.querySelector('[data-diagram-flight]'),
+						transforms: [...stage.querySelectorAll('[data-diagram-task]')].flatMap((node) =>
+							node
+								.getAnimations()
+								.filter(
+									(animation) =>
+										animation.playState !== 'finished' &&
+										(animation.effect as KeyframeEffect)
+											.getKeyframes()
+											.some((frame) => frame.transform !== undefined)
+								)
+						).length
+					}));
+					expect(motion.flight).toBe(true);
+					expect(motion.transforms).toBe(0);
+				} finally {
+					await held.release();
+				}
 			}
 			await expectView(page, view);
 			const target = diagramStage(page).locator(`[data-diagram-label="D150"]`);

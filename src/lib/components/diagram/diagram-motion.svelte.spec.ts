@@ -1,27 +1,18 @@
 import '../../../routes/layout.css';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-	applyTransition,
 	captureGeometry,
+	createFlight,
+	cueOf,
 	routersCompatible,
-	scrollContainerOf,
-	sourceBox,
-	type Box,
-	type TaskGeometry
+	scrollContainerOf
 } from './diagram-motion.ts';
-
-function near(a: DOMRect, b: DOMRect) {
-	for (const key of ['x', 'y', 'width', 'height'] as const) {
-		expect(Math.abs(a[key] - b[key]), key).toBeLessThanOrEqual(1);
-	}
-}
 
 describe('motion adapter hooks', () => {
 	const hosts: HTMLElement[] = [];
 	afterEach(() => {
 		for (const host of hosts.splice(0)) host.remove();
 	});
-
 	function build(html: string) {
 		const host = document.createElement('div');
 		host.innerHTML = html;
@@ -29,192 +20,230 @@ describe('motion adapter hooks', () => {
 		hosts.push(host);
 		return (selector: string) => host.querySelector<HTMLElement>(selector)!;
 	}
+	function fixture(kind: 'station' | 'label' = 'station') {
+		const cue = (id: string, size: number) =>
+			kind === 'station'
+				? `<div data-diagram-task="${id}"><button id="${id}" tabindex="0" data-diagram-station="${id}" data-route-target="${id}" style="display:block;width:${size}px;height:${size}px"><span tabindex="0" id="child-${id}" data-diagram-label="${id}">x</span></button></div>`
+				: `<button data-diagram-label="${id}" style="width:${size}px;height:20px">label</button>`;
+		const find =
+			build(`<div id="stage" style="position:fixed;left:30px;top:40px;width:500px;height:300px">
+			<div id="out" style="position:absolute;left:10px;top:10px;width:180px;height:150px;overflow:auto"><div style="width:600px;height:600px"><div id="out-inner" style="width:400px;height:400px;overflow:auto"><div style="position:relative;width:600px;height:600px"><div style="position:absolute;left:100px;top:100px">${cue('a', 16)}</div></div></div></div></div>
+			<div id="in" style="position:absolute;left:230px;top:30px;width:180px;height:150px;overflow:auto"><div style="width:600px;height:600px"><div id="in-inner" style="width:400px;height:400px;overflow:auto"><div style="position:relative;width:600px;height:600px"><div style="position:absolute;left:110px;top:120px">${cue('a', 8)}</div></div></div></div></div>
+			<div data-diagram-flight style="position:absolute;inset:0;overflow:hidden;pointer-events:none" inert aria-hidden="true"></div></div>`);
+		for (const selector of ['#out', '#in', '#out-inner', '#in-inner']) {
+			find(selector).scrollLeft = 30;
+			find(selector).scrollTop = 40;
+		}
+		const stage = find('#stage');
+		return {
+			find,
+			stage,
+			outgoing: captureGeometry(find('#out'), stage),
+			incoming: captureGeometry(find('#in'), stage)
+		};
+	}
+	function pause(animations: Animation[], time: number) {
+		for (const animation of document.getAnimations()) {
+			animation.pause();
+			animation.currentTime = time;
+		}
+		expect(animations.length).toBeGreaterThan(0);
+	}
+	function close(a: number, b: number) {
+		expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
+	}
+	function center(rect: DOMRect) {
+		return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+	}
 
-	const scrolledStage = () => {
-		const find = build(`
-			<div id="stage" style="position: fixed; left: 30px; top: 40px; width: 600px; height: 400px">
-				<div id="scroller" style="position: absolute; left: 10px; top: 20px; width: 300px; height: 200px; overflow: auto">
-					<div style="position: relative; width: 1000px; height: 1000px">
-						<div data-diagram-task="a" data-diagram-parent="p" style="position: absolute; left: 100px; top: 200px; width: 80px; height: 20px; border-radius: 4px">
-							<span data-diagram-station="a" style="position: absolute; left: 2px; top: 3px; width: 10px; height: 10px"></span>
-						</div>
-						<span data-diagram-label="a" style="position: absolute; left: 100px; top: 230px">Alpha</span>
-						<span data-diagram-label="b" style="position: absolute; left: 400px; top: 260px">Beta</span>
-					</div>
-				</div>
-				<div id="free" style="position: absolute; left: 400px; top: 0; width: 10px; height: 10px"></div>
-			</div>`);
-		const scroller = find('#scroller');
-		scroller.scrollLeft = 20;
-		scroller.scrollTop = 50;
-		return find;
-	};
-
-	const round = (value: object | null) =>
-		value &&
-		Object.fromEntries(
-			Object.entries(value).map(([key, item]) => [
-				key,
-				typeof item === 'number' ? Math.round(item) : item
-			])
-		);
-
-	it('captureGeometry returns stage boxes with scroll offsets and running transforms', () => {
-		const find = scrolledStage();
-		const animation = find('[data-diagram-task="a"]').animate(
+	it('captures station and label geometry including scroll and running transforms', () => {
+		const { find, stage } = fixture();
+		const node = find('#out [data-diagram-task]');
+		const animation = node.animate(
 			[{ transform: 'translateX(30px)' }, { transform: 'translateX(30px)' }],
-			{ duration: 10_000 }
+			{ duration: 10000 }
 		);
-		const records = captureGeometry(find('#stage'), find('#stage'));
+		animation.pause();
+		animation.currentTime = 5000;
+		const record = captureGeometry(find('#out'), stage).get('a')!;
+		const origin = stage.getBoundingClientRect();
+		const station = find('#out [data-diagram-station]');
+		const rect = station.getBoundingClientRect();
+		const label = find('#out [data-diagram-label]').getBoundingClientRect();
+		expect(record.station).toEqual({
+			x: rect.left + rect.width / 2 - origin.left,
+			y: rect.top + rect.height / 2 - origin.top,
+			r: rect.width / 2
+		});
+		expect(record.label).toEqual({
+			x: label.left - origin.left,
+			y: label.top - origin.top,
+			w: label.width,
+			h: label.height
+		});
+		expect(record.elements).toEqual([station]);
 		animation.cancel();
-		const a = records.get('a')!;
-		expect(round(a.box)).toEqual({ x: 120, y: 170, w: 80, h: 20, radius: 4 });
-		expect(round(a.station)).toEqual({ x: 127, y: 178, r: 5 });
-		expect(round(a.label)).toEqual({ x: 90, y: 200 });
-		expect(a.parentId).toBe('p');
-		const b = records.get('b')!;
-		expect(b.box).toBeNull();
-		expect(b.station).toBeNull();
-		expect(round(b.label)).toEqual({ x: 390, y: 230 });
-		expect([...records.keys()].sort()).toEqual(['a', 'b']);
+		const labels = fixture('label');
+		expect(labels.outgoing.get('a')!.elements).toEqual([labels.find('#out [data-diagram-label]')]);
 	});
-
-	it('captureGeometry keeps the drawn radius of a fully round box', () => {
-		const find = build(`
-			<div id="stage" style="position: fixed; left: 0; top: 0; width: 400px; height: 200px">
-				<div data-diagram-task="pill" style="position: absolute; width: 80px; height: 20px; border-radius: 9999px"></div>
-			</div>`);
-		const box = captureGeometry(find('#stage'), find('#stage')).get('pill')!.box!;
-		expect(box.radius).toBe(10);
+	it('selects the station, then the label, then no cue', () => {
+		const { outgoing } = fixture();
+		const record = outgoing.get('a')!;
+		expect(cueOf(record)).toEqual({
+			kind: 'station',
+			x: record.station!.x,
+			y: record.station!.y,
+			w: 2 * record.station!.r,
+			h: 2 * record.station!.r
+		});
+		expect(cueOf({ ...record, station: null })).toEqual({ kind: 'label', ...record.label });
+		expect(cueOf({ ...record, station: null, label: null })).toBeNull();
 	});
-
-	it('sourceBox uses the own box, then the own label, then the parent, else nothing', () => {
-		const box: Box = { x: 1, y: 2, w: 3, h: 4, radius: 1 };
-		const parentBox: Box = { x: 10, y: 20, w: 30, h: 40, radius: 0 };
-		const record = (geometry: Partial<TaskGeometry>): TaskGeometry => ({
-			box: null,
-			station: null,
-			label: null,
-			parentId: null,
-			...geometry
-		});
-		const outgoing = new Map<string, TaskGeometry>([
-			['own', record({ box, label: { x: 9, y: 9 } })],
-			['labelled', record({ label: { x: 5, y: 6 } })],
-			['parent', record({ box: parentBox })],
-			['label-parent', record({ label: { x: 7, y: 8 } })]
-		]);
-		expect(sourceBox('own', 'parent', outgoing)).toEqual(box);
-		expect(sourceBox('labelled', 'parent', outgoing)).toEqual({
-			x: 5,
-			y: 6,
-			w: 0,
-			h: 0,
-			radius: 0
-		});
-		expect(sourceBox('child', 'parent', outgoing)).toEqual(parentBox);
-		expect(sourceBox('child', 'label-parent', outgoing)).toEqual({
-			x: 7,
-			y: 8,
-			w: 0,
-			h: 0,
-			radius: 0
-		});
-		expect(sourceBox('child', 'missing', outgoing)).toBeNull();
-		expect(sourceBox('child', null, outgoing)).toBeNull();
+	it('keeps station centers at scrolled anchors and scales 16 to 8 pixels', () => {
+		const { find, stage, outgoing, incoming } = fixture();
+		const from = center(find('#out [data-diagram-station]').getBoundingClientRect());
+		const to = center(find('#in [data-diagram-station]').getBoundingClientRect());
+		const flight = createFlight(stage, outgoing, incoming, 1000);
+		expect(stage.querySelectorAll('[data-flight-copy]')).toHaveLength(1);
+		const copy = stage.querySelector<HTMLElement>('[data-flight-copy]')!;
+		pause(flight.animations, 0);
+		let rect = copy.getBoundingClientRect();
+		close(center(rect).x, from.x);
+		close(center(rect).y, from.y);
+		close(rect.width, 16);
+		pause(flight.animations, 1000);
+		rect = copy.getBoundingClientRect();
+		close(center(rect).x, to.x);
+		close(center(rect).y, to.y);
+		close(rect.width, 8);
+		flight.cancel();
 	});
-
-	it('routersCompatible needs the same router and the same connector meaning', () => {
+	it('moves label top-left without scaling', () => {
+		const { find, stage, outgoing, incoming } = fixture('label');
+		const from = find('#out [data-diagram-label]').getBoundingClientRect();
+		const to = find('#in [data-diagram-label]').getBoundingClientRect();
+		const flight = createFlight(stage, outgoing, incoming, 1000);
+		expect(stage.querySelectorAll('[data-flight-copy]')).toHaveLength(1);
+		const copy = stage.querySelector<HTMLElement>('[data-flight-copy]')!;
+		pause(flight.animations, 0);
+		let rect = copy.getBoundingClientRect();
+		close(rect.left, from.left);
+		close(rect.top, from.top);
+		close(rect.width, to.width);
+		pause(flight.animations, 1000);
+		rect = copy.getBoundingClientRect();
+		close(rect.left, to.left);
+		close(rect.top, to.top);
+		close(rect.width, to.width);
+		flight.cancel();
+	});
+	it('starts an emerging child at its parent and omits tasks without destinations', () => {
+		const { stage, outgoing, incoming } = fixture();
+		const parent = outgoing.get('a')!;
+		const child = incoming.get('a')!;
+		const flight = createFlight(
+			stage,
+			new Map([
+				['parent', parent],
+				['gone', parent]
+			]),
+			new Map([['child', { ...child, parentId: 'parent' }]]),
+			1000
+		);
+		expect(stage.querySelectorAll('[data-flight-copy]')).toHaveLength(1);
+		const copy = stage.querySelector<HTMLElement>('[data-flight-copy="child"]')!;
+		pause(flight.animations, 0);
+		const rect = copy.getBoundingClientRect();
+		const origin = stage.getBoundingClientRect();
+		close(center(rect).x - origin.left, parent.station!.x);
+		close(center(rect).y - origin.top, parent.station!.y);
+		flight.cancel();
+	});
+	it('culls cues outside the stage while retaining an inside task', () => {
+		const { stage, outgoing, incoming } = fixture();
+		const outside = (record: NonNullable<ReturnType<typeof outgoing.get>>) => ({
+			...record,
+			station: { x: 900, y: 900, r: 4 }
+		});
+		const flight = createFlight(
+			stage,
+			new Map([...outgoing, ['outside', outside(outgoing.get('a')!)]]),
+			new Map([...incoming, ['outside', outside(incoming.get('a')!)]]),
+			1000
+		);
+		expect(stage.querySelectorAll('[data-flight-copy]')).toHaveLength(1);
+		expect(stage.querySelector('[data-flight-copy="a"]')).not.toBeNull();
+		flight.cancel();
+	});
+	for (const finish of [false, true])
+		it(`restores prior cue visibility after ${finish ? 'finish and cancel' : 'cancel'}`, () => {
+			const { find, stage, outgoing, incoming } = fixture();
+			const from = find('#out [data-diagram-station]');
+			const to = find('#in [data-diagram-station]');
+			from.style.visibility = 'visible';
+			const flight = createFlight(stage, outgoing, incoming, 1000);
+			expect(stage.querySelectorAll('[data-flight-copy]')).toHaveLength(1);
+			expect(getComputedStyle(from).visibility).toBe('hidden');
+			expect(getComputedStyle(to).visibility).toBe('hidden');
+			if (finish) for (const animation of flight.animations) animation.finish();
+			flight.cancel();
+			flight.cancel();
+			expect(from.style.visibility).toBe('visible');
+			expect(to.style.visibility).toBe('');
+			expect(stage.querySelector('[data-flight-copy]')).toBeNull();
+		});
+	it('strips identity and focus from the entire decorative copy', () => {
+		const { stage, outgoing, incoming } = fixture();
+		const flight = createFlight(stage, outgoing, incoming, 1000);
+		const copy = stage.querySelector<HTMLElement>('[data-flight-copy]');
+		expect(copy).not.toBeNull();
+		const active = document.activeElement;
+		for (const element of [copy!, ...copy!.querySelectorAll<HTMLElement>('*')]) {
+			for (const attr of element.getAttributeNames())
+				expect(
+					/^(id|tabindex|data-diagram-.*|data-route-.*|data-testid|aria-describedby|aria-controls|aria-labelledby)$/.test(
+						attr
+					)
+				).toBe(false);
+			element.focus();
+			expect(document.activeElement).toBe(active);
+		}
+		flight.cancel();
+	});
+	it('does not create a flight at zero duration', () => {
+		const { find, stage, outgoing, incoming } = fixture();
+		const flight = createFlight(stage, outgoing, incoming, 0);
+		expect(flight.animations).toHaveLength(0);
+		expect(stage.querySelector('[data-flight-copy]')).toBeNull();
+		expect(getComputedStyle(find('#out [data-diagram-station]')).visibility).not.toBe('hidden');
+	});
+	it('captures the current rendered copy at a paused frame', () => {
+		const { stage, outgoing, incoming } = fixture();
+		const flight = createFlight(stage, outgoing, incoming, 1000);
+		expect(stage.querySelectorAll('[data-flight-copy]')).toHaveLength(1);
+		pause(flight.animations, 500);
+		const rect = stage.querySelector<HTMLElement>('[data-flight-copy]')!.getBoundingClientRect();
+		const origin = stage.getBoundingClientRect();
+		const captured = flight.capture().get('a')!;
+		close(captured.station!.x, center(rect).x - origin.left);
+		close(captured.station!.y, center(rect).y - origin.top);
+		close(captured.station!.r, rect.width / 2);
+		expect(captured.elements).toEqual([]);
+		flight.cancel();
+	});
+	it('routersCompatible needs the same router and connector meaning', () => {
 		const gantt = { routerId: 'gantt-orthogonal', connectorSchema: 'gantt-orthogonal-v1' };
 		expect(routersCompatible(gantt, { ...gantt })).toBe(true);
 		expect(routersCompatible(gantt, { ...gantt, routerId: 'other' })).toBe(false);
 		expect(routersCompatible(gantt, { ...gantt, connectorSchema: 'other-v1' })).toBe(false);
 	});
-
-	it('scrollContainerOf finds the scrolling ancestor and reads its offsets', () => {
-		const find = scrolledStage();
-		const container = scrollContainerOf(find('[data-diagram-task="a"]'), find('#stage'))!;
-		expect(container.element).toBe(find('#scroller'));
-		expect(round(container.bounds)).toEqual({ x: 10, y: 20, w: 300, h: 200, radius: 0 });
-		expect(container.scrollLeft).toBe(20);
-		expect(container.scrollTop).toBe(50);
-		expect(scrollContainerOf(find('#free'), find('#stage'))).toBeNull();
-	});
-
-	it('applyTransition starts a retarget from the current rendered position', () => {
-		const find = build(`
-			<div id="stage" style="position: fixed; left: 0; top: 0; width: 800px; height: 400px">
-				<div data-diagram-task="a" style="position: absolute; left: 300px; top: 0; width: 40px; height: 20px"></div>
-			</div>`);
-		const stage = find('#stage');
-		const element = find('[data-diagram-task="a"]');
-		const target = (x: number, y: number) =>
-			new Map<string, TaskGeometry>([
-				[
-					'a',
-					{ box: { x, y, w: 40, h: 20, radius: 0 }, station: null, label: null, parentId: null }
-				]
-			]);
-		const first = applyTransition(stage, stage, target(0, 100), 1000, 'toward');
-		expect(first).toHaveLength(1);
-		first[0].pause();
-		first[0].currentTime = 500;
-		const middle = element.getBoundingClientRect();
-		expect(Math.abs(middle.x - 300), 'The first motion is in flight').toBeGreaterThan(10);
-
-		const second = applyTransition(stage, stage, target(600, 0), 1000, 'toward');
-		expect(second).toHaveLength(1);
-		second[0].pause();
-		near(element.getBoundingClientRect(), middle);
-		second[0].finish();
-		const end = element.getBoundingClientRect();
-		expect(Math.round(end.x)).toBe(600);
-		expect(Math.round(end.y)).toBe(0);
-		second[0].cancel();
-	});
-
-	it('applyTransition with duration 0 starts nothing', () => {
-		const find = build(`
-			<div id="stage" style="position: fixed; left: 0; top: 0; width: 800px; height: 400px">
-				<div data-diagram-task="a" style="position: absolute; left: 300px; top: 0; width: 40px; height: 20px"></div>
-			</div>`);
-		const stage = find('#stage');
-		const source = new Map<string, TaskGeometry>([
-			[
-				'a',
-				{ box: { x: 0, y: 0, w: 40, h: 20, radius: 0 }, station: null, label: null, parentId: null }
-			]
-		]);
-		expect(applyTransition(stage, stage, source, 0, 'from')).toEqual([]);
-		expect(find('[data-diagram-task="a"]').getAnimations()).toHaveLength(0);
-	});
-
-	it('applyTransition tweens the corner radius against the scale', () => {
-		const find = build(`
-			<div id="stage" style="position: fixed; left: 0; top: 0; width: 800px; height: 400px">
-				<div data-diagram-task="a" style="position: absolute; left: 0; top: 0; width: 80px; height: 20px"></div>
-			</div>`);
-		const stage = find('#stage');
-		const element = find('[data-diagram-task="a"]');
-		const source = new Map<string, TaskGeometry>([
-			[
-				'a',
-				{
-					box: { x: 0, y: 0, w: 40, h: 20, radius: 10 },
-					station: null,
-					label: null,
-					parentId: null
-				}
-			]
-		]);
-		const [animation] = applyTransition(stage, stage, source, 1000, 'from');
-		animation.pause();
-		animation.currentTime = 0;
-		// Half the width: the horizontal radius doubles, so the drawn corner is 10 px on both axes.
-		const style = getComputedStyle(element);
-		expect(parseFloat(style.borderTopLeftRadius.split(' ')[0])).toBeCloseTo(20, 0);
-		expect(parseFloat(style.borderTopLeftRadius.split(' ')[1])).toBeCloseTo(10, 0);
-		animation.finish();
-		expect(parseFloat(getComputedStyle(element).borderTopLeftRadius)).toBe(0);
+	it('scrollContainerOf reads the nearest scrolling ancestor and offsets', () => {
+		const { find, stage } = fixture();
+		const scroller = find('#out-inner');
+		const container = scrollContainerOf(find('#out [data-diagram-task]'), stage)!;
+		expect(container.element).toBe(scroller);
+		expect(container.scrollLeft).toBe(30);
+		expect(container.scrollTop).toBe(40);
+		expect(scrollContainerOf(find('[data-diagram-flight]'), stage)).toBeNull();
 	});
 });

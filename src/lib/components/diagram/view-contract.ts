@@ -69,6 +69,7 @@ export interface DiagramPaperAdapter {
  *   return. Motion also uses it for emerging subtasks.
  * - `scroller`: a scroll container of the view. The Timeline keeps its scroll offset during a
  *   height transition. The value is empty.
+ * - `flight`: the stage's clipped, decorative cue-copy layer. The value is empty.
  * Focus resolves to the focusable task box, else its label, else a keyboard route target.
  * Views use the layer's return-focus resolver when opening task details. The stage owns the
  * missing-target rule: captured parent id, then selected view choice. Views keep no local fallback.
@@ -77,6 +78,7 @@ export interface DiagramPaperAdapter {
  * The stage itself sets `layer` (the layer key) and `view` (the view id) on each layer.
  */
 export const DIAGRAM_ATTR = {
+	flight: 'data-diagram-flight',
 	task: 'data-diagram-task',
 	station: 'data-diagram-station',
 	label: 'data-diagram-label',
@@ -94,11 +96,11 @@ export const ROUTE_ATTR = {
 
 /**
  * The motion description of a view. The stage reads current geometry from the rendered DOM.
- * Reserved: no production code reads these fields yet. The deferred connector interpolation
- * (docs/spec.md, section 5.13) uses them to find views that can tween connector points.
+ * These fields identify the router and its connector point meanings. Every view pair fades
+ * connectors, including a compatible pair. Refer to docs/spec.md, section 5.13.
  */
 export interface DiagramMotionInfo {
-	/** The id of the connector router. Views with the same router can tween connector points. */
+	/** The id of the connector router. */
 	routerId: string;
 	/** The meaning of the connector points, for example `gantt-orthogonal-v1`. */
 	connectorSchema: string;

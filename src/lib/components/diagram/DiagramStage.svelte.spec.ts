@@ -6,6 +6,7 @@ import { userEvent, page } from 'vitest/browser';
 import { view as routeMapView } from '#lib/components/route-map/diagram-view.ts';
 import { view as ganttView } from '#lib/components/timeline/diagram-view.ts';
 import { makePlan, makeTask } from '#lib/domain/test-helpers.ts';
+import { VIEW_MOTION_MS } from '#lib/motion.ts';
 import { getLocale, overwriteGetLocale } from '#lib/paraglide/runtime.js';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { MemoryStorage } from '#lib/state/memory-storage.ts';
@@ -117,12 +118,6 @@ function focusPlace() {
 	const view = active.closest<HTMLElement>('[data-diagram-view]')?.dataset.diagramView;
 	if (view) return `${view}:${active.getAttribute('data-diagram-task')}`;
 	return active.getAttribute('data-testid') ?? active.textContent?.trim();
-}
-
-function near(a: DOMRect, b: DOMRect) {
-	for (const key of ['x', 'y', 'width', 'height'] as const) {
-		expect(Math.abs(a[key] - b[key]), key).toBeLessThanOrEqual(1);
-	}
 }
 
 describe('diagram view switch', () => {
@@ -356,9 +351,83 @@ describe('focus on task disappearance', () => {
 });
 
 describe('view announcement', () => {
+	async function finishAnnouncementMotion(stage: HTMLElement) {
+		await expect
+			.poll(async () => {
+				for (const animation of document.getAnimations()) animation.finish();
+				await tick();
+				return {
+					layers: stage.querySelectorAll('[data-diagram-layer]').length,
+					positive: document
+						.getAnimations()
+						.filter((animation) => Number(animation.effect?.getComputedTiming().duration) > 0)
+						.length,
+					setup: stage
+						.getAnimations({ subtree: true })
+						.filter(
+							(animation) =>
+								Number(animation.effect?.getComputedTiming().duration) === 0 &&
+								animation.playState !== 'finished'
+						).length
+				};
+			})
+			.toEqual({ layers: 1, positive: 0, setup: 0 });
+	}
+	for (const interrupt of [false, true]) {
+		it(
+			interrupt
+				? 'announces only the final view after an interruption past the debounce'
+				: 'announces an uninterrupted view once after its transition',
+			async () => {
+				motion.duration = 60_000;
+				const { container, select, stage } = await mount(threeViews());
+				const region = container.querySelector('[data-testid="diagram-view-announcement"]')!;
+				const history: string[] = [];
+				const observer = new MutationObserver(() => {
+					const value = region.textContent?.trim();
+					if (value) history.push(value);
+				});
+				observer.observe(region, { childList: true, characterData: true, subtree: true });
+				const frame = window.requestAnimationFrame;
+				const now = performance.now;
+				vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				expect(window.requestAnimationFrame).toBe(frame);
+				expect(performance.now).toBe(now);
+				select('test-list');
+				await tick();
+				await tick();
+				for (const animation of document.getAnimations()) {
+					if (Number(animation.effect?.getComputedTiming().duration) <= 0) continue;
+					animation.pause();
+					animation.currentTime = 10_000;
+				}
+				expect(stage.querySelectorAll('[data-flight-copy]').length).toBeGreaterThan(0);
+				await vi.advanceTimersByTimeAsync(200);
+				await tick();
+				if (!interrupt) expect(history).toEqual([]);
+				if (interrupt) {
+					select('test-row');
+					await tick();
+					await tick();
+					for (const animation of document.getAnimations()) {
+						if (Number(animation.effect?.getComputedTiming().duration) <= 0) continue;
+						animation.pause();
+						animation.currentTime = 0;
+					}
+				}
+				await finishAnnouncementMotion(stage);
+				await vi.advanceTimersByTimeAsync(400);
+				await tick();
+				await Promise.resolve();
+				observer.disconnect();
+				expect(history).toEqual([interrupt ? 'Test row view' : 'Test list view']);
+			}
+		);
+	}
+
 	it('announces nothing on mount, only the final view after rapid changes, and same-view fallback', async () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-		const { container, task, radio, select, announcement } = await mount(threeViews());
+		const { container, task, radio, select, announcement, stage } = await mount(threeViews());
 		await vi.advanceTimersByTimeAsync(400);
 		expect(announcement()).toBe('');
 		const regions = container.querySelectorAll('[aria-live="polite"]');
@@ -375,6 +444,7 @@ describe('view announcement', () => {
 		select('test-row');
 		await tick();
 		await tick();
+		await finishAnnouncementMotion(stage);
 		await vi.advanceTimersByTimeAsync(400);
 		await tick();
 		expect(announcement()).toBe('Test row view');
@@ -521,22 +591,58 @@ describe('outgoing layer', () => {
 });
 
 describe('view motion', () => {
-	it('moves task boxes by id between views', async () => {
-		const { task, select, settled } = await mount(threeViews());
-		const animate = vi.spyOn(Element.prototype, 'animate');
-		select('test-row');
-		await tick();
-		await tick();
-		const moved = animate.mock.contexts.filter(
-			(element) => element instanceof HTMLElement && element.hasAttribute('data-diagram-task')
+	function setFrame(fraction: number) {
+		for (const animation of document.getAnimations()) {
+			animation.pause();
+			animation.currentTime = (motion.duration ?? VIEW_MOTION_MS) * fraction;
+		}
+	}
+	function centers(stage: HTMLElement) {
+		return new Map(
+			[...stage.querySelectorAll<HTMLElement>('[data-flight-copy]')].map((copy) => {
+				const rect = copy.getBoundingClientRect();
+				return [
+					copy.dataset.flightCopy!,
+					{ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+				];
+			})
 		);
-		expect(moved).toContain(task('test-row', 'b'));
-		await settled();
+	}
+	it('uses one inert decorative flight layer for shared tasks', async () => {
+		motion.duration = 60_000;
+		const { stage, select } = await mount(threeViews());
+		const layers = stage.querySelectorAll<HTMLElement>('[data-diagram-flight]');
+		expect(layers).toHaveLength(1);
+		const flight = layers[0];
+		expect(flight.hasAttribute('inert')).toBe(true);
+		expect(flight.getAttribute('aria-hidden')).toBe('true');
+		expect(getComputedStyle(flight).pointerEvents).toBe('none');
+		expect(flight.closest('[data-diagram-layer]')).toBeNull();
+		select('test-list');
+		await tick();
+		await tick();
+		setFrame(0.5);
+		expect(flight.querySelectorAll('[data-flight-copy]')).toHaveLength(3);
+		expect(
+			flight.querySelector('[data-diagram-task], [data-diagram-station], [data-diagram-label]')
+		).toBeNull();
+		for (const node of stage.querySelectorAll('[data-diagram-task]')) {
+			const transforms = node
+				.getAnimations()
+				.filter(
+					(animation) =>
+						animation.playState !== 'finished' &&
+						(animation.effect as KeyframeEffect)
+							.getKeyframes()
+							.some((frame) => frame.transform !== undefined)
+				);
+			expect(transforms).toHaveLength(0);
+		}
 	});
-
-	it('starts no animation and swaps at once with reduced motion', async () => {
+	it('starts no animation or copy and transfers focus at once with reduced motion', async () => {
 		motion.reduced = true;
-		const { container, select, stage } = await mount(threeViews());
+		const { container, task, select, stage } = await mount(threeViews());
+		task('gantt', 'b')!.focus();
 		const animate = vi.spyOn(Element.prototype, 'animate');
 		select('test-row');
 		await tick();
@@ -544,34 +650,58 @@ describe('view motion', () => {
 		expect(animate).not.toHaveBeenCalled();
 		expect(document.getAnimations()).toHaveLength(0);
 		expect(container.querySelectorAll('[data-diagram-layer]')).toHaveLength(1);
+		expect(container.querySelectorAll('[data-diagram-flight]')).toHaveLength(1);
+		expect(container.querySelector('[data-flight-copy]')).toBeNull();
 		expect(stage.dataset.view).toBe('test-row');
+		expect(document.activeElement).toBe(task('test-row', 'b'));
 	});
-
-	it('continues from the current rendered frame when a change interrupts a change', async () => {
-		const { layer, task, select, settled } = await mount(threeViews());
+	it('continues each copy from the interrupted frame and cleans all layers', async () => {
 		motion.duration = 60_000;
+		const { stage, select } = await mount(threeViews());
 		select('test-list');
-		await expect.poll(() => task('test-list', 'b')?.getAnimations().length ?? 0).toBeGreaterThan(0);
-		const flying = task('test-list', 'b')!;
-		for (const animation of flying.getAnimations()) {
-			animation.pause();
-			animation.currentTime = 20_000;
-		}
-		expect(flying.getAnimations().length, 'The first change is still in flight').toBeGreaterThan(0);
-		const before = flying.getBoundingClientRect();
-
-		motion.duration = null;
+		await tick();
+		await tick();
+		setFrame(0.2);
+		const before = centers(stage);
+		expect(before.size).toBe(3);
+		setFrame(0.2);
 		select('test-row');
 		await tick();
 		await tick();
-		const incoming = task('test-row', 'b');
-		expect(incoming, 'The incoming layer has mounted').not.toBeNull();
-		// The same frame: the incoming box starts where the interrupted box is now.
-		near(incoming!.getBoundingClientRect(), before);
-		// The interrupted outgoing box also continues from where it is. It does not jump back.
-		near(flying.getBoundingClientRect(), before);
-		// The first leaving layer started with the long test duration; finish its outro so settled() checks the second change.
-		for (const animation of layer('gantt')?.getAnimations() ?? []) animation.finish();
-		await settled();
+		setFrame(0);
+		const after = centers(stage);
+		expect(after.size).toBe(before.size);
+		for (const [id, point] of before) {
+			expect(Math.abs(after.get(id)!.x - point.x)).toBeLessThanOrEqual(2);
+			expect(Math.abs(after.get(id)!.y - point.y)).toBeLessThanOrEqual(2);
+		}
+		await tick();
+		await Promise.resolve();
+		await tick();
+		setFrame(0);
+		const layers = [...stage.querySelectorAll<HTMLElement>('[data-diagram-layer]')];
+		expect(layers).toHaveLength(3);
+		const cues: HTMLElement[] = [];
+		for (const layer of layers) {
+			for (const id of after.keys()) {
+				const cue = layer.querySelector<HTMLElement>(`[data-diagram-station="${id}"]`);
+				expect(cue, `${layer.dataset.diagramView}: ${id}`).not.toBeNull();
+				cues.push(cue!);
+				expect(getComputedStyle(cue!).visibility).toBe('hidden');
+			}
+		}
+		expect(centers(stage).size).toBe(after.size);
+		await expect
+			.poll(() => {
+				for (const animation of document.getAnimations()) animation.finish();
+				return stage.querySelectorAll('[data-diagram-layer]').length;
+			})
+			.toBe(1);
+		expect(stage.querySelector('[data-diagram-flight]')!.children).toHaveLength(0);
+		for (const cue of cues) expect(cue.style.visibility).not.toBe('hidden');
+		for (const element of stage.querySelectorAll<HTMLElement>('*')) {
+			expect(element.style.visibility).not.toBe('hidden');
+			expect(getComputedStyle(element).visibility).not.toBe('hidden');
+		}
 	});
 });

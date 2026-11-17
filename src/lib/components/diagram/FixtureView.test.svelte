@@ -49,6 +49,8 @@
 		data-testid="fixture-task"
 		use:routeTargets.target={task.id}
 	>
+		<span data-diagram-station={task.id} style="display: inline-block; width: 8px; height: 8px"
+		></span>
 		<span data-diagram-label={task.id}>{task.title}</span>
 	</div>
 {/snippet}

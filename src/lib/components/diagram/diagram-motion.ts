@@ -1,12 +1,9 @@
 /**
- * Motion adapter hooks of the diagram stage. Refer to ADR 20 and docs/spec.md, section 5.13.
+ * Current-frame capture and cue flights for the diagram stage. Refer to spec 5.13 and ADR 23.
  *
- * The stage samples the rendered task nodes of a view (`DIAGRAM_ATTR`). `getBoundingClientRect`
- * reads the current frame: it includes running tweens, transforms, the sticky label area and all
- * scroll offsets. The hooks convert the result to stage coordinates in CSS pixels.
- * This module has the capture, apply, finish and cancel hooks and the scroll-container hooks.
- * The FLIP flight layer across scroll containers and cross-router connector interpolation are
- * deferred shared work. A false `routersCompatible` result identifies that path.
+ * Read rendered nodes in stage CSS pixels, including scroll offsets and running transforms.
+ * Move decorative copies of the incoming cues in one clipped flight layer. Keep real task
+ * boxes in place. Finish and cancel remove the copies and restore the real cue styles.
  */
 import { DIAGRAM_ATTR, type DiagramMotionInfo } from './view-contract.ts';
 
@@ -15,7 +12,6 @@ export interface Box {
 	y: number;
 	w: number;
 	h: number;
-	radius: number;
 }
 
 export interface Point {
@@ -25,54 +21,36 @@ export interface Point {
 
 /** The current rendered geometry of one task, in stage coordinates. */
 export interface TaskGeometry {
-	/** The task box, or null when the task has only a label. */
+	/** The rendered task box, or null when the task has only a label. */
 	box: Box | null;
 	/** The identity station center and radius, or null. */
 	station: (Point & { r: number }) | null;
-	/** The label position (its top-left corner), or null. */
-	label: Point | null;
+	/** The rendered label box, or null. Its anchor is the top-left corner. */
+	label: Box | null;
+	/** The real station elements, or the label elements when there is no station. */
+	elements: HTMLElement[];
 	/** The parent task id, for an emerging subtask. */
 	parentId: string | null;
 }
 
 /** Converts a viewport rectangle to a box relative to the stage origin. */
-export function toStage(rect: DOMRect, stage: DOMRect, radius = 0): Box {
+export function toStage(rect: DOMRect, stage: DOMRect): Box {
 	return {
 		x: rect.left - stage.left,
 		y: rect.top - stage.top,
 		w: rect.width,
-		h: rect.height,
-		radius
+		h: rect.height
 	};
 }
 
-function radiusOf(element: Element): number {
-	const value = parseFloat(getComputedStyle(element).borderTopLeftRadius);
-	return Number.isFinite(value) ? value : 0;
-}
-
-/**
- * The box of an element in stage coordinates with its drawn corner radius.
- * A fully round node (for example `rounded-full`) has a very large computed radius. The browser
- * draws at most half the shorter side, so the box keeps that value.
- */
-function boxOf(element: Element, origin: DOMRect): Box {
-	const rect = element.getBoundingClientRect();
-	const radius = Math.min(radiusOf(element), rect.width / 2, rect.height / 2);
-	return toStage(rect, origin, radius);
-}
-
-/**
- * Reads the current geometry of every rendered task in `root`.
- * A task with a label and no box keeps its label position. A task with neither has no record.
- */
+/** Reads the current box, station and label geometry of every rendered task in `root`. */
 export function captureGeometry(root: ParentNode, stage: Element): Map<string, TaskGeometry> {
 	const origin = stage.getBoundingClientRect();
 	const records = new Map<string, TaskGeometry>();
 	const record = (id: string) => {
 		let entry = records.get(id);
 		if (!entry) {
-			entry = { box: null, station: null, label: null, parentId: null };
+			entry = { box: null, station: null, label: null, parentId: null, elements: [] };
 			records.set(id, entry);
 		}
 		return entry;
@@ -80,45 +58,33 @@ export function captureGeometry(root: ParentNode, stage: Element): Map<string, T
 	for (const element of root.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.task}]`)) {
 		const id = element.getAttribute(DIAGRAM_ATTR.task)!;
 		const entry = record(id);
-		entry.box = boxOf(element, origin);
+		entry.box = toStage(element.getBoundingClientRect(), origin);
 		entry.parentId = element.getAttribute(DIAGRAM_ATTR.parent);
-		const station = element.querySelector(`[${DIAGRAM_ATTR.station}]`);
-		if (station) {
-			const rect = station.getBoundingClientRect();
-			entry.station = {
-				x: rect.left + rect.width / 2 - origin.left,
-				y: rect.top + rect.height / 2 - origin.top,
-				r: rect.width / 2
-			};
-		}
+	}
+	for (const element of root.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.station}]`)) {
+		const id = element.getAttribute(DIAGRAM_ATTR.station)!;
+		const entry = record(id);
+		const rect = element.getBoundingClientRect();
+		entry.station = {
+			x: rect.left + rect.width / 2 - origin.left,
+			y: rect.top + rect.height / 2 - origin.top,
+			r: rect.width / 2
+		};
+		entry.elements.push(element);
 	}
 	for (const element of root.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.label}]`)) {
 		const id = element.getAttribute(DIAGRAM_ATTR.label)!;
-		const rect = element.getBoundingClientRect();
-		record(id).label = { x: rect.left - origin.left, y: rect.top - origin.top };
+		const entry = record(id);
+		entry.label = toStage(element.getBoundingClientRect(), origin);
+		if (!entry.station) entry.elements.push(element);
 	}
 	return records;
 }
 
 /**
- * The source of a destination task: its own outgoing record, else the parent's box or label
- * (an emerging subtask). Null means: no source, fade in at the destination.
+ * Compares router identities and connector meanings. Every view pair fades connectors,
+ * including a compatible pair. Refer to spec 5.13.
  */
-export function sourceBox(
-	id: string,
-	parentId: string | null,
-	outgoing: ReadonlyMap<string, TaskGeometry>
-): Box | null {
-	const own = outgoing.get(id);
-	if (own?.box) return own.box;
-	if (own?.label) return { ...own.label, w: 0, h: 0, radius: 0 };
-	const parent = parentId === null ? undefined : outgoing.get(parentId);
-	if (parent?.box) return parent.box;
-	if (parent?.label) return { ...parent.label, w: 0, h: 0, radius: 0 };
-	return null;
-}
-
-/** True only when both views use the same router with the same connector point meaning. */
 export function routersCompatible(a: DiagramMotionInfo, b: DiagramMotionInfo): boolean {
 	return a.routerId === b.routerId && a.connectorSchema === b.connectorSchema;
 }
@@ -149,94 +115,167 @@ export function scrollContainerOf(element: Element, stage: Element): ScrollConta
 	return null;
 }
 
-const FLIGHT = Symbol('diagram-flight');
-type Flying = HTMLElement & { [FLIGHT]?: Animation };
-
-/** A FLIP frame: the transform and corner radius that draw a box laid out at `here` at `box`. */
-type Frame = {
-	transform: string;
-	borderRadius: string;
-	transformOrigin: string;
-};
-
-/**
- * The frame that draws the box laid out at `here` at `box` instead, or null when they are equal.
- * The scale also scales the corners, so the radius is divided by the scale on each axis.
- */
-function frameAt(box: Box, here: Box): Frame | null {
-	const dx = box.x - here.x;
-	const dy = box.y - here.y;
-	const sx = here.w > 0 && box.w > 0 ? box.w / here.w : 1;
-	const sy = here.h > 0 && box.h > 0 ? box.h / here.h : 1;
-	if (
-		Math.abs(dx) < 0.5 &&
-		Math.abs(dy) < 0.5 &&
-		Math.abs(sx - 1) < 0.01 &&
-		Math.abs(sy - 1) < 0.01 &&
-		Math.abs(box.radius - here.radius) < 0.5
-	)
-		return null;
-	return {
-		transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
-		borderRadius: `${box.radius / sx}px / ${box.radius / sy}px`,
-		// The keyframes carry the origin, so no inline style stays after the animation.
-		transformOrigin: '0 0'
-	};
+interface Cue extends Box {
+	kind: 'station' | 'label';
 }
 
-/** The frame of the box at its own layout position. */
-const rest = (here: Box): Frame => ({
-	transform: 'none',
-	borderRadius: `${here.radius}px`,
-	transformOrigin: '0 0'
-});
-
-/**
- * Apply: moves each task box of `root` from its source to its rendered position (FLIP).
- * It tweens the position, the width, the height and the corner radius.
- * `toward` moves outgoing boxes from their current frame to the destination.
- * A box in flight continues from its current rendered frame: the hook reads that frame,
- * cancels the old flight, and starts the new one there. Returns the started animations.
- * Duration 0 starts nothing.
- */
-export function applyTransition(
-	root: ParentNode,
-	stage: Element,
-	other: ReadonlyMap<string, TaskGeometry>,
-	duration: number,
-	direction: 'from' | 'toward',
-	/** For `toward`: the frame captured before the change, if the layout has changed since. */
-	before?: ReadonlyMap<string, TaskGeometry>
-): Animation[] {
-	if (duration <= 0) return [];
-	const origin = stage.getBoundingClientRect();
-	const animations: Animation[] = [];
-	for (const element of root.querySelectorAll<Flying>(`[${DIAGRAM_ATTR.task}]`)) {
-		const id = element.getAttribute(DIAGRAM_ATTR.task)!;
-		const source = sourceBox(id, element.getAttribute(DIAGRAM_ATTR.parent), other);
-		if (!source) continue;
-		// Read the current frame before canceling the old flight, then the layout position.
-		const current = before?.get(id)?.box ?? boxOf(element, origin);
-		element[FLIGHT]?.cancel();
-		element[FLIGHT] = undefined;
-		const here = boxOf(element, origin);
-		const first = frameAt(direction === 'from' ? source : current, here);
-		const last = direction === 'from' ? null : frameAt(source, here);
-		if (!first && !last) continue;
-		const animation = element.animate([first ?? rest(here), last ?? rest(here)], {
-			duration,
-			easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
-			fill: direction === 'toward' ? 'forwards' : 'none'
-			// The default composite is replace. An added transform-origin would sum with the
-			// default 50 % 50 %. Task boxes position with `translate` and `left`, not `transform`.
-		});
-		element[FLIGHT] = animation;
-		animations.push(animation);
+/** Selects the station center, else the label's top-left corner. */
+export function cueOf(geometry: TaskGeometry): Cue | null {
+	if (geometry.station) {
+		const { x, y, r } = geometry.station;
+		return { kind: 'station', x, y, w: 2 * r, h: 2 * r };
 	}
-	return animations;
+	return geometry.label ? { kind: 'label', ...geometry.label } : null;
 }
 
-/** Finish or cancel: stops the animations and removes their temporary state. */
-export function stopTransition(animations: readonly Animation[]): void {
-	for (const animation of animations) animation.cancel();
+/** True when any part of the cue box is inside the stage box. */
+function intersects(cue: Cue, stage: DOMRect): boolean {
+	const x = cue.x - (cue.kind === 'station' ? cue.w / 2 : 0);
+	const y = cue.y - (cue.kind === 'station' ? cue.h / 2 : 0);
+	return x < stage.width && y < stage.height && x + cue.w > 0 && y + cue.h > 0;
+}
+
+/** Copies the incoming cue without task identity, focus or route input. */
+function copyCue(element: HTMLElement, cue: Cue, id: string): HTMLElement {
+	const copy = element.cloneNode(true) as HTMLElement;
+	for (const node of [copy, ...copy.querySelectorAll('*')]) {
+		for (const name of node.getAttributeNames()) {
+			if (
+				/^(id|tabindex|data-diagram-.*|data-route-.*|data-testid|aria-describedby|aria-controls|aria-labelledby)$/.test(
+					name
+				)
+			)
+				node.removeAttribute(name);
+		}
+	}
+	const style = getComputedStyle(element);
+	Object.assign(copy.style, {
+		position: 'absolute',
+		inset: 'auto',
+		left: `${cue.x - (cue.kind === 'station' ? cue.w / 2 : 0)}px`,
+		top: `${cue.y - (cue.kind === 'station' ? cue.h / 2 : 0)}px`,
+		width: `${cue.w}px`,
+		height: `${cue.h}px`,
+		minWidth: '0',
+		minHeight: '0',
+		maxWidth: 'none',
+		maxHeight: 'none',
+		boxSizing: 'border-box',
+		margin: '0',
+		translate: 'none',
+		rotate: 'none',
+		scale: 'none',
+		transform: 'none',
+		transformOrigin: 'center',
+		visibility: 'visible',
+		pointerEvents: 'none',
+		color: style.color,
+		font: style.font,
+		letterSpacing: style.letterSpacing
+	});
+	copy.inert = true;
+	copy.setAttribute('data-flight-copy', id);
+	return copy;
+}
+
+/**
+ * Moves incoming cue copies between captured anchors. The stage supplies a duration from
+ * motionDuration(). Finish and cancel use the same cleanup. A zero duration changes no DOM.
+ */
+export function createFlight(
+	stage: Element,
+	outgoing: ReadonlyMap<string, TaskGeometry>,
+	incoming: ReadonlyMap<string, TaskGeometry>,
+	duration: number
+): { animations: Animation[]; capture: () => Map<string, TaskGeometry>; cancel: () => void } {
+	const animations: Animation[] = [];
+	const copies = new Map<string, { element: HTMLElement; cue: Cue; parentId: string | null }>();
+	const hidden = new Map<HTMLElement, { visibility: string; opacity: string | null }>();
+	let canceled = false;
+	const cancel = () => {
+		if (canceled) return;
+		canceled = true;
+		for (const animation of animations) animation.cancel();
+		for (const { element } of copies.values()) element.remove();
+		copies.clear();
+		for (const [element, previous] of hidden) {
+			element.style.visibility = previous.visibility;
+			if (previous.opacity !== null) element.style.opacity = previous.opacity;
+		}
+		hidden.clear();
+	};
+	const capture = () => {
+		const origin = stage.getBoundingClientRect();
+		const records = new Map<string, TaskGeometry>();
+		for (const [id, { element, cue, parentId }] of copies) {
+			const box = toStage(element.getBoundingClientRect(), origin);
+			records.set(id, {
+				box: null,
+				station:
+					cue.kind === 'station'
+						? { x: box.x + box.w / 2, y: box.y + box.h / 2, r: box.w / 2 }
+						: null,
+				label: cue.kind === 'label' ? box : null,
+				elements: [],
+				parentId
+			});
+		}
+		return records;
+	};
+	const layer = stage.querySelector<HTMLElement>(`[${DIAGRAM_ATTR.flight}]`);
+	if (duration <= 0 || !layer) return { animations, capture, cancel };
+	const bounds = stage.getBoundingClientRect();
+	const prepared: {
+		id: string;
+		geometry: TaskGeometry;
+		own: TaskGeometry | undefined;
+		from: Cue;
+		to: Cue;
+		copy: HTMLElement;
+	}[] = [];
+	// Read incoming paint while all copies are detached and all real cues are unchanged.
+	for (const [id, geometry] of incoming) {
+		const own = outgoing.get(id);
+		const source = own ?? (geometry.parentId ? outgoing.get(geometry.parentId) : undefined);
+		const from = source ? cueOf(source) : null;
+		const to = cueOf(geometry);
+		const element = geometry.elements[0];
+		if (!from || !to || !element || (!intersects(from, bounds) && !intersects(to, bounds)))
+			continue;
+		const copy = copyCue(element, to, id);
+		prepared.push({ id, geometry, own, from, to, copy });
+	}
+	for (const { id, geometry, own, from, to, copy } of prepared) {
+		layer.append(copy);
+		copies.set(id, { element: copy, cue: to, parentId: geometry.parentId });
+		const scale = from.kind === 'station' && to.kind === 'station' && to.w > 0 ? from.w / to.w : 1;
+		animations.push(
+			copy.animate(
+				[
+					{ transform: `translate(${from.x - to.x}px, ${from.y - to.y}px) scale(${scale})` },
+					{ transform: 'translate(0px, 0px) scale(1)' }
+				],
+				{ duration, easing: 'cubic-bezier(0.33, 1, 0.68, 1)', fill: 'both' }
+			)
+		);
+		for (const real of [...(own?.elements ?? []), ...geometry.elements]) {
+			if (hidden.has(real)) continue;
+			// A focused label must stay focusable. Hide its paint without hiding the focus target.
+			const focusedLabel =
+				real.hasAttribute(DIAGRAM_ATTR.label) &&
+				!real.hasAttribute(DIAGRAM_ATTR.station) &&
+				real.contains(document.activeElement);
+			hidden.set(real, {
+				visibility: real.style.visibility,
+				opacity: focusedLabel ? real.style.opacity : null
+			});
+			if (focusedLabel) {
+				real.style.opacity = '0';
+			} else {
+				real.style.visibility = 'hidden';
+			}
+		}
+	}
+	void Promise.allSettled(animations.map((animation) => animation.finished)).then(cancel);
+	return { animations, capture, cancel };
 }

@@ -194,14 +194,23 @@
 		if (node.dataset.parent) return `family:${node.dataset.parent}`;
 		return `lane:${node.dataset.stage}`;
 	}
+	/** Read content coordinates so reveal scrolling does not become a card move. */
+	function motionPosition(node: HTMLElement, origin: DOMRect): { x: number; y: number } {
+		const box = node.getBoundingClientRect();
+		return {
+			x: box.left - origin.left + strip.scrollLeft,
+			y: box.top - origin.top + strip.scrollTop
+		};
+	}
 	$effect.pre(() => {
 		void board;
 		void rows;
-		if (!root) return;
+		if (!root || !strip) return;
 		const revision = ++motionRevision;
-		const before = new SvelteMap<string, DOMRect>();
+		const origin = strip.getBoundingClientRect();
+		const before = new SvelteMap<string, { x: number; y: number }>();
 		for (const node of root.querySelectorAll<HTMLElement>(movingSelector)) {
-			before.set(motionKey(node), node.getBoundingClientRect());
+			before.set(motionKey(node), motionPosition(node, origin));
 		}
 		untrack(() => {
 			for (const animation of animations.values()) animation.cancel();
@@ -209,17 +218,18 @@
 		});
 		tick().then(() => {
 			const duration = motionDuration(GEOMETRY_MOTION_MS);
-			if (!root?.isConnected || revision !== motionRevision) return;
+			if (!root?.isConnected || !strip || revision !== motionRevision) return;
 			if (!duration) {
 				measure();
 				return;
 			}
 			const nodes = [...root.querySelectorAll<HTMLElement>(movingSelector)];
+			const origin = strip.getBoundingClientRect();
 			const deltas = new Map<HTMLElement, { x: number; y: number }>(
 				nodes.map((node) => {
 					const old = before.get(motionKey(node));
-					const next = node.getBoundingClientRect();
-					return [node, { x: old ? old.left - next.left : 0, y: old ? old.top - next.top : 0 }];
+					const next = motionPosition(node, origin);
+					return [node, { x: old ? old.x - next.x : 0, y: old ? old.y - next.y : 0 }];
 				})
 			);
 			for (const node of nodes) {

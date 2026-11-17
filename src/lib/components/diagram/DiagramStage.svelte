@@ -1,11 +1,12 @@
 <!--
 	The diagram stage in the Timeline body. Refer to docs/spec.md, section 5.13, and ADR 20.
 	It renders the selected view from the registry. A view change:
-	1. captures the current geometry and focus of the outgoing view,
-	2. marks the outgoing layer inactive (no route input, inert) and mounts the incoming layer,
-	3. moves task boxes by task id (FLIP) and cross-fades the layers in one ease-out transition,
-	4. resolves focus by task id, then captured parent id, then the selected switch choice,
-	5. announces the final view in a polite live region.
+	1. captures running cue copies, cancels their flight and captures every current view layer,
+	2. merges cue positions and elements, then mounts the incoming view with outgoing input off,
+	3. transfers and reveals focus by task id, then captured parent id, then switch choice,
+	4. moves incoming cue copies in one flight layer and fades the view layers in place,
+	5. lets outgoing layers exit and announces the final view after motion and the debounce.
+	Flight cleanup restores the cues.
 	All durations use motionDuration. Reduced motion swaps at once.
 -->
 <script lang="ts">
@@ -29,12 +30,7 @@
 		taskIdOf
 	} from './diagram-focus.ts';
 	import { setDiagramLayer } from './diagram-layer.ts';
-	import {
-		applyTransition,
-		captureGeometry,
-		stopTransition,
-		type TaskGeometry
-	} from './diagram-motion.ts';
+	import { captureGeometry, createFlight, type TaskGeometry } from './diagram-motion.ts';
 	import DiagramStageLayer from './DiagramStageLayer.svelte';
 	import { DIAGRAM_ATTR, type DiagramViewId, type DiagramViewProps } from './view-contract.ts';
 	import { getViewRegistry } from './view-registry.ts';
@@ -51,7 +47,7 @@
 	const ws = getWorkspace();
 	const active = $derived(registry.resolve(viewer.diagramView));
 
-	/** The delay before the announcement. Rapid changes announce only the final view. */
+	/** The announcement delay after the view transition finishes. */
 	const ANNOUNCE_DELAY_MS = 150;
 
 	interface Layer {
@@ -63,9 +59,13 @@
 	let stage = $state<HTMLDivElement | null>(null);
 	let layers = $state<Layer[]>([{ key: 0, view: untrack(() => active.id), leaving: false }]);
 	let nextKey = 1;
-	let animations: Animation[] = [];
+	let flight: ReturnType<typeof createFlight> | null = null;
+	let destroyed = false;
 	let announcement = $state('');
 	let announceTimer: ReturnType<typeof setTimeout> | undefined;
+	let announcementGeneration = 0;
+	let viewTransition: Promise<unknown> = Promise.resolve();
+	let incomingFade: { key: number; finish: () => void } | null = null;
 	let layoutToken: symbol | undefined;
 	let layoutTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -205,15 +205,30 @@
 	let announced = untrack(() => active.id);
 
 	function announce(view: DiagramViewId, fallback = false) {
+		const generation = ++announcementGeneration;
 		clearTimeout(announceTimer);
-		// Rapid changes announce only the final view. A return to the announced view is no change.
-		announceTimer = setTimeout(() => {
-			if (view === announced && !fallback) return;
-			announced = view;
-			const label = registry.get(view)?.label() ?? view;
-			announcement = '';
-			void tick().then(() => (announcement = m.diagram_view_announcement({ view: label })));
-		}, ANNOUNCE_DELAY_MS);
+		// Wait for copies and incoming content, including a transition that has no copies.
+		void viewTransition.then(() => {
+			if (destroyed || generation !== announcementGeneration) return;
+			announceTimer = setTimeout(() => {
+				if (destroyed || generation !== announcementGeneration) return;
+				// A return to the announced view is no change. Fallbacks still repeat the name.
+				if (view === announced && !fallback) return;
+				const label = registry.get(view)?.label() ?? view;
+				announcement = '';
+				void tick().then(() => {
+					if (destroyed || generation !== announcementGeneration) return;
+					announced = view;
+					announcement = m.diagram_view_announcement({ view: label });
+				});
+			}, ANNOUNCE_DELAY_MS);
+		});
+	}
+
+	function finishIncomingFade(key: number) {
+		if (incomingFade?.key !== key) return;
+		incomingFade.finish();
+		incomingFade = null;
 	}
 
 	function markLayoutChange(duration: number) {
@@ -229,57 +244,108 @@
 
 	async function change(view: DiagramViewId) {
 		const duration = motionDuration(VIEW_MOTION_MS);
-		// Capture the current frame before canceling interrupted motion.
+		// Invalidate every earlier announcement before canceled motion can settle its promises.
+		announcementGeneration++;
+		clearTimeout(announceTimer);
+		incomingFade?.finish();
+		incomingFade = null;
+		// Capture copies before cleanup restores the real cue elements.
+		const running = flight?.capture();
+		flight?.cancel();
+		flight = null;
 		// A plain map: a local snapshot, not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const outgoing = new Map<string, TaskGeometry>();
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const frames = new Map<number, Map<string, TaskGeometry>>();
-		for (const layer of layers) {
-			const element = layerElement(layer.key);
-			if (!element || !stage) continue;
-			const frame = captureGeometry(element, stage);
-			frames.set(layer.key, frame);
-			for (const [task, geometry] of frame) {
-				if (!layer.leaving || !outgoing.has(task)) outgoing.set(task, geometry);
+		const elements = new Map<string, Set<HTMLElement>>();
+		const retained: {
+			element: HTMLElement;
+			width: number;
+			height: number;
+			scrollers: { element: HTMLElement; top: number; left: number }[];
+		}[] = [];
+		if (stage) {
+			// Exiting DOM can outlive its entry in layers. Include it in the cue-element union.
+			const current = stage.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.layer}]`);
+			for (const element of current) {
+				const box = element.getBoundingClientRect();
+				retained.push({
+					element,
+					width: box.width,
+					height: box.height,
+					scrollers: [...element.querySelectorAll<HTMLElement>(`[${DIAGRAM_ATTR.scroller}]`)].map(
+						(scroller) => ({
+							element: scroller,
+							top: scroller.scrollTop,
+							left: scroller.scrollLeft
+						})
+					)
+				});
+				for (const [task, geometry] of captureGeometry(element, stage)) {
+					let cues = elements.get(task);
+					if (!cues) {
+						// eslint-disable-next-line svelte/prefer-svelte-reactivity
+						cues = new Set<HTMLElement>();
+						elements.set(task, cues);
+					}
+					for (const cue of geometry.elements) cues.add(cue);
+					if (!element.inert || !outgoing.has(task)) outgoing.set(task, geometry);
+				}
 			}
 		}
-		// Running flights stay: applyTransition continues each box from its current frame.
+		for (const [task, geometry] of running ?? []) outgoing.set(task, geometry);
+		for (const [task, geometry] of outgoing) {
+			outgoing.set(task, { ...geometry, elements: [...(elements.get(task) ?? [])] });
+		}
 		// A switch action keeps focus on the switch. Focus elsewhere is not taken.
 		// The transfer happens one microtask later, so no user focus action can come between.
 		const target = focusedTask();
 		markLayoutChange(duration);
+		// Keep each outgoing viewport at its captured size when it becomes absolute.
+		for (const { element, width, height } of retained) {
+			element.style.boxSizing = 'border-box';
+			element.style.width = `${width}px`;
+			element.style.height = `${height}px`;
+		}
 
 		const key = nextKey++;
+		const fadeFinished =
+			duration > 0
+				? new Promise<void>((finish) => {
+						incomingFade = { key, finish };
+					})
+				: Promise.resolve();
 		layers = [
 			...layers.map((layer) => ({ ...layer, leaving: true })),
 			{ key, view, leaving: false }
 		];
 		await tick();
+		if (destroyed || key !== nextKey - 1) return;
+		// A layout change can clamp a scroller. Restore it before focus reveal and cue capture.
+		for (const { scrollers } of retained) {
+			for (const { element, top, left } of scrollers) {
+				element.scrollTop = top;
+				element.scrollLeft = left;
+			}
+		}
 		const incoming = layerElement(key);
 		// Resolve and reveal before motion samples the destination geometry.
 		const fallback = target && incoming ? transferFocus(incoming, target) : false;
 		const destination = stage && incoming ? captureGeometry(incoming, stage) : null;
+		let flightFinished: Promise<unknown> = Promise.resolve();
 		if (stage && incoming && destination) {
-			// Keep only flights in progress. Finished and canceled ones hold removed elements.
-			animations = animations.filter((animation) => animation.playState === 'running');
-			animations.push(...applyTransition(incoming, stage, outgoing, duration, 'from'));
-			for (const layer of layers) {
-				const element = layer.leaving ? layerElement(layer.key) : null;
-				if (element) {
-					animations.push(
-						...applyTransition(
-							element,
-							stage,
-							destination,
-							duration,
-							'toward',
-							frames.get(layer.key)
-						)
-					);
-				}
-			}
+			const current = createFlight(stage, outgoing, destination, duration);
+			flight = current;
+			flightFinished = Promise.allSettled(
+				current.animations.map((animation) => animation.finished)
+			).then(() => {
+				current.cancel();
+				if (flight === current) flight = null;
+			});
 		}
+		if (!incoming) finishIncomingFade(key);
+		viewTransition =
+			duration > 0 ? Promise.allSettled([flightFinished, fadeFinished]) : Promise.resolve();
 		// The outgoing layers lost route input above. Now their DOM can exit.
 		layers = layers.filter((layer) => !layer.leaving);
 
@@ -295,7 +361,11 @@
 	});
 
 	$effect(() => () => {
-		stopTransition(animations);
+		destroyed = true;
+		announcementGeneration++;
+		incomingFade?.finish();
+		incomingFade = null;
+		flight?.cancel();
 		clearTimeout(announceTimer);
 		clearTimeout(layoutTimer);
 		if (layoutToken) endTimelineLayoutChange(layoutToken);
@@ -325,7 +395,7 @@
 		{@const view = registry.resolve(layer.view)}
 		<div
 			class={cn(
-				'flex min-h-0 min-w-0 flex-1 flex-col',
+				'isolate flex min-h-0 min-w-0 flex-1 flex-col',
 				layer.leaving && 'pointer-events-none absolute inset-x-0 top-0'
 			)}
 			inert={layer.leaving}
@@ -334,6 +404,7 @@
 			data-diagram-view={view.id}
 			in:layerFade
 			out:layerFade
+			onintroend={() => finishIncomingFade(layer.key)}
 		>
 			<DiagramStageLayer
 				{view}
@@ -345,5 +416,11 @@
 			/>
 		</div>
 	{/each}
+	<div
+		class="pointer-events-none absolute inset-0 z-10 overflow-hidden"
+		data-diagram-flight
+		inert
+		aria-hidden="true"
+	></div>
 </div>
 <p class="sr-only" aria-live="polite" data-testid="diagram-view-announcement">{announcement}</p>

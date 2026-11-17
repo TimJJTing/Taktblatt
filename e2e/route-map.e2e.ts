@@ -12,7 +12,7 @@ import {
 	chooseTheme,
 	diagramStage,
 	expectView,
-	holdAnimationFrames,
+	holdViewChange,
 	openPlans,
 	openExample,
 	openPreview,
@@ -797,18 +797,31 @@ test('D53 incoming connectors stay scoped during Gantt ↔ Route map layer coexi
 		['gantt', gantt],
 		['route-map', route]
 	] as const) {
-		const frames = await holdAnimationFrames(page);
+		const held = await holdViewChange(page, next, 0.5);
 		try {
-			await page
-				.getByTestId(`diagram-view-${next}`)
-				.evaluate((element) => (element as HTMLElement).click());
+			await held.seek(0.5);
 			const snapshot = await diagramStage(page).evaluate((stage, next) => {
-				for (const animation of stage.getAnimations({ subtree: true })) animation.pause();
 				const layers = [...stage.querySelectorAll('[data-diagram-layer]')];
 				const active = stage.querySelector(`[data-diagram-view="${next}"]:not([inert])`)!;
 				return {
 					layers: layers.length,
 					inert: layers.filter((l) => l.hasAttribute('inert')).length,
+					flight: !!stage.querySelector('[data-diagram-flight]'),
+					flightConnectors: stage.querySelectorAll(
+						'[data-diagram-flight] [data-testid="gantt-dependency"]'
+					).length,
+					connectorOpacity: [...stage.querySelectorAll('[data-testid="gantt-dependency"]')].map(
+						(element) => {
+							let opacity = 1;
+							for (
+								let node: Element | null = element;
+								node && node !== stage;
+								node = node.parentElement
+							)
+								opacity *= Number(getComputedStyle(node).opacity);
+							return opacity;
+						}
+					),
 					ids: [...active.querySelectorAll('[data-testid="gantt-dependency"]')]
 						.map((p) => `${p.getAttribute('data-from')}->${p.getAttribute('data-to')}`)
 						.sort()
@@ -816,13 +829,13 @@ test('D53 incoming connectors stay scoped during Gantt ↔ Route map layer coexi
 			}, next);
 			expect(snapshot.layers).toBe(2);
 			expect(snapshot.inert).toBe(1);
+			expect(snapshot.flight).toBe(true);
+			expect(snapshot.flightConnectors).toBe(0);
+			expect(snapshot.connectorOpacity.every((opacity) => opacity === 0)).toBe(true);
 			expect(snapshot.ids).toEqual(expected);
 			expect(new Set(snapshot.ids).size).toBe(snapshot.ids.length);
 		} finally {
-			await diagramStage(page).evaluate((stage) => {
-				for (const animation of stage.getAnimations({ subtree: true })) animation.play();
-			});
-			await frames.release();
+			await held.release();
 		}
 		await expectView(page, next);
 	}
