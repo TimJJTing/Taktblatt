@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Each record has a number, a status and a date. Write a new record when a decision changes. ADR 20 and ADR 22 stay Proposed until implementation is accepted. ADR 23 amends ADR 4 and ADR 19 to ADR 22.
+Each record has a number, a status and a date. Write a new record when a decision changes. ADR 23 amends ADR 4 and ADR 19 to ADR 22.
 
 | No. | Title                                                                                            | Status                                                       | Date       |
 | --- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ---------- |
@@ -23,7 +23,7 @@ Each record has a number, a status and a date. Write a new record when a decisio
 | 17  | [Menus by scope, bottom sheets on touch, and the narrow Timeline handle](0017-menus-by-scope.md) | Accepted                                                     | 2026-11-10 |
 | 18  | [Overlay scrollbar](0018-overlay-scrollbar.md)                                                   | Accepted                                                     | 2026-11-11 |
 | 19  | [Scene model and shared diagram layer](0019-scene-model.md)                                      | Accepted; amended (slices 3, 4, ADR 23); delivery superseded | 2026-11-11 |
-| 20  | [Diagram views and print selection](0020-diagram-views.md)                                       | Proposed (amended by ADR 23)                                 | 2026-11-13 |
+| 20  | [Diagram views and print selection](0020-diagram-views.md)                                       | Accepted (amended by ADR 23)                                 | 2026-11-17 |
 | 21  | [Route map](0021-route-map.md)                                                                   | Accepted (amended by ADR 23)                                 | 2026-11-14 |
-| 22  | [Kanban](0022-kanban.md)                                                                         | Proposed (leaf board superseded by ADR 23)                   | 2026-11-13 |
+| 22  | [Kanban](0022-kanban.md)                                                                         | Accepted (leaf board superseded by ADR 23)                   | 2026-11-17 |
 | 23  | [Unified diagram language](0023-unified-diagram-language.md)                                     | Accepted                                                     | 2026-11-16 |

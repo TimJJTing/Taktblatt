@@ -173,7 +173,7 @@ The approved route fixture does not establish dark-theme rendering, dense or nar
 One integration change delivers the design (decision U1): [PR #62](https://github.com/TimJJTing/Taktblatt/pull/62) on the branch `feat/unified-diagrams`.
 It supersedes [PR #54](https://github.com/TimJJTing/Taktblatt/pull/54) (Kanban) and [PR #55](https://github.com/TimJJTing/Taktblatt/pull/55) (Route map). Their histories are merged into the branch.
 The motion and focus work of [PR #57](https://github.com/TimJJTing/Taktblatt/pull/57) lands in PR #62. PR #57 contained a placeholder, not a motion implementation.
-The parallel delivery rules of PR #54 and PR #55 no longer apply. ADR 23 becomes Accepted in PR #62.
+The parallel delivery rules of PR #54 and PR #55 no longer apply. ADR 23 is Accepted. ADR 20 and ADR 22 became Accepted on 2026-11-17 after validation.
 
 1. Update the specification and ADRs 19 to 23 before behavior changes. A separate agent verifies the implementation plan.
 2. Write failing behavior tests for each slice before production code changes.
@@ -223,7 +223,7 @@ The requesting developer made these decisions on 2026-11-16. U9 to U12 followed 
 | U9  | Route map: a same-stage dependency between a top-level task and a subtask of another parent keeps the colored rail from the parent station in both expand states. Route focus and the accessible description show the exact subtask. No thin path.                      |
 | U10 | Kanban widths: `6rem` stage heading column and `7.5rem` minimum status columns, so four columns fit a 640 px pane. Below that, one horizontal strip. No stacked status groups.                                                                                          |
 | U11 | One flight rule for every view pair. No FLIP of real task boxes. A copy exists only when the outgoing or incoming cue intersects the stage box. Real cue elements with a copy are hidden during the flight. All connectors fade; connector retargeting is out of scope. |
-| U12 | ADR 20 and ADR 22 become Accepted in the last slice of PR #62, after validation. They stay Proposed (amended) until then.                                                                                                                                               |
+| U12 | ADR 20 and ADR 22 became Accepted on 2026-11-17 after validation.                                                                                                                                                                                                       |
 | U13 | Kanban family rows sit below the cards of the swimlane across all columns; the expansion control is in that row, not on the parent summary card.                                                                                                                        |
 | U14 | Kanban card titles clamp to two lines on screen and paper. The full title stays in the accessible name, the task dialog and the printed Work plan. Card borders stay and stage badges are omitted from cards.                                                           |
 | U15 | Status key readiness text is "Ready: all dependencies are finished. Blocked: a dependency is not finished." without an introductory sentence.                                                                                                                           |

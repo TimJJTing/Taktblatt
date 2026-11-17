@@ -1,6 +1,6 @@
 # ADR 22: Kanban board and command seam
 
-Status: Proposed (2026-11-13). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): the leaf board decision is superseded. The last slice of PR #62 sets this record to Accepted after validation.
+Status: Accepted (2026-11-17). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): the leaf board decision is superseded.
 
 Date: 2026-11-13.
 
@@ -39,6 +39,8 @@ The text below is the record of 2026-11-13. Where it conflicts with the table ab
 
 The existing specification and `boardColumn()` already define leaves-only membership and four columns. Blocked and Todo are derived from stored `todo` and readiness. Canceled tasks have no column. The board must use that calculation. It must not add a status, a card-position field or another readiness algorithm.
 
+**Superseded by [ADR 23](0023-unified-diagram-language.md):** the deferred motion and focus work and parallel delivery rules below no longer apply. Historical 2026-11-13 text:
+
 ADR 20 owns the shared registry, stage, view preference, print selection, motion and scroll hooks. PR #50 merged these parts to `main`:
 
 - The view contract (`view-contract.ts`, with `VIEW_ORDER.kanban` = 20) and the registry, which discovers each `src/lib/components/**/diagram-view.ts` module (`view-registry.ts`).
@@ -50,9 +52,9 @@ These parts are deferred shared work: the FLIP flight layer across scroll contai
 
 Kanban and Route map have no technical dependency on each other. Either slice can merge first. The slice that merges second merges the latest `main`, runs `pnpm lint`, `pnpm check`, `pnpm test:unit --run`, targeted E2E checks (`pnpm exec playwright test e2e/kanban.e2e.ts --trace off`) and `pnpm test:e2e:fixtures` again, and leaves the full E2E suite to CI. The shared prerequisite PR (#58) is merged on `main`. It made the exact-view-set tests independent of the registered views, moved `chooseView` and `expectView` into `e2e/helpers.ts`, replaced non-Gantt `Scene.breaks` references with `SceneSegment.items` and amended ADR 20 for either merge order.
 
-## Proposed decision
+## Decision
 
-[Section 5.15 of the specification](../spec.md#515-kanban) defines the behavior. This record remains Proposed.
+[Section 5.15 of the specification](../spec.md#515-kanban) defines the behavior.
 
 ### Board model
 
@@ -68,6 +70,8 @@ Kanban and Route map have no technical dependency on each other. Either slice ca
 
 The first board has no drag or status control. A separate intent resolver is the seam for a later drag release. The input has `sourcePlanId`, `taskId` and target `BoardColumn`. It returns a status-change request, a rejection reason or a no-op. It reads the current plan and task index at commit time, rejecting a source-plan mismatch before task lookup. Explicitly cancel pending intents on every plan activation or diagram-view switch. Switching away and back never revives an intent, even when task ids match. This explicit-cancel policy needs no activation token.
 
+**Superseded by [ADR 23](0023-unified-diagram-language.md) and [specification section 5.15](../spec.md#515-kanban) (leaf wording):** cards now represent eligible top-level tasks or parent summaries. The intent resolver still rejects parents. Historical 2026-11-13 text:
+
 | Future target | Result                                                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | In progress   | Request `updateTask(workspace, taskId, { status: 'in_progress' })`.                                                       |
@@ -81,7 +85,11 @@ Reject an incompatible derived target. Do not remove dependencies or promise a c
 
 Use the single route owner, scoped targets through `diagramRouteTargets()`, effective graph projection and the shared `lineKey()` helper from [ADR 20](0020-diagram-views.md#viewer-state-and-route-focus) and [specification section 5.4](../spec.md#route-focus). Keep edge identity independent of visibility. Hide every connector without route focus, including cycle connectors. During route focus, draw only route-member edges with actual eligible card endpoints. Hide off-route cycle connectors while another route is active, in addition to hiding all connectors at rest. This overrides the shared persistent off-route cycle warning rule. Test an unrelated `X↔Y` cycle while route `A→B` is active, then activate `X` and verify its warning connectors. Keep hidden parents and canceled tasks in the graph for readiness and traversal. Do not create proxy parent cards or new transitive edges.
 
-Click, Enter and Space on the main action open Task details through the existing `EditingState.openDetails`; focus returns to the same card. Use a separate leading station target for touch route focus. Main-action activation must not also toggle the touch route. The optional close-time return-focus resolver comes from the shared motion and focus follow-up PR. The current `TaskDialog.svelte` close handler focuses only the stored `EditingState.detailsReturnFocus` element. The resolver lets the board find and reveal the current card by captured plan id and task id, or use the selected diagram choice if the card is absent or the view changed. Preserve the stored-element return path when no resolver is supplied. No new shared opener or Work plan jump callback is needed. Use normal list and button semantics with keyboard card navigation. Do not advertise drag behavior.
+Click, Enter and Space on the main action open Task details through the existing `EditingState.openDetails`; focus returns to the same card. Use a separate leading station target for touch route focus. Main-action activation must not also toggle the touch route.
+
+**Superseded by [ADR 23](0023-unified-diagram-language.md) and [specification section 5.13](../spec.md#513-diagram-views):** the shared stage supplies the close-time return-focus resolver. When the task has no target in the same plan and view, the resolver uses its visible parent, then the selected diagram choice. Historical 2026-11-13 text: the optional close-time return-focus resolver comes from the shared motion and focus follow-up PR. The current `TaskDialog.svelte` close handler focuses only the stored `EditingState.detailsReturnFocus` element. The resolver lets the board find and reveal the current card by captured plan id and task id, or use the selected diagram choice if the card is absent or the view changed.
+
+Preserve the stored-element return path when no resolver is supplied. No new shared opener or Work plan jump callback is needed. Use normal list and button semantics with keyboard card navigation. Do not advertise drag behavior.
 
 **Superseded by [ADR 23](0023-unified-diagram-language.md) and [specification section 5.15](../spec.md#515-kanban):** a collapsed parent summary card is a parent row in route focus and uses the union of its own route and its hidden child routes; see the `P`/`C1`/`C2`/`U` fixture in section 5.15. Historical 2026-11-13 text: an isolated parent input remains an active route without lit cards. Shared projection does not union child routes unless a visible collapsed parent row requests it. Kanban supplies leaf rows only. The exact fixture has parent `P`, children `C1`/`C2` and unrelated leaf `U`, all stored `todo` with empty dependency lists. Input `P` gives active ids `{P}`, no lit cards or edges, and dimmed cards `C1`/`C2`/`U`. Do not request a child-route union in this slice. This verifies integration with the shared route-focus API in ADR 20.
 
@@ -112,7 +120,7 @@ Reuse ADR 20's selection, generic scene segments, orientation changes, legends a
 - **Drop into either derived column and accept whichever result occurs.** This can place a card outside the requested target. Validate the hypothetical shared state and reject an incompatible target.
 - **Enable drag in the first release.** The first release is read-only. Keep a command seam and defer gesture behavior, keyboard drops and announcements.
 - **Use independent vertical column scrollers.** Use shared vertical scrolling with sticky headings. Independent scrollers would add coordinate and cross-column flight requirements that v1 does not need.
-- **Implement local flight or print machinery.** This competes with ADR 20 and breaks strict shared-file ownership. Request a shared change from `main` instead.
+- **Implement local flight or print machinery.** **Superseded by [ADR 23](0023-unified-diagram-language.md) (slice ownership):** use the shared stage and print pipeline. Historical 2026-11-13 text: this competes with ADR 20 and breaks strict shared-file ownership. Request a shared change from `main` instead.
 
 ## Consequences
 
@@ -121,5 +129,5 @@ Reuse ADR 20's selection, generic scene segments, orientation changes, legends a
 - **Superseded by [ADR 23](0023-unified-diagram-language.md) and [specification section 5.15](../spec.md#515-kanban) (fixed `11rem` / 34 mm checks):** cards have no fixed `11rem` screen or 34 mm paper height, and titles clamp to two lines on screen and paper while preserving the full accessible title. Historical 2026-11-13 text: unbounded Done cards keep all work available but can make large boards expensive. Use an all-Done fixture with 300 childless tasks `D001`–`D300`, no dependencies and counts 0/0/0/300. Reach the first and last cards by pointer and keyboard. Verify fixed `11rem` screen and 34 mm paper heights, sticky headings, and complete A4/Letter pagination with every id exactly once and no split cards. Give `D150` a title of 512 consecutive `W` characters; keep two title lines without card growth or column overflow and retain its full accessible title. Virtualization is outside this slice.
 - A parent or canceled endpoint can be absent from the board. Some route paths therefore have no drawn connector. The graph remains complete; Task details provides full dependency context.
 - The read-only renderer stays separate from future intent resolution and command dispatch. A later drag release can add input without replacing the board model. `DiagramViewProps` has no command callback; views edit through `commands.ts` from context. A later dispatcher calls `updateTask(getWorkspace(), taskId, patch)` once, so the shared contract needs no change. Tests cover only the local resolver and a dispatcher that calls `updateTask()` once. Do not ask for speculative command APIs or connect production drag.
-- The shared return-focus resolver and per-view reveal are delivery gates for those behaviors. Source work can proceed against the landed contract, but hooks alone are not proof that the feature can merge.
-- The Kanban slice uses its reserved source and test paths, its specification section, ADR 22 and `kanban_` keys. It does not edit `docs/adr/README.md`; row 22 already exists. A separate docs change sets its status and date after acceptance. Run the required checks and acceptance fixtures for the implementation.
+- **Superseded by [ADR 23](0023-unified-diagram-language.md) (delivery gates):** PR #62 delivers the shared return-focus resolver and per-view reveal with Kanban. Historical 2026-11-13 text: the shared return-focus resolver and per-view reveal are delivery gates for those behaviors. Source work can proceed against the landed contract, but hooks alone are not proof that the feature can merge.
+- **Superseded by [ADR 23](0023-unified-diagram-language.md) (slice ownership):** PR #62 uses one integration change. Historical 2026-11-13 text: the Kanban slice uses its reserved source and test paths, its specification section, ADR 22 and `kanban_` keys. It does not edit `docs/adr/README.md`; row 22 already exists. Run the required checks and acceptance fixtures for the implementation.
