@@ -1,3 +1,4 @@
+import type { Task } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	importJson,
@@ -15,7 +16,7 @@ const scopeHint = 'A subtask can depend only on tasks with the same parent.';
 async function openScopePlan(page: Page) {
 	await openExample(page);
 	await writeStoredPlan(page, (plan) => {
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -226,7 +227,7 @@ test('a move removes non-sibling dependencies in one undo step', async ({ page }
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	await expect
 		.poll(moved)
-		.toMatchObject(before.tasks.find((task: { id: string }) => task.id === 'task'));
+		.toMatchObject(before.tasks.find((task: { id: string }) => task.id === 'task')!);
 	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();
 	await expect.poll(moved).toMatchObject({ parentId: 'p', dependsOn: [] });

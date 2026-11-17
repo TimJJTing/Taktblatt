@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { STAGE_COLORS } from '#lib/domain/palette.ts';
+import type { Plan, Task } from '#lib/domain/schema.ts';
 
 // Read constants without loading Svelte state or its browser-build aliases in Playwright.
 const viewerSource = readFileSync(
@@ -40,6 +41,9 @@ const motionSource = readFileSync(new URL('../src/lib/motion.ts', import.meta.ur
 const geometryMotion = motionSource.match(/export const GEOMETRY_MOTION_MS\s*=\s*(\d+);/)?.[1];
 if (!geometryMotion) throw new Error('Missing GEOMETRY_MOTION_MS');
 const GEOMETRY_MOTION_MS = Number(geometryMotion);
+const viewMotion = motionSource.match(/export const VIEW_MOTION_MS\s*=\s*(\d+);/)?.[1];
+if (!viewMotion) throw new Error('Missing VIEW_MOTION_MS');
+export const VIEW_MOTION_MS = Number(viewMotion);
 export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
 export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
@@ -295,8 +299,12 @@ export async function readDownload(page: Page, menuItem: string) {
 	await page.getByRole('menuitem', { name: menuItem }).click();
 	const download = await pending;
 	const text = await readFile((await download.path())!, 'utf8');
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	return { name: download.suggestedFilename(), file: JSON.parse(text) as Record<string, any> };
+	return {
+		name: download.suggestedFilename(),
+		text,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		file: JSON.parse(text) as Record<string, any>
+	};
 }
 
 /** Opens the This plan menu or sheet. */
@@ -531,7 +539,7 @@ export const taller = (page: Page) =>
 	page.getByRole('button', { name: 'Make timeline taller', exact: true });
 
 /** Reads the active plan from localStorage. */
-export async function storedPlan(page: Page) {
+export async function storedPlan(page: Page): Promise<Plan> {
 	return page.evaluate(() => {
 		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
 		return JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
@@ -768,7 +776,7 @@ export async function openLinePlan(page: Page): Promise<void> {
 		plan.stages[0].color = 'blue';
 		plan.bands = [];
 		plan.milestones = [];
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -1082,7 +1090,7 @@ export async function dependencyContrast(line: Locator, paper = false): Promise<
 		context.fillStyle = style.getPropertyValue(onPaper ? '--color-paper' : '--background');
 		context.fillRect(0, 0, 1, 1);
 		const background = luminance();
-		// D19 strokes must already contain their opaque ground mix.
+		// Dependency strokes must already contain their opaque ground mix.
 		context.clearRect(0, 0, 1, 1);
 		context.globalAlpha = 1;
 		context.fillStyle = style.stroke;
@@ -1113,7 +1121,7 @@ export async function writeStoredPlan(
 /** Adds enough task rows and remarks to exercise both workspace scrollers. */
 export async function addWorkspaceOverflow(page: Page): Promise<void> {
 	await writeStoredPlan(page, (plan) => {
-		const template = plan.tasks.find((task) => task.parentId === null);
+		const template = plan.tasks.find((task) => task.parentId === null)!;
 		for (let i = 0; i < 36; i++) {
 			plan.tasks.push({
 				...template,
@@ -1248,8 +1256,63 @@ export async function workspaceTabSize(page: Page) {
 	});
 }
 
+/** Samples Timeline expanded state and floating-island size across frames until settled. */
+export async function startTimelineIslandMonitor(page: Page) {
+	const monitor = await page.evaluateHandle(() => {
+		const read = () => {
+			const island = document.querySelector<HTMLElement>('[data-testid="workspace-tabs"]')!;
+			const tab = island.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!;
+			const icon = tab.querySelector('svg')!.getBoundingClientRect();
+			const handle = document.querySelector<HTMLElement>('button#timeline-collapse');
+			return {
+				expanded: handle?.getAttribute('aria-expanded') ?? null,
+				island: island.getBoundingClientRect().height,
+				tab: tab.getBoundingClientRect().height,
+				iconWidth: icon.width,
+				iconHeight: icon.height
+			};
+		};
+		const state = { frames: [read()], frame: 0, stop: () => {} };
+		const sample = () => {
+			state.frames.push(read());
+			state.frame = requestAnimationFrame(sample);
+		};
+		state.stop = () => {
+			cancelAnimationFrame(state.frame);
+			state.frames.push(read());
+		};
+		state.frame = requestAnimationFrame(sample);
+		return state;
+	});
+	return {
+		async stop() {
+			const frames = await monitor.evaluate((state) => {
+				state.stop();
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
+
 export const planPane = (page: Page) => page.getByTestId('plan-pane');
 export const workPane = (page: Page) => page.getByTestId('work-pane');
+
+/** Resize the real split pane with the divider. */
+export async function resizePlanPane(page: Page, width: number): Promise<void> {
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	const separator = page.getByTestId('split-resize');
+	const handle = (await separator.boundingBox())!;
+	const pane = (await planPane(page).boundingBox())!;
+	const x = handle.x + handle.width / 2;
+	const y = handle.y + handle.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + width - pane.width, y);
+	await page.mouse.up();
+	await expect.poll(async () => (await planPane(page).boundingBox())!.width).toBeCloseTo(width, 0);
+}
 
 /** Selects a group when the workspace uses tabs. */
 export async function selectTab(page: Page, name: 'Overview' | 'Work plan'): Promise<void> {
@@ -1760,7 +1823,7 @@ export async function openContinuationPlan(page: Page): Promise<void> {
 				symbol: 'diamond'
 			}
 		];
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -1781,7 +1844,7 @@ export async function openContinuationPlan(page: Page): Promise<void> {
 				end: '2027-01-20',
 				dependsOn: ['up-source']
 			},
-			{ ...base, id: 'a', title: 'Source A', status: 'done' },
+			{ ...base, id: 'a', title: 'Source A', status: 'done' as const },
 			{ ...base, id: 'b', title: 'Source B' },
 			...Array.from({ length: 120 }, (_, i) => ({
 				...base,
@@ -1827,7 +1890,7 @@ export async function openRoutePlan(page: Page): Promise<void> {
 		plan.stages = [{ ...plan.stages[0], color: 'blue', description: '' }];
 		plan.bands = [];
 		plan.milestones = [];
-		const base = {
+		const base: Task = {
 			...plan.tasks[0],
 			stageId: plan.stages[0].id,
 			parentId: null,
@@ -1840,7 +1903,7 @@ export async function openRoutePlan(page: Page): Promise<void> {
 			end: '2027-01-05'
 		};
 		plan.tasks = [
-			{ ...base, id: 'up', title: 'Route upstream', status: 'done' },
+			{ ...base, id: 'up', title: 'Route upstream', status: 'done' as const },
 			{ ...base, id: 'parent', title: 'Route parent', dependsOn: ['up'] },
 			{ ...base, id: 'child-a', title: 'Route child A', parentId: 'parent' },
 			{ ...base, id: 'child-b', title: 'Route child B', parentId: 'parent' },
@@ -1945,5 +2008,240 @@ export async function holdAnimationFrames(page: Page) {
 				delete target.heldTestFrames;
 				for (const callback of state.callbacks.values()) callback(performance.now());
 			})
+	};
+}
+
+/** The diagram stage of the Timeline. */
+export const diagramStage = (page: Page) => page.getByTestId('diagram-stage');
+
+/**
+ * Checks that the stage shows one settled layer of a diagram view and that the view switch
+ * marks this view as selected.
+ */
+export async function expectView(page: Page, id: string): Promise<void> {
+	await expect(diagramStage(page)).toHaveAttribute('data-view', id);
+	await expect(page.getByTestId(`diagram-view-${id}`)).toHaveAttribute('aria-checked', 'true');
+	await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+}
+
+/** Selects a diagram view in the view switch and waits until the stage has one settled layer. */
+export async function chooseView(page: Page, id: string): Promise<void> {
+	await page.getByTestId(`diagram-view-${id}`).click();
+	await expectView(page, id);
+}
+
+/** Verifies a Kanban focus target is fully contained in its scrollers, Timeline body, viewport, and below the sticky heading. */
+export async function expectKanbanFocusContained(target: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			target.evaluate((element) => {
+				const item = element.getBoundingClientRect();
+				const board = element.closest('[data-testid="kanban"]')!;
+				const scroll = board
+					.querySelector('[data-testid="kanban-scroll"]')!
+					.getBoundingClientRect();
+				const stripRect = board
+					.querySelector('[data-testid="kanban-strip"]')!
+					.getBoundingClientRect();
+				const heading = board
+					.querySelector('[data-testid="kanban-heading"]')!
+					.getBoundingClientRect();
+				const stageHeading = board
+					.querySelector('[data-testid="kanban-stage-heading"]')!
+					.getBoundingClientRect();
+				const body = element.closest('[data-testid="timeline-body"]')!.getBoundingClientRect();
+				return {
+					belowHeading: item.top >= heading.bottom - 1,
+					besideStage: item.left >= stageHeading.right - 1,
+					insideScroll: item.top >= scroll.top - 1 && item.bottom <= scroll.bottom + 1,
+					insideStrip: item.left >= stripRect.left - 1 && item.right <= stripRect.right + 1,
+					insideBody:
+						item.top >= body.top - 1 &&
+						item.bottom <= body.bottom + 1 &&
+						item.left >= body.left - 1 &&
+						item.right <= body.right + 1,
+					insideViewport:
+						item.top >= 0 &&
+						item.bottom <= window.innerHeight &&
+						item.left >= 0 &&
+						item.right <= window.innerWidth,
+					rects: {
+						item: { top: item.top, bottom: item.bottom, left: item.left, right: item.right },
+						headingBottom: heading.bottom,
+						scroll: { top: scroll.top, bottom: scroll.bottom },
+						strip: { left: stripRect.left, right: stripRect.right },
+						body: { top: body.top, bottom: body.bottom, left: body.left, right: body.right }
+					}
+				};
+			})
+		)
+		.toMatchObject({
+			belowHeading: true,
+			besideStage: true,
+			insideScroll: true,
+			insideStrip: true,
+			insideBody: true,
+			insideViewport: true
+		});
+}
+
+/**
+ * The stage color palette in the open popover. The scope keeps it separate from other radio
+ * groups, for example the diagram view switch.
+ */
+export const stageColorPalette = (page: Page) =>
+	page.locator('[data-slot="popover-content"]').getByRole('radiogroup');
+
+/** Checks the repeated Route map paper keys and physical status icon boxes. */
+export async function expectRouteMapPaperKeys(page: Page) {
+	const fragments = page.locator('[data-testid="sheet"] [data-fragment="route-map-scene"]');
+	await expect(fragments.first()).toBeVisible();
+	await page.evaluate(() => document.fonts.ready);
+	for (const fragment of await fragments.all()) {
+		const repeat = fragment.locator('[data-part="repeat"]');
+		const signs = repeat.getByTestId('route-map-key');
+		await expect(signs.locator('li')).toHaveText([
+			'Stage journey',
+			'Subtask route',
+			'Station',
+			'Transfer',
+			'Cross-stage dependency',
+			'Dependency cycle'
+		]);
+		const status = repeat.getByRole('list', { name: 'Status', exact: true });
+		await expect(status.locator('li')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await expect(repeat).toContainText(
+			'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+		);
+		await expect(status.locator('svg')).toHaveCount(4);
+		for (const icon of await status.locator('svg').all()) {
+			await expect(icon).toHaveCSS('width', '12px');
+			await expect(icon).toHaveCSS('height', '12px');
+		}
+		for (const icon of await fragment.locator('.paper-label [data-route-map-status] svg').all()) {
+			await expect(icon).toHaveCSS('width', '12px');
+			await expect(icon).toHaveCSS('height', '12px');
+		}
+	}
+}
+
+/** Pause new Web Animations at creation while a view switch is under inspection. */
+export async function holdViewChange(
+	page: Page,
+	view: string,
+	fraction: number,
+	options: { holdFrames?: boolean } = {}
+) {
+	const frames = options.holdFrames === false ? null : await holdAnimationFrames(page);
+	type MotionWindow = Window & {
+		testMotionHold?: { original: typeof Element.prototype.animate; created: Animation[] };
+	};
+	await page.evaluate(() => {
+		const target = window as MotionWindow;
+		const state = { original: Element.prototype.animate, created: [] as Animation[] };
+		target.testMotionHold = state;
+		Element.prototype.animate = function (
+			this: Element,
+			...args: Parameters<typeof Element.prototype.animate>
+		) {
+			const animation = state.original.apply(this, args);
+			if (Number(animation.effect?.getComputedTiming().duration) > 0) animation.pause();
+			state.created.push(animation);
+			return animation;
+		};
+	});
+	const restore = () =>
+		page.evaluate(() => {
+			const target = window as MotionWindow;
+			if (target.testMotionHold) Element.prototype.animate = target.testMotionHold.original;
+			delete target.testMotionHold;
+		});
+	const switchTo = (next: string, progress: number, previous?: number) =>
+		page.evaluate(
+			async ({ next, progress, previous, duration }) => {
+				const state = (window as MotionWindow).testMotionHold!;
+				const setFrame = (fraction: number) => {
+					for (const animation of document.getAnimations()) {
+						animation.pause();
+						animation.currentTime = duration * fraction;
+					}
+				};
+				if (previous !== undefined) setFrame(previous);
+				const stage = document.querySelector('[data-testid="diagram-stage"]')!;
+				const before = [...stage.querySelectorAll<HTMLElement>('[data-flight-copy]')].map(
+					(copy) => {
+						const rect = copy.getBoundingClientRect();
+						return {
+							id: copy.dataset.flightCopy!,
+							x: rect.left + rect.width / 2,
+							y: rect.top + rect.height / 2
+						};
+					}
+				);
+				const outgoing = stage.querySelector('[data-diagram-layer]:not([inert])');
+				const first = state.created.length;
+				document.querySelector<HTMLElement>(`[data-testid="diagram-view-${next}"]`)!.click();
+				for (let attempt = 0; attempt < 100; attempt++) {
+					await new Promise((resolve) => setTimeout(resolve));
+					const incoming = stage.querySelector(`[data-diagram-view="${next}"]:not([inert])`);
+					const created = new Set(state.created.slice(first));
+					const hasNew = (element: Element | null) =>
+						element
+							?.getAnimations()
+							.some(
+								(animation) =>
+									created.has(animation) &&
+									Number(animation.effect?.getComputedTiming().duration) > 0
+							);
+					const copyReady = [
+						...stage.querySelectorAll('[data-diagram-flight] [data-flight-copy]')
+					].some((copy) => hasNew(copy));
+					if (
+						stage.querySelectorAll('[data-diagram-layer]').length >= 2 &&
+						hasNew(outgoing) &&
+						hasNew(incoming) &&
+						(duration <= 0 || copyReady)
+					) {
+						setFrame(progress);
+						return { ready: true, before };
+					}
+				}
+				return { ready: false, before };
+			},
+			{ next, progress, previous, duration: VIEW_MOTION_MS }
+		);
+	const seek = (progress: number) =>
+		page.evaluate(
+			({ value, duration }) => {
+				for (const animation of document.getAnimations()) {
+					animation.pause();
+					animation.currentTime = duration * value;
+				}
+			},
+			{ value: progress, duration: VIEW_MOTION_MS }
+		);
+	try {
+		expect((await switchTo(view, fraction)).ready).toBe(true);
+	} catch (error) {
+		await restore();
+		if (frames) await frames.release();
+		throw error;
+	}
+	return {
+		seek,
+		switchTo: async (next: string, progress: number, previous: number) => {
+			const result = await switchTo(next, progress, previous);
+			expect(result.ready).toBe(true);
+			return result.before;
+		},
+		release: async () => {
+			await restore();
+			await page.evaluate(() => {
+				for (const animation of document.getAnimations()) animation.play();
+			});
+			if (frames) await frames.release();
+			await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+			await expect(diagramStage(page).locator('[data-diagram-flight] > *')).toHaveCount(0);
+		}
 	};
 }

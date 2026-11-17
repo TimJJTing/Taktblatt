@@ -3,7 +3,6 @@
 	A parent has editable dates and owners. Its status comes from its subtasks.
 -->
 <script lang="ts">
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import { mergeProps } from 'bits-ui';
 	import { tick } from 'svelte';
@@ -12,6 +11,7 @@
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
+	import ExpandToggle from '#lib/components/task/ExpandToggle.svelte';
 	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import { focusSiblingRow } from '#lib/browser/grid.ts';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
@@ -72,28 +72,18 @@
 <td bind:this={titleCell} class="py-1" data-grid-col="title">
 	<div class={cn('flex min-w-0 items-center gap-1', isSubtask && 'pl-6')}>
 		{#if isParent}
-			<button
-				type="button"
-				class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-				aria-expanded={expanded}
-				aria-label={expanded
-					? m.task_collapse({ task: titleText })
-					: m.task_expand({ task: titleText })}
-				onclick={(event) => {
+			<ExpandToggle
+				{expanded}
+				task={titleText}
+				onToggle={(event) => {
 					viewer.toggleExpanded(ws.plan.id, task.id);
 					if (event.detail > 0) {
-						event.currentTarget.blur();
+						(event.currentTarget as HTMLButtonElement).blur();
 						editing.highlightId = null;
 					}
 				}}
-				data-testid="task-toggle"
-			>
-				<span
-					class={cn('flex transition-transform', expanded && 'rotate-90')}
-					style:transition-duration={`${motionDuration(200)}ms`}
-					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
-				>
-			</button>
+				testid="task-toggle"
+			/>
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}

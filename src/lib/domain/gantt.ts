@@ -129,12 +129,12 @@ export interface GanttRow {
 
 /**
  * Rows in table order: stages in plan order, then ws.index.stageTasks order.
- * Subtasks (ws.index.children order) show only when the parent is expanded.
+ * Subtasks (ws.index.children order) show only when showChildren(parentId) is true.
  */
 export function ganttRows(
 	index: TaskIndex,
 	stageIds: readonly string[],
-	isExpanded: (id: string) => boolean,
+	showChildren: (id: string) => boolean,
 	win: GanttWindow
 ): GanttRow[] {
 	const rows: GanttRow[] = [];
@@ -142,7 +142,7 @@ export function ganttRows(
 		for (const task of index.stageTasks.get(stageId) ?? []) {
 			const children = index.children.get(task.id) ?? [];
 			const isParent = children.length > 0;
-			const expanded = isParent && isExpanded(task.id);
+			const expanded = isParent && showChildren(task.id);
 			const eff = index.state.get(task.id)!.eff;
 			rows.push({
 				id: task.id,

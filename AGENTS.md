@@ -72,7 +72,9 @@ Before changing the project file schema, ask the user whether to bump `schemaVer
 
 Use the Playwright agent CLI for interactive browser checks. Follow [README browser automation instructions](README.md#browser-automation-for-coding-agents) for setup and commands, then read `.agents/skills/playwright-cli/SKILL.md`. Substitute `pnpm browser` for `playwright-cli` in skill examples. Close the browser session when finished.
 
-Run colocated Vitest `*.spec.ts` and reactive `*.svelte.spec.ts` tests with `pnpm test:unit --run`. Run automated Playwright regression tests in `e2e/*.e2e.ts` with `pnpm test:e2e`. Before final E2E validation, stop any server on port 4173. Local Playwright runs reuse an existing server and skip the build; with the port free, the suite builds and serves the current code. This also applies to `pnpm test`. `pnpm test:e2e:fixtures` builds with the test-only diagram views and serves on port 4174; it never reuses a server. Interactive CLI checks supplement these tests. Add regression coverage for changed behavior. For code changes, run `pnpm lint`, `pnpm check`, and `pnpm test` before a PR.
+Run colocated Vitest `*.spec.ts` and reactive `*.svelte.spec.ts` tests with `pnpm test:unit --run`. Run automated Playwright regression tests in `e2e/*.e2e.ts` with `pnpm test:e2e`. Before final E2E validation, stop any server on port 4173. Local Playwright runs reuse an existing server and skip the build; with the port free, the suite builds and serves the current code. This also applies to `pnpm test`. `pnpm test:e2e:fixtures` builds with the test-only diagram views and serves on port 4174; it never reuses a server. Interactive CLI checks supplement these tests. Add regression coverage for changed behavior. For code changes, run `pnpm lint`, `pnpm check`, and `pnpm test:unit --run` before a PR.
+
+Run only the E2E files that a change affects locally, for example `pnpm exec playwright test e2e/<file>.e2e.ts --trace off`. Run `pnpm test:e2e:fixtures` only when a change affects diagram views. Do not run the full E2E suite locally. It is slow, and CI runs it on every push (see [ADR 11](docs/adr/0011-required-ci-checks.md)). Push the branch and read the CI result. If a test fails in CI, run only that test locally. To check whether a test is flaky, repeat only that test with `--repeat-each`.
 
 Do not write trivial tests. Each test must check behavior that can fail because of a defect in project code. Do not write these tests:
 
@@ -84,6 +86,8 @@ Do not write trivial tests. Each test must check behavior that can fail because 
 Reuse `e2e/helpers.ts` for shared browser setup and interactions. Extend the helpers when needed instead of duplicating them in tests.
 
 For date, history, popover, animation, and scroll checks, follow the interaction rules in the [Taktblatt UI validation skill](.agents/skills/taktblatt-ui-validation/SKILL.md).
+
+Write tests that remain reliable across local and CI environments. In browser integration and E2E tests, wait for observable state, focus, or settled geometry. Do not use fixed sleeps or narrow wall-clock timing windows as proof of behavior. Do not assume that CI has the same speed as the local machine. Check exact debounce, hover, grace, and other timer boundaries in controlled unit tests. Keep real pointer input in browser hover checks. Do not use the Playwright clock to control animated UI; it also stops animation-frame tweens.
 
 ## Commit & Pull Request Guidelines
 

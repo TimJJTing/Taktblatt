@@ -17,7 +17,8 @@ import {
 	setTaskStatus,
 	selectTab,
 	groupScroller,
-	writeStoredPlan
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 test.describe('work plan', () => {
@@ -207,7 +208,7 @@ test.describe('work plan', () => {
 			for (const [index, task] of tasks.entries()) {
 				task.stageId = plan.stages[0].id;
 				task.dependsOn = [];
-				task.status = ['done', 'in_progress', 'todo'][index];
+				task.status = (['done', 'in_progress', 'todo'] as const)[index];
 				task.title = ['Progress done', 'Progress working', 'Progress todo'][index];
 			}
 		});
@@ -266,7 +267,7 @@ test.describe('work plan', () => {
 		await expect
 			.poll(
 				async () =>
-					(await storedPlan(page)).tasks.find((task) => task.title === 'Soil preparation').owners
+					(await storedPlan(page)).tasks.find((task) => task.title === 'Soil preparation')!.owners
 			)
 			.toContain('Mira');
 	});
@@ -379,7 +380,7 @@ test.describe('work plan', () => {
 		try {
 			expect(await monitor.evaluate(({ baseline }) => baseline)).toBeGreaterThan(0);
 			await swatch.click();
-			const palette = page.getByRole('radiogroup');
+			const palette = stageColorPalette(page);
 			const content = page.locator('[data-slot="popover-content"]');
 			await expect(palette).toBeVisible();
 			await expect(palette.getByRole('radio', { checked: true })).toBeFocused();

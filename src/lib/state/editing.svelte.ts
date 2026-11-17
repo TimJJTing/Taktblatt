@@ -28,6 +28,8 @@ export class EditingState {
 	detailsTaskId = $state<string | null>(null);
 	/** The element that opened the task modal. The focus goes back to it. */
 	detailsReturnFocus: HTMLElement | null = null;
+	/** Optional resolver supplied by a diagram view to restore focus when the modal closes. */
+	detailsReturnResolver: (() => HTMLElement | null) | null = null;
 	/** The task that has hover or focus, for the linked highlight between Gantt and table. */
 	highlightId = $state<string | null>(null);
 	/** The task whose dependency route is lit across diagram views. */
@@ -40,9 +42,10 @@ export class EditingState {
 	#flashTimer: ReturnType<typeof setTimeout> | undefined;
 	#flashCount = 0;
 
-	openDetails(id: string, from: HTMLElement | null) {
+	openDetails(id: string, from: HTMLElement | null, resolve?: (() => HTMLElement | null) | null) {
 		this.routeFocus.clearPointer();
 		this.detailsReturnFocus = from;
+		this.detailsReturnResolver = resolve ?? null;
 		this.detailsTaskId = id;
 	}
 

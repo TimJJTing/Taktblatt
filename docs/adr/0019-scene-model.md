@@ -1,6 +1,6 @@
 # 19. Scene model and shared diagram layer
 
-Status: Accepted (2026-11-11). Amended 2026-11-13 (slices 3 and 4). Delivery assignments superseded by [ADR 20](0020-diagram-views.md), which is Proposed until implementation is accepted.
+Status: Accepted (2026-11-11). Amended 2026-11-13 (slices 3 and 4). Delivery assignments superseded by [ADR 20](0020-diagram-views.md). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): status-fill scope, flight layer and delivery.
 
 ## Context
 
@@ -8,7 +8,7 @@ The Timeline has one diagram: the Gantt. Its geometry is spread across component
 
 The connector routing has known faults. `elbowPath` puts the vertical 6 px after the source end for every edge. Two predecessors that end on the same day draw one false merged line. The backward detour can run along a bar. `GanttLine.svelte` tweens only the endpoints, so the path changes shape during the tween.
 
-More diagrams come soon: a route map without a time axis, and a Kanban board (spec, "Future: Kanban"). Both show the same tasks as the Gantt. A switch between diagrams must animate, so that the eye can follow each task. If each view builds its own geometry, each view needs its own tweens, its own print code and its own routing. Then a switch between views has no common key.
+More diagrams come soon: a route map without a time axis, and a Kanban board (spec section 5.15). Both show the same tasks as the Gantt. A switch between diagrams must animate, so that the eye can follow each task. If each view builds its own geometry, each view needs its own tweens, its own print code and its own routing. Then a switch between views has no common key.
 
 ## Decision
 
@@ -45,7 +45,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 - Routing uses resolved ports and metrics at the current width. A width change requires new routes to keep the bend angles and clearances. The shared helper applies current-width geometry at once with duration 0, including during a running tween. Do not interpolate resolved old-width points against a new-width chart.
 - Measure the timeline width synchronously when its action starts. In the ResizeObserver callback, assign the current container width directly when it changes. Do not defer the assignment to an animation frame, add a window resize listener or call `flushSync`.
 - The shared Today-tag placement rule keeps the 7 px milestone half-width clear on both sides of the Today line. This includes a milestone on the same date. Screen and paper use this rule. If neither side fits, clamp the tag inside the date area.
-- A FLIP flight layer is used only when the source and the target position are in different scroll containers.
+- A FLIP flight layer is used only when the source and the target position are in different scroll containers. **Amended by ADR 23:** each view scrolls inside its own containers, so every animated switch between views uses the flight layer. It carries a copy of the position cue of each task whose cue is in the stage box at the start or the end. The real cue elements are hidden during the flight. The stage does not move real task boxes. Geometry changes inside one view do not use it. Refer to spec section 5.13.
 - The app does not use the View Transitions API.
 - `src/lib/motion.ts` holds the motion constants. `GEOMETRY_MOTION_MS = 240` is for geometry changes in a view. It replaced `ROW_MOTION_MS` in `gantt-layout.ts`. `VIEW_MOTION_MS = 300` is for a switch between views. All durations still go through `motionDuration(ms)`. `TIMELINE_MOTION_MS` is section chrome, not diagram geometry, and stays where it is.
 
@@ -53,9 +53,10 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 
 - `src/lib/components/diagram/` holds the signs that every diagram shares: `StationDot`, `TaskMark`, `TaskTap`, `DiagramRing` and `StageBadge`.
 - Signs with motion follow the `ReadyDot` pattern. A `still` property gives the paper variant, without transition and without animation.
-- `StationDot` carries the status form: ring = todo, half = in progress, solid = done, ground-filled ring with a diagonal slash = canceled. Done and canceled dots use the full stage color. A canceled task line uses a 40 % color mix of the stage color with the ground. The forms differ in forced colors and grayscale print. Use these forms in every view and on paper.
+- `StationDot` carries the status form: ring = todo, half = in progress, solid = done, ground-filled ring with a diagonal slash = canceled. Done and canceled dots use the full stage color. A canceled task line uses a 40 % color mix of the stage color with the ground. The forms differ in forced colors and grayscale print. **Amended by ADR 23:** these fill forms are the status sign of the Gantt only, on screen and paper. Route map and Kanban show status with `TaskStatusIcon` and do not use status fills. Refer to spec section 9.1.
 - `StageBadge` uses the stage badge text rule: white text on light fills, ground-color text on dark fills, with a contrast of 4.5:1 or more.
 - The views do not copy these forms. A change to a sign is one change for all views.
+- **Added by ADR 23:** the shared status key and the shared expansion control are also shared signs. Refer to spec section 9.1.
 
 ### Shared state and print
 
@@ -84,7 +85,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 
 ### Route-focus projection (slice 4)
 
-- Add a pure effective-dependency graph builder in `src/lib/domain/route.ts`. Store upstream and downstream adjacency maps and the effective predecessor/dependent pairs. `Gantt.svelte` derives this graph once per `ws.index`. Reuse it across route changes and across focus tasks. Keep `dependencyRoute(index, focus)` as a wrapper for existing callers and tests. Add a graph-based walk for projection.
+- Add a pure effective-dependency graph builder in `src/lib/domain/route.ts`. Store upstream and downstream adjacency maps and the effective predecessor/dependent pairs. `Gantt.svelte` derives this graph once per `ws.index`. Reuse it across route changes and across focus tasks. Callers use `routeFocusModel`, which walks the shared graph. The earlier `dependencyRoute(index, focus)` wrapper is removed.
 - Add the pure `routeFocusModel(graph, index, rows, lines, focusId)` function in the same module. It returns `active`, `onRouteRowIds` and `litLineKeys`. It has no DOM, timer, Svelte or store dependency. Gantt derives it from the shared graph, current index, visible rows, drawn lines and `editing.routeId`.
 - A null or missing focus gives an inactive model with empty sets. For a collapsed parent, the focus set contains the parent and all its hidden subtasks. Otherwise it contains only the focus task. Walk the shared graph separately for each focus in this set.
 - A valid focus activates the model, including an isolated focus. Refer to spec 5.4 for its visible treatment.
@@ -128,8 +129,8 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 - Slice 2b does not change the Gantt on screen or on paper. No view uses the new router or the new signs yet.
 - The Gantt adoption uses four parts. Slice 3a (`feat/gantt-router`) changes the unused neutral router and contracts. Slice 3b (`feat/gantt-signs`) independently adopts badges and chrome. Slice 3c (`feat/gantt-lines`) depends on both. It adopts `ganttScene(rows, lines, metrics)` and `ganttFragment`, draws lines and station dots on screen and paper, and removes `elbowPath`, jagged cuts and markers. Slice 3d (`feat/gantt-continuations`) adds paired 4 px continuation stubs with 2 px cross ticks and intervening pass-throughs. One whole-segment paper route supplies the matched riser x for those signs.
 - Slice 4 (`feat/route-focus`) resolves shared route input, projects effective routes onto visible rows and existing lines, and adds screen-only lit overlays. It preserves stored dependency drawing rules and paper output.
-- **Superseded by ADR 20:** the earlier assignment of the view switch, `DiagramStage`, the first scene switch and generic scene print integration to Route map no longer applies. The preliminary `feat/diagram-views` PR owns these shared contracts and integration. It also owns the required Gantt and GanttRow motion-adapter hooks.
-- **Superseded by ADR 20:** the earlier assignment of the FLIP flight layer to Kanban no longer applies. The preliminary PR supplies transition and scroll-container hooks only. FLIP flight-layer and cross-router connector interpolation implementations are deferred. Each required shared implementation must merge in the preliminary PR or a follow-up shared PR before its consuming slice. Appendix C and spec section 5.13 retain the final motion target.
-- Route map and Kanban can implement in parallel against the shared contract. Route map merges before Kanban. Kanban updates to the merged Route map before final integration.
+- **Superseded by ADR 20:** the earlier assignment of the view switch, `DiagramStage`, the first scene switch and generic scene print integration to Route map no longer applies. The diagram-views change added these shared contracts and integration, and the required Gantt and GanttRow motion-adapter hooks. It is merged on `main`.
+- **Superseded by ADR 20:** the earlier assignment of the FLIP flight layer to Kanban no longer applies. The diagram-views change supplies transition and scroll-container hooks only. FLIP flight-layer and cross-router connector interpolation implementations were deferred at that time. **Superseded by ADR 23:** the unified-diagrams change implements the flight layer. Spec section 5.13 is the motion contract.
+- **Superseded by ADR 23:** the earlier rule that Route map and Kanban implement in parallel and merge in either order no longer applies. One integration change delivers both views.
 - Each graph algorithm in the router must stop on a cycle (ADR 13). A cycle edge gets a valid route.
 - The plan file and the schema do not change.

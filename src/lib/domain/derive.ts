@@ -365,7 +365,30 @@ export function tasksSpan(index: TaskIndex): { start: ISODate; end: ISODate } | 
 	return { start: dates[0], end: dates[dates.length - 1] };
 }
 
-/** Returns true when the task has a valid range: both dates are set and start ≤ end. */
-export function hasValidRange(values: { start: ISODate | null; end: ISODate | null }): boolean {
-	return values.start !== null && values.end !== null && values.start <= values.end;
+export type FamilySummary = {
+	ready: number;
+	blocked: number;
+	inProgress: number;
+	done: number;
+	canceled: number;
+	total: number;
+};
+
+/** Counts direct subtasks of a parent by readiness and status. */
+export function familySummary(index: TaskIndex, parentId: string): FamilySummary {
+	const children = index.children.get(parentId) ?? [];
+	const summary = {
+		ready: 0,
+		blocked: 0,
+		inProgress: 0,
+		done: 0,
+		canceled: 0,
+		total: children.length
+	};
+	for (const child of children) {
+		const column = boardColumn(index.state.get(child.id)!) ?? 'canceled';
+		const key = column === 'todo' ? 'ready' : column === 'in_progress' ? 'inProgress' : column;
+		summary[key]++;
+	}
+	return summary;
 }

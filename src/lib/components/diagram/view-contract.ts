@@ -25,8 +25,11 @@ export interface DiagramViewProps {
 	class?: string;
 	onBand: (band: Band) => void;
 	onMilestone: (milestone: Milestone) => void;
-	/** Scrolls the Timeline body to show a rectangle in viewport coordinates. */
-	onReveal: (row: { top: number; bottom: number }) => void;
+	/**
+	 * Reveals a viewport rectangle in the Timeline body. Shared focus reveal requests `instant`
+	 * behavior and marks app scrolling. Other view actions keep the default scroll behavior.
+	 */
+	onReveal: (row: { top: number; bottom: number }, behavior?: ScrollBehavior) => void;
 }
 
 /** The props of a paper renderer for a generic scene segment. */
@@ -60,16 +63,22 @@ export interface DiagramPaperAdapter {
  * focus transfer and scroll reveal. The value of `task`, `station`, `label` and `parent` is a
  * task id.
  * - `task`: the task box (bar, card or label-only node).
- * - `station`: inside a task box, the identity station dot, if the task has one.
+ * - `station`: inside a task box, the identity station mark (dot, glyph or status icon wrapper).
  * - `label`: the rendered label of the task.
- * - `parent`: on a task box, the id of the parent task, for emerging subtasks.
+ * - `parent`: on a task box, the parent task id. Capture it before a task disappears for focus
+ *   return. Motion also uses it for emerging subtasks.
  * - `scroller`: a scroll container of the view. The Timeline keeps its scroll offset during a
  *   height transition. The value is empty.
- * A focus target uses the route-focus attributes: `data-route-target` and
+ * - `flight`: the stage's clipped, decorative cue-copy layer. The value is empty.
+ * Focus resolves to the focusable task box, else its label, else a keyboard route target.
+ * Views use the layer's return-focus resolver when opening task details. The stage owns the
+ * missing-target rule: captured parent id, then selected view choice. Views keep no local fallback.
+ * A route target uses the route-focus attributes: `data-route-target` and
  * `data-route-focus="keyboard"` (`ROUTE_ATTR`).
  * The stage itself sets `layer` (the layer key) and `view` (the view id) on each layer.
  */
 export const DIAGRAM_ATTR = {
+	flight: 'data-diagram-flight',
 	task: 'data-diagram-task',
 	station: 'data-diagram-station',
 	label: 'data-diagram-label',
@@ -87,11 +96,11 @@ export const ROUTE_ATTR = {
 
 /**
  * The motion description of a view. The stage reads current geometry from the rendered DOM.
- * Reserved: no production code reads these fields yet. The deferred connector interpolation
- * (docs/spec.md, section 5.13) uses them to find views that can tween connector points.
+ * These fields identify the router and its connector point meanings. Every view pair fades
+ * connectors, including a compatible pair. Refer to docs/spec.md, section 5.13.
  */
 export interface DiagramMotionInfo {
-	/** The id of the connector router. Views with the same router can tween connector points. */
+	/** The id of the connector router. */
 	routerId: string;
 	/** The meaning of the connector points, for example `gantt-orthogonal-v1`. */
 	connectorSchema: string;

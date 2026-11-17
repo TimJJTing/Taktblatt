@@ -15,7 +15,7 @@ There are two kinds of file. Each file has a `schemaVersion` and a `kind`.
 
 The current `schemaVersion` is `1`.
 
-The UI language and screen theme are browser preferences. Plan files and backup files do not include them. An import does not change them.
+The UI language, screen theme, diagram view (`diagramView`), print selection (`printDiagrams`), print detail (`printSubtasks`) and expanded tasks are browser preferences. Plan files and backup files do not include them. An import does not change them. Refer to [specification section 4.4](spec.md#44-viewer-state).
 
 ```json
 { "schemaVersion": 1, "kind": "plan", "plan": { "id": "…", "heading": "…" } }

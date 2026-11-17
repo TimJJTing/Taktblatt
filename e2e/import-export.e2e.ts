@@ -1,5 +1,8 @@
+import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	chooseView,
+	diagramStage,
 	importJson,
 	openApp,
 	openExample,
@@ -7,6 +10,7 @@ import {
 	openMenu,
 	openMenuWithKeyboard,
 	openPlans,
+	openPreview,
 	planIds,
 	readDownload,
 	row,
@@ -51,6 +55,58 @@ test.describe('export', () => {
 		expect(file.plan.id).toBe((await storedPlan(page)).id);
 	});
 
+	test('diagram viewer controls do not change exported plan bytes', async ({ page }) => {
+		await openExample(page);
+		const before = await readDownload(page, 'Export this plan');
+		expect(before.file.schemaVersion).toBe(SCHEMA_VERSION);
+		await chooseView(page, 'route-map');
+		const routeToggle = diagramStage(page).getByRole('button', {
+			name: 'Expand Soil preparation',
+			exact: true
+		});
+		await routeToggle.click();
+		await expect(
+			diagramStage(page).getByRole('button', { name: 'Collapse Soil preparation', exact: true })
+		).toHaveAttribute('aria-expanded', 'true');
+		await chooseView(page, 'kanban');
+		const kanbanToggle = diagramStage(page).getByRole('button', {
+			name: 'Collapse Soil preparation',
+			exact: true
+		});
+		await expect(kanbanToggle).toHaveAttribute('aria-expanded', 'true');
+		await kanbanToggle.click();
+		await expect(
+			diagramStage(page).getByRole('button', { name: 'Expand Soil preparation', exact: true })
+		).toHaveAttribute('aria-expanded', 'false');
+		await diagramStage(page)
+			.getByRole('button', { name: 'Expand Soil preparation', exact: true })
+			.click();
+		await chooseView(page, 'gantt');
+		await chooseView(page, 'kanban');
+		const preview = await openPreview(page);
+		await preview.getByTestId('print-diagram-route-map').click();
+		await preview.getByTestId('print-diagram-kanban').click();
+		await preview.getByTestId('print-diagram-gantt').click();
+		await preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
+		await expect(preview.getByTestId('print-diagram-gantt')).toHaveAttribute(
+			'aria-checked',
+			'false'
+		);
+		await expect(preview.getByTestId('print-diagram-route-map')).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
+		await expect(preview.getByTestId('print-diagram-kanban')).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
+		await expect(preview.getByTestId('print-subtasks')).toHaveAttribute('aria-checked', 'true');
+		await page.keyboard.press('Escape');
+		const after = await readDownload(page, 'Export this plan');
+		expect(after.file.schemaVersion).toBe(SCHEMA_VERSION);
+		expect(after.text).toBe(before.text);
+	});
+
 	test('"Back up all plans" writes a backup file with every plan', async ({ page }) => {
 		await openExample(page);
 		const plans = await openPlans(page);
@@ -78,7 +134,7 @@ test.describe('import', () => {
 		await importJson(page, file);
 		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
 		// The old language key of the file is dropped.
-		expect((await storedPlan(page)).locale).toBeUndefined();
+		expect(((await storedPlan(page)) as Plan & { locale?: string }).locale).toBeUndefined();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 		await expect(page.getByTestId('app-menu')).toHaveAccessibleName('Menü');
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');

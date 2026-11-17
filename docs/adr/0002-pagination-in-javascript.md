@@ -10,7 +10,7 @@ Each sheet has a footer with "n / N". Firefox and Safari do not support CSS page
 
 - The **paginator** measures the rendered blocks. It puts them on fixed sheets (A4 or US Letter).
 - The preview shows these sheets. Print prints these sheets with `@page { margin: 0 }`.
-- The paginator splits only at block borders: Gantt rows, table rows, cards, remark sections. It repeats the month header and the table header on the next sheet.
+- The paginator splits only at block borders: Gantt rows, diagram scene items, table rows, cards, remark sections. It repeats the month header and the table header on the next sheet.
 
 ## Consequences
 

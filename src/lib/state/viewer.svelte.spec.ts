@@ -390,10 +390,11 @@ describe('ViewerState diagram views', () => {
 		expect(viewer.ganttHeight).toBe(0.42);
 	};
 
-	it('defaults the view to Gantt and the print selection to Gantt only', () => {
+	it('defaults the view to Gantt, the print selection to Gantt only, and printSubtasks to false', () => {
 		const viewer = new ViewerState(new MemoryStorage());
 		expect(viewer.diagramView).toBe('gantt');
 		expect(viewer.printDiagrams).toEqual(['gantt']);
+		expect(viewer.printSubtasks).toBe(false);
 	});
 
 	it('keeps a stored registered view', () => {
@@ -525,5 +526,60 @@ describe('ViewerState diagram views', () => {
 		const again = new ViewerState(storage, THREE);
 		expect(again.diagramView).toBe('test-list');
 		expect(again.printDiagrams).toEqual(['gantt', 'test-board']);
+	});
+});
+
+describe('ViewerState printSubtasks', () => {
+	const THREE = ['gantt', 'test-list', 'test-board'] as const;
+
+	const stored = (fields: Record<string, unknown>) => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			KEYS.viewer,
+			JSON.stringify({
+				expanded: { p1: ['t1'] },
+				printDiagrams: ['test-board'],
+				splitRatio: 0.63,
+				ganttPinned: true,
+				ganttHeight: 0.42,
+				...fields
+			})
+		);
+		return storage;
+	};
+
+	const expectOtherFields = (viewer: ViewerState) => {
+		expect(viewer.expandedIds('p1')).toEqual(['t1']);
+		expect(viewer.printDiagrams).toEqual(['test-board']);
+		expect(viewer.splitRatio).toBe(0.63);
+		expect(viewer.ganttPinned).toBe(true);
+		expect(viewer.ganttHeight).toBe(0.42);
+	};
+
+	it('falls back to false when stored printSubtasks is invalid and keeps other fields', () => {
+		const viewer = new ViewerState(stored({ printSubtasks: 'true' }), THREE);
+		expect(viewer.printSubtasks).toBe(false);
+		expectOtherFields(viewer);
+	});
+
+	it('persists printSubtasks under taktblatt:ui independently of expansion and printDiagrams', () => {
+		const storage = new MemoryStorage();
+		const viewer = new ViewerState(storage, THREE);
+		viewer.setExpanded('p1', 't1', true);
+		viewer.setPrintDiagram('test-list', true);
+		expect(viewer.printSubtasks).toBe(false);
+
+		viewer.setPrintSubtasks(true);
+		expect(viewer.printSubtasks).toBe(true);
+		expect(JSON.parse(storage.getItem(KEYS.viewer)!).printSubtasks).toBe(true);
+		viewer.setSplitRatio(0.3);
+
+		const reloaded = new ViewerState(storage, THREE);
+		expect(reloaded.printSubtasks).toBe(true);
+		expect(reloaded.expandedIds('p1')).toEqual(['t1']);
+		expect(reloaded.printDiagrams).toEqual(['gantt', 'test-list']);
+
+		reloaded.setPrintSubtasks(false);
+		expect(new ViewerState(storage, THREE).printSubtasks).toBe(false);
 	});
 });

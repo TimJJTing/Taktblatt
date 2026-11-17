@@ -1,0 +1,298 @@
+import { describe, expect, it } from 'vitest';
+import { indexTasks } from '#lib/domain/derive.ts';
+import { effectiveDependencyGraph, lineKey, routeFocusModel } from '#lib/domain/route.ts';
+import type { Plan } from '#lib/domain/schema.ts';
+import { makePlan } from '#lib/domain/test-helpers.ts';
+import { KANBAN_COLUMNS, kanbanSwimlanes } from './kanban-board.ts';
+import { isolatedParent, kanbanTask, unrelatedCycle } from './kanban-fixtures.test-helper.ts';
+import {
+	kanbanNodeEdges,
+	kanbanScene,
+	type KanbanCardGeometry,
+	type KanbanRect
+} from './kanban-scene.ts';
+
+const viewport: KanbanRect = { x: 0, y: 40, w: 600, h: 600 };
+
+function scene(
+	plan: Plan,
+	focusId: string | null,
+	geometry?: Map<string, KanbanCardGeometry>,
+	clip = viewport
+) {
+	const index = indexTasks(plan.tasks);
+	const board = kanbanSwimlanes(plan, index);
+	const cardIds = board.lanes.flatMap((lane) =>
+		KANBAN_COLUMNS.flatMap((column) => lane.cells[column].map((card) => card.id))
+	);
+	const edges = kanbanNodeEdges(
+		index,
+		new Set(cardIds),
+		(id) => index.byId.get(id)?.parentId ?? null
+	);
+	const route = routeFocusModel(
+		effectiveDependencyGraph(index),
+		index,
+		cardIds.map((id) => ({
+			id,
+			isParent: (index.children.get(id)?.length ?? 0) > 0,
+			expanded: false
+		})),
+		edges,
+		focusId
+	);
+	const cards =
+		geometry ??
+		new Map(
+			cardIds.map((id, i) => [
+				id,
+				{
+					box: { x: 40 + (i % 2) * 260, y: 70 + Math.floor(i / 2) * 160, w: 180, h: 100 },
+					station: { x: 40 + (i % 2) * 260, y: 90 + Math.floor(i / 2) * 160 }
+				}
+			])
+		);
+	return { route, result: kanbanScene({ edges, route, cards, viewport: clip }) };
+}
+
+describe('Kanban route visibility', () => {
+	it('hides every edge at rest and hides unrelated cycle warnings during the A route', () => {
+		const plan = unrelatedCycle();
+		const resting = scene(plan, null).result;
+		expect(resting.paths).toEqual([]);
+		expect([...resting.dimmedCardIds]).toEqual([]);
+		const active = scene(plan, 'A').result;
+		expect(active.paths.map((path) => path.key)).toEqual([lineKey('A', 'B')]);
+		expect(active.paths[0].cycle).toBe(false);
+		expect([...active.litCardIds].sort()).toEqual(['A', 'B']);
+		expect([...active.dimmedCardIds].sort()).toEqual(['X', 'Y']);
+		const cycle = scene(plan, 'X').result;
+		expect(cycle.paths.map((path) => path.key).sort()).toEqual([
+			lineKey('X', 'Y'),
+			lineKey('Y', 'X')
+		]);
+		expect(cycle.paths.every((path) => path.cycle)).toBe(true);
+		expect([...cycle.litCardIds].sort()).toEqual(['X', 'Y']);
+	});
+
+	it('excludes a shortcut joining opposite sides of a focused route', () => {
+		const plan = makePlan([
+			kanbanTask('up'),
+			kanbanTask('focus', { dependsOn: ['up'] }),
+			kanbanTask('down', { dependsOn: ['focus', 'up'] })
+		]);
+		expect(
+			scene(plan, 'focus')
+				.result.paths.map((path) => path.key)
+				.sort()
+		).toEqual([lineKey('focus', 'down'), lineKey('up', 'focus')]);
+	});
+});
+
+describe('Kanban connector geometry', () => {
+	it('attaches orthogonal paths to station points and routes outside opaque card interiors', () => {
+		const plan = makePlan([
+			kanbanTask('A'),
+			kanbanTask('B', { dependsOn: ['A'] }),
+			kanbanTask('U')
+		]);
+		const cards = new Map<string, KanbanCardGeometry>([
+			['A', { box: { x: 40, y: 70, w: 180, h: 100 }, station: { x: 40, y: 90 } }],
+			['B', { box: { x: 300, y: 250, w: 180, h: 100 }, station: { x: 300, y: 270 } }],
+			['U', { box: { x: 40, y: 250, w: 180, h: 100 }, station: { x: 40, y: 270 } }]
+		]);
+		const path = scene(plan, 'A', cards).result.paths[0];
+		expect(path).toMatchObject({ key: lineKey('A', 'B'), from: 'A', to: 'B' });
+		expect(path.points[0]).toEqual(cards.get('A')!.station);
+		expect(path.points.at(-1)).toEqual(cards.get('B')!.station);
+		expect(path.points.length).toBeGreaterThanOrEqual(2);
+		for (let i = 1; i < path.points.length; i++) {
+			const a = path.points[i - 1],
+				b = path.points[i];
+			expect(a.x === b.x || a.y === b.y).toBe(true);
+			expect([a.x, a.y, b.x, b.y].every(Number.isFinite)).toBe(true);
+			for (const { box } of cards.values()) {
+				const crosses =
+					a.x === b.x
+						? a.x > box.x &&
+							a.x < box.x + box.w &&
+							Math.max(a.y, b.y) > box.y &&
+							Math.min(a.y, b.y) < box.y + box.h
+						: a.y > box.y &&
+							a.y < box.y + box.h &&
+							Math.max(a.x, b.x) > box.x &&
+							Math.min(a.x, b.x) < box.x + box.w;
+				expect(crosses, `segment ${i} enters a card`).toBe(false);
+			}
+		}
+	});
+
+	it.each([
+		{ x: 40, y: -120, w: 180, h: 100 },
+		{ x: 40, y: 650, w: 180, h: 100 },
+		{ x: -200, y: 70, w: 180, h: 100 },
+		{ x: 610, y: 70, w: 180, h: 100 }
+	])('suppresses an edge when an endpoint is wholly outside the viewport: %o', (box) => {
+		const plan = makePlan([kanbanTask('A'), kanbanTask('B', { dependsOn: ['A'] })]);
+		const cards = new Map<string, KanbanCardGeometry>([
+			['A', { box, station: { x: box.x, y: box.y + 20 } }],
+			['B', { box: { x: 300, y: 70, w: 180, h: 100 }, station: { x: 300, y: 90 } }]
+		]);
+		const result = scene(plan, 'A', cards).result;
+		expect(result.paths).toEqual([]);
+		expect([...result.litCardIds].sort()).toEqual(['A', 'B']);
+	});
+
+	it('keeps a partially visible endpoint eligible instead of treating it as wholly offscreen', () => {
+		const plan = makePlan([kanbanTask('A'), kanbanTask('B', { dependsOn: ['A'] })]);
+		const cards = new Map<string, KanbanCardGeometry>([
+			['A', { box: { x: -20, y: 70, w: 180, h: 100 }, station: { x: -20, y: 90 } }],
+			['B', { box: { x: 300, y: 70, w: 180, h: 100 }, station: { x: 300, y: 90 } }]
+		]);
+		expect(scene(plan, 'A', cards).result.paths.map((path) => path.key)).toEqual([
+			lineKey('A', 'B')
+		]);
+	});
+
+	it('recomputes paths from scrolled geometry, retaining edge identity when it returns', () => {
+		const plan = makePlan([kanbanTask('A'), kanbanTask('B', { dependsOn: ['A'] })]);
+		const initial = scene(plan, 'A').result.paths[0];
+		const clipped = scene(plan, 'A', undefined, { x: 0, y: 300, w: 600, h: 200 });
+		expect(clipped.result.paths).toEqual([]);
+		const returned = scene(plan, 'A').result.paths[0];
+		expect(returned.key).toBe(initial.key);
+		expect(returned.points).toEqual(initial.points);
+	});
+});
+
+describe('Kanban node edges (AC-21)', () => {
+	it('retains inherited edges and omits endpoints without a visible proxy', () => {
+		const plan = makePlan([
+			kanbanTask('A'),
+			kanbanTask('P', { dependsOn: ['A'] }),
+			kanbanTask('C', { parentId: 'P' }),
+			kanbanTask('D', { dependsOn: ['P'] }),
+			kanbanTask('Z', { status: 'canceled', dependsOn: ['C'] }),
+			kanbanTask('E', { dependsOn: ['Z'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const proxy = (id: string) => index.byId.get(id)?.parentId ?? null;
+		const edge = (from: string, to: string) => ({ from, to, key: lineKey(from, to), cycle: false });
+		const expanded = kanbanNodeEdges(index, new Set(['A', 'P', 'C', 'D', 'E']), proxy);
+		expect(expanded).toEqual(
+			expect.arrayContaining([edge('A', 'C'), edge('A', 'P'), edge('P', 'D')])
+		);
+		expect(expanded.some(({ from, to }) => from === 'Z' || to === 'Z' || to === 'E')).toBe(false);
+		const collapsed = kanbanNodeEdges(index, new Set(['A', 'P', 'D', 'E']), proxy);
+		expect(collapsed).toEqual(expect.arrayContaining([edge('A', 'P'), edge('P', 'D')]));
+		expect(
+			collapsed.some(({ from, to }) => from === 'C' || to === 'C' || from === 'Z' || to === 'E')
+		).toBe(false);
+		const omitted = kanbanNodeEdges(index, new Set(['A', 'C', 'D', 'E']), proxy);
+		expect(omitted).toEqual([edge('A', 'C')]);
+	});
+
+	it('preserves inherited cycle flags for expanded and collapsed families', () => {
+		const plan = makePlan([
+			kanbanTask('P', { dependsOn: ['X'] }),
+			kanbanTask('C', { parentId: 'P' }),
+			kanbanTask('X', { dependsOn: ['C'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const proxy = (id: string) => index.byId.get(id)?.parentId ?? null;
+		const edge = (from: string, to: string) => ({ from, to, key: lineKey(from, to), cycle: true });
+		expect(kanbanNodeEdges(index, new Set(['P', 'C', 'X']), proxy)).toEqual(
+			expect.arrayContaining([edge('X', 'C'), edge('C', 'X')])
+		);
+		expect(kanbanNodeEdges(index, new Set(['P', 'X']), proxy)).toEqual(
+			expect.arrayContaining([edge('X', 'P'), edge('P', 'X')])
+		);
+	});
+
+	it('maps hidden endpoints to visible parents, drops missing endpoints and self-pairs', () => {
+		const plan = makePlan([
+			kanbanTask('P'),
+			kanbanTask('C1', { parentId: 'P' }),
+			kanbanTask('C2', { parentId: 'P', dependsOn: ['C1'] }),
+			kanbanTask('A'),
+			kanbanTask('B', { dependsOn: ['C2', 'A'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const proxy = (id: string) => index.byId.get(id)?.parentId ?? null;
+		expect(kanbanNodeEdges(index, new Set(['P', 'B']), proxy)).toEqual([
+			{ from: 'P', to: 'B', key: lineKey('P', 'B'), cycle: false }
+		]);
+	});
+
+	it('merges equal projected line keys and ORs cycle flags', () => {
+		const plan = makePlan([
+			kanbanTask('P'),
+			kanbanTask('C1', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('C2', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('X', { dependsOn: ['C2'] })
+		]);
+		const reversed = makePlan([
+			kanbanTask('P'),
+			kanbanTask('C1', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('C2', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('X', { dependsOn: ['C1'] })
+		]);
+		const reversedIndex = indexTasks(reversed.tasks);
+		expect(
+			kanbanNodeEdges(
+				reversedIndex,
+				new Set(['P', 'X']),
+				(id) => reversedIndex.byId.get(id)?.parentId ?? null
+			)
+		).toEqual([
+			{ from: 'X', to: 'P', key: lineKey('X', 'P'), cycle: true },
+			{ from: 'P', to: 'X', key: lineKey('P', 'X'), cycle: true }
+		]);
+		const index = indexTasks(plan.tasks);
+		expect(
+			kanbanNodeEdges(index, new Set(['P', 'X']), (id) => index.byId.get(id)?.parentId ?? null)
+		).toEqual([
+			{ from: 'X', to: 'P', key: lineKey('X', 'P'), cycle: true },
+			{ from: 'P', to: 'X', key: lineKey('P', 'X'), cycle: true }
+		]);
+	});
+
+	function projectedScene(plan: Plan, focusId: string | null, expanded: boolean) {
+		const index = indexTasks(plan.tasks);
+		const rows = plan.tasks
+			.filter((task) => !task.parentId || expanded)
+			.map((task) => ({
+				id: task.id,
+				isParent: (index.children.get(task.id)?.length ?? 0) > 0,
+				expanded
+			}));
+		const edges = kanbanNodeEdges(
+			index,
+			new Set(rows.map((row) => row.id)),
+			(id) => index.byId.get(id)?.parentId ?? null
+		);
+		const route = routeFocusModel(effectiveDependencyGraph(index), index, rows, edges, focusId);
+		const cards = new Map(
+			rows.map(({ id }, i) => [
+				id,
+				{
+					box: { x: 40 + (i % 2) * 260, y: 70 + Math.floor(i / 2) * 160, w: 180, h: 100 },
+					station: { x: 40 + (i % 2) * 260, y: 90 + Math.floor(i / 2) * 160 }
+				}
+			])
+		);
+		return kanbanScene({ edges, route, cards, viewport });
+	}
+
+	it('projects parent input when collapsed and the exact child route when expanded', () => {
+		const plan = isolatedParent(true);
+		const collapsed = projectedScene(plan, 'P', false);
+		expect([...collapsed.litCardIds]).toEqual(['P']);
+		expect([...collapsed.dimmedCardIds]).toEqual(['U']);
+		expect(collapsed.paths).toEqual([]);
+		const expanded = projectedScene(plan, 'C2', true);
+		expect([...expanded.litCardIds].sort()).toEqual(['C1', 'C2']);
+		expect([...expanded.dimmedCardIds].sort()).toEqual(['P', 'U']);
+		expect(expanded.paths.map((path) => path.key)).toEqual([lineKey('C1', 'C2')]);
+	});
+});
