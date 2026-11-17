@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { indexTasks } from '#lib/domain/derive.ts';
 import type { Plan, Task } from '#lib/domain/schema.ts';
 import { makePlan } from '#lib/domain/test-helpers.ts';
-import { kanbanBoard } from './kanban-board.ts';
+import { kanbanBoard, kanbanSwimlanes } from './kanban-board.ts';
 import { done300, isolatedParent, kanbanTask } from './kanban-fixtures.test-helper.ts';
 import {
 	KANBAN_PAPER_METRICS,
 	kanbanPaperSegments,
+	kanbanPaperItems,
 	type KanbanPaperData,
 	type KanbanPaperRow
 } from './kanban-paper.ts';
@@ -96,5 +97,98 @@ describe('Kanban paper card rows', () => {
 				withoutSubtasks.rows.flatMap((row) => (row.cards[column] ? [row.cards[column]!.id] : []))
 			).toEqual(screen[column].cards.map((card) => card.id));
 		}
+	});
+});
+
+describe('Kanban paper items', () => {
+	function paperBoard() {
+		const plan = makePlan(
+			[
+				kanbanTask('P'),
+				kanbanTask('A', { parentId: 'P' }),
+				kanbanTask('B', { parentId: 'P', status: 'done' }),
+				kanbanTask('Q'),
+				kanbanTask('C', { parentId: 'Q' }),
+				kanbanTask('D', { parentId: 'Q' }),
+				kanbanTask('R'),
+				kanbanTask('other', { stageId: 's2', status: 'done' })
+			],
+			['s1', 's2', 's3']
+		);
+		return kanbanSwimlanes(plan, indexTasks(plan.tasks));
+	}
+
+	it('keeps headings with first rows and emits all five kinds in order (AC-23, AC-65)', () => {
+		const result = kanbanPaperItems(paperBoard(), () => true);
+		expect(result.items.map((item) => [item.kind, item.laneId])).toEqual([
+			['lane-start', 's1'],
+			['card-row', 's1'],
+			['family-start', 's1'],
+			['family-line', 's1'],
+			['family-start', 's1'],
+			['family-line', 's1'],
+			['lane-start', 's2'],
+			['lane-empty', 's3']
+		]);
+		expect(result.items[0]).toMatchObject({
+			kind: 'lane-start',
+			cards: [null, { id: 'Q' }, { id: 'P' }, null]
+		});
+		expect(result.items[1]).toMatchObject({
+			kind: 'card-row',
+			cards: [null, { id: 'R' }, null, null]
+		});
+		expect(result.items[2]).toMatchObject({
+			kind: 'family-start',
+			parentId: 'P',
+			line: { id: 'A' }
+		});
+		expect(result.items[3]).toMatchObject({
+			kind: 'family-line',
+			parentId: 'P',
+			line: { id: 'B' }
+		});
+		expect(result.items.filter((item) => item.laneId === 's3')).toEqual([
+			{ kind: 'lane-empty', laneId: 's3' }
+		]);
+		expect(result.repeat).toEqual({
+			columns: [
+				{ id: 'blocked', count: 0 },
+				{ id: 'todo', count: 2 },
+				{ id: 'in_progress', count: 1 },
+				{ id: 'done', count: 1 }
+			],
+			emptyKind: 'none'
+		});
+	});
+
+	it('selects family detail separately for each parent (AC-40)', () => {
+		const board = paperBoard();
+		const selected = kanbanPaperItems(board, (id) => id === 'P');
+		expect(
+			selected.items
+				.filter((item) => item.kind === 'family-start' || item.kind === 'family-line')
+				.map((item) => item.parentId)
+		).toEqual(['P', 'P']);
+		const none = kanbanPaperItems(board, () => false);
+		expect(none.items.map((item) => item.kind)).toEqual([
+			'lane-start',
+			'card-row',
+			'lane-start',
+			'lane-empty'
+		]);
+	});
+
+	it('puts every one of 300 Done cards in exactly one item', () => {
+		const plan = done300();
+		const board = kanbanSwimlanes(plan, indexTasks(plan.tasks));
+		const result = kanbanPaperItems(board, () => true);
+		const ids = result.items.flatMap((item) =>
+			item.kind === 'lane-start' || item.kind === 'card-row'
+				? item.cards.flatMap((card) => (card ? [card.id] : []))
+				: []
+		);
+		expect(ids).toEqual(plan.tasks.map((task) => task.id));
+		expect(new Set(ids).size).toBe(300);
 	});
 });

@@ -5,7 +5,12 @@ import type { Plan } from '#lib/domain/schema.ts';
 import { makePlan } from '#lib/domain/test-helpers.ts';
 import { kanbanBoard, kanbanEdges } from './kanban-board.ts';
 import { isolatedParent, kanbanTask, unrelatedCycle } from './kanban-fixtures.test-helper.ts';
-import { kanbanScene, type KanbanCardGeometry, type KanbanRect } from './kanban-scene.ts';
+import {
+	kanbanNodeEdges,
+	kanbanScene,
+	type KanbanCardGeometry,
+	type KanbanRect
+} from './kanban-scene.ts';
 
 const viewport: KanbanRect = { x: 0, y: 40, w: 600, h: 600 };
 
@@ -159,5 +164,107 @@ describe('Kanban connector geometry', () => {
 		const returned = scene(plan, 'A').result.paths[0];
 		expect(returned.key).toBe(initial.key);
 		expect(returned.points).toEqual(initial.points);
+	});
+});
+
+describe('Kanban node edges (AC-21)', () => {
+	it('maps hidden endpoints to visible parents, drops missing endpoints and self-pairs', () => {
+		const plan = makePlan([
+			kanbanTask('P'),
+			kanbanTask('C1', { parentId: 'P' }),
+			kanbanTask('C2', { parentId: 'P', dependsOn: ['C1'] }),
+			kanbanTask('A'),
+			kanbanTask('B', { dependsOn: ['C2', 'A'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const proxy = (id: string) => index.byId.get(id)?.parentId ?? null;
+		expect(kanbanNodeEdges(index, new Set(['P', 'B']), proxy)).toEqual([
+			{ from: 'P', to: 'B', key: lineKey('P', 'B'), cycle: false }
+		]);
+	});
+
+	it('merges equal projected line keys and ORs cycle flags', () => {
+		const plan = makePlan([
+			kanbanTask('P'),
+			kanbanTask('C1', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('C2', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('X', { dependsOn: ['C2'] })
+		]);
+		const reversed = makePlan([
+			kanbanTask('P'),
+			kanbanTask('C1', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('C2', { parentId: 'P', dependsOn: ['X'] }),
+			kanbanTask('X', { dependsOn: ['C1'] })
+		]);
+		const reversedIndex = indexTasks(reversed.tasks);
+		expect(
+			kanbanNodeEdges(
+				reversedIndex,
+				new Set(['P', 'X']),
+				(id) => reversedIndex.byId.get(id)?.parentId ?? null
+			)
+		).toEqual([
+			{ from: 'X', to: 'P', key: lineKey('X', 'P'), cycle: true },
+			{ from: 'P', to: 'X', key: lineKey('P', 'X'), cycle: true }
+		]);
+		const index = indexTasks(plan.tasks);
+		expect(
+			kanbanNodeEdges(index, new Set(['P', 'X']), (id) => index.byId.get(id)?.parentId ?? null)
+		).toEqual([
+			{ from: 'X', to: 'P', key: lineKey('X', 'P'), cycle: true },
+			{ from: 'P', to: 'X', key: lineKey('P', 'X'), cycle: true }
+		]);
+	});
+
+	function projectedScene(plan: Plan, focusId: string | null, expanded: boolean) {
+		const index = indexTasks(plan.tasks);
+		const rows = plan.tasks
+			.filter((task) => !task.parentId || expanded)
+			.map((task) => ({
+				id: task.id,
+				isParent: (index.children.get(task.id)?.length ?? 0) > 0,
+				expanded
+			}));
+		const edges = kanbanNodeEdges(
+			index,
+			new Set(rows.map((row) => row.id)),
+			(id) => index.byId.get(id)?.parentId ?? null
+		);
+		const route = routeFocusModel(effectiveDependencyGraph(index), index, rows, edges, focusId);
+		const cards = new Map(
+			rows.map(({ id }, i) => [
+				id,
+				{
+					box: { x: 40 + (i % 2) * 260, y: 70 + Math.floor(i / 2) * 160, w: 180, h: 100 },
+					station: { x: 40 + (i % 2) * 260, y: 90 + Math.floor(i / 2) * 160 }
+				}
+			])
+		);
+		return kanbanScene({ edges, route, cards, viewport });
+	}
+
+	it('projects parent input when collapsed and the exact child route when expanded', () => {
+		const plan = isolatedParent(true);
+		const collapsed = projectedScene(plan, 'P', false);
+		expect([...collapsed.litCardIds]).toEqual(['P']);
+		expect([...collapsed.dimmedCardIds]).toEqual(['U']);
+		expect(collapsed.paths).toEqual([]);
+		const expanded = projectedScene(plan, 'C2', true);
+		expect([...expanded.litCardIds].sort()).toEqual(['C1', 'C2']);
+		expect([...expanded.dimmedCardIds].sort()).toEqual(['P', 'U']);
+		expect(expanded.paths.map((path) => path.key)).toEqual([lineKey('C1', 'C2')]);
+	});
+
+	it('limits visible paths to the focused route, including an unrelated cycle', () => {
+		const plan = unrelatedCycle();
+		const active = projectedScene(plan, 'A', false);
+		expect(active.paths.map((path) => path.key)).toEqual([lineKey('A', 'B')]);
+		const cycle = projectedScene(plan, 'X', false);
+		expect(cycle.paths.map((path) => path.key).sort()).toEqual([
+			lineKey('X', 'Y'),
+			lineKey('Y', 'X')
+		]);
+		expect(cycle.paths.every((path) => path.cycle)).toBe(true);
+		expect(projectedScene(plan, null, false).paths).toEqual([]);
 	});
 });

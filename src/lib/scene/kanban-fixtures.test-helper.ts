@@ -1,4 +1,5 @@
 /** Shared plans for the Kanban regression tests. */
+import { createExamplePlan } from '#lib/domain/example.ts';
 import type { Plan, Task } from '#lib/domain/schema.ts';
 import { makePlan, makeTask } from '#lib/domain/test-helpers.ts';
 
@@ -64,5 +65,26 @@ export function mixedBoard(): Plan {
 	);
 	plan.stages[0].title = 'Design';
 	plan.stages[1].title = 'Delivery';
+	return plan;
+}
+
+export function garden(): Plan {
+	return createExamplePlan('2027-01-10');
+}
+export function canceledSubtasks(): Plan {
+	return makePlan([
+		kanbanTask('P'),
+		kanbanTask('A', { parentId: 'P' }),
+		kanbanTask('B', { parentId: 'P', status: 'done' }),
+		kanbanTask('X', { parentId: 'P', status: 'canceled' }),
+		kanbanTask('T', { status: 'canceled' })
+	]);
+}
+export function emptyStage(): Plan {
+	return makePlan([kanbanTask('A')], ['s1', 's2']);
+}
+export function longStageTitle(): Plan {
+	const plan = emptyStage();
+	plan.stages[0].title = 'W'.repeat(60);
 	return plan;
 }

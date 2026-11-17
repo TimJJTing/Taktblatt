@@ -1,4 +1,6 @@
-import type { routeFocusModel } from '#lib/domain/route.ts';
+import type { TaskIndex } from '#lib/domain/derive.ts';
+import { reaches } from '#lib/domain/dependencies.ts';
+import { effectiveDependencyGraph, lineKey, type routeFocusModel } from '#lib/domain/route.ts';
 import type { EdgeRef } from './types.ts';
 export interface KanbanRect {
 	x: number;
@@ -104,4 +106,29 @@ export function kanbanScene(input: {
 			if (points.length) paths.push({ ...edge, points });
 		}
 	return { paths, litCardIds, dimmedCardIds };
+}
+
+/** Map effective dependency pairs to visible nodes and merge equal edges. */
+export function kanbanNodeEdges(
+	index: TaskIndex,
+	visibleIds: ReadonlySet<string>,
+	proxy: (taskId: string) => string | null
+): EdgeRef[] {
+	const visibleId = (id: string): string | null => {
+		if (visibleIds.has(id)) return id;
+		const parent = proxy(id);
+		return parent !== null && visibleIds.has(parent) ? parent : null;
+	};
+	const edges = new Map<string, EdgeRef>();
+	for (const [from, to] of effectiveDependencyGraph(index).pairs) {
+		const fromNode = visibleId(from);
+		const toNode = visibleId(to);
+		if (fromNode === null || toNode === null || fromNode === toNode) continue;
+		const key = lineKey(fromNode, toNode);
+		const cycle = reaches(index, from, to);
+		const edge = edges.get(key);
+		if (edge) edge.cycle ||= cycle;
+		else edges.set(key, { from: fromNode, to: toNode, key, cycle });
+	}
+	return [...edges.values()];
 }
