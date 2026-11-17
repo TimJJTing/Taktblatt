@@ -37,7 +37,7 @@
 				style:border-top-color={stagePaperColor(card.stage.color)}
 				data-testid="sheet-stage-card"
 			>
-				<p class="text-[9px] font-medium tracking-wide text-paper-ink-3 uppercase">
+				<p class="text-[9px] font-medium tracking-wide text-paper-ink-3 uppercase tabular-nums">
 					{card.span
 						? m.label_qualifier({
 								name: label,

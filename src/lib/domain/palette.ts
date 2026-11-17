@@ -1,18 +1,23 @@
 /**
  * Curated colors for stages and bands.
- * Each stage color has a 3:1 contrast or more against white (WCAG AA for graphics).
+ * Each light stage color has a contrast of 4.5:1 or more against white.
+ * Each dark stage color has a contrast of 6:1 or more against the dark ground.
  * The `dark` value is for the screen in dark mode. Print always uses `light`.
  */
 
+import { THEME_COLORS } from '#lib/theme-colors.ts';
+
+export const STAGE_BADGE_TEXT = { light: '#FFFFFF', dark: THEME_COLORS.dark } as const;
+
 export const STAGE_COLORS = {
-	blue: { light: '#2F5FBF', dark: '#6F98E8' },
-	amber: { light: '#B7791F', dark: '#E2A84B' },
-	green: { light: '#2E8B66', dark: '#5CC197' },
-	violet: { light: '#6B4FBB', dark: '#A28BE6' },
-	red: { light: '#C2453A', dark: '#EC7D72' },
-	teal: { light: '#1F7A8C', dark: '#55B5C8' },
-	pink: { light: '#B83D86', dark: '#E57CB9' },
-	slate: { light: '#5B6475', dark: '#9AA3B5' }
+	blue: { light: '#2456C9', dark: '#6E97EC' },
+	amber: { light: '#A0690A', dark: '#E6A940' },
+	green: { light: '#1B835A', dark: '#4FC495' },
+	violet: { light: '#6A4BC4', dark: '#A68CF0' },
+	red: { light: '#C8352D', dark: '#F07A70' },
+	teal: { light: '#167A8A', dark: '#4DBCCB' },
+	pink: { light: '#B4337E', dark: '#EB7FBE' },
+	slate: { light: '#5A6478', dark: '#9BA5B8' }
 } as const;
 
 export type StageColor = keyof typeof STAGE_COLORS;
@@ -20,9 +25,9 @@ export const STAGE_COLOR_KEYS = Object.keys(STAGE_COLORS) as StageColor[];
 
 export const BAND_TINTS = {
 	gray: { light: '#EEF0F3', dark: 'rgb(255 255 255 / 0.07)' },
-	blue: { light: '#E5EDFA', dark: 'rgb(111 152 232 / 0.14)' },
-	amber: { light: '#FAF0DC', dark: 'rgb(226 168 75 / 0.14)' },
-	green: { light: '#E2F2EA', dark: 'rgb(92 193 151 / 0.14)' }
+	blue: { light: '#E5EDFA', dark: 'rgb(110 151 236 / 0.14)' },
+	amber: { light: '#FAF0DC', dark: 'rgb(230 169 64 / 0.14)' },
+	green: { light: '#E2F2EA', dark: 'rgb(79 196 149 / 0.14)' }
 } as const;
 
 export type BandTint = keyof typeof BAND_TINTS;

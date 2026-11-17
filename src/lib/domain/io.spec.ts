@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createExamplePlan } from './example.ts';
-import { createEmptyPlan } from './factory.ts';
+import { createEmptyPlan, createMilestone } from './factory.ts';
 import {
 	backupFileName,
 	exportFileName,
@@ -34,6 +34,21 @@ describe('milestone symbol contract', () => {
 	const planWithSymbol = (symbol: string) => ({
 		...makePlan([]),
 		milestones: [{ id: 'm1', title: 'Review', description: '', date: '2027-01-10', symbol }]
+	});
+
+	it('round-trips the Default ring as diamond through export, backup and stored data', () => {
+		const plan = makePlan([]);
+		plan.milestones = [
+			{ ...createMilestone('2027-01-10'), title: 'Default review', description: 'Keep identity' },
+			{ ...createMilestone('2027-01-11'), title: 'Flag review', symbol: 'flag' }
+		];
+		for (const file of [toPlanFile(plan), toBackupFile([plan])]) {
+			expect(parseFile(serializeFile(file))).toEqual({ ok: true, plans: [plan] });
+		}
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
 	});
 
 	it('lists exactly eleven symbols in the specified order', () => {
@@ -74,6 +89,47 @@ describe('milestone symbol contract', () => {
 });
 
 describe('parseFile', () => {
+	it('imports all four statuses without changing their stored values', () => {
+		const plan = makePlan(
+			(['todo', 'in_progress', 'done', 'canceled'] as const).map((status) =>
+				makeTask({ id: status, status })
+			)
+		);
+		expect(parseFile(serializeFile(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+	});
+
+	it.each(['legacy', 'unknown'] as const)(
+		'rejects %s task status with the path and allowed values',
+		(kind) => {
+			const task: Record<string, unknown> = { ...makeTask({ id: 'task' }) };
+			if (kind === 'legacy') {
+				delete task.status;
+				task.done = true;
+			} else task.status = 'blocked';
+			const plan = { ...makePlan([]), tasks: [task] };
+			const text = JSON.stringify({ schemaVersion: 1, kind: 'plan', plan });
+			const diagnostics: ImportDiagnostic[] = [];
+			const result = parseFile(text, (diagnostic) => {
+				diagnostics.push(diagnostic);
+				return diagnostic.code;
+			});
+			expect(result).toEqual({ ok: false, errors: ['choice'] });
+			expect(diagnostics).toEqual([
+				expect.objectContaining({
+					code: 'choice',
+					path: 'plan.tasks.0.status',
+					values: ['"todo"', '"in_progress"', '"done"', '"canceled"']
+				})
+			]);
+			expect(parseFile(text)).toEqual({
+				ok: false,
+				errors: [
+					'plan.tasks.0.status: Use one of these values: "todo", "in_progress", "done", "canceled".'
+				]
+			});
+		}
+	);
+
 	it('reports a missing heading as a required field', () => {
 		const file = toPlanFile(makePlan([]));
 		const plan = { ...file.plan };
@@ -232,6 +288,21 @@ describe('parseFile', () => {
 		expect(parseFile(JSON.stringify(toPlanFile(plan))).ok).toBe(false);
 	});
 
+	it('loads and imports legacy dependencies outside a subtask parent without changing them', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 's', parentId: 'p', dependsOn: ['x', 'u'] }),
+			makeTask({ id: 'x' }),
+			makeTask({ id: 'q' }),
+			makeTask({ id: 'u', parentId: 'q' })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
+	});
+
 	it('rejects an inverted plan range', () => {
 		const plan = makePlan([]);
 		plan.range = { start: '2027-02-01', end: '2027-01-01' };
@@ -310,7 +381,7 @@ describe('parseFile', () => {
 		});
 	});
 
-	it('finds a cycle and accepts a diamond (no false positive)', () => {
+	it('accepts a diamond dependency graph', () => {
 		const diamond = makePlan([
 			makeTask({ id: 'a' }),
 			makeTask({ id: 'b', dependsOn: ['a'] }),
@@ -320,16 +391,15 @@ describe('parseFile', () => {
 		expect(parseFile(JSON.stringify(toPlanFile(diamond))).ok).toBe(true);
 	});
 
-	it('checks a chain of 10000 tasks in linear time', () => {
+	it('handles a chain and a cycle of 10 000 tasks', () => {
 		const tasks = Array.from({ length: 10_000 }, (_, i) =>
 			makeTask({ id: `t${i}`, dependsOn: i > 0 ? [`t${i - 1}`] : [] })
 		);
 		const text = JSON.stringify(toPlanFile(makePlan(tasks)));
-		const start = performance.now();
 		expect(parseFile(text).ok).toBe(true);
-		expect(performance.now() - start).toBeLessThan(1000);
 		tasks[0].dependsOn = ['t9999'];
-		expect(parseFile(JSON.stringify(toPlanFile(makePlan(tasks)))).ok).toBe(false);
+		const cyclic = makePlan(tasks);
+		expect(parseFile(JSON.stringify(toPlanFile(cyclic))).ok).toBe(true);
 	});
 
 	it('rejects a dependency on the task itself', () => {
@@ -364,31 +434,37 @@ describe('parseFile', () => {
 		],
 		[
 			makeTask({ id: 'parent' }),
-			makeTask({ id: 'child', parentId: 'parent', dependsOn: ['other'] }),
-			makeTask({ id: 'other', dependsOn: ['parent'] })
-		],
-		[
-			makeTask({ id: 'parent' }),
 			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b'] }),
 			makeTask({ id: 'b', parentId: 'parent', dependsOn: ['a'] })
 		]
-	])('rejects effective dependency cycles (case %#)', (...tasks) => {
+	])('accepts effective dependency cycles (case %#)', (...tasks) => {
 		const plan = makePlan(tasks);
-		for (const file of [toPlanFile(plan), toBackupFile([makePlan([]), plan])]) {
-			const result = parseFile(JSON.stringify(file));
-			expect(result.ok).toBe(false);
-			if (!result.ok) {
-				expect(result.errors).toEqual([
-					`${file.kind === 'plan' ? 'plan' : 'plans.1'}: Task dependencies must not form a cycle in the effective graph.`
-				]);
-			}
+		const other = makePlan([]);
+		for (const file of [toPlanFile(plan), toBackupFile([other, plan])]) {
+			expect(parseFile(JSON.stringify(file))).toEqual({
+				ok: true,
+				plans: file.kind === 'plan' ? [plan] : [other, plan]
+			});
 		}
+	});
+
+	it('imports and loads an existing plan whose inherited parent edge introduces a cycle', () => {
+		const plan = makePlan([
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p' }),
+			makeTask({ id: 'x', dependsOn: ['s'] })
+		]);
+		expect(parseFile(JSON.stringify(toPlanFile(plan)))).toEqual({ ok: true, plans: [plan] });
+		expect(parsePlan(JSON.stringify({ schemaVersion: 1, plan }))).toEqual({
+			ok: true,
+			value: plan
+		});
 	});
 
 	it('reads valid inherited and sibling dependencies', () => {
 		const plan = makePlan([
-			makeTask({ id: 'parent' }),
-			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b', 'other'] }),
+			makeTask({ id: 'parent', dependsOn: ['other'] }),
+			makeTask({ id: 'a', parentId: 'parent', dependsOn: ['b'] }),
 			makeTask({ id: 'b', parentId: 'parent' }),
 			makeTask({ id: 'other' })
 		]);
@@ -486,4 +562,63 @@ describe('limitErrors', () => {
 	it('counts the errors that it hides', () => {
 		expect(limitErrors(['a', 'b', 'c', 'd'], 3)).toEqual({ shown: ['a', 'b', 'c'], more: 1 });
 	});
+});
+
+describe('planned windows on import', () => {
+	it.each(['plan', 'backup'] as const)(
+		'widens narrow parents and preserves wider windows in a %s file',
+		(kind) => {
+			const narrow = makeTask({
+				id: 'narrow',
+				start: '2027-02-05',
+				end: '2027-02-10',
+				owners: ['Own'],
+				status: 'todo'
+			});
+			const wide = makeTask({
+				id: 'wide',
+				start: '2027-01-01',
+				end: '2027-12-31',
+				owners: ['Own', 'Child'],
+				status: 'todo'
+			});
+			const plan = makePlan([
+				narrow,
+				makeTask({
+					id: 'a',
+					parentId: 'narrow',
+					start: '2027-02-01',
+					end: '2027-02-20',
+					owners: ['Child'],
+					status: 'done'
+				}),
+				wide,
+				makeTask({
+					id: 'b',
+					parentId: 'wide',
+					start: '2027-02-01',
+					end: '2027-02-20',
+					owners: ['Child'],
+					status: 'done'
+				})
+			]);
+			const file =
+				kind === 'plan'
+					? { schemaVersion: SCHEMA_VERSION, kind, plan }
+					: { schemaVersion: SCHEMA_VERSION, kind, plans: [plan] };
+			const result = parseFile(JSON.stringify(file));
+			expect(result.ok).toBe(true);
+			if (!result.ok) throw new Error('Expected the file to import');
+			expect(result.plans[0].tasks.find((task) => task.id === 'narrow')).toMatchObject({
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['Own', 'Child'],
+				status: 'done'
+			});
+			expect(result.plans[0].tasks.find((task) => task.id === 'wide')).toEqual({
+				...wide,
+				status: 'done'
+			});
+		}
+	);
 });

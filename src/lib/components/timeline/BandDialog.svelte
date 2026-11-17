@@ -92,7 +92,7 @@
 						}
 					}}
 				>
-					{#snippet trigger({ props })}<Button {...props} variant="outline"
+					{#snippet trigger({ props })}<Button {...props} variant="outline" class="tabular-nums"
 							>{formatRangeDisplay(start, end, uiIntl())}</Button
 						>{/snippet}
 				</DateRangeField>

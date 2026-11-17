@@ -1,8 +1,40 @@
-/**
- * Shared screen layout values of the app shell.
- * AppHeader and Timeline measure their heights. Other components read these values.
- * The root variables --app-header-h and --gantt-pinned-h have the same values.
- * The pinned Timeline height is zero when it is unpinned or removed.
- */
-export const appHeader = $state({ height: 0 });
+import { MediaQuery } from 'svelte/reactivity';
+
+export const coarsePointer = new MediaQuery('(pointer: coarse)');
+
+/** Screen layout values shared by the workspace and Timeline. */
+export const workspaceLayout = $state({ split: true });
+/** Scroll progress of the floating tabs. This value is not persisted. */
+export const workspaceTabs = $state({ compact: 0 });
 export const pinnedTimeline = $state({ height: 0 });
+
+/** Tabs always keep the Timeline at the top of the workspace. */
+export function isTimelinePinned(viewer: { ganttPinned: boolean }): boolean {
+	return !workspaceLayout.split || viewer.ganttPinned;
+}
+
+/**
+ * autoCollapsed is the temporary scroll collapse. changing marks the active height change.
+ * revision resets the scroll count after a user collapse. These values are not persisted.
+ */
+export const timelineLayout = $state({ autoCollapsed: false, changing: false, revision: 0 });
+
+// Plain bookkeeping. `timelineLayout.changing` is the reactive value.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const timelineChanges = new Set<symbol>();
+
+/**
+ * Starts a layout change, for example a height change or a diagram view change.
+ * `changing` stays true until every started change ends. Only its own run can end a change.
+ */
+export function beginTimelineLayoutChange(): symbol {
+	const token = Symbol();
+	timelineChanges.add(token);
+	timelineLayout.changing = true;
+	return token;
+}
+
+export function endTimelineLayoutChange(token: symbol): void {
+	if (!timelineChanges.delete(token)) return;
+	timelineLayout.changing = timelineChanges.size > 0;
+}

@@ -4,8 +4,10 @@
  * Plan lifecycle operations and undo/redo are the explicit exception in ADR 3.
  */
 import { getContext, setContext } from 'svelte';
+import { SvelteSet } from 'svelte/reactivity';
+import { dependencyEdgeKey, dependencyWarnings } from '#lib/domain/dependencies.ts';
 import { nowISO } from '#lib/domain/date.ts';
-import { indexTasks, type TaskIndex } from '#lib/domain/derive.ts';
+import { expandParents, indexTasks, type TaskIndex } from '#lib/domain/derive.ts';
 import { createEmptyPlan } from '#lib/domain/factory.ts';
 import { withNewIds } from '#lib/domain/io.ts';
 import type { Plan } from '#lib/domain/schema.ts';
@@ -52,7 +54,10 @@ export class Workspace {
 	readonly history = new History<Plan>();
 	private readonly storage: PlanStorage;
 
-	constructor(storage: Storage) {
+	constructor(
+		storage: Storage,
+		private readonly notify: () => void = () => {}
+	) {
 		this.storage = new PlanStorage(storage);
 		this.load();
 	}
@@ -122,10 +127,23 @@ export class Workspace {
 	commit(mutate: (plan: Plan) => void): void {
 		const before = $state.snapshot(this.plan) as Plan;
 		mutate(this.plan);
+		expandParents(this.plan);
 		if (JSON.stringify(before) === JSON.stringify($state.snapshot(this.plan))) return;
 		this.plan.updatedAt = nowISO();
 		this.history.record(before);
 		this.persist();
+		const previousCycles = new SvelteSet(
+			dependencyWarnings(indexTasks(before.tasks))
+				.filter((w) => w.kind === 'cycle')
+				.map((w) => dependencyEdgeKey(w.taskId, w.dependencyId))
+		);
+		if (
+			dependencyWarnings(indexTasks(this.plan.tasks)).some(
+				(w) =>
+					w.kind === 'cycle' && !previousCycles.has(dependencyEdgeKey(w.taskId, w.dependencyId))
+			)
+		)
+			this.notify();
 	}
 
 	/**
@@ -307,7 +325,7 @@ export class Workspace {
 		return $state.snapshot(this.plan) as Plan;
 	}
 
-	/** Returns all plans, for "Export all plans". */
+	/** Returns all plans, for "Back up all plans". */
 	allPlans(): Plan[] {
 		return this.plans.flatMap((summary) => {
 			if (summary.id === this.plan.id) return [this.activePlan()];

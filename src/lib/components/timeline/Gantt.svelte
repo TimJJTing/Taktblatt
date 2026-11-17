@@ -5,14 +5,28 @@
 	Timeline owns the pin and section height. The pinned chart has its own vertical scroll.
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import { mergeProps } from 'bits-ui';
-	import { untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
-	import { appHeader, pinnedTimeline } from '#lib/components/app/app-layout.svelte.ts';
+	import { SvelteMap } from 'svelte/reactivity';
+	import {
+		isTimelinePinned,
+		workspaceLayout,
+		pinnedTimeline
+	} from '#lib/components/app/app-layout.svelte.ts';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { bandFill, bandTintVar, stageColorVar } from '#lib/components/plan/colors.ts';
-	import { todayISO } from '#lib/domain/date.ts';
+	import {
+		bandFill,
+		bandTintVar,
+		stageColorVar,
+		type RoutePaint
+	} from '#lib/components/plan/colors.ts';
+	import { isFinished } from '#lib/domain/derive.ts';
+	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
+	import type { EdgeGeom, Junction } from '#lib/scene/types.ts';
+	import { cn } from '#lib/utils.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import {
@@ -23,38 +37,35 @@
 		visibleBands,
 		visibleMilestones
 	} from '#lib/domain/gantt.ts';
-	import type { Band, Milestone } from '#lib/domain/schema.ts';
-	import { motionDuration } from '#lib/motion.ts';
+	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { ganttScene } from '#lib/scene/gantt-scene.ts';
+	import { SCREEN_ROUTE_METRICS } from '#lib/scene/route-tracks.ts';
+	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
+	import { diagramRouteTargets } from '#lib/components/diagram/diagram-layer.ts';
+	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
+	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import GanttLine from './GanttLine.svelte';
 	import GanttRow from './GanttRow.svelte';
+	import TodayTag from './TodayTag.svelte';
 	import GanttTween from './GanttTween.svelte';
 	import {
 		HEADER_HEIGHT,
 		LABEL_WIDTH,
 		MILESTONE_ROW_HEIGHT,
 		ROW_HEIGHT,
-		ROW_MOTION_MS,
 		TIMELINE_MIN_WIDTH
 	} from './gantt-layout.ts';
 	import { MILESTONE_SYMBOLS } from './milestone-symbols.ts';
 
-	interface Props {
-		onBand: (band: Band) => void;
-		onMilestone: (milestone: Milestone) => void;
-		onReveal: (row: { top: number; bottom: number }) => void;
-	}
-
-	let { onBand, onMilestone, onReveal }: Props = $props();
+	let { todayDate, class: className, onBand, onMilestone, onReveal }: DiagramViewProps = $props();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
 	const editing = getEditing();
-
-	const MARKER_ID = 'gantt-arrow';
 
 	const win = $derived(ws.plan.range);
 	const locale = uiIntl();
@@ -67,44 +78,150 @@
 			win
 		)
 	);
+	// An outgoing stage layer has no intended ids, so its targets stop taking route input.
+	const routeTargets = diagramRouteTargets(() => rows.map((row) => row.id));
 	const lines = $derived(dependencyLines(ws.index, rows));
+	const graph = $derived(effectiveDependencyGraph(ws.index));
+	const routeModel = $derived(routeFocusModel(graph, ws.index, rows, lines, editing.routeId));
+	const routePaint = (lit: boolean): RoutePaint =>
+		routeModel.active ? (lit ? 'lit' : 'off') : null;
+
 	const ticks = $derived(monthTicks(win));
-	// Today changes at local midnight. A hidden tab can miss the timer, so check again when it shows.
-	let todayDate = $state(todayISO());
-	$effect(() => {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const refresh = () => {
-			todayDate = todayISO();
-			clearTimeout(timer);
-			const now = new Date();
-			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-			timer = setTimeout(refresh, midnight.getTime() - now.getTime() + 1000);
-		};
-		const onVisibility = () => {
-			if (document.visibilityState === 'visible') refresh();
-		};
-		refresh();
-		document.addEventListener('visibilitychange', onVisibility);
-		return () => {
-			clearTimeout(timer);
-			document.removeEventListener('visibilitychange', onVisibility);
-		};
-	});
 	const today = $derived(todayX(win, todayDate));
 	const bands = $derived(visibleBands(win, ws.plan.bands));
 	const milestones = $derived(visibleMilestones(win, ws.plan.milestones));
-
-	const bodyHeight = new Tween(untrack(() => rows.length * ROW_HEIGHT));
+	let milestoneTweens = $state.raw(new Map<string, GeometryTween<number>>());
+	const milestoneFractions = $derived(
+		milestones.map((item) => milestoneTweens.get(item.milestone.id)?.current ?? item.x)
+	);
 	$effect(() => {
-		bodyHeight.set(rows.length * ROW_HEIGHT, {
-			duration: motionDuration(ROW_MOTION_MS),
-			easing: cubicOut
+		const targets = milestones;
+		// Only destination changes start tweens. Current positions drive drawing and tag placement.
+		const previous = untrack(() => milestoneTweens);
+		milestoneTweens = new Map(
+			targets.map((item) => {
+				const tween = previous.get(item.milestone.id) ?? new GeometryTween(item.x);
+				tween.set(item.x);
+				return [item.milestone.id, tween];
+			})
+		);
+	});
+
+	const todayPosition = new Tween(untrack(() => today ?? 0));
+	let previousToday = untrack(() => today);
+	$effect(() => {
+		const target = today;
+		const duration = motionDuration(GEOMETRY_MOTION_MS);
+		untrack(() => {
+			if (target !== null) {
+				todayPosition.set(target, {
+					duration: previousToday === null ? 0 : duration,
+					easing: cubicOut
+				});
+			}
+			previousToday = target;
 		});
 	});
 
+	const bodyHeight = new GeometryTween(untrack(() => rows.length * ROW_HEIGHT));
+	$effect(() => {
+		bodyHeight.set(rows.length * ROW_HEIGHT);
+	});
+
 	let timelineWidth = $state(TIMELINE_MIN_WIDTH);
+	const scene = $derived(
+		ganttScene(rows, lines, {
+			...SCREEN_ROUTE_METRICS(timelineWidth, rows.length),
+			media: 'screen'
+		})
+	);
+	const marks = $derived(new Map(scene.marks.map((m) => [m.id, m])));
+	const sourceRows = $derived(new Map(rows.map((r) => [r.id, r])));
+	const sortedEdges = $derived(
+		[...scene.geometry.edges].sort(
+			(a, b) =>
+				Number(a.cycle) - Number(b.cycle) ||
+				Number(isFinished(sourceRows.get(b.from)!.status)) -
+					Number(isFinished(sourceRows.get(a.from)!.status)) ||
+				a.key.localeCompare(b.key)
+		)
+	);
+	const edgePoints = (line: EdgeGeom, width: number) =>
+		line.points.map((p) => ({ x: p.x.f * width + p.x.px, y: p.y.px }));
+	let edgeTweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }[]>>());
+	$effect(() => {
+		const targets = scene.geometry.edges;
+		const width = timelineWidth;
+		const previous = untrack(() => edgeTweens);
+		edgeTweens = new Map(
+			targets.map((line) => {
+				const points = edgePoints(line, width);
+				const tween = previous.get(line.key) ?? new GeometryTween(points, width);
+				tween.set(points, { width });
+				return [line.key, tween];
+			})
+		);
+	});
+	const litEdges = $derived(
+		sortedEdges.filter((line) => !line.cycle && routeModel.litLineKeys.has(line.key))
+	);
+	const firstCycle = $derived(sortedEdges.find((line) => line.cycle)?.key);
+	const edgePath = (line: EdgeGeom) =>
+		(edgeTweens.get(line.key)?.current ?? edgePoints(line, timelineWidth))
+			.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`)
+			.join(' ');
+	const lineWidth = (line: EdgeGeom) =>
+		sourceRows.get(line.from)!.level === 1 && sourceRows.get(line.to)!.level === 1 ? 1.5 : 2;
+	const tapMembers = $derived.by(() => {
+		const members = new SvelteMap<string, SvelteMap<string, string[]>>();
+		for (const edge of scene.geometry.edges) {
+			let sources = members.get(edge.trunk);
+			if (!sources) members.set(edge.trunk, (sources = new SvelteMap()));
+			let keys = sources.get(edge.from);
+			if (!keys) sources.set(edge.from, (keys = []));
+			keys.push(edge.key);
+		}
+		return members;
+	});
+	function junctionPaint(junction: Junction) {
+		const members =
+			junction.kind === 'tap'
+				? (tapMembers.get(junction.trunk)?.get(junction.source!) ?? [])
+				: (junction.edges ?? []);
+		return routePaint(members.some((key) => routeModel.litLineKeys.has(key)));
+	}
+	const tapRoutes = $derived(
+		new Map(
+			scene.geometry.junctions
+				.filter((j) => j.kind === 'tap')
+				.flatMap((j) => {
+					const paint = junctionPaint(j);
+					return paint ? [[j.key, paint] as const] : [];
+				})
+		)
+	);
+	function routeFade(_node: Element, { casing = false } = {}) {
+		return {
+			duration: motionDuration(150),
+			css: (t: number) =>
+				`stroke: color-mix(in oklab, var(${casing ? '--route-ground' : '--route-ink'}) ${t * 100}%, transparent)`
+		};
+	}
+	function measureTimeline(element: HTMLElement) {
+		const measure = () => {
+			const next = element.clientWidth;
+			if (next !== timelineWidth) timelineWidth = next;
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(element);
+		return {
+			destroy() {
+				observer.disconnect();
+			}
+		};
+	}
 	let scroller = $state<HTMLDivElement | null>(null);
-	const headerHeight = $derived(appHeader.height);
 
 	const scrollBehavior = (): ScrollBehavior => (motionDuration(1) === 0 ? 'instant' : 'smooth');
 
@@ -120,9 +237,137 @@
 		}
 	}
 
+	let hoveredRow: HTMLElement | null = null;
+	let hoverChart: HTMLElement | null = null;
+	let hoverFrame: number | undefined;
+	let hoverPoint = { x: 0, y: 0 };
+	function setHoveredRow(row: HTMLElement | null) {
+		if (row === hoveredRow) return;
+		if (hoveredRow) {
+			editing.routeFocus.hoverLeave(editing.routeFocus.tokenFor(hoveredRow));
+			onHighlight(hoveredRow.dataset.routeTarget!, false);
+		}
+		hoveredRow = row;
+		if (row) {
+			editing.routeFocus.hoverEnter(row.dataset.routeTarget!, editing.routeFocus.tokenFor(row));
+			onHighlight(row.dataset.routeTarget!, true);
+		}
+	}
+
+	function updateChartHover(chart: HTMLElement) {
+		if (!scroller) return;
+		const view = scroller.getBoundingClientRect();
+		const bounds = chart.getBoundingClientRect();
+		let next: HTMLElement | null = null;
+		// The sticky header can cover rows after a vertical scroll.
+		if (
+			hoverPoint.x >= view.left &&
+			hoverPoint.x < view.right &&
+			hoverPoint.y >=
+				Math.max(view.top + HEADER_HEIGHT, bounds.top + HEADER_HEIGHT + MILESTONE_ROW_HEIGHT) &&
+			hoverPoint.y < view.bottom
+		) {
+			// Read the animated row positions before updating highlight paint.
+			for (const row of chart.querySelectorAll<HTMLElement>(
+				'[data-route-target]:not([data-route-focus])'
+			)) {
+				if (!sourceRows.has(row.dataset.routeTarget!)) continue;
+				const rect = row.getBoundingClientRect();
+				if (
+					hoverPoint.x >= rect.left &&
+					hoverPoint.x < rect.right &&
+					hoverPoint.y >= rect.top &&
+					hoverPoint.y < rect.bottom
+				) {
+					next = row;
+					break;
+				}
+			}
+		}
+		setHoveredRow(next);
+	}
+
+	function chartPointerMove(event: PointerEvent) {
+		if (event.pointerType === 'touch') return;
+		hoverPoint = { x: event.clientX, y: event.clientY };
+		hoverChart = event.currentTarget as HTMLElement;
+		scheduleChartHover();
+	}
+
+	function scheduleChartHover() {
+		if (!hoverChart || hoverFrame !== undefined) return;
+		hoverFrame = requestAnimationFrame(() => {
+			hoverFrame = undefined;
+			if (hoverChart) updateChartHover(hoverChart);
+		});
+	}
+
+	function chartPointerDown(event: PointerEvent) {
+		if (event.pointerType === 'touch' || hoverFrame === undefined) return;
+		// Apply pending hover before a chevron click clears its linked highlight.
+		cancelAnimationFrame(hoverFrame);
+		hoverFrame = undefined;
+		hoverPoint = { x: event.clientX, y: event.clientY };
+		updateChartHover(event.currentTarget as HTMLElement);
+	}
+
+	function clearChartHover() {
+		if (hoverFrame !== undefined) cancelAnimationFrame(hoverFrame);
+		hoverFrame = undefined;
+		hoverChart = null;
+		setHoveredRow(null);
+	}
+	function chartPointerLeave(event: PointerEvent) {
+		if (event.pointerType !== 'touch') clearChartHover();
+	}
+	let hoverPlanId = untrack(() => ws.plan.id);
+	$effect(() => {
+		const planId = ws.plan.id;
+		const currentRows = sourceRows;
+		untrack(() => {
+			if (planId !== hoverPlanId) clearChartHover();
+			else {
+				if (hoveredRow && !currentRows.has(hoveredRow.dataset.routeTarget!)) setHoveredRow(null);
+				scheduleChartHover();
+			}
+			hoverPlanId = planId;
+		});
+	});
+	onMount(() => {
+		const observer = new ResizeObserver(scheduleChartHover);
+		observer.observe(scroller!);
+		observer.observe(scroller!.firstElementChild!);
+		const rowsObserver = new MutationObserver((changes) => {
+			if (
+				changes.some(
+					(change) =>
+						change.type === 'childList' ||
+						(change.target instanceof HTMLElement &&
+							change.target.matches('[data-route-target]:not([data-route-focus])'))
+				)
+			)
+				scheduleChartHover();
+		});
+		rowsObserver.observe(scroller!, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ['style']
+		});
+		window.addEventListener('scroll', scheduleChartHover, true);
+		window.addEventListener('resize', scheduleChartHover);
+		return () => {
+			observer.disconnect();
+			rowsObserver.disconnect();
+			window.removeEventListener('scroll', scheduleChartHover, true);
+			window.removeEventListener('resize', scheduleChartHover);
+			clearChartHover();
+		};
+	});
+
 	$effect(() => {
 		const id = editing.highlightId;
-		if (!viewer.ganttPinned || id === null || id === ownHighlight) return;
+		if (!isTimelinePinned(viewer) || id === null || id === ownHighlight) return;
 		untrack(() => showInChart(id));
 	});
 
@@ -150,38 +395,89 @@
 	}
 
 	/** Scrolls to the table row of the task and flashes it one time. */
-	function jump(id: string) {
-		const row = document.querySelector<HTMLElement>(`tr[data-task-id="${CSS.escape(id)}"]`);
-		if (!row) return;
-		const behavior = scrollBehavior();
-		if (viewer.ganttPinned) {
-			// Clear the sticky stage header and any sticky column headers at the target row.
-			const stage = row.closest('section[data-stage-id]');
-			const stageHeader = stage?.querySelector('header');
-			const columnHeader = stage?.querySelector('thead th');
-			const stageHeight = stageHeader?.getBoundingClientRect().height ?? 0;
-			const columnHeight =
-				columnHeader && getComputedStyle(columnHeader).position === 'sticky'
-					? columnHeader.getBoundingClientRect().height
-					: 0;
-			const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-			const offset = headerHeight + pinnedTimeline.height + stageHeight + columnHeight + rem;
-			window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - offset, behavior });
-		} else {
-			row.scrollIntoView({ block: 'center', behavior });
+	async function jump(id: string) {
+		if (!workspaceLayout.split && viewer.narrowTab !== 'work-plan') {
+			viewer.setNarrowTab('work-plan');
+			await tick();
+			// The shell restores the tab scroll position after its layout update.
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 		}
+		const row = document.querySelector<HTMLElement>(`tr[data-task-id="${CSS.escape(id)}"]`);
+		const scroller = document.querySelector<HTMLElement>(
+			workspaceLayout.split ? '#work-pane' : '[data-testid="workspace-content"]'
+		);
+		if (!row || !scroller) return;
+		const stage = row.closest('section[data-stage-id]');
+		const stageHeight = stage?.querySelector('header')?.getBoundingClientRect().height ?? 0;
+		const column = stage?.querySelector<HTMLElement>(
+			stage.getBoundingClientRect().width >= 640 ? 'thead th' : '[data-testid="stage-band"]'
+		);
+		const columnHeight = column?.getBoundingClientRect().height ?? 0;
+		const pinned = !workspaceLayout.split ? pinnedTimeline.height : 0;
+		const offset = pinned + stageHeight + columnHeight + 16;
+		scroller.scrollTo({
+			top:
+				scroller.scrollTop +
+				row.getBoundingClientRect().top -
+				scroller.getBoundingClientRect().top -
+				offset,
+			behavior: scrollBehavior()
+		});
 		editing.flash(id);
 	}
 </script>
 
+{#snippet routeOverlays()}
+	<g aria-hidden="true" class="route-overlays">
+		{#each litEdges as line (line.key)}
+			<path
+				d={edgePath(line)}
+				fill="none"
+				stroke="var(--route-ground)"
+				stroke-width="4"
+				aria-hidden="true"
+				data-overlay-for={line.key}
+				data-route-layer="casing"
+				transition:routeFade={{ casing: true }}
+			/>
+			<path
+				d={edgePath(line)}
+				fill="none"
+				stroke="var(--route-ink)"
+				stroke-width={lineWidth(line)}
+				aria-hidden="true"
+				data-overlay-for={line.key}
+				data-route-layer="ink"
+				transition:routeFade
+			/>
+		{/each}
+	</g>
+{/snippet}
+
 <div
 	role="group"
 	aria-label={m.gantt_label()}
-	class="flex min-h-21 min-w-0 flex-1 flex-col rounded-md border bg-background [--gantt-label-width:128px] sm:[--gantt-label-width:192px]"
+	class={cn(
+		'flex min-h-21 min-w-0 flex-1 flex-col rounded-md border bg-background [--gantt-label-width:128px] sm:[--gantt-label-width:192px]',
+		className
+	)}
 	data-testid="gantt"
 >
-	<div bind:this={scroller} class="min-h-0 flex-1 overflow-auto" data-testid="gantt-scroller">
-		<div class="relative" style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)">
+	<div
+		bind:this={scroller}
+		use:overlayScrollbar={{ axis: 'both' }}
+		class="min-h-0 flex-1 overflow-auto"
+		data-diagram-scroller
+		data-testid="gantt-scroller"
+	>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="relative"
+			style:min-width="calc({LABEL_WIDTH} + {TIMELINE_MIN_WIDTH}px)"
+			onpointerdown={chartPointerDown}
+			onpointermove={chartPointerMove}
+			onpointerleave={chartPointerLeave}
+		>
 			<div class="sticky top-0 z-20 flex border-b bg-background" style:height="{HEADER_HEIGHT}px">
 				<div
 					class="sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center border-r bg-background px-1"
@@ -195,7 +491,7 @@
 									style:left="{x.x0 * 100}%"
 									style:width="{(x.x1 - x.x0) * 100}%"
 								>
-									<span class="truncate">{formatMonth(t.month, locale)}</span>
+									<span class="truncate tabular-nums">{formatMonth(t.month, locale)}</span>
 								</div>
 							{/snippet}
 						</GanttTween>
@@ -210,40 +506,51 @@
 					{m.legend_milestones()}
 				</div>
 				<div class="relative flex-1">
-					{#each milestones as item (item.milestone.id)}
+					{#each milestones as item, index (item.milestone.id)}
 						{@const Symbol = MILESTONE_SYMBOLS[item.milestone.symbol]}
-						<GanttTween x0={item.x}>
-							{#snippet child(x)}
-								<Hint text="{item.label} {item.milestone.title}">
-									{#snippet child({ props })}
-										<button
-											{...mergeProps(props, { onclick: () => onMilestone(item.milestone) })}
-											type="button"
-											class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-											style:left="calc({x.x0 * 100}% - 7px)"
-											aria-label={m.gantt_milestone({
-												label: item.label,
-												title: item.milestone.title,
-												date: formatDate(item.milestone.date, locale)
-											})}
-											data-testid="gantt-milestone"
-										>
-											<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
-										</button>
-									{/snippet}
-								</Hint>
+						<Hint text="{item.label} {item.milestone.title}">
+							{#snippet child({ props })}
+								<button
+									{...mergeProps(props, { onclick: () => onMilestone(item.milestone) })}
+									type="button"
+									class="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-sm pr-1 text-xs font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+									style:left="calc({milestoneFractions[index] * 100}% - 7px)"
+									aria-label={m.gantt_milestone({
+										label: item.label,
+										title: item.milestone.title,
+										date: formatDate(item.milestone.date, locale)
+									})}
+									data-testid="gantt-milestone"
+									data-milestone-sign
+								>
+									<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
+								</button>
 							{/snippet}
-						</GanttTween>
+						</Hint>
 					{/each}
+					{#if today !== null}
+						<TodayTag
+							x={todayPosition.current}
+							today={todayPosition.current}
+							milestones={milestoneFractions}
+							chartWidth={timelineWidth}
+						/>
+					{/if}
 				</div>
 			</div>
 
 			<div class="pointer-events-none relative z-[1]" style:height="{bodyHeight.current}px">
 				{#each rows as row (row.id)}
 					<GanttRow
+						routeTarget={routeTargets.target}
 						{row}
+						geom={marks.get(row.id)!}
+						width={timelineWidth}
+						taps={scene.geometry.junctions.filter((j) => j.kind === 'tap' && j.source === row.id)}
 						color={colors.get(row.stageId) ?? 'currentColor'}
 						highlighted={editing.highlightId === row.id}
+						route={routePaint(routeModel.onRouteRowIds.has(row.id))}
+						{tapRoutes}
 						onJump={jump}
 						{onHighlight}
 					/>
@@ -253,7 +560,7 @@
 			<div
 				class="absolute right-0 bottom-0 left-(--gantt-label-width) z-0"
 				style:top="{HEADER_HEIGHT}px"
-				bind:clientWidth={timelineWidth}
+				use:measureTimeline
 			>
 				{#each ticks.slice(1) as t (t.month)}
 					<GanttTween x0={t.x0}>
@@ -295,44 +602,46 @@
 					</GanttTween>
 				{/each}
 				{#if today !== null}
-					<GanttTween x0={today}>
-						{#snippet child(x)}
-							<div
-								class="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/60"
-								style:left="{x.x0 * 100}%"
-								data-testid="gantt-today"
-							>
-								<span
-									class="absolute top-0.5 left-1 rounded-sm bg-background/80 px-0.5 text-[10px] leading-tight font-medium"
-									>{m.gantt_today()}</span
-								>
-							</div>
-						{/snippet}
-					</GanttTween>
+					<div
+						class="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/60"
+						style:left="{todayPosition.current * 100}%"
+						data-testid="gantt-today"
+					></div>
 				{/if}
 				<svg
 					class="pointer-events-none absolute inset-0 size-full overflow-visible text-muted-foreground"
 					aria-hidden="true"
 				>
-					<defs>
-						<marker
-							id={MARKER_ID}
-							viewBox="0 0 6 6"
-							refX="5"
-							refY="3"
-							markerWidth="6"
-							markerHeight="6"
-							orient="auto"
-						>
-							<path d="M 0 0 L 6 3 L 0 6 z" fill="currentColor" />
-						</marker>
-					</defs>
-					{#each lines as line (line.key)}
-						{@const done = rows[line.row0].done === 'done'}
-						<GanttLine {line} {done} width={timelineWidth} marker={MARKER_ID} />
+					{#each sortedEdges as line (line.key)}
+						{#if line.key === firstCycle}{@render routeOverlays()}{/if}
+						<GanttLine
+							{line}
+							tween={edgeTweens.get(line.key) ?? { current: edgePoints(line, timelineWidth) }}
+							muted={isFinished(sourceRows.get(line.from)!.status)}
+							route={routePaint(routeModel.litLineKeys.has(line.key))}
+							strokeWidth={lineWidth(line)}
+						/>
+					{/each}
+					{#if firstCycle === undefined}{@render routeOverlays()}{/if}
+					{#each scene.geometry.junctions.filter((j) => j.kind === 'junction') as junction (junction.key)}
+						<DiagramRing {junction} width={timelineWidth} route={junctionPaint(junction)} />
 					{/each}
 				</svg>
 			</div>
 		</div>
 	</div>
 </div>
+
+<style>
+	.route-overlays {
+		--route-ink: var(--foreground);
+		--route-ground: var(--background, #ffffff);
+	}
+	@media (forced-colors: active) {
+		.route-overlays {
+			forced-color-adjust: none;
+			--route-ink: Highlight;
+			--route-ground: Canvas;
+		}
+	}
+</style>

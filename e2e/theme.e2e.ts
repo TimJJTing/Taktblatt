@@ -1,41 +1,47 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	choosePrint,
+	chooseTheme,
+	openLanguageMenu,
 	openApp,
 	openExample,
 	openPreview,
-	openSettings,
+	openMenu,
 	storedPlan,
-	waitForAnimations
+	writeStoredPlan,
+	openMenuWithKeyboard,
+	openLinePlan,
+	openRoutePlan,
+	ganttRow,
+	expectStationStatus,
+	setTaskStatus,
+	row,
+	samplePaint,
+	expectCyclePaint
 } from './helpers.ts';
 
-const settings = (page: Page) => page.getByTestId('settings-menu');
+const menuButton = (page: Page) => page.getByTestId('app-menu');
 const themeGroup = (page: Page) => page.getByRole('group', { name: 'Theme', exact: true });
 const preference = (page: Page) => page.evaluate(() => localStorage.getItem('taktblatt:theme'));
-
-async function chooseTheme(page: Page, name: 'Light' | 'Dark' | 'System') {
-	await openSettings(page);
-	await themeGroup(page).getByRole('menuitemradio', { name, exact: true }).click();
-	await expect(page.getByRole('menu')).toHaveCount(0);
-}
 
 async function expectTheme(page: Page, theme: 'light' | 'dark') {
 	await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
 	const chrome = page.locator('meta[name="theme-color"]');
 	await expect(chrome).toHaveCount(1);
-	await expect(chrome).toHaveAttribute('content', theme === 'dark' ? '#0e0f13' : '#ffffff');
+	await expect(chrome).toHaveAttribute('content', theme === 'dark' ? '#13161a' : '#ffffff');
 }
 
 test('System is the default and follows system changes while open', async ({ page }) => {
 	await page.emulateMedia({ colorScheme: 'light' });
 	await openApp(page);
-	await openSettings(page);
+	await openMenu(page);
 	await expect(themeGroup(page).getByRole('menuitemradio')).toHaveCount(3);
 	await expect(themeGroup(page).getByRole('menuitemradio', { name: 'System' })).toBeChecked();
 	await page.keyboard.press('Escape');
 	await expectTheme(page, 'light');
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await expectTheme(page, 'dark');
-	await openSettings(page);
+	await openMenu(page);
 	await expect(themeGroup(page).getByRole('menuitemradio', { name: 'System' })).toBeChecked();
 	await page.keyboard.press('Escape');
 	await page.emulateMedia({ colorScheme: 'light' });
@@ -61,7 +67,7 @@ test('explicit themes override the system and all choices survive a reload', asy
 		await page.reload();
 		await expect(page.getByTestId('plan-heading')).toBeVisible();
 		await expectTheme(page, value === 'system' ? opposite : value);
-		await openSettings(page);
+		await openMenu(page);
 		await expect(
 			themeGroup(page).getByRole('menuitemradio', { name: label, exact: true })
 		).toBeChecked();
@@ -69,7 +75,7 @@ test('explicit themes override the system and all choices survive a reload', asy
 	}
 });
 
-test('the Settings theme choices support keyboard selection and preserve plan history', async ({
+test('the menu theme choices support keyboard selection and preserve plan history', async ({
 	page
 }) => {
 	await openApp(page);
@@ -83,12 +89,9 @@ test('the Settings theme choices support keyboard selection and preserve plan hi
 	await expect(page.getByTestId('plan-heading')).toHaveText('Garden');
 	const plan = await storedPlan(page);
 	const origin = await page.evaluate(() => performance.timeOrigin);
-	await expect(settings(page)).toBeVisible();
-	await settings(page).focus();
-	await page.keyboard.press('Enter');
-	await expect(page.getByRole('menu')).toBeVisible();
-	await waitForAnimations(page.getByRole('menu'));
-	await page.keyboard.press('Home');
+	await openMenuWithKeyboard(page);
+	// The five actions come before the Theme group.
+	for (let step = 0; step < 5; step++) await page.keyboard.press('ArrowDown');
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
 	).toBeFocused();
@@ -96,9 +99,22 @@ test('the Settings theme choices support keyboard selection and preserve plan hi
 	await expect(
 		themeGroup(page).getByRole('menuitemradio', { name: 'Dark', exact: true })
 	).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(
+		themeGroup(page).getByRole('menuitemradio', { name: 'System', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(
+		themeGroup(page).getByRole('menuitemradio', { name: 'Dark', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(
+		themeGroup(page).getByRole('menuitemradio', { name: 'Light', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('menu')).toHaveCount(0);
-	await expect(settings(page)).toBeFocused();
+	await expect(menuButton(page)).toBeFocused();
 	await expectTheme(page, 'dark');
 	expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
 	expect(await storedPlan(page)).toEqual(plan);
@@ -113,7 +129,7 @@ test('an invalid saved theme falls back to System', async ({ page }) => {
 	await page.addInitScript(() => localStorage.setItem('taktblatt:theme', 'invalid'));
 	await page.emulateMedia({ colorScheme: 'light' });
 	await openApp(page);
-	await openSettings(page);
+	await openMenu(page);
 	await expect(themeGroup(page).getByRole('menuitemradio', { name: 'System' })).toBeChecked();
 	await page.keyboard.press('Escape');
 	await expectTheme(page, 'light');
@@ -128,7 +144,7 @@ test('a theme change reaches another tab without reloading it', async ({ page, c
 	const origin = await other.evaluate(() => performance.timeOrigin);
 	await chooseTheme(page, 'Dark');
 	await expectTheme(other, 'dark');
-	await openSettings(other);
+	await openMenu(other);
 	await expect(
 		themeGroup(other).getByRole('menuitemradio', { name: 'Dark', exact: true })
 	).toBeChecked();
@@ -172,7 +188,7 @@ test('Preview and printed sheets stay light with the same pagination in dark mod
 	await testInfo.attach('dark-theme-print.pdf', { body: pdf, contentType: 'application/pdf' });
 });
 
-test('the Settings menu fits a phone header and works after an offline reload', async ({
+test('the app menu fits a phone header and works after an offline reload', async ({
 	page,
 	context
 }) => {
@@ -204,23 +220,16 @@ test('the Settings menu fits a phone header and works after an offline reload', 
 	await expect.poll(() => preference(page)).toBe('light');
 	await openPreview(page);
 	await page.keyboard.press('Escape');
-	await openSettings(page);
-	await expect(
-		page
-			.getByRole('group', { name: 'Language', exact: true })
-			.getByRole('menuitemradio', { name: 'English', exact: true })
-	).toBeChecked();
+	await openLanguageMenu(page);
+	await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
 	await page.getByRole('menuitemradio', { name: 'Deutsch', exact: true }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 	await expectTheme(page, 'light');
-	await openSettings(page);
-	await expect(
-		page
-			.getByRole('group', { name: 'Sprache', exact: true })
-			.getByRole('menuitemradio', { name: 'Deutsch', exact: true })
-	).toBeChecked();
+	await openLanguageMenu(page);
+	await expect(page.getByRole('menuitemradio', { name: 'Deutsch', exact: true })).toBeChecked();
 	await page.keyboard.press('Escape');
-	await page.getByTestId('preview-open').click();
+	await page.keyboard.press('Escape');
+	await choosePrint(page);
 	await expect(page.getByTestId('sheet').first()).toContainText('Zeitachse');
 	await context.setOffline(false);
 });
@@ -236,8 +245,182 @@ test('the saved theme applies before the app starts', async ({ page }) => {
 	expect(await preference(page)).toBe('dark');
 });
 
-test('the Settings button shows its name in a tooltip', async ({ page }) => {
+test('the Menu button shows its name in a tooltip', async ({ page }) => {
 	await openApp(page);
-	await settings(page).hover();
-	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Settings');
+	await menuButton(page).hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Menu');
+});
+
+test('forced colors keep task lines, station fill forms and junctions visible', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+	await expect
+		.poll(() => page.evaluate(() => matchMedia('(forced-colors: active)').matches))
+		.toBe(true);
+	for (const title of ['Source', 'Crossing']) {
+		const mark = ganttRow(page, title).getByTestId('gantt-bar');
+		const line = mark.locator('[data-gantt-line]');
+		await expect(line).toBeVisible();
+		const paint = await samplePaint(line, 'background-color', 'Canvas');
+		expect(paint.actual[3]).toBe(255);
+		expect(paint.actual).not.toEqual(paint.expected);
+		await expect(mark.locator('.station-dot').first()).toBeVisible();
+	}
+	await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'todo');
+	await expectStationStatus(ganttRow(page, 'Crossing').getByTestId('gantt-bar'), 'done');
+	for (const status of ['in_progress', 'canceled'] as const) {
+		await setTaskStatus(page, row(page, 'Source'), status);
+		await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), status);
+	}
+	const ring = page.getByTestId('gantt-junction').first();
+	await expect(ring).toBeVisible();
+	const stroke = await ring.locator('circle').evaluate((node) => getComputedStyle(node).stroke);
+	expect(stroke).not.toBe('none');
+	expect(stroke).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('keyboard focus encloses the complete point station', async ({ page }) => {
+	await openLinePlan(page);
+	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
+	await point.focus();
+	await expect(point).toBeFocused();
+	await expect(point).toHaveAccessibleName(/^Point:/);
+	await expect(point).toHaveCSS('outline-style', 'solid');
+	const bounds = await point.evaluate((node) => {
+		const mark = node.getBoundingClientRect(),
+			dot = node.querySelector('.station-dot')?.getBoundingClientRect();
+		const clip = node.closest('[data-testid="gantt-scroller"]')!.getBoundingClientRect();
+		return {
+			mark: { left: mark.left, right: mark.right, top: mark.top, bottom: mark.bottom },
+			dot: dot ? { left: dot.left, right: dot.right, top: dot.top, bottom: dot.bottom } : null,
+			clip: { top: clip.top, bottom: clip.bottom },
+			outline: parseFloat(getComputedStyle(node).outlineWidth)
+		};
+	});
+	expect(bounds.dot).not.toBeNull();
+	expect(bounds.mark.left).toBeLessThanOrEqual(bounds.dot!.left);
+	expect(bounds.mark.right).toBeGreaterThanOrEqual(bounds.dot!.right);
+	expect(bounds.mark.top).toBeLessThanOrEqual(bounds.dot!.top);
+	expect(bounds.mark.bottom).toBeGreaterThanOrEqual(bounds.dot!.bottom);
+	expect(bounds.mark.top - bounds.outline).toBeGreaterThan(bounds.clip.top);
+	expect(bounds.mark.bottom + bounds.outline).toBeLessThan(bounds.clip.bottom);
+});
+
+for (const [system, app] of [
+	['light', 'Dark'],
+	['dark', 'Light']
+] as const) {
+	test(`forced colors use system ground when the ${app} theme differs from ${system}`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme: system, reducedMotion: 'reduce' });
+		await openLinePlan(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.id === 'source')!.dependsOn = ['target'];
+		});
+		await chooseTheme(page, app);
+		await page.emulateMedia({ forcedColors: 'active' });
+		const casing = page.locator('[data-overlay-for]').first();
+		const ring = page.getByTestId('gantt-junction').first().locator('circle');
+		const tap = page.getByTestId('gantt-tap').first().locator('circle');
+		const muted = page.locator('[data-testid="gantt-dependency"][data-from="child-a"]');
+		await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+		for (const [node, property, token] of [
+			[casing, 'stroke', 'Canvas'],
+			[ring, 'fill', 'Canvas'],
+			[tap, 'fill', 'Canvas'],
+			[tap, 'stroke', 'CanvasText'],
+			[muted, 'stroke', 'CanvasText']
+		] as const) {
+			await expect(node).toBeVisible();
+			await expect
+				.poll(() =>
+					node.evaluate(
+						(element, { property, token }) => {
+							const probe = document.createElement('span');
+							probe.style.cssText = `forced-color-adjust:none;color:${token}`;
+							element.parentElement!.append(probe);
+							const expected = getComputedStyle(probe).color;
+							probe.remove();
+							return getComputedStyle(element).getPropertyValue(property) === expected;
+						},
+						{ property, token }
+					)
+				)
+				.toBe(true);
+		}
+		await setTaskStatus(page, row(page, 'Source'), 'canceled');
+		await expectStationStatus(ganttRow(page, 'Source').getByTestId('gantt-bar'), 'canceled');
+	});
+}
+
+test('forced colors use Highlight and Canvas for route signs while cycles keep their form', async ({
+	page
+}) => {
+	await openRoutePlan(page);
+	await writeStoredPlan(page, (plan) => {
+		for (const task of plan.tasks) {
+			if (task.id === 'parent' || task.parentId === 'parent') {
+				task.start = '2027-01-20';
+				task.end = '2027-02-05';
+			}
+		}
+	});
+	await page.emulateMedia({ forcedColors: 'active' });
+	await ganttRow(page, 'Route parent').getByTestId('gantt-bar').hover();
+	await expect(ganttRow(page, 'Route unrelated')).toHaveAttribute('data-route', 'off');
+	const ink = page.locator('[data-route-layer="ink"]').first();
+	const casing = page.locator('[data-route-layer="casing"]').first();
+	await expect(ink).toBeAttached();
+	for (const [path, token] of [
+		[ink, 'Highlight'],
+		[casing, 'Canvas']
+	] as const) {
+		await expect
+			.poll(async () => {
+				const paint = await samplePaint(path, 'stroke', token);
+				return paint.actual;
+			})
+			.toEqual((await samplePaint(path, 'stroke', token)).expected);
+		await expect(path).toHaveCSS('forced-color-adjust', 'none');
+	}
+	for (const sign of [
+		page.locator('[data-testid="gantt-junction"][data-route="lit"]').first(),
+		page.locator('[data-testid="gantt-tap"][data-route="lit"]').first()
+	]) {
+		await expect(sign).toBeAttached();
+		const circle = sign.locator('circle');
+		for (const [property, token] of [
+			['stroke', 'Highlight'],
+			['fill', 'Canvas']
+		] as const) {
+			await expect
+				.poll(() =>
+					circle.evaluate(
+						(element, { property, token }) => {
+							const probe = document.createElement('span');
+							probe.style.cssText = `forced-color-adjust:none;color:${token}`;
+							element.parentElement!.append(probe);
+							const expected = getComputedStyle(probe).color;
+							probe.remove();
+							return getComputedStyle(element).getPropertyValue(property) === expected;
+						},
+						{ property, token }
+					)
+				)
+				.toBe(true);
+		}
+	}
+	const ordinary = ganttRow(page, 'Route unrelated').locator('[data-gantt-line]');
+	const paint = await samplePaint(ordinary, 'background-color', 'CanvasText');
+	expect(paint.actual).toEqual(paint.expected);
+	const cycles = page.locator('[data-testid="gantt-dependency"][data-cycle="true"]');
+	await expect(cycles).toHaveCount(2);
+	for (const cycle of await cycles.all()) {
+		await expectCyclePaint(cycle);
+		await expect(cycle).not.toHaveAttribute('data-route');
+	}
+	await expect(page.locator('[data-route-layer="ink"][data-overlay-for^="cycle-"]')).toHaveCount(0);
 });

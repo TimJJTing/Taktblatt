@@ -1,14 +1,18 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openExample, row, stage, waitForAnimations } from './helpers.ts';
+import {
+	choosePrint,
+	openExample,
+	row,
+	stage,
+	waitForAnimations,
+	ganttRow,
+	openLinePlan,
+	openPreview,
+	stageColorPalette
+} from './helpers.ts';
 
 const tooltips = (page: Page) => page.locator('[data-slot="tooltip-content"]');
 const gantt = (page: Page) => page.getByTestId('gantt');
-
-/** The Gantt row of a task, found by its label text. */
-const ganttRow = (page: Page, title: string) =>
-	gantt(page)
-		.getByTestId('gantt-row')
-		.filter({ has: page.getByTestId('gantt-label').and(page.getByText(title, { exact: true })) });
 
 /** Moves the pointer to an empty corner and removes focus, then waits until no tooltip is open. */
 async function closeHints(page: Page): Promise<void> {
@@ -112,29 +116,17 @@ test.describe('hints show in a tooltip', () => {
 		await expect(dot).not.toHaveAttribute('title');
 	});
 
-	test('the derived range and owners of a parent task', async ({ page }) => {
+	test('the planned window of a parent task', async ({ page }) => {
 		await openExample(page);
-		const parent = row(page, 'Soil preparation');
-		const target = parent.getByTestId('task-target');
-		await expectHint(page, target, /^The latest end date of the subtasks/, { focus: false });
+		const target = row(page, 'Soil preparation').getByTestId('task-target');
+		await expectHint(page, target, /\S+ – \S+/, { focus: false });
 		await expect(target).not.toHaveAttribute('title');
-
-		const owners = parent.getByTestId('task-owners');
-		await expectHint(
-			page,
-			owners.getByText('Kai', { exact: true }),
-			'Owners come from the subtasks.',
-			{
-				focus: false
-			}
-		);
-		await expect(owners.locator('[title]')).toHaveCount(0);
 	});
 
 	test('a stage color swatch names its in-use state', async ({ page }) => {
 		await openExample(page);
 		await stage(page, 0).getByTestId('stage-color').click();
-		const group = page.getByRole('radiogroup');
+		const group = stageColorPalette(page);
 		await expect(group).toBeVisible();
 		await waitForAnimations(page.locator('[data-slot="popover-content"]'));
 		// "Grow" uses amber. No stage uses violet.
@@ -155,22 +147,30 @@ test.describe('hints show in a tooltip', () => {
 		await expect(amber).not.toHaveAttribute('title');
 	});
 
-	test('the derived done checkbox in the task dialog', async ({ page }) => {
+	test('the derived status select of a parent in the work plan', async ({ page }) => {
+		await openExample(page);
+		const wrapper = row(page, 'Soil preparation')
+			.locator('[data-slot="tooltip-trigger"]')
+			.filter({ has: page.getByTestId('task-status') });
+		await expectHint(page, wrapper, 'The subtasks set the status.');
+	});
+
+	test('the derived status select in the task dialog', async ({ page }) => {
 		await openExample(page);
 		await row(page, 'Soil preparation').getByTestId('task-details').click();
 		const dialog = page.getByRole('dialog');
 		await expect(dialog).toBeVisible();
 		await waitForAnimations(dialog);
-		const checkbox = dialog.getByRole('checkbox', { name: 'Done: Soil preparation' });
+		const checkbox = dialog.getByTestId('task-status');
 		await expect(checkbox).toBeDisabled();
 		const { width, height } = page.viewportSize()!;
 		await page.mouse.move(width - 2, height - 2);
 		await checkbox.hover();
-		await expectTooltip(page, 'The subtasks set the done state.');
+		await expectTooltip(page, 'The subtasks set the status.');
 		await expect(dialog.locator('[title]')).toHaveCount(0);
 	});
 
-	test('the derived done hint adds no tab stop when the dialog opens by keyboard', async ({
+	test('the derived status hint adds no tab stop when the dialog opens by keyboard', async ({
 		page
 	}) => {
 		await openExample(page);
@@ -181,7 +181,7 @@ test.describe('hints show in a tooltip', () => {
 		await expect(dialog).toBeVisible();
 		await waitForAnimations(dialog);
 		const wrapper = dialog.locator('[data-slot="tooltip-trigger"]').filter({
-			has: page.getByRole('checkbox', { name: 'Done: Soil preparation' })
+			has: page.getByTestId('task-status')
 		});
 		await expect(wrapper).toHaveCount(1);
 		await expect(wrapper).not.toHaveAttribute('tabindex');
@@ -196,7 +196,7 @@ test.describe('hints show in a tooltip', () => {
 
 	test('print sheets show no hints', async ({ page }) => {
 		await openExample(page);
-		await page.getByTestId('preview-open').click();
+		await choosePrint(page);
 		await expect(page.getByRole('dialog', { name: 'Print preview' })).toBeVisible();
 		const sheets = page.getByTestId('sheet');
 		await expect(sheets.first()).toBeVisible();
@@ -205,4 +205,24 @@ test.describe('hints show in a tooltip', () => {
 		await expect(sheets.locator('[data-slot="tooltip-trigger"]')).toHaveCount(0);
 		await expect(sheets.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
 	});
+});
+
+test('point stations retain hover and keyboard hints while paper signs have none', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
+	await expect(point.locator('.station-dot')).toBeVisible();
+	await expectHint(page, point, /^Point:/);
+	// The hint text equals the accessible name, with no trailing whitespace.
+	const name = await point.getAttribute('aria-label');
+	await expect.poll(async () => (await tooltips(page).first().textContent()) === name).toBe(true);
+	await expect(row(page, 'Point')).toHaveClass(/bg-accent/);
+	await closeHints(page);
+	await openPreview(page);
+	const paper = page.getByTestId('sheets').getByTestId('sheet-gantt-point');
+	await expect(paper).toHaveAccessibleName(/^Point:/);
+	await expect(paper.locator('.station-dot')).toBeVisible();
+	await expect(paper.locator('[data-slot="tooltip-trigger"], [title]')).toHaveCount(0);
+	await expect(paper).not.toHaveAttribute('tabindex');
 });

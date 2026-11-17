@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
 	defaultPanelHeight,
+	MIN_CHART_HEIGHT,
 	expectPanelHeight,
 	expectStickyBelowHeader,
 	expectExampleSheetLegends,
@@ -16,15 +17,21 @@ import {
 const toggle = (page: Page) => page.getByTestId('timeline-legends-toggle');
 const legends = (page: Page) => page.getByTestId('timeline-legends');
 
-async function expectFullWidthDivider(page: Page) {
+async function expectRegionWidthDivider(page: Page) {
 	await expect
 		.poll(() =>
 			page.getByTestId('gantt-resize').evaluate((element) => {
 				const bounds = element.getBoundingClientRect();
+				const scroller = document.querySelector<HTMLElement>('#plan-pane')!;
+				const box = scroller.getBoundingClientRect();
+				const region = {
+					left: box.left + scroller.clientLeft,
+					right: box.left + scroller.clientLeft + scroller.clientWidth
+				};
 				const width = document.documentElement.clientWidth;
 				return {
-					left: Math.abs(bounds.left) <= 1,
-					right: Math.abs(bounds.right - width) <= 1,
+					left: Math.abs(bounds.left - region.left) <= 1,
+					right: Math.abs(bounds.right - region.right) <= 1,
 					overflow: document.documentElement.scrollWidth > width
 				};
 			})
@@ -111,46 +118,45 @@ test('collapsing the pinned legends gives their space to the chart without an em
 		.toBeCloseTo(before.chart, 0);
 });
 
-for (const width of [1280, 390]) {
-	test(`legend rows have equal gaps and compact add buttons at ${width}px`, async ({ page }) => {
-		await page.setViewportSize({ width, height: 900 });
-		await openExample(page);
+test('legend rows have equal gaps and compact add buttons at 1280px', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await openExample(page);
+	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
+	await expect
+		.poll(() =>
+			page.getByTestId('timeline-panel').evaluate((element) => {
+				const rows = ['stage-legend', 'milestone-legend', 'band-legend'].map((id) =>
+					element.querySelector(`[data-testid="${id}"]`)!.parentElement!.getBoundingClientRect()
+				);
+				const gaps = rows.slice(1).map((row, i) => row.top - rows[i].bottom);
+				return {
+					minimumHeight: rows.every((row) => row.height >= 32),
+					equalGap: Math.abs(gaps[0] - gaps[1]) <= 1,
+					gap: Math.round(gaps[0])
+				};
+			})
+		)
+		.toEqual({ minimumHeight: true, equalGap: true, gap: 12 });
+	for (const name of ['Add milestone', 'Add band']) {
+		const button = page.getByRole('button', { name, exact: true });
+		await expect(button).toBeVisible();
+		const bounds = (await button.boundingBox())!;
+		expect(bounds.width).toBe(24);
+		expect(bounds.height).toBe(24);
+		await button.click();
+		const dialog = page.getByRole('dialog');
+		await expect(dialog).toBeVisible();
 		await expect
-			.poll(() =>
-				page.getByTestId('timeline-panel').evaluate((element) => {
-					const rows = ['stage-legend', 'milestone-legend', 'band-legend'].map((id) =>
-						element.querySelector(`[data-testid="${id}"]`)!.parentElement!.getBoundingClientRect()
-					);
-					const gaps = rows.slice(1).map((row, i) => row.top - rows[i].bottom);
-					return {
-						minimumHeight: rows.every((row) => row.height >= 32),
-						equalGap: Math.abs(gaps[0] - gaps[1]) <= 1,
-						gap: Math.round(gaps[0])
-					};
-				})
-			)
-			.toEqual({ minimumHeight: true, equalGap: true, gap: 12 });
-		for (const name of ['Add milestone', 'Add band']) {
-			const button = page.getByRole('button', { name, exact: true });
-			await expect(button).toBeVisible();
-			const bounds = (await button.boundingBox())!;
-			expect(bounds.width).toBe(24);
-			expect(bounds.height).toBe(24);
-			await button.click();
-			const dialog = page.getByRole('dialog');
-			await expect(dialog).toBeVisible();
-			await expect
-				.poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-				.toBe(true);
-			await waitForAnimations(dialog);
-			await page.keyboard.press('Escape');
-			await expect(dialog).toHaveCount(0);
-		}
-	});
-}
+			.poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+			.toBe(true);
+		await waitForAnimations(dialog);
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+	}
+});
 
-for (const width of [390, 1280, 1920]) {
-	test(`the pinned divider spans the app and resizes from its edges at ${width}px`, async ({
+for (const width of [1280, 1920]) {
+	test(`the pinned divider spans its region and resizes from its edges at ${width}px`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 900 });
@@ -161,9 +167,9 @@ for (const width of [390, 1280, 1920]) {
 		await page.getByTestId('gantt-pin').click();
 		const panel = page.getByTestId('timeline-panel');
 		await expectPanelHeight(page, defaultPanelHeight(page));
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await expectStickyBelowHeader(panel);
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await expect
 			.poll(async () => (await page.getByTestId('gantt').boundingBox())!.width)
 			.toBeCloseTo(chartWidth, 0);
@@ -181,17 +187,17 @@ for (const width of [390, 1280, 1920]) {
 			const x = edge === 'left' ? bounds.left + 2 : bounds.right - 2;
 			await page.mouse.move(x, bounds.y);
 			await page.mouse.down();
-			await page.mouse.move(x, bounds.y + 24);
+			await page.mouse.move(x, bounds.y + 20);
 			await page.mouse.up();
-			await expectPanelHeight(page, bounds.height + 24);
+			await expectPanelHeight(page, bounds.height + 20);
 		}
 		await toggle(page).click();
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await page.evaluate(() => (document.documentElement.style.overflowY = 'hidden'));
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await page.evaluate(() => document.documentElement.style.removeProperty('overflow-y'));
 		await page.setViewportSize({ width: width + 80, height: 900 });
-		await expectFullWidthDivider(page);
+		await expectRegionWidthDivider(page);
 		await page.getByTestId('gantt-pin').click();
 		await expect(page.getByTestId('gantt-resize')).toHaveCount(0);
 	});
@@ -270,4 +276,103 @@ test('older pinned viewer settings start with collapsed legends', async ({ page 
 	await expect(page.getByTestId('gantt-pin')).toHaveAttribute('aria-pressed', 'true');
 	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
 	await expect(legends(page)).toBeVisible();
+});
+
+for (const height of [664, 844]) {
+	test(`tabs keep the default legend rail unclipped above the handle at 390x${height}`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 390, height });
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await openExample(page);
+		await waitForAnimations(page.getByTestId('timeline-panel'));
+		await expect
+			.poll(() =>
+				page.getByTestId('timeline-panel').evaluate((panel, minimum) => {
+					const rail = panel.querySelector<HTMLElement>('#timeline-legends')!;
+					const bounds = rail.getBoundingClientRect();
+					let ancestor = rail.parentElement;
+					while (ancestor && !/(auto|scroll)/.test(getComputedStyle(ancestor).overflowY)) {
+						ancestor = ancestor.parentElement;
+					}
+					if (!ancestor) throw new Error('The legend rail needs a scrolling ancestor');
+					const scrollBox = ancestor.getBoundingClientRect();
+					const clientTop = scrollBox.top + ancestor.clientTop;
+					const clientLeft = scrollBox.left + ancestor.clientLeft;
+					const panelBox = panel.getBoundingClientRect();
+					const handle = panel.querySelector('#timeline-collapse')!.getBoundingClientRect();
+					const chart = panel
+						.querySelector('[data-testid="gantt-scroller"]')!
+						.getBoundingClientRect();
+					return {
+						insideScroller:
+							bounds.top >= clientTop - 1 &&
+							bounds.bottom <= clientTop + ancestor.clientHeight + 1 &&
+							bounds.left >= clientLeft - 1 &&
+							bounds.right <= clientLeft + ancestor.clientWidth + 1,
+						insidePanel:
+							bounds.top >= panelBox.top - 1 &&
+							bounds.bottom <= panelBox.bottom + 1 &&
+							bounds.left >= panelBox.left - 1 &&
+							bounds.right <= panelBox.right + 1,
+						aboveHandle: bounds.bottom <= handle.top + 1,
+						chartMinimum: chart.height >= minimum - 1
+					};
+				}, MIN_CHART_HEIGHT)
+			)
+			.toEqual({ insideScroller: true, insidePanel: true, aboveHandle: true, chartMinimum: true });
+	});
+}
+
+test('tabs keep an ordered single-line legend rail with keyboard reveal and dialog actions', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openExample(page);
+	await expect(toggle(page)).toHaveCount(0);
+	const lists = ['stage-legend', 'milestone-legend', 'band-legend'].map((id) =>
+		page.getByTestId(id)
+	);
+	for (const [index, list] of lists.entries()) {
+		await expect(list).toBeVisible();
+		await expect(list).toHaveAccessibleName(['Stages', 'Milestones', 'Bands'][index]);
+	}
+	const geometry = await page.getByTestId('timeline-panel').evaluate((panel) => {
+		const rows = ['stage-legend', 'milestone-legend', 'band-legend'].map((id) =>
+			panel.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect()
+		);
+		const first = panel.querySelector('[data-testid="stage-legend"]')!;
+		let rail: Element | null = first;
+		while (rail && rail.scrollWidth <= rail.clientWidth) rail = rail.parentElement;
+		return {
+			tops: rows.map((b) => b.top),
+			lefts: rows.map((b) => b.left),
+			scrollable: !!rail && rail.scrollWidth > rail.clientWidth,
+			chips: [...panel.querySelectorAll('[data-testid$="-legend"] button')].map(
+				(e) => e.getBoundingClientRect().height
+			)
+		};
+	});
+	expect(Math.max(...geometry.tops) - Math.min(...geometry.tops)).toBeLessThanOrEqual(1);
+	expect(geometry.lefts[0]).toBeLessThan(geometry.lefts[1]);
+	expect(geometry.lefts[1]).toBeLessThan(geometry.lefts[2]);
+	expect(geometry.scrollable).toBe(true);
+	expect(geometry.chips.every((height) => height >= 24)).toBe(true);
+	const milestone = page.getByTestId('milestone-legend').getByRole('button').first();
+	await milestone.focus();
+	await expect(milestone).toBeInViewport();
+	await milestone.press('Enter');
+	await expect(page.getByRole('dialog')).toBeVisible();
+	await waitForAnimations(page.getByRole('dialog'));
+	await page.keyboard.press('Escape');
+	for (const name of ['Add milestone', 'Add band']) {
+		const button = page.getByRole('button', { name, exact: true });
+		await button.focus();
+		await expect(button).toBeInViewport();
+		await button.press('Enter');
+		await expect(page.getByRole('dialog')).toBeVisible();
+		await waitForAnimations(page.getByRole('dialog'));
+		await page.keyboard.press('Escape');
+		await expect(button).toBeFocused();
+	}
 });

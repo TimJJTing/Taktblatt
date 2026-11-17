@@ -104,6 +104,7 @@
 					{#snippet trigger({ props })}<Button
 							{...props}
 							variant="outline"
+							class="tabular-nums"
 							data-testid="milestone-date">{formatDate(date, uiIntl())}</Button
 						>{/snippet}
 				</DateField>

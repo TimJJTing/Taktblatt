@@ -7,6 +7,7 @@ import zhTW from '../messages/zh-TW.json' with { type: 'json' };
 import {
 	chooseOption,
 	expectPreviewBeforeName,
+	expectMilestoneRing,
 	openApp,
 	openPreview,
 	openSelect,
@@ -14,7 +15,7 @@ import {
 } from './helpers.ts';
 
 const symbols = [
-	{ key: 'diamond', name: 'Diamond', icon: 'diamond' },
+	{ key: 'diamond', name: 'Default', icon: 'default' },
 	{ key: 'flag', name: 'Flag', icon: 'flag' },
 	{ key: 'star', name: 'Star', icon: 'star' },
 	{ key: 'circle', name: 'Circle', icon: 'circle' },
@@ -28,22 +29,23 @@ const symbols = [
 ];
 
 async function expectSymbolPreview(container: Locator, icon: string, name: string): Promise<void> {
-	const selector = `svg.lucide-${icon}`;
+	const selector = icon === 'default' ? 'svg:has(circle)' : `svg.lucide-${icon}`;
 	await expectPreviewBeforeName(container, selector, name);
-	await expect(container.locator(selector)).toHaveClass(/\bfill-current\b/);
+	if (icon === 'default') await expectMilestoneRing(container, false);
+	else await expect(container.locator(selector)).toHaveClass(/\bfill-current\b/);
 	if (icon === 'map-pin') {
 		// The filled pin keeps a hole in its centre.
 		await expect(container.locator(`${selector} path[fill-rule="evenodd"]`)).toHaveCount(1);
 	}
 }
 
-test('milestone symbol options show filled previews in the specified order and remain selectable', async ({
+test('milestone symbol options show the Default ring and filled alternatives in the specified order and remain selectable', async ({
 	page
 }) => {
 	await openApp(page);
 	await page.getByRole('button', { name: 'Add milestone', exact: true }).click();
 	const trigger = page.getByTestId('milestone-symbol');
-	await expectSymbolPreview(trigger, 'diamond', 'Diamond');
+	await expectSymbolPreview(trigger, 'default', 'Default');
 	const listbox = await openSelect(page, 'milestone-symbol');
 	await expect(listbox.getByRole('option')).toHaveText(symbols.map(({ name }) => name));
 	for (const { name, icon } of symbols) {
@@ -191,11 +193,11 @@ test('choosing a different band tint changes the trigger swatch and saved color'
 	expect(await expectTintPreview(trigger, 'green')).toBe(selectedFill);
 });
 
-for (const { locale, catalog } of [
-	{ locale: 'en', catalog: en },
-	{ locale: 'de', catalog: de },
-	{ locale: 'ja', catalog: ja },
-	{ locale: 'zh-TW', catalog: zhTW }
+for (const { locale, catalog, defaultName } of [
+	{ locale: 'en', catalog: en, defaultName: 'Default' },
+	{ locale: 'de', catalog: de, defaultName: 'Standard' },
+	{ locale: 'ja', catalog: ja, defaultName: 'デフォルト' },
+	{ locale: 'zh-TW', catalog: zhTW, defaultName: '預設' }
 ]) {
 	test(`symbol names appear in ${locale} options and triggers while stored keys stay language-neutral`, async ({
 		page
@@ -204,6 +206,7 @@ for (const { locale, catalog } of [
 		await openApp(page);
 		await expect(page.locator('html')).toHaveAttribute('lang', locale);
 		await page.getByRole('button', { name: catalog.milestone_add, exact: true }).click();
+		expect(catalog.symbol_diamond).toBe(defaultName);
 		const names = symbols.map(({ key }) => (catalog as Record<string, string>)[`symbol_${key}`]);
 		for (const name of names) {
 			expect(typeof name).toBe('string');
@@ -218,7 +221,8 @@ for (const { locale, catalog } of [
 			await expect(page.getByTestId('milestone-symbol')).toHaveText(names[index]);
 			await expectSymbolPreview(page.getByTestId('milestone-symbol'), icon, names[index]);
 		}
+		await chooseOption(page, 'milestone-symbol', defaultName);
 		await page.getByTestId('milestone-ok').click();
-		await expect.poll(async () => (await storedPlan(page)).milestones[0]?.symbol).toBe('heart');
+		await expect.poll(async () => (await storedPlan(page)).milestones[0]?.symbol).toBe('diamond');
 	});
 }

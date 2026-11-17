@@ -8,9 +8,24 @@ import {
 	formatTarget,
 	intlLocale,
 	joinList,
+	joinSentences,
 	parseUserDate,
 	readTypedDate
 } from './format.ts';
+
+describe('joinSentences', () => {
+	it('joins English warning sentences with one space', () => {
+		expect(joinSentences(['Makes a dependency cycle.', 'Starts after this task ends.'], 'en')).toBe(
+			'Makes a dependency cycle. Starts after this task ends.'
+		);
+	});
+
+	it('joins Japanese warning sentences without a space', () => {
+		expect(
+			joinSentences(['依存関係が循環します。', 'このタスクの終了後に開始します。'], 'ja')
+		).toBe('依存関係が循環します。このタスクの終了後に開始します。');
+	});
+});
 
 describe('joinList', () => {
 	it.each(['en-US', 'de', 'zh-TW', 'ja'])('handles empty and single lists in %s', (locale) => {
@@ -124,11 +139,8 @@ describe('formatTarget', () => {
 		const none = { start: null, end: null };
 		const startOnly = { start: '2026-11-27', end: null };
 		const both = { start: '2026-11-01', end: '2026-11-27' };
-		expect(formatTarget(both, false, locale)).toBe(day);
-		expect(formatTarget(both, true, locale)).toBe(day);
-		expect(formatTarget(startOnly, false, locale)).toBe(`${day} –`);
-		expect(formatTarget(startOnly, true, locale)).toBe('–');
-		expect(formatTarget(none, false, locale)).toBe('');
-		expect(formatTarget(none, true, locale)).toBe('–');
+		expect(formatTarget(both, locale)).toBe(day);
+		expect(formatTarget(startOnly, locale)).toBe(`${day} –`);
+		expect(formatTarget(none, locale)).toBe('');
 	});
 });

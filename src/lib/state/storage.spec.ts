@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { makePlan, makeTask } from '#lib/domain/test-helpers.ts';
 import { MemoryStorage } from './memory-storage.ts';
 import { createEmptyPlan } from '#lib/domain/factory.ts';
 import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
@@ -115,5 +116,59 @@ describe('PlanStorage', () => {
 		expect(plans.storedPlanIds().sort()).toEqual([a.id, b.id].sort());
 		plans.removePlan(b.id);
 		expect(plans.storedPlanIds()).toEqual([a.id]);
+	});
+});
+
+describe('planned windows on load', () => {
+	it('widens a narrow parent and keeps a wider parent when reading stored JSON', () => {
+		const narrow = makeTask({
+			id: 'narrow',
+			start: '2027-02-05',
+			end: '2027-02-10',
+			owners: ['Own'],
+			status: 'todo'
+		});
+		const wide = makeTask({
+			id: 'wide',
+			start: '2027-01-01',
+			end: '2027-12-31',
+			owners: ['Own', 'Child'],
+			status: 'todo'
+		});
+		const plan = makePlan([
+			narrow,
+			makeTask({
+				id: 'a',
+				parentId: 'narrow',
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['Child'],
+				status: 'done'
+			}),
+			wide,
+			makeTask({
+				id: 'b',
+				parentId: 'wide',
+				start: '2027-02-01',
+				end: '2027-02-20',
+				owners: ['Child'],
+				status: 'done'
+			})
+		]);
+		const storage = new MemoryStorage();
+		storage.setItem(KEYS.plan(plan.id), JSON.stringify({ schemaVersion: SCHEMA_VERSION, plan }));
+		const result = new PlanStorage(storage).loadPlan(plan.id);
+		expect(result.ok).toBe(true);
+		if (result.ok !== true) throw new Error('Expected the stored plan to load');
+		expect(result.value.tasks.find((task) => task.id === 'narrow')).toMatchObject({
+			start: '2027-02-01',
+			end: '2027-02-20',
+			owners: ['Own', 'Child'],
+			status: 'done'
+		});
+		expect(result.value.tasks.find((task) => task.id === 'wide')).toEqual({
+			...wide,
+			status: 'done'
+		});
 	});
 });

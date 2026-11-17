@@ -163,9 +163,9 @@ describe('taskMark', () => {
 
 describe('ganttRows', () => {
 	const tasks = [
-		makeTask({ id: 'b', stageId: 's1', start: '2027-01-05', end: '2027-01-06', done: true }),
+		makeTask({ id: 'b', stageId: 's1', start: '2027-01-05', end: '2027-01-06', status: 'done' }),
 		makeTask({ id: 'p', stageId: 's1' }),
-		makeTask({ id: 'p2', parentId: 'p', start: '2027-01-04', end: '2027-01-04', done: true }),
+		makeTask({ id: 'p2', parentId: 'p', start: '2027-01-04', end: '2027-01-04', status: 'done' }),
 		makeTask({ id: 'p1', parentId: 'p', start: '2027-01-02', end: '2027-01-03' }),
 		makeTask({ id: 'q', stageId: 's2' }),
 		makeTask({ id: 'q1', stageId: 's2', parentId: 'q', start: '2027-01-08' }),
@@ -192,16 +192,16 @@ describe('ganttRows', () => {
 		expect(rows.map((r) => r.id)).toEqual(['q', 'p', 'b']);
 	});
 
-	it('uses the effective dates and done state', () => {
+	it('uses the effective dates and status', () => {
 		const rows = ganttRows(index, ['s1', 's2'], () => false, WIN);
 		const p = rows.find((r) => r.id === 'p')!;
-		expect(p.done).toBe('partial');
+		expect(p.status).toBe('in_progress');
 		expect(p.mark).toMatchObject({ kind: 'bar' });
 		if (p.mark.kind === 'bar') {
 			expect(p.mark.x0).toBeCloseTo(0.1);
 			expect(p.mark.x1).toBeCloseTo(0.4);
 		}
-		expect(rows.find((r) => r.id === 'b')!.done).toBe('done');
+		expect(rows.find((r) => r.id === 'b')!.status).toBe('done');
 		expect(rows.find((r) => r.id === 'q')!.mark.kind).toBe('point');
 	});
 
@@ -241,32 +241,90 @@ describe('dependencyLines', () => {
 		]);
 	});
 
-	it('connects to the parent bar when the parent is collapsed', () => {
+	it('omits hidden legacy subtask dependencies when the parent is collapsed', () => {
 		// Rows: x 0, p 1, y 2.
-		expect(lines(base(), [])).toEqual([
-			{ key: 'x->p', x0: 0.2, row0: 0, x1: 0.2, row1: 1 },
-			{ key: 'p->y', x0: 0.6, row0: 1, x1: 0.7, row1: 2 }
-		]);
+		expect(lines(base(), [])).toEqual([{ key: 'p->y', x0: 0.6, row0: 1, x1: 0.7, row1: 2 }]);
 	});
 
-	it('draws the own dependency of an expanded parent from the parent bar', () => {
+	it('draws parent dependencies only from the parent bar, not inheriting subtask rows', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'p')!.dependsOn = ['x', 'a', 'p', 'gone'];
 		tasks.find((t) => t.id === 'a')!.dependsOn = [];
 		expect(lines(tasks, ['p']).map((l) => l.key)).toEqual(['x->p', 'c->y']);
+		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
 	});
 
-	it('merges duplicate lines', () => {
+	it('draws separate legacy dependencies on a shared predecessor only when subtasks are visible', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'c')!.dependsOn = ['x'];
-		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
+		expect(lines(tasks, []).map((l) => l.key)).toEqual(['p->y']);
 		expect(lines(tasks, ['p']).map((l) => l.key)).toEqual(['x->a', 'x->c', 'c->y']);
 	});
 
 	it('merges lines from two subtasks of a collapsed predecessor', () => {
 		const tasks = base();
 		tasks.find((t) => t.id === 'y')!.dependsOn = ['a', 'c'];
-		expect(lines(tasks, []).map((l) => l.key)).toEqual(['x->p', 'p->y']);
+		expect(lines(tasks, []).map((l) => l.key)).toEqual(['p->y']);
+	});
+
+	it('marks the parent line when only an inherited edge is in a cycle', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p', dependsOn: ['x'] }),
+			makeTask({ id: 's', parentId: 'p', start: '2027-01-01', end: '2027-01-02' }),
+			makeTask({
+				id: 'x',
+				start: '2027-01-03',
+				end: '2027-01-04',
+				dependsOn: ['s'],
+				status: 'done'
+			}),
+			makeTask({ id: 'outside', start: '2027-01-05', end: '2027-01-06', dependsOn: ['x'] })
+		]);
+		const result = dependencyLines(
+			index,
+			ganttRows(index, ['s1'], () => true, WIN)
+		);
+		expect(result.find((line) => line.key === 'x->p')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 's->x')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 'x->outside')).toMatchObject({ cycle: false });
+	});
+
+	it('keeps an acyclic line unmarked when task ids contain the cycle edge separator', () => {
+		const index = indexTasks([
+			makeTask({ id: 'a→b', start: '2027-01-01', end: '2027-01-02', dependsOn: ['c'] }),
+			makeTask({ id: 'c', start: '2027-01-03', end: '2027-01-04', dependsOn: ['a→b'] }),
+			makeTask({ id: 'a', start: '2027-01-05', end: '2027-01-06', dependsOn: ['b→c'] }),
+			makeTask({ id: 'b→c', start: '2027-01-07', end: '2027-01-08' })
+		]);
+		const result = dependencyLines(
+			index,
+			ganttRows(index, ['s1'], () => false, WIN)
+		);
+		expect(result.find((line) => line.key === 'c->a→b')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 'a→b->c')).toMatchObject({ cycle: true });
+		expect(result.find((line) => line.key === 'b→c->a')).toMatchObject({ cycle: false });
+	});
+
+	it('keeps the cycle flag when a later cyclic edge merges into an acyclic line', () => {
+		const index = indexTasks([
+			makeTask({ id: 'p' }),
+			makeTask({ id: 'a', parentId: 'p', start: '2027-01-01', end: '2027-01-02' }),
+			makeTask({
+				id: 'b',
+				parentId: 'p',
+				start: '2027-01-03',
+				end: '2027-01-04',
+				dependsOn: ['y']
+			}),
+			makeTask({ id: 'y', start: '2027-01-05', end: '2027-01-06', dependsOn: ['a', 'b'] })
+		]);
+		// y → a is acyclic and makes p->y first. y → b is cyclic and merges into it.
+		const result = dependencyLines(
+			index,
+			ganttRows(index, ['s1'], () => false, WIN)
+		);
+		expect(result).toHaveLength(1);
+		expect(result[0]).toMatchObject({ key: 'p->y', cycle: true });
 	});
 
 	it('draws no line to or from a task without a drawn mark', () => {

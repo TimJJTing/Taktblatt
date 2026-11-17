@@ -4,9 +4,7 @@
  */
 import type { ISODate } from './date.ts';
 import { normalizeOwners } from './owners.ts';
-import type { Milestone, Task } from './schema.ts';
-
-export type DoneState = 'done' | 'partial' | 'open';
+import type { Milestone, Plan, Task, TaskStatus } from './schema.ts';
 
 export interface TaskIndex {
 	byId: ReadonlyMap<string, Task>;
@@ -14,13 +12,93 @@ export interface TaskIndex {
 	children: ReadonlyMap<string, readonly Task[]>;
 	/** Tasks (level 1) of each stage, in sort order. */
 	stageTasks: ReadonlyMap<string, readonly Task[]>;
+	state: ReadonlyMap<string, TaskState>;
 }
 
 export interface EffectiveValues {
 	start: ISODate | null;
 	end: ISODate | null;
 	owners: string[];
-	done: DoneState;
+	status: TaskStatus;
+}
+
+export type Blocker = { kind: 'task'; id: string };
+
+export type Readiness =
+	| { kind: 'ready'; via: 'dependencies'; count: number }
+	| { kind: 'ready'; via: 'subtasks'; count: number }
+	| { kind: 'blocked'; blockers: Blocker[] }
+	| { kind: 'inactive' };
+
+export interface TaskState {
+	eff: EffectiveValues;
+	finished: boolean;
+	readiness: Readiness;
+}
+
+export type BoardColumn = 'blocked' | 'todo' | 'in_progress' | 'done';
+
+/** Returns the board column. Canceled tasks have no column. */
+export function boardColumn(state: TaskState): BoardColumn | null {
+	switch (state.eff.status) {
+		case 'canceled':
+			return null;
+		case 'todo':
+			return state.readiness.kind === 'blocked' ? 'blocked' : 'todo';
+		default:
+			return state.eff.status;
+	}
+}
+
+/** Returns the light data when the ready light is on. */
+export function readyLight(
+	readiness: Readiness
+): { via: 'dependencies' | 'subtasks'; count: number } | null {
+	if (readiness.kind !== 'ready') return null;
+	return { via: readiness.via, count: readiness.count };
+}
+
+/**
+ * Returns the effective dependencies of a task.
+ * Subtask: its own dependencies and the own dependencies of its parent.
+ * Task, with or without subtasks: its own dependencies, minus its own subtasks.
+ */
+export function effectiveDependencies(index: TaskIndex, id: string): Set<string> {
+	const task = index.byId.get(id);
+	if (!task) return new Set();
+	const children = index.children.get(id) ?? [];
+	const childIds = new Set(children.map((c) => c.id));
+	const result = new Set<string>();
+	const parent = task.parentId === null ? undefined : index.byId.get(task.parentId);
+	const sources = parent ? [task, parent] : [task];
+	for (const source of sources) {
+		for (const dep of source.dependsOn) {
+			if (dep !== id && !childIds.has(dep) && index.byId.has(dep)) result.add(dep);
+		}
+	}
+	return result;
+}
+
+/** Returns inherited dependencies with the parent that owns each one. */
+export function inheritedDependencies(
+	index: TaskIndex,
+	id: string
+): { depId: string; fromId: string }[] {
+	const task = index.byId.get(id);
+	if (!task) return [];
+	const own = new Set(task.dependsOn);
+	if (task.parentId !== null) {
+		const parent = index.byId.get(task.parentId);
+		return [...new Set(parent?.dependsOn ?? [])]
+			.filter((dep) => dep !== id && !own.has(dep) && index.byId.has(dep))
+			.map((depId) => ({ depId, fromId: task.parentId! }));
+	}
+	return [];
+}
+
+/** Returns true for done and canceled. A finished task satisfies dependencies and looks muted. */
+export function isFinished(status: TaskStatus): boolean {
+	return status === 'done' || status === 'canceled';
 }
 
 function minDate(dates: (ISODate | null)[]): ISODate | null {
@@ -35,23 +113,105 @@ function maxDate(dates: (ISODate | null)[]): ISODate | null {
 	return result;
 }
 
-/** Returns the effective values of a task. A parent derives them from its subtasks. */
+/** Returns the effective values of a task. A parent includes its stored planned window. */
 export function effectiveValues(task: Task, children: readonly Task[] = []): EffectiveValues {
 	if (children.length === 0) {
 		return {
 			start: task.start,
 			end: task.end,
 			owners: normalizeOwners(task.owners),
-			done: task.done ? 'done' : 'open'
+			status: task.status
 		};
 	}
-	const doneCount = children.filter((c) => c.done).length;
+	return mergeIntoParent(task, children);
+}
+
+/** Combines subtask dates, owners and status with the parent rule. */
+export function squashSubtasks(children: readonly Task[]): EffectiveValues {
+	// Canceled subtasks contribute dates and owners, but not status.
+	const active = children.filter((c) => c.status !== 'canceled');
+	const doneCount = active.filter((c) => c.status === 'done').length;
+	const todoCount = active.filter((c) => c.status === 'todo').length;
 	return {
 		start: minDate(children.map((c) => c.start)),
 		end: maxDate(children.map((c) => c.end)),
 		owners: normalizeOwners(children.flatMap((c) => c.owners)),
-		done: doneCount === children.length ? 'done' : doneCount > 0 ? 'partial' : 'open'
+		status:
+			active.length === 0
+				? 'canceled'
+				: doneCount === active.length
+					? 'done'
+					: todoCount === active.length
+						? 'todo'
+						: 'in_progress'
 	};
+}
+
+/** Merges subtask values with the own values of a parent. */
+export function mergeIntoParent(parent: Task, children: readonly Task[]): EffectiveValues {
+	const squashed = squashSubtasks(children);
+	let start = minDate([parent.start, squashed.start]);
+	let end = maxDate([parent.end, squashed.end]);
+	if (start !== null && end !== null) {
+		const dates = [parent.start, parent.end, ...children.flatMap((c) => [c.start, c.end])];
+		start = minDate(dates);
+		end = maxDate(dates);
+	}
+	return {
+		start,
+		end,
+		owners: normalizeOwners([...parent.owners, ...squashed.owners]),
+		status: squashed.status
+	};
+}
+
+export interface SubtaskFloor {
+	start: ISODate | null;
+	end: ISODate | null;
+	first: ISODate | null;
+	last: ISODate | null;
+}
+
+/** Returns the endpoint and all-date limits of the subtasks. */
+export function subtaskFloor(children: readonly Task[]): SubtaskFloor | undefined {
+	if (children.length === 0) return undefined;
+	const dates = children.flatMap((c) => [c.start, c.end]);
+	return {
+		start: minDate(children.map((c) => c.start)),
+		end: maxDate(children.map((c) => c.end)),
+		first: minDate(dates),
+		last: maxDate(dates)
+	};
+}
+
+/** Returns true when a range excludes a required subtask date. */
+export function breaksSubtaskFloor(
+	range: { start: ISODate | null; end: ISODate | null },
+	floor: SubtaskFloor
+): boolean {
+	return (
+		(floor.start !== null && (range.start === null || range.start > floor.start)) ||
+		(floor.end !== null && (range.end === null || range.end < floor.end)) ||
+		(range.start !== null &&
+			range.end !== null &&
+			((floor.first !== null && floor.first < range.start) ||
+				(floor.last !== null && floor.last > range.end)))
+	);
+}
+
+/** Expands stored parent windows to include their subtasks. Childless tasks stay unchanged. */
+export function expandParents(plan: Plan): void {
+	const children = new Map<string, Task[]>();
+	for (const task of plan.tasks) {
+		if (task.parentId === null) continue;
+		const list = children.get(task.parentId) ?? [];
+		list.push(task);
+		children.set(task.parentId, list);
+	}
+	for (const parent of plan.tasks) {
+		const subtasks = children.get(parent.id);
+		if (subtasks?.length) Object.assign(parent, mergeIntoParent(parent, subtasks));
+	}
 }
 
 /** Sort rule: by start, then by createdAt. Items without start go last. */
@@ -67,7 +227,10 @@ export function compareByStart(
 	return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
 }
 
-/** Makes the lookup tables for the tasks of a plan, with the sort rule applied. */
+/**
+ * Makes the lookup tables and task state, with the sort rule applied.
+ * A plain index is a snapshot. Rebuild it after a mutation.
+ */
 export function indexTasks(tasks: readonly Task[]): TaskIndex {
 	const byId = new Map(tasks.map((t) => [t.id, t]));
 	const children = new Map<string, Task[]>();
@@ -84,8 +247,45 @@ export function indexTasks(tasks: readonly Task[]): TaskIndex {
 		}
 	}
 	for (const list of children.values()) list.sort(compareByStart);
+	const state = new Map<string, TaskState>();
+	for (const task of tasks) {
+		const eff = effectiveValues(task, children.get(task.id));
+		state.set(task.id, { eff, finished: isFinished(eff.status), readiness: { kind: 'inactive' } });
+	}
+	const index: TaskIndex = { byId, children, stageTasks, state };
+	// All effective values and finished flags must exist before readiness is calculated.
+	for (const [id, taskState] of state) {
+		if (taskState.eff.status !== 'todo' || children.get(id)?.length) continue;
+		const deps = effectiveDependencies(index, id);
+		const blockers: Blocker[] = [];
+		for (const dep of deps) {
+			if (!state.get(dep)!.finished) blockers.push({ kind: 'task', id: dep });
+		}
+		taskState.readiness =
+			blockers.length > 0
+				? { kind: 'blocked', blockers }
+				: { kind: 'ready', via: 'dependencies', count: deps.size };
+	}
+	// Parents read subtask readiness only after all leaves have their readiness.
+	for (const [id, subtasks] of children) {
+		const taskState = state.get(id);
+		if (!taskState || taskState.eff.status !== 'todo') continue;
+		let count = 0;
+		const blockers = new Map<string, Blocker>();
+		for (const subtask of subtasks) {
+			const readiness = state.get(subtask.id)!.readiness;
+			if (readiness.kind === 'ready') count++;
+			if (readiness.kind === 'blocked') {
+				for (const blocker of readiness.blockers) blockers.set(blocker.id, blocker);
+			}
+		}
+		taskState.readiness =
+			count > 0
+				? { kind: 'ready', via: 'subtasks', count }
+				: { kind: 'blocked', blockers: [...blockers.values()] };
+	}
 	for (const list of stageTasks.values()) {
-		const start = (t: Task) => effectiveValues(t, children.get(t.id)).start;
+		const start = (t: Task) => state.get(t.id)!.eff.start;
 		list.sort((a, b) =>
 			compareByStart(
 				{ start: start(a), createdAt: a.createdAt },
@@ -93,13 +293,12 @@ export function indexTasks(tasks: readonly Task[]): TaskIndex {
 			)
 		);
 	}
-	return { byId, children, stageTasks };
+	return index;
 }
 
 /** Returns the effective values of a task by id. */
 export function effectiveOf(index: TaskIndex, id: string): EffectiveValues | null {
-	const task = index.byId.get(id);
-	return task ? effectiveValues(task, index.children.get(id)) : null;
+	return index.state.get(id)?.eff ?? null;
 }
 
 /** The date span of a stage: the earliest date to the latest date of its tasks. */
@@ -109,7 +308,7 @@ export function stageSpan(
 ): { start: ISODate; end: ISODate } | null {
 	const dates: ISODate[] = [];
 	for (const task of index.stageTasks.get(stageId) ?? []) {
-		const eff = effectiveValues(task, index.children.get(task.id));
+		const eff = index.state.get(task.id)!.eff;
 		if (eff.start) dates.push(eff.start);
 		if (eff.end) dates.push(eff.end);
 	}
@@ -118,11 +317,23 @@ export function stageSpan(
 	return { start: dates[0], end: dates[dates.length - 1] };
 }
 
-/** "x / y done". Counts tasks (level 1) only. */
-export function stageProgress(index: TaskIndex, stageId: string): { done: number; total: number } {
+/** Counts level-1 tasks by their effective status. The total leaves out canceled tasks. */
+export function stageProgress(
+	index: TaskIndex,
+	stageId: string
+): { done: number; inProgress: number; total: number } {
 	const tasks = index.stageTasks.get(stageId) ?? [];
-	const done = tasks.filter((t) => effectiveValues(t, index.children.get(t.id)).done === 'done');
-	return { done: done.length, total: tasks.length };
+	let done = 0;
+	let inProgress = 0;
+	let total = 0;
+	for (const task of tasks) {
+		const status = index.state.get(task.id)!.eff.status;
+		if (status === 'canceled') continue;
+		total++;
+		if (status === 'done') done++;
+		if (status === 'in_progress') inProgress++;
+	}
+	return { done, inProgress, total };
 }
 
 /** The deliverables of the tasks of a stage, in task order. Empty values are skipped. */
@@ -154,7 +365,30 @@ export function tasksSpan(index: TaskIndex): { start: ISODate; end: ISODate } | 
 	return { start: dates[0], end: dates[dates.length - 1] };
 }
 
-/** Returns true when the task has a valid range: both dates are set and start ≤ end. */
-export function hasValidRange(values: { start: ISODate | null; end: ISODate | null }): boolean {
-	return values.start !== null && values.end !== null && values.start <= values.end;
+export type FamilySummary = {
+	ready: number;
+	blocked: number;
+	inProgress: number;
+	done: number;
+	canceled: number;
+	total: number;
+};
+
+/** Counts direct subtasks of a parent by readiness and status. */
+export function familySummary(index: TaskIndex, parentId: string): FamilySummary {
+	const children = index.children.get(parentId) ?? [];
+	const summary = {
+		ready: 0,
+		blocked: 0,
+		inProgress: 0,
+		done: 0,
+		canceled: 0,
+		total: children.length
+	};
+	for (const child of children) {
+		const column = boardColumn(index.state.get(child.id)!) ?? 'canceled';
+		const key = column === 'todo' ? 'ready' : column === 'in_progress' ? 'inProgress' : column;
+		summary[key]++;
+	}
+	return summary;
 }

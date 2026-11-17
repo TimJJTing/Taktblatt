@@ -16,7 +16,7 @@
 	const ws = getWorkspace();
 </script>
 
-<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+<div class="grid grid-cols-1 gap-4 @min-[480px]:grid-cols-2 @min-[720px]:grid-cols-3">
 	{#each ws.plan.stages as stage, i (stage.id)}
 		{@const span = stageSpan(ws.index, stage.id)}
 		{@const label = m.stage_label({ n: i + 1 })}
@@ -25,7 +25,7 @@
 			data-testid="stage-card"
 			style:border-top-color={stageColorVar(stage.color)}
 		>
-			<p class="mb-2 text-xs font-medium uppercase" data-testid="stage-card-label">
+			<p class="mb-2 text-xs font-medium uppercase tabular-nums" data-testid="stage-card-label">
 				{span
 					? m.label_qualifier({
 							name: label,

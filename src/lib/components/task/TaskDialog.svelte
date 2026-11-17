@@ -1,29 +1,28 @@
 <!--
 	The task modal. It shows all fields of a task, plus Stage, Parent, Note and Dependencies.
-	Each field saves on blur. Esc closes the modal. The focus goes back to the "…" button.
+	Each field saves on blur. Esc closes the modal. The caller supplies the focus return target.
 -->
 <script lang="ts">
-	import Hint from '#lib/components/app/Hint.svelte';
+	import { tick } from 'svelte';
+	import { overlayScrollbarInside } from '#lib/components/app/overlay-scrollbar.ts';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
-	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import * as Select from '#lib/components/ui/select/index.ts';
 	import {
 		deleteImpact,
 		isValidMoveTarget,
 		moveConflicts,
-		readyCount,
 		type MoveConflicts,
 		type MoveTarget
 	} from '#lib/domain/dependencies.ts';
-	import { effectiveValues } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay } from '#lib/domain/format.ts';
+	import { squashSubtasks, subtaskFloor } from '#lib/domain/derive.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { allOwners } from '#lib/domain/owners.ts';
 	import { m } from '#lib/paraglide/messages.js';
@@ -43,8 +42,9 @@
 	const open = $derived(task !== undefined);
 	const children = $derived(task ? (ws.index.children.get(task.id) ?? []) : []);
 	const isParent = $derived(children.length > 0);
-	const eff = $derived(task ? effectiveValues(task, children) : null);
-	const ready = $derived(task ? readyCount(ws.index, task.id) : 0);
+	const subtaskValues = $derived(isParent ? squashSubtasks(children) : undefined);
+	const taskState = $derived(task ? ws.index.state.get(task.id) : undefined);
+	const eff = $derived(taskState?.eff ?? null);
 	const locale = uiIntl();
 	const titleText = $derived(task?.title || m.task_untitled());
 	const ownerSuggestions = $derived(
@@ -80,10 +80,22 @@
 		editing.detailsTaskId = null;
 	}
 
+	async function returnFocus(event: Event) {
+		event.preventDefault();
+		const resolve = editing.detailsReturnResolver;
+		const from = editing.detailsReturnFocus;
+		editing.detailsReturnResolver = null;
+		// Let both the task dialog and its delete confirmation release their focus scopes.
+		await tick();
+		if (open) return;
+		const target = resolve ? resolve() : from;
+		target?.focus({ preventScroll: !!resolve });
+	}
+
 	function requestMove(target: MoveTarget) {
 		if (!task) return;
 		const conflicts = moveConflicts(ws.plan, task.id, target);
-		if (conflicts.fixes.length || conflicts.warnings.length) {
+		if (conflicts.fixes.length) {
 			pendingMove = { target, conflicts };
 			return;
 		}
@@ -110,11 +122,9 @@
 
 <Dialog.Root {open} onOpenChange={(o) => !o && close()}>
 	<Dialog.Content
+		{@attach overlayScrollbarInside}
 		class="max-h-[90vh] overflow-y-auto sm:max-w-xl"
-		onCloseAutoFocus={(e) => {
-			e.preventDefault();
-			editing.detailsReturnFocus?.focus();
-		}}
+		onCloseAutoFocus={returnFocus}
 		data-testid="task-dialog"
 	>
 		{#if task && eff}
@@ -126,26 +136,12 @@
 			</Dialog.Header>
 
 			<div class="-mt-2 flex items-center gap-2">
-				{#if isParent}
-					<Hint text={m.task_done_derived()} focusable={false}>
-						{#snippet child({ props })}
-							<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
-								<Checkbox
-									checked={eff.done === 'done'}
-									indeterminate={eff.done === 'partial'}
-									disabled
-									aria-label={m.task_done_label({ task: titleText })}
-								/>
-							</span>
-						{/snippet}
-					</Hint>
-				{:else}
-					<Checkbox
-						checked={task.done}
-						onCheckedChange={(done) => updateTask(ws, task.id, { done })}
-						aria-label={m.task_done_label({ task: titleText })}
-					/>
-				{/if}
+				<TaskStatusSelect
+					status={eff.status}
+					task={titleText}
+					disabled={isParent}
+					onChange={(status) => updateTask(ws, task.id, { status })}
+				/>
 				<div class="min-w-0 flex-1 text-lg font-semibold">
 					<InlineText
 						value={task.title}
@@ -170,62 +166,40 @@
 
 				<dt class="text-muted-foreground">{m.field_range()}</dt>
 				<dd>
-					{#if isParent}
-						<Hint text={m.target_derived()} focusable={false}>
-							{#snippet child({ props })}
-								<span {...props} class="px-1.5 text-foreground/80">
-									{formatRangeDisplay(eff.start, eff.end, locale)}
-								</span>
-							{/snippet}
-						</Hint>
-					{:else}
-						<DateRangeField
-							start={task.start}
-							end={task.end}
-							label={m.field_range()}
-							onCommit={(range) => updateTask(ws, task.id, range)}
-						>
-							{#snippet trigger({ props })}
-								<button
-									{...props}
-									type="button"
-									class="rounded-sm px-1.5 py-0.5 text-left hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-									data-testid="dialog-range"
-								>
-									{#if task.start || task.end}
-										{formatRangeDisplay(task.start, task.end, locale)}
-									{:else}
-										<span class="text-muted-foreground">{m.target_empty()}</span>
-									{/if}
-								</button>
-							{/snippet}
-						</DateRangeField>
-					{/if}
+					<DateRangeField
+						floor={subtaskFloor(children)}
+						start={task.start}
+						end={task.end}
+						label={m.field_range()}
+						onCommit={(range) => updateTask(ws, task.id, range)}
+					>
+						{#snippet trigger({ props })}
+							<button
+								{...props}
+								type="button"
+								class="rounded-sm px-1.5 py-0.5 text-left tabular-nums hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+								data-testid="dialog-range"
+							>
+								{#if task.start || task.end}
+									{formatRangeDisplay(task.start, task.end, locale)}
+								{:else}
+									<span class="text-muted-foreground">{m.target_empty()}</span>
+								{/if}
+							</button>
+						{/snippet}
+					</DateRangeField>
 				</dd>
 
 				<dt class="text-muted-foreground">{m.column_owner()}</dt>
 				<dd>
-					{#if isParent}
-						{@const ownersHint = ownerListHint(eff.owners, 6)}
-						<Hint
-							text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
-							focusable={false}
-						>
-							{#snippet child({ props })}
-								<span {...props} class="flex px-1.5"
-									><OwnerChips owners={eff.owners} max={6} /></span
-								>
-							{/snippet}
-						</Hint>
-					{:else}
-						<OwnerField
-							owners={task.owners}
-							suggestions={ownerSuggestions}
-							label={m.column_owner()}
-							onChange={(owners) => updateTask(ws, task.id, { owners })}
-							onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
-						/>
-					{/if}
+					<OwnerField
+						locked={subtaskValues?.owners}
+						owners={task.owners}
+						suggestions={ownerSuggestions}
+						label={m.column_owner()}
+						onChange={(owners) => updateTask(ws, task.id, { owners })}
+						onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
+					/>
 				</dd>
 
 				<dt class="text-muted-foreground">{m.field_stage()}</dt>
@@ -308,7 +282,7 @@
 			<section class="flex flex-col gap-1.5">
 				<h3 class="flex items-center gap-2 text-sm text-muted-foreground">
 					{m.field_dependencies()}
-					<ReadyDot count={ready} />
+					<ReadyDot readiness={taskState?.readiness ?? { kind: 'inactive' }} />
 				</h3>
 				<DependencyPicker {task} />
 			</section>

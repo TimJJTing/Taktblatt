@@ -1,5 +1,8 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { STAGE_COLORS } from '#lib/domain/palette.ts';
+import type { Plan, Task } from '#lib/domain/schema.ts';
 
 // Read constants without loading Svelte state or its browser-build aliases in Playwright.
 const viewerSource = readFileSync(
@@ -21,11 +24,59 @@ const layoutSource = readFileSync(
 	new URL('../src/lib/components/timeline/gantt-layout.ts', import.meta.url),
 	'utf8'
 );
-const rowMotion = layoutSource.match(/export const ROW_MOTION_MS\s*=\s*(\d+)/)?.[1];
-if (!rowMotion) throw new Error('Missing ROW_MOTION_MS');
-const ROW_MOTION_MS = Number(rowMotion);
+function layoutConstant(name: string): number {
+	const expression = layoutSource.match(new RegExp(`export const ${name}\\s*=\\s*([^;]+);`))?.[1];
+	if (!expression) throw new Error(`Missing ${name}`);
+	return expression.split('+').reduce(
+		(sum, term) =>
+			sum +
+			term.split('*').reduce((product, factor) => {
+				const value = factor.trim();
+				return product * (/^\d+$/.test(value) ? Number(value) : layoutConstant(value));
+			}, 1),
+		0
+	);
+}
+const motionSource = readFileSync(new URL('../src/lib/motion.ts', import.meta.url), 'utf8');
+const geometryMotion = motionSource.match(/export const GEOMETRY_MOTION_MS\s*=\s*(\d+);/)?.[1];
+if (!geometryMotion) throw new Error('Missing GEOMETRY_MOTION_MS');
+const GEOMETRY_MOTION_MS = Number(geometryMotion);
+const viewMotion = motionSource.match(/export const VIEW_MOTION_MS\s*=\s*(\d+);/)?.[1];
+if (!viewMotion) throw new Error('Missing VIEW_MOTION_MS');
+export const VIEW_MOTION_MS = Number(viewMotion);
+export const MIN_CHART_HEIGHT = layoutConstant('MIN_CHART_HEIGHT');
+export const COLLAPSED_TIMELINE_HEIGHT = layoutConstant('COLLAPSED_TIMELINE_HEIGHT');
 
-/** The default height of the whole pinned section, in pixels. */
+/** Samples the rendered paint and an expected color as opaque RGBA values. */
+export async function samplePaint(
+	locator: Locator,
+	property: 'background-color' | 'stroke',
+	expected: string
+): Promise<{ actual: number[]; expected: number[] }> {
+	return locator.evaluate(
+		(node, { property, expected }) => {
+			const style = getComputedStyle(node);
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			const sample = (color: string) => {
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = color;
+				context.fillRect(0, 0, 1, 1);
+				return [...context.getImageData(0, 0, 1, 1).data];
+			};
+			const probe = document.createElement('span');
+			probe.style.color = expected.replaceAll('currentColor', style.color);
+			node.append(probe);
+			const expectedColor = getComputedStyle(probe).color;
+			probe.remove();
+			return { actual: sample(style.getPropertyValue(property)), expected: sample(expectedColor) };
+		},
+		{ property, expected }
+	);
+}
+
+/** The section height that the default ganttHeight gives, in pixels. See storedPanelHeight. */
 export const defaultPanelHeight = (page: Page) =>
 	page.viewportSize()!.height * GANTT_HEIGHT.default;
 
@@ -48,15 +99,22 @@ export async function settledPanelHeight(page: Page): Promise<number> {
 	return height;
 }
 
-/** Retries the panel height check until the transition finishes. */
+/**
+ * Returns the section height that ganttHeight gives. The expanded tabs section adds a top space
+ * to this height. This value does not include that space. A collapsed section gives its collapsed
+ * height.
+ */
+export async function storedPanelHeight(page: Page): Promise<number> {
+	return page.getByTestId('timeline-panel').evaluate((element) => {
+		const content = element.querySelector<HTMLElement>('#timeline-content')!;
+		const space = content.inert ? 0 : parseFloat(getComputedStyle(content).paddingTop);
+		return element.getBoundingClientRect().height - space;
+	});
+}
+
+/** Retries the section height check until the transition finishes. See storedPanelHeight. */
 export async function expectPanelHeight(page: Page, height: number): Promise<void> {
-	await expect
-		.poll(() =>
-			page
-				.getByTestId('timeline-panel')
-				.evaluate((element) => element.getBoundingClientRect().height)
-		)
-		.toBeCloseTo(height, 0);
+	await expect.poll(() => storedPanelHeight(page)).toBeCloseTo(height, 0);
 }
 
 /** Reads the sheet count and content in the same browser snapshot. */
@@ -95,7 +153,7 @@ export async function timelineMotionWindow(page: Page): Promise<number> {
 			);
 		});
 		return Math.max(chartDuration, ...durations.filter(Number.isFinite)) + 100;
-	}, ROW_MOTION_MS);
+	}, GEOMETRY_MOTION_MS);
 }
 
 /** Samples all related geometry in each animation frame until the interaction settles. */
@@ -109,9 +167,14 @@ export async function startTimelineFrameMonitor(page: Page) {
 			const body = panel.querySelector<HTMLElement>('[data-testid="timeline-body"]')!;
 			const scroller = panel.querySelector<HTMLElement>('[data-testid="gantt-scroller"]')!;
 			const bounds = panel.getBoundingClientRect();
-			const slot = panel.parentElement!.getBoundingClientRect();
+			const slot = panel.closest('#timeline')!.getBoundingClientRect();
 			const toggle = panel
-				.querySelector('[data-testid="timeline-legends-toggle"]')!
+				.querySelector(
+					document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!.dataset
+						.layout === 'split'
+						? '[data-testid="timeline-legends-toggle"]'
+						: '[data-testid="timeline-keep-open"]'
+				)!
 				.getBoundingClientRect();
 			return {
 				time: performance.now(),
@@ -121,8 +184,13 @@ export async function startTimelineFrameMonitor(page: Page) {
 				legend: legend.getBoundingClientRect().top - bounds.top,
 				slot: slot.height,
 				slotTop: slot.top,
-				fixed: getComputedStyle(panel).position === 'fixed',
+				pinned: panel.hasAttribute('data-pinned'),
 				scrollY: window.scrollY,
+				paneScroll: (document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!
+					.dataset.layout === 'split'
+					? document.querySelector<HTMLElement>('#plan-pane')!
+					: document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!
+				).scrollTop,
 				bodyScroll: body.scrollTop,
 				chartScroll: scroller.scrollTop,
 				legendsX: toggle.x,
@@ -206,14 +274,198 @@ export async function importJson(page: Page, content: unknown, name = 'plan.json
 	});
 }
 
-/** Opens Settings and waits for its opening animation. */
-export async function openSettings(page: Page): Promise<Locator> {
-	const trigger = page.getByTestId('settings-menu');
-	await expect(trigger).toBeVisible();
-	await trigger.click();
+/** Reads the saved viewer preferences. */
+export const storedViewer = (page: Page) =>
+	page.evaluate(() => JSON.parse(localStorage.getItem('taktblatt:ui')!));
+
+/** Checks whether the primary pointer is coarse. */
+export const isCoarse = (page: Page) =>
+	page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+
+/** Opens a scope menu and waits for its presentation to settle. */
+async function openScope(page: Page, scope: 'plans' | 'menu'): Promise<Locator> {
+	await page.getByTestId(scope === 'plans' ? 'plan-switcher' : 'app-menu').click();
+	const coarse = await isCoarse(page);
+	const surface = coarse ? page.getByTestId(`${scope}-sheet`) : page.getByRole('menu');
+	await expect(surface).toBeVisible();
+	await waitForAnimations(surface);
+	return surface;
+}
+
+/** Chooses an export or backup item and reads the downloaded JSON file. */
+export async function readDownload(page: Page, menuItem: string) {
+	await (menuItem === 'Back up all plans' ? openPlans(page) : openMenu(page));
+	const pending = page.waitForEvent('download');
+	await page.getByRole('menuitem', { name: menuItem }).click();
+	const download = await pending;
+	const text = await readFile((await download.path())!, 'utf8');
+	return {
+		name: download.suggestedFilename(),
+		text,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		file: JSON.parse(text) as Record<string, any>
+	};
+}
+
+/** Opens the This plan menu or sheet. */
+export const openMenu = (page: Page) => openScope(page, 'menu');
+
+/** Opens the Plans menu or sheet. */
+export const openPlans = (page: Page) => openScope(page, 'plans');
+
+/** Opens the language submenu for the current UI language. */
+export async function openLanguageMenu(page: Page): Promise<Locator> {
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-language').click();
+	const languages = page.getByRole('menu').filter({
+		has: page.getByRole('menuitemradio', { name: 'English', exact: true })
+	});
+	await expect(languages).toBeVisible();
+	await waitForAnimations(languages);
+	return languages;
+}
+
+/** Chooses a UI language through the scope menu. */
+export async function chooseLanguage(
+	page: Page,
+	name: 'English' | 'Deutsch' | '繁體中文' | '日本語'
+) {
+	if (await isCoarse(page)) {
+		await openMenu(page);
+		await chooseOption(page, 'menu-language', name);
+	} else {
+		const languages = await openLanguageMenu(page);
+		await languages.getByRole('menuitemradio', { name, exact: true }).click();
+	}
+}
+
+/** Chooses a theme. A sheet stays open after the choice. */
+export async function chooseTheme(page: Page, name: 'Light' | 'Dark' | 'System') {
+	const menu = await openMenu(page);
+	const coarse = await isCoarse(page);
+	await menu.getByRole(coarse ? 'radio' : 'menuitemradio', { name, exact: true }).click();
+	if (!coarse) await expect(menu).toHaveCount(0);
+}
+
+export const timelineHandle = (page: Page) => page.locator('button#timeline-collapse');
+
+export async function collapseTimeline(page: Page) {
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await timelineHandle(page).click();
+	await expectTimelineCollapsed(page);
+}
+
+export async function expandTimeline(page: Page) {
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'false');
+	await timelineHandle(page).click();
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+	await waitForAnimations(page.locator('#timeline'));
+}
+
+export async function expectTimelineCollapsed(page: Page) {
+	await expect(timelineHandle(page)).toHaveAccessibleName('Expand timeline');
+	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'false');
+	await waitForAnimations(page.locator('#timeline'));
+	await expect
+		.poll(async () => (await page.locator('#timeline').boundingBox())!.height)
+		.toBeCloseTo(COLLAPSED_TIMELINE_HEIGHT, 0);
+	await expect(page.getByTestId('gantt')).toBeHidden();
+}
+
+/** Scrolls a pane with real user input. It does not move the window. */
+export async function userScroll(page: Page, pane: Locator, delta: number) {
+	const box = (await pane.boundingBox())!;
+	await page.mouse.move(box.x + box.width - 12, box.y + box.height - 24);
+	await page.mouse.wheel(0, delta);
+	await pane.evaluate(async () => {
+		await new Promise(requestAnimationFrame);
+		await new Promise(requestAnimationFrame);
+	});
+}
+
+/** Returns evenly spaced points for a vertical drag. */
+export function dragSteps(start: { x: number; y: number }, distance: number, count = 12) {
+	return Array.from({ length: count }, (_, i) => ({
+		x: start.x,
+		y: start.y + (distance * (i + 1)) / count
+	}));
+}
+
+/** Drags one finger with raw touch input. The callback runs before the finger lifts. */
+export async function touchDrag(
+	page: Page,
+	start: { x: number; y: number },
+	steps: { x: number; y: number }[],
+	stepWait: number | (() => Promise<unknown>),
+	beforeRelease?: () => Promise<void>,
+	timestampIntervalMs?: number
+) {
+	const session = await page.context().newCDPSession(page);
+	let released = false;
+	// CDP timestamps use seconds since the Unix epoch. Keep the whole gesture in the past.
+	let timestamp = Date.now() / 1000 - ((steps.length + 1) * (timestampIntervalMs ?? 0)) / 1000;
+	const eventTimestamp = () => (timestampIntervalMs === undefined ? {} : { timestamp });
+	try {
+		await session.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [start],
+			...eventTimestamp()
+		});
+		for (const point of steps) {
+			if (typeof stepWait === 'number' && stepWait > 0) await page.waitForTimeout(stepWait);
+			timestamp += (timestampIntervalMs ?? 0) / 1000;
+			await session.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [point],
+				...eventTimestamp()
+			});
+			if (typeof stepWait === 'function') await stepWait();
+		}
+		await beforeRelease?.();
+		timestamp += (timestampIntervalMs ?? 0) / 1000;
+		await session.send('Input.dispatchTouchEvent', {
+			type: 'touchEnd',
+			touchPoints: [],
+			...eventTimestamp()
+		});
+		released = true;
+	} finally {
+		if (!released)
+			await session
+				.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+				.catch(() => {});
+		await session.detach();
+	}
+}
+
+/**
+ * Drags one finger upward over a pane with raw CDP touch events, so the pane scrolls down.
+ * Chromium headless shell ignores touch input from Input.synthesizeScrollGesture.
+ */
+export async function touchScroll(page: Page, pane: Locator, distance: number, steps = 12) {
+	const box = (await pane.boundingBox())!;
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height - 100;
+	await touchDrag(page, { x, y }, dragSteps({ x, y }, -distance, steps), () =>
+		pane.evaluate(() => new Promise(requestAnimationFrame))
+	);
+}
+
+/**
+ * Opens a menu with the keyboard and waits for its opening animation.
+ * Checks initial Print focus for the app menu.
+ */
+export async function openMenuWithKeyboard(
+	page: Page,
+	triggerId: 'app-menu' | 'plan-switcher' = 'app-menu'
+): Promise<Locator> {
+	const trigger = page.getByTestId(triggerId);
+	await trigger.focus();
+	await page.keyboard.press('Enter');
 	const menu = page.getByRole('menu');
 	await expect(menu).toBeVisible();
 	await waitForAnimations(menu);
+	if (triggerId === 'app-menu') await expect(menu.getByTestId('menu-print')).toBeFocused();
 	return menu;
 }
 
@@ -223,16 +475,28 @@ export async function waitForAnimations(locator: Locator): Promise<void> {
 		const animations = element
 			.getAnimations({ subtree: true })
 			.filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
-		await Promise.all(animations.map((animation) => animation.finished));
+		// A canceled or replaced transition rejects its promise. It is also complete.
+		await Promise.allSettled(animations.map((animation) => animation.finished));
 	});
+}
+
+/** Chooses Print in the app menu. This opens the print preview. */
+export async function choosePrint(page: Page): Promise<void> {
+	const menu = await openMenu(page);
+	await menu.getByTestId('menu-print').click();
 }
 
 /** Opens the print preview and waits until the first sheet is visible. */
 export async function openPreview(page: Page): Promise<Locator> {
-	await page.getByTestId('preview-open').click();
+	await choosePrint(page);
 	const preview = page.getByRole('dialog', { name: 'Print preview' });
 	await expect(preview).toBeVisible();
 	await expect(preview.getByTestId('sheet').first()).toBeVisible();
+	await page.evaluate(async () => {
+		await document.fonts.ready;
+		await new Promise(requestAnimationFrame);
+	});
+	await expect(preview.getByTestId('sheets')).toHaveAttribute('data-sheet-count', /^[1-9]\d*$/);
 	return preview;
 }
 
@@ -275,7 +539,7 @@ export const taller = (page: Page) =>
 	page.getByRole('button', { name: 'Make timeline taller', exact: true });
 
 /** Reads the active plan from localStorage. */
-export async function storedPlan(page: Page) {
+export async function storedPlan(page: Page): Promise<Plan> {
 	return page.evaluate(() => {
 		const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
 		return JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
@@ -287,6 +551,527 @@ export const planIds = (page: Page) =>
 	page.evaluate(() => JSON.parse(localStorage.getItem('taktblatt:index')!).planIds as string[]);
 
 type StoredPlan = Awaited<ReturnType<typeof storedPlan>>;
+
+/** The task's diagram row, selected by its visible label. */
+export const ganttRow = (page: Page, title: string) =>
+	page.getByTestId('gantt-row').filter({
+		has: page.getByTestId('gantt-label').and(page.getByText(title, { exact: true }))
+	});
+
+export async function expectNoArrowheads(line: Locator): Promise<void> {
+	await expect(line).toHaveCSS('marker-start', 'none');
+	await expect(line).toHaveCSS('marker-end', 'none');
+	await expect(line.locator('xpath=ancestor::svg').locator('marker')).toHaveCount(0);
+}
+
+/** Check the rendered paint chain, including nested and inherited attenuation. */
+export async function expectOpaqueMark(mark: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			mark.evaluate((element) => {
+				const nodes = [element, ...element.querySelectorAll('*')];
+				for (
+					let p = element.parentElement;
+					p && !p.matches('[data-testid="gantt"], [data-testid="sheet"]');
+					p = p.parentElement
+				)
+					nodes.push(p);
+				return nodes.every((node) => Number(getComputedStyle(node).opacity) === 1);
+			})
+		)
+		.toBe(true);
+}
+
+/** Compare the final line color with its status mix, including an opaque subtask ground. */
+export async function expectLineStatus(
+	mark: Locator,
+	status: 'todo' | 'in_progress' | 'done' | 'canceled',
+	paper = false
+): Promise<void> {
+	await waitForAnimations(mark.locator('[data-gantt-line]'));
+	const paint = await mark.evaluate(
+		(mark, { status, paper, palette }) => {
+			const name = mark.getAttribute('aria-label')!;
+			const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+			const plan = JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
+			const task = plan.tasks.find((t: { title: string }) => name.startsWith(`${t.title}:`));
+			const stage = plan.stages.find((s: { id: string }) => s.id === task.stageId);
+			const scheme =
+				paper || getComputedStyle(document.documentElement).colorScheme !== 'dark'
+					? 'light'
+					: 'dark';
+			const base = palette[stage.color as keyof typeof palette][scheme];
+			const probe = document.createElement('span');
+			probe.style.color = paper ? '#ffffff' : 'var(--background)';
+			mark.append(probe);
+			const ground = getComputedStyle(probe).color;
+			probe.remove();
+			const stageColor = task.parentId ? `color-mix(in oklab, ${base} 55%, ${ground})` : base;
+			const expected =
+				status === 'done' || status === 'canceled'
+					? `color-mix(in oklab, ${base} 40%, ${ground})`
+					: stageColor;
+			const canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d')!;
+			const sample = (paint: string) => {
+				context.clearRect(0, 0, 1, 1);
+				context.fillStyle = paint;
+				context.fillRect(0, 0, 1, 1);
+				return [...context.getImageData(0, 0, 1, 1).data];
+			};
+			return {
+				actual: sample(getComputedStyle(mark.querySelector('[data-gantt-line]')!).backgroundColor),
+				expected: sample(expected)
+			};
+		},
+		{ status, paper, palette: STAGE_COLORS }
+	);
+	for (const [i, value] of paint.actual.entries())
+		expect(Math.abs(value - paint.expected[i])).toBeLessThanOrEqual(1);
+	await expectOpaqueMark(mark);
+}
+
+/** Read actual SVG pixels after computed paint, then compare the four status forms. */
+export async function expectStationStatus(
+	mark: Locator,
+	status: 'todo' | 'in_progress' | 'done' | 'canceled',
+	paper = false
+): Promise<void> {
+	const dot = mark.locator('.station-dot').first();
+	await expect(dot).toBeVisible();
+	await waitForAnimations(dot);
+	const paint = await dot.evaluate(
+		async (element, { onPaper, palette }) => {
+			const svg = element as SVGSVGElement;
+			const forcedColors = matchMedia('(forced-colors: active)').matches;
+			const copy = svg.cloneNode(true) as SVGSVGElement;
+			const originals = [svg, ...svg.querySelectorAll('*')];
+			const copies = [copy, ...copy.querySelectorAll('*')];
+			for (const [i, node] of originals.entries())
+				for (const property of [
+					'fill',
+					'stroke',
+					'stroke-width',
+					'opacity',
+					'fill-opacity',
+					'stroke-opacity',
+					'color'
+				])
+					(copies[i] as SVGElement).style.setProperty(
+						property,
+						getComputedStyle(node).getPropertyValue(property)
+					);
+			copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+			copy.setAttribute('width', '100');
+			copy.setAttribute('height', '100');
+			const url = URL.createObjectURL(
+				new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml' })
+			);
+			try {
+				const image = new Image();
+				image.src = url;
+				await image.decode();
+				const canvas = document.createElement('canvas');
+				canvas.width = canvas.height = 100;
+				const context = canvas.getContext('2d')!;
+				context.drawImage(image, 0, 0);
+				const sample = (x: number, y = 50) => [...context.getImageData(x, y, 1, 1).data];
+				const samples = [sample(30), sample(70), sample(50)];
+				context.clearRect(0, 0, 100, 100);
+				// Resolve custom properties in this element's own theme, not in the canvas.
+				const probe = document.createElement('span');
+				probe.style.color = onPaper ? '#ffffff' : forcedColors ? 'Canvas' : 'var(--background)';
+				svg.parentElement!.append(probe);
+				context.fillStyle = getComputedStyle(probe).color;
+				context.fillRect(0, 0, 1, 1);
+				probe.remove();
+				const ground = [...context.getImageData(0, 0, 1, 1).data];
+				const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+				const plan = JSON.parse(localStorage.getItem(`taktblatt:plan:${index.activeId}`)!).plan;
+				const name = svg.closest('[role="img"][aria-label]')!.getAttribute('aria-label')!;
+				const task = plan.tasks.find((t: { title: string }) => name.startsWith(`${t.title}:`));
+				const stage = plan.stages.find((s: { id: string }) => s.id === task.stageId);
+				const scheme =
+					onPaper || getComputedStyle(document.documentElement).colorScheme !== 'dark'
+						? 'light'
+						: 'dark';
+				const base = palette[stage.color as keyof typeof palette][scheme];
+				const probePaint = document.createElement('span');
+				svg.parentElement!.append(probePaint);
+				probePaint.style.color = onPaper ? '#ffffff' : 'var(--background)';
+				probePaint.remove();
+				context.clearRect(0, 0, 1, 1);
+				const stageColor = base;
+				context.fillStyle = stageColor;
+				context.fillRect(0, 0, 1, 1);
+				const ink = [...context.getImageData(0, 0, 1, 1).data];
+				return {
+					samples,
+					ground,
+					ink,
+					forcedColors,
+					opaque: originals.every((node) => Number(getComputedStyle(node).opacity) === 1)
+				};
+			} finally {
+				URL.revokeObjectURL(url);
+			}
+		},
+		{ onPaper: paper, palette: STAGE_COLORS, status }
+	);
+	expect(paint.opaque).toBe(true);
+	const [left, right, center] = paint.samples;
+	for (const sample of paint.samples) expect(sample[3]).toBe(255);
+	if (status === 'todo') expect(center).toEqual(paint.ground);
+	else if (status === 'in_progress') {
+		expect(left).toEqual(paint.ground);
+		if (paint.forcedColors) expect(right).not.toEqual(paint.ground);
+		else
+			for (const [i, value] of right.entries())
+				expect(Math.abs(value - paint.ink[i])).toBeLessThanOrEqual(1);
+	} else if (status === 'canceled') {
+		expect(left).toEqual(paint.ground);
+		expect(right).toEqual(paint.ground);
+		expect(center).not.toEqual(paint.ground);
+	} else {
+		if (paint.forcedColors) expect(center).not.toEqual(paint.ground);
+		else
+			for (const [i, value] of center.entries())
+				expect(Math.abs(value - paint.ink[i])).toBeLessThanOrEqual(1);
+		expect(left).toEqual(right);
+	}
+}
+
+/** Compare the base cycle paint and its non-counted casing in the same DOM snapshot. */
+export async function expectCyclePaint(line: Locator, paper = false): Promise<void> {
+	await expect(line).toHaveAttribute('data-cycle', 'true');
+	await expect(line).toHaveAttribute('data-from', /.+/);
+	await expect(line).toHaveAttribute('data-to', /.+/);
+	await expectTokenPaint(line, 'stroke', paper ? '--color-paper-warning' : '--destructive');
+	await expect(line).toHaveCSS('stroke-width', '2px');
+	await expect(line).toHaveCSS('stroke-linecap', 'round');
+	await expect(line).toHaveCSS('stroke-dasharray', '1px, 4px');
+	const casing = line.locator('xpath=preceding-sibling::*[1]');
+	const from = await line.getAttribute('data-from'),
+		to = await line.getAttribute('data-to');
+	await expect(casing).toHaveAttribute('data-overlay-for', `${from}->${to}`);
+	await expect(casing).toHaveAttribute('aria-hidden', 'true');
+	await expect(casing).not.toHaveAttribute('data-testid');
+	await expect(casing).toHaveCSS('stroke-width', '4px');
+	await expectTokenPaint(casing, 'stroke', paper ? '--color-paper' : '--background');
+	await expect
+		.poll(() =>
+			line.evaluate(
+				(base) => base.previousElementSibling?.getAttribute('d') === base.getAttribute('d')
+			)
+		)
+		.toBe(true);
+}
+
+/** Use a deterministic graph with a crossing, fan-out, points, tiny and clipped ranges. */
+export async function openLinePlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-04-10' };
+		plan.stages[0].color = 'blue';
+		plan.bands = [];
+		plan.milestones = [];
+		const base: Task = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			status: 'todo',
+			dependsOn: [],
+			start: '2027-01-01',
+			end: '2027-01-20'
+		};
+		plan.tasks = [
+			{ ...base, id: 'source', title: 'Source' },
+			{
+				...base,
+				id: 'crossing',
+				title: 'Crossing',
+				start: '2027-01-05',
+				end: '2027-03-01',
+				status: 'done'
+			},
+			{
+				...base,
+				id: 'target',
+				title: 'Target',
+				start: '2027-03-10',
+				end: '2027-03-20',
+				dependsOn: ['source']
+			},
+			{
+				...base,
+				id: 'branch',
+				title: 'Branch',
+				start: '2027-03-15',
+				end: '2027-03-25',
+				dependsOn: ['source']
+			},
+			{ ...base, id: 'tap-source', title: 'Tap source', start: '2027-03-20', end: '2027-04-20' },
+			{
+				...base,
+				id: 'tap-target',
+				title: 'Tap target',
+				start: '2027-01-10',
+				end: '2027-01-20',
+				dependsOn: ['tap-source']
+			},
+			{
+				...base,
+				id: 'point',
+				title: 'Point',
+				start: '2027-02-10',
+				end: null,
+				dependsOn: ['source']
+			},
+			{
+				...base,
+				id: 'tiny',
+				title: 'Tiny',
+				start: '2027-02-12',
+				end: '2027-02-12',
+				dependsOn: ['point']
+			},
+			{
+				...base,
+				id: 'child-a',
+				title: 'Child A',
+				parentId: 'crossing',
+				start: '2027-01-05',
+				end: '2027-02-01',
+				status: 'done'
+			},
+			{
+				...base,
+				id: 'child-b',
+				title: 'Child B',
+				parentId: 'crossing',
+				start: '2027-02-05',
+				end: '2027-03-01',
+				status: 'done',
+				dependsOn: ['child-a']
+			}
+		];
+	});
+}
+
+/** Read ports and marks in one frame so animated geometry cannot skew the assertion. */
+export async function dependencyGeometry(line: Locator, paper = false) {
+	return line.evaluate((element, onPaper) => {
+		const path = element as SVGPathElement;
+		const root = path.closest(onPaper ? '[data-fragment]' : '[data-testid="gantt"]')!;
+		const markFor = (id: string | undefined) => {
+			if (!id) return null;
+			const row = root.querySelector(`[data-task-id="${CSS.escape(id)}"]`);
+			return (
+				row?.querySelector(
+					`[data-testid="${onPaper ? 'sheet-' : ''}gantt-bar"], [data-testid="${onPaper ? 'sheet-' : ''}gantt-point"]`
+				) ?? null
+			);
+		};
+		const port = (id: string | undefined, end: boolean) => {
+			const mark = markFor(id);
+			if (!mark) return null;
+			const box = mark.getBoundingClientRect();
+			const dots = [...mark.querySelectorAll('.station-dot')];
+			const dot = dots[end ? dots.length - 1 : 0]?.getBoundingClientRect();
+			const clipped = mark.getAttribute(end ? 'data-clip-end' : 'data-clip-start') === 'true';
+			const point = mark.getAttribute('data-testid')!.endsWith('point');
+			const oneClippedSide =
+				mark.getAttribute('data-clip-start') === 'true' ||
+				mark.getAttribute('data-clip-end') === 'true';
+			const edge = point || (dots.length === 1 && !oneClippedSide);
+			return {
+				x:
+					clipped || !dot
+						? end
+							? box.right
+							: box.left
+						: edge
+							? end
+								? dot.right
+								: dot.left
+							: dot.left + dot.width / 2,
+				y: box.top + box.height / 2
+			};
+		};
+		const matrix = path.getScreenCTM()!;
+		const first = path.getPointAtLength(0).matrixTransform(matrix),
+			last = path.getPointAtLength(path.getTotalLength()).matrixTransform(matrix);
+		return {
+			first: { x: first.x, y: first.y },
+			last: { x: last.x, y: last.y },
+			out: port(path.dataset.from, true),
+			in: port(path.dataset.to, false),
+			d: path.getAttribute('d')
+		};
+	}, paper);
+}
+
+/** Verify opaque coverage using actual screenshots with and without the crossing connectors. */
+export async function expectCoveredCrossing(mark: Locator, lines: Locator): Promise<void> {
+	const line = mark.locator('[data-gantt-line]');
+	await line.scrollIntoViewIfNeeded();
+	const box = await line.boundingBox();
+	expect(box).not.toBeNull();
+	// Taller dots need clear focus space. Compare only fully covered line pixels, away from caps.
+	const x = Math.ceil(box!.x + box!.height / 2);
+	const y = Math.ceil(box!.y + 1);
+	const clip = {
+		x,
+		y,
+		width: Math.floor(box!.x + box!.width - box!.height / 2) - x,
+		height: Math.floor(box!.y + box!.height - 1) - y
+	};
+	expect(clip.width).toBeGreaterThan(0);
+	expect(clip.height).toBeGreaterThan(0);
+	const page = mark.page();
+	const before = await page.screenshot({ clip, animations: 'disabled' });
+	const saved = await lines.evaluateAll((elements) =>
+		elements.map((e) => {
+			const node = e as SVGElement;
+			const visibility = node.style.visibility;
+			node.style.visibility = 'hidden';
+			return visibility;
+		})
+	);
+	try {
+		const without = await page.screenshot({ clip, animations: 'disabled' });
+		expect(before.equals(without), 'A crossing connector must not show through the task mark').toBe(
+			true
+		);
+	} finally {
+		await lines.evaluateAll(
+			(elements, values) =>
+				elements.forEach((e, i) => {
+					(e as SVGElement).style.visibility = values[i];
+				}),
+			saved
+		);
+	}
+}
+
+/** Check the row-local tap order and clipping in each renderer. */
+export async function expectLocalTap(mark: Locator, source: string, paper = false): Promise<void> {
+	const tap = mark.getByTestId(paper ? 'sheet-gantt-tap' : 'gantt-tap');
+	await expect(tap).toHaveAttribute('data-source', source);
+	await expect(tap).toHaveAttribute('aria-hidden', 'true');
+	const order = await mark.evaluate((element) => {
+		const line = element.querySelector('[data-gantt-line]')!;
+		const tap = element.querySelector('[data-source]')!;
+		const dot = element.querySelector('.station-dot')!;
+		let clipped = false;
+		for (
+			let p = tap.parentElement;
+			p && p !== element.parentElement?.parentElement;
+			p = p.parentElement
+		)
+			clipped ||=
+				['hidden', 'clip'].includes(getComputedStyle(p).overflowX) ||
+				getComputedStyle(p).clipPath !== 'none';
+		return {
+			lineThenTap: !!(line.compareDocumentPosition(tap) & Node.DOCUMENT_POSITION_FOLLOWING),
+			tapThenDot: !!(tap.compareDocumentPosition(dot) & Node.DOCUMENT_POSITION_FOLLOWING),
+			clipped
+		};
+	});
+	expect(order).toEqual({ lineThenTap: true, tapThenDot: true, clipped: true });
+}
+
+/** Put a gutter ring over a line to check the renderer's actual stacking. */
+export async function expectJunctionBehindMark(ring: Locator, mark: Locator): Promise<void> {
+	const center = await mark.evaluate((e) => {
+		const b = e.getBoundingClientRect();
+		return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+	});
+	const saved = await ring.evaluate((e, center) => {
+		const node = e as SVGElement,
+			b = e.getBoundingClientRect();
+		const saved = { transform: node.style.transform, visibility: node.style.visibility };
+		const transform = getComputedStyle(node).transform;
+		node.style.transform = `${transform === 'none' ? '' : transform} translate(${center.x - b.left - b.width / 2}px, ${center.y - b.top - b.height / 2}px)`;
+		return saved;
+	}, center);
+	try {
+		expect(
+			await ring.evaluate((e, center) => {
+				const b = e.getBoundingClientRect();
+				return (
+					b.width > 0 &&
+					b.height > 0 &&
+					b.left <= center.x &&
+					b.right >= center.x &&
+					b.top <= center.y &&
+					b.bottom >= center.y
+				);
+			}, center),
+			'The fixture ring must overlap the task line'
+		).toBe(true);
+		const visible = await mark.screenshot({ animations: 'disabled' });
+		await ring.evaluate((e) => {
+			(e as SVGElement).style.visibility = 'hidden';
+		});
+		const hidden = await mark.screenshot({ animations: 'disabled' });
+		expect(visible.equals(hidden), 'Ordinary junctions must paint below opaque task lines').toBe(
+			true
+		);
+	} finally {
+		await ring.evaluate((e, saved) => {
+			const node = e as SVGElement;
+			node.style.transform = saved.transform;
+			node.style.visibility = saved.visibility;
+		}, saved);
+	}
+}
+
+/** Record each frame, including intermediate jumps, while rows or dates change. */
+export async function startDependencyMonitor(line: Locator) {
+	const monitor = await line.evaluateHandle((element) => {
+		const path = element as SVGPathElement;
+		const state = {
+			stopped: false,
+			frames: [] as { d: string | null; casing: string | null; width: number; time: number }[]
+		};
+		// Animation frames run before resize observers. A layout read in this callback can see a
+		// new width that the app has not delivered yet. Record the width that the painted frame
+		// uses: the width from the latest resize observation.
+		const svg = path.ownerSVGElement!;
+		let width = svg.getBoundingClientRect().width;
+		const observer = new ResizeObserver(([entry]) => {
+			width = entry.contentRect.width;
+		});
+		observer.observe(svg);
+		const sample = () => {
+			state.frames.push({
+				d: path.getAttribute('d'),
+				casing: path.previousElementSibling?.getAttribute('data-overlay-for')
+					? path.previousElementSibling.getAttribute('d')
+					: null,
+				width,
+				time: performance.now()
+			});
+			if (!state.stopped) requestAnimationFrame(sample);
+			else observer.disconnect();
+		};
+		sample();
+		return state;
+	});
+	return {
+		async finish() {
+			await waitForFrames(line.page(), 20);
+			const frames = await monitor.evaluate((state) => {
+				state.stopped = true;
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
 
 /** Reads the contrast of a dependency stroke against its chart background. */
 export async function dependencyContrast(line: Locator, paper = false): Promise<number> {
@@ -305,30 +1090,14 @@ export async function dependencyContrast(line: Locator, paper = false): Promise<
 		context.fillStyle = style.getPropertyValue(onPaper ? '--color-paper' : '--background');
 		context.fillRect(0, 0, 1, 1);
 		const background = luminance();
-		context.globalAlpha = Number(style.opacity);
+		// Dependency strokes must already contain their opaque ground mix.
+		context.clearRect(0, 0, 1, 1);
+		context.globalAlpha = 1;
 		context.fillStyle = style.stroke;
 		context.fillRect(0, 0, 1, 1);
 		const stroke = luminance();
 		return (Math.max(background, stroke) + 0.05) / (Math.min(background, stroke) + 0.05);
 	}, paper);
-}
-
-/**
- * Checks that a dependency arrow fades with its line.
- * The arrow must be the end marker of the line, so the line opacity applies to it.
- * The marker and its path must not set their own opacity.
- */
-export async function dependencyArrowFades(line: Locator): Promise<boolean> {
-	return line.evaluate((element) => {
-		const markerId = getComputedStyle(element).markerEnd.match(/#([^")]+)/)?.[1];
-		const marker = markerId ? document.getElementById(markerId) : null;
-		const arrow = marker?.querySelector('path');
-		if (!(marker instanceof SVGMarkerElement) || !arrow) return false;
-		return [marker, arrow].every((node) => {
-			const style = getComputedStyle(node);
-			return Number(style.opacity) === 1 && Number(style.fillOpacity) === 1;
-		});
-	});
 }
 
 /** Changes the stored plan in localStorage, then reloads the app. */
@@ -346,23 +1115,242 @@ export async function writeStoredPlan(
 		localStorage.setItem(key, JSON.stringify(data));
 	}, plan);
 	await page.reload();
-	await expect(page.getByTestId('plan-heading')).toBeVisible();
+	await expect(page.getByTestId('plan-heading')).toBeAttached();
+}
+
+/** Adds enough task rows and remarks to exercise both workspace scrollers. */
+export async function addWorkspaceOverflow(page: Page): Promise<void> {
+	await writeStoredPlan(page, (plan) => {
+		const template = plan.tasks.find((task) => task.parentId === null)!;
+		for (let i = 0; i < 36; i++) {
+			plan.tasks.push({
+				...template,
+				id: `scroll-task-${i}`,
+				title: `Scroll task ${i + 1}`,
+				parentId: null,
+				stageId: plan.stages[i < 24 ? 0 : plan.stages.length - 1].id,
+				dependsOn: []
+			});
+		}
+		plan.remarks.push({
+			id: 'scroll-remarks',
+			title: 'Scroll notes',
+			bullets: Array.from({ length: 30 }, (_, i) => `Scroll note ${i + 1}`)
+		});
+	});
 }
 
 export const stage = (page: Page, index: number) => page.getByTestId('stage').nth(index);
 
-/** Scrolls a sticky band below the app header and checks their current positions together. */
+export const workspaceContent = (page: Page) => page.getByTestId('workspace-content');
+export const workspaceTabs = (page: Page) => page.getByTestId('workspace-tabs');
+
+/** Samples workspace motion before input. Each frame contains all related geometry. */
+export async function startWorkspaceFrameMonitor(page: Page) {
+	const monitor = await page.evaluateHandle(() => {
+		const read = () => {
+			const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+			const bounds = (selector: string) => {
+				const element = document.querySelector<HTMLElement>(selector)!;
+				const box = element.getBoundingClientRect();
+				return {
+					x: box.x,
+					y: box.y,
+					width: box.width,
+					opacity: Number(getComputedStyle(element).opacity),
+					visible: element.getClientRects().length > 0
+				};
+			};
+			return {
+				left: bounds('#plan-pane'),
+				right: bounds('#work-pane'),
+				divider: bounds('[data-testid="split-resize"]'),
+				indicator: bounds('[data-testid="workspace-tab-indicator"]'),
+				selected: bounds('[role="tab"][aria-selected="true"]'),
+				groups: ['#header', '#stage-overview', '#remarks', '#work-pane'].map(bounds),
+				tab: content.dataset.tab,
+				scroll: content.scrollTop,
+				max: content.scrollHeight - content.clientHeight
+			};
+		};
+		const state = { frames: [read()], stopped: false, done: false, until: Infinity };
+		const sample = () => {
+			state.frames.push(read());
+			if (!state.stopped || performance.now() < state.until) requestAnimationFrame(sample);
+			else state.done = true;
+		};
+		requestAnimationFrame(sample);
+		return state;
+	});
+	return {
+		async finish() {
+			const frames = await monitor.evaluate(async (state) => {
+				state.stopped = true;
+				state.until = performance.now() + 400;
+				while (!state.done) await new Promise(requestAnimationFrame);
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
+
+/** Changes the active plan in a second browser tab without remounting the first. */
+export async function changePlanInOtherTab(
+	page: Page,
+	change: (plan: StoredPlan) => void
+): Promise<void> {
+	const plan = await storedPlan(page);
+	change(plan);
+	const other = await page.context().newPage();
+	try {
+		await openApp(other);
+		await other.evaluate((next) => {
+			const index = JSON.parse(localStorage.getItem('taktblatt:index')!);
+			const key = `taktblatt:plan:${index.activeId}`;
+			const data = JSON.parse(localStorage.getItem(key)!);
+			data.plan = next;
+			localStorage.setItem(key, JSON.stringify(data));
+		}, plan);
+	} finally {
+		await other.close();
+	}
+}
+
+/** Waits for browser frames without changing focus or scroll position. */
+export async function waitForFrames(page: Page, count = 6): Promise<void> {
+	await page.evaluate(async (frames) => {
+		for (let frame = 0; frame < frames; frame++) {
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		}
+	}, count);
+}
+
+/** Sends a user scroll to the group, clear of the Timeline and floating tabs. */
+export async function wheelWorkspace(page: Page, delta: number): Promise<void> {
+	const content = workspaceContent(page);
+	const bounds = (await content.boundingBox())!;
+	const before = await content.evaluate((element) => element.scrollTop);
+	await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+	await page.mouse.wheel(0, delta);
+	await expect
+		.poll(() =>
+			content.evaluate((element, top) => Math.abs(element.scrollTop - top), before + delta)
+		)
+		.toBeLessThanOrEqual(1);
+	await waitForFrames(page, 2);
+}
+
+/** Reads island and selected-tab sizes in the same frame. */
+export async function workspaceTabSize(page: Page) {
+	return workspaceTabs(page).evaluate((island) => {
+		const tab = island.querySelector('[role="tab"][aria-selected="true"]')!;
+		const icon = tab.querySelector('svg')!.getBoundingClientRect();
+		return {
+			island: island.getBoundingClientRect().height,
+			tab: tab.getBoundingClientRect().height,
+			iconWidth: icon.width,
+			iconHeight: icon.height
+		};
+	});
+}
+
+/** Samples Timeline expanded state and floating-island size across frames until settled. */
+export async function startTimelineIslandMonitor(page: Page) {
+	const monitor = await page.evaluateHandle(() => {
+		const read = () => {
+			const island = document.querySelector<HTMLElement>('[data-testid="workspace-tabs"]')!;
+			const tab = island.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!;
+			const icon = tab.querySelector('svg')!.getBoundingClientRect();
+			const handle = document.querySelector<HTMLElement>('button#timeline-collapse');
+			return {
+				expanded: handle?.getAttribute('aria-expanded') ?? null,
+				island: island.getBoundingClientRect().height,
+				tab: tab.getBoundingClientRect().height,
+				iconWidth: icon.width,
+				iconHeight: icon.height
+			};
+		};
+		const state = { frames: [read()], frame: 0, stop: () => {} };
+		const sample = () => {
+			state.frames.push(read());
+			state.frame = requestAnimationFrame(sample);
+		};
+		state.stop = () => {
+			cancelAnimationFrame(state.frame);
+			state.frames.push(read());
+		};
+		state.frame = requestAnimationFrame(sample);
+		return state;
+	});
+	return {
+		async stop() {
+			const frames = await monitor.evaluate((state) => {
+				state.stop();
+				return state.frames;
+			});
+			await monitor.dispose();
+			return frames;
+		}
+	};
+}
+
+export const planPane = (page: Page) => page.getByTestId('plan-pane');
+export const workPane = (page: Page) => page.getByTestId('work-pane');
+
+/** Resize the real split pane with the divider. */
+export async function resizePlanPane(page: Page, width: number): Promise<void> {
+	await expect(workspaceContent(page)).toHaveAttribute('data-layout', 'split');
+	const separator = page.getByTestId('split-resize');
+	const handle = (await separator.boundingBox())!;
+	const pane = (await planPane(page).boundingBox())!;
+	const x = handle.x + handle.width / 2;
+	const y = handle.y + handle.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + width - pane.width, y);
+	await page.mouse.up();
+	await expect.poll(async () => (await planPane(page).boundingBox())!.width).toBeCloseTo(width, 0);
+}
+
+/** Selects a group when the workspace uses tabs. */
+export async function selectTab(page: Page, name: 'Overview' | 'Work plan'): Promise<void> {
+	if ((await workspaceContent(page).getAttribute('data-layout')) === 'tabs') {
+		const tab = page.getByRole('tab', { name, exact: true });
+		if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+		await expect(tab).toHaveAttribute('aria-selected', 'true');
+		await waitForAnimations(workspaceContent(page));
+	}
+}
+
+/** Returns the vertical scroller for the selected group. */
+export async function groupScroller(page: Page, group: 'plan' | 'work-plan'): Promise<Locator> {
+	return (await workspaceContent(page).getAttribute('data-layout')) === 'tabs'
+		? workspaceContent(page)
+		: group === 'plan'
+			? planPane(page)
+			: workPane(page);
+}
+
+/** Scrolls the Timeline to the top of its region and checks its sticky position. */
 export async function expectStickyBelowHeader(band: Locator): Promise<void> {
 	await band.evaluate((element) => {
-		const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-		// Put the natural place of the band 25 px above the bottom of the app header.
-		window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - header.bottom + 25);
+		const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+		const scroller =
+			content.dataset.layout === 'split'
+				? document.querySelector<HTMLElement>('#plan-pane')!
+				: content;
+		scroller.scrollTop +=
+			element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 25;
 	});
 	await expect
 		.poll(() =>
 			band.evaluate((element) => {
-				const header = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				return Math.abs(element.getBoundingClientRect().top - header.bottom);
+				const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+				const scroller =
+					content.dataset.layout === 'split' ? document.querySelector('#plan-pane')! : content;
+				return Math.abs(element.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
 			})
 		)
 		.toBeLessThanOrEqual(1);
@@ -370,30 +1358,33 @@ export async function expectStickyBelowHeader(band: Locator): Promise<void> {
 
 /** Scrolls into a stage and checks its complete sticky header stack in one snapshot. */
 export async function expectStickyStageStack(section: Locator): Promise<void> {
+	await selectTab(section.page(), 'Work plan');
 	await section.evaluate((element) => {
-		const root = getComputedStyle(document.documentElement);
-		const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-		const pinned = parseFloat(root.getPropertyValue('--gantt-pinned-h')) || 0;
-		window.scrollTo(
-			0,
-			element.getBoundingClientRect().top + window.scrollY - app.bottom - pinned + 60
-		);
+		const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+		const split = content.dataset.layout === 'split';
+		const scroller = split ? document.querySelector<HTMLElement>('#work-pane')! : content;
+		const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
+		const pinned = !split ? panel.getBoundingClientRect().height : 0;
+		scroller.scrollTop +=
+			element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pinned + 60;
 	});
 	await expect
 		.poll(() =>
 			section.evaluate((element) => {
-				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				const pinned =
-					parseFloat(
-						getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
-					) || 0;
+				const content = document.querySelector<HTMLElement>('[data-testid="workspace-content"]')!;
+				const split = content.dataset.layout === 'split';
+				const scroller = split ? document.querySelector('#work-pane')! : content;
+				const panel = document.querySelector<HTMLElement>('[data-testid="timeline-panel"]')!;
+				const top = !split
+					? panel.getBoundingClientRect().bottom
+					: scroller.getBoundingClientRect().top;
 				const header = element.querySelector(':scope > header')!.getBoundingClientRect();
 				const narrow = element.getBoundingClientRect().width < 640;
 				const band = element
 					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
 					.getBoundingClientRect();
 				return {
-					headerAligned: Math.abs(header.top - app.bottom - pinned) <= 1,
+					headerAligned: Math.abs(header.top - top) <= 1,
 					bandAligned: Math.abs(band.top - header.bottom) <= 1
 				};
 			})
@@ -467,3 +1458,790 @@ export const formatted = (date: string) =>
 		day: 'numeric',
 		timeZone: 'UTC'
 	}).format(new Date(`${date}T00:00:00Z`));
+
+/** Opens a task status select and chooses its named option. */
+export async function setTaskStatus(
+	page: Page,
+	container: Locator,
+	status: 'todo' | 'in_progress' | 'done' | 'canceled'
+): Promise<void> {
+	const labels = { todo: 'Todo', in_progress: 'In progress', done: 'Done', canceled: 'Canceled' };
+	const trigger = container.getByTestId('task-status');
+	await trigger.click();
+	const listbox = page.getByRole('listbox');
+	await expect(listbox).toBeVisible();
+	await waitForAnimations(listbox);
+	await page.getByRole('option', { name: labels[status], exact: true }).click();
+	await expect(listbox).toHaveCount(0);
+	await expect(trigger).toBeFocused();
+}
+
+/** Selects Duplicate and reopens the same surface during its exit animation. */
+export async function expectDuplicateOnceAfterReopen(page: Page): Promise<void> {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	const before = await planIds(page);
+	const menu = await openMenu(page);
+	await menu.evaluate(async (surface) => {
+		const action = surface.querySelector<HTMLButtonElement>('[data-testid="menu-duplicate"]')!;
+		action.click();
+		// Let Svelte commit the close, but reopen before the exit animation ends.
+		await new Promise(requestAnimationFrame);
+		if (!surface.isConnected || surface.getAttribute('data-state') !== 'closed') {
+			throw new Error('The menu must still be mounted in its closing state');
+		}
+		document.querySelector<HTMLButtonElement>('[data-testid="app-menu"]')!.click();
+	});
+	await expect(menu).toBeVisible();
+	await expect(menu).toHaveAttribute('data-state', 'open');
+	await waitForAnimations(menu);
+	// Keep the reopened menu open while checking that the first action has finished.
+	await expect.soft.poll(async () => (await planIds(page)).length).toBe(before.length + 1);
+	const beforeDismissal = await planIds(page);
+	await page.keyboard.press('Escape');
+	await expect(menu).toHaveCount(0);
+	await expect(page.getByTestId('app-menu')).toBeFocused();
+	await expect.poll(() => planIds(page)).toEqual(beforeDismissal);
+	expect(await planIds(page)).toHaveLength(before.length + 1);
+}
+
+/** Finds the layer by its scroller bounds. Split panes share one host. */
+export async function overlayLayer(page: Page, scroller: Locator): Promise<Locator> {
+	const layers = page.locator('[data-overlay-scrollbar]');
+	let index = -1;
+	await expect
+		.poll(async () => {
+			const bounds = (await scroller.boundingBox())!;
+			index = await layers.evaluateAll(
+				(elements, bounds) =>
+					elements.findIndex((element) => {
+						const box = element.getBoundingClientRect();
+						return (
+							Math.abs(box.x - bounds.x) <= 2 &&
+							Math.abs(box.y - bounds.y) <= 2 &&
+							Math.abs(box.width - bounds.width) <= 2 &&
+							Math.abs(box.height - bounds.height) <= 2
+						);
+					}),
+				bounds
+			);
+			return index;
+		})
+		.toBeGreaterThanOrEqual(0);
+	const layer = layers.nth(index);
+	await expect(layer).toHaveAttribute('aria-hidden', 'true');
+	return layer;
+}
+
+/** Drags a thumb with mouse input. The callback runs while the pointer is held. */
+export async function dragThumb(
+	page: Page,
+	thumb: Locator,
+	distance: number,
+	beforeRelease?: () => Promise<void>
+): Promise<void> {
+	const box = (await thumb.boundingBox())!;
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	try {
+		await page.mouse.move(x, y + distance, { steps: 12 });
+		await beforeRelease?.();
+	} finally {
+		await page.mouse.up();
+	}
+}
+
+/** The app font family. `document.fonts.check` also returns true for a family that no rule declares, so read the loaded faces. */
+export const APP_FONT_FAMILY = 'Source Sans 3 Variable';
+
+/** Returns true when a declared face of the app font has loaded. */
+export async function appFontLoaded(page: Page): Promise<boolean> {
+	return page.evaluate(async (family) => {
+		await document.fonts.ready;
+		await document.fonts.load(`12px "${family}"`);
+		return [...document.fonts].some(
+			(face) => face.family.replace(/"/g, '') === family && face.status === 'loaded'
+		);
+	}, APP_FONT_FAMILY);
+}
+
+/** Checks the Default milestone outline. Picker previews can use a different display size. */
+export async function expectMilestoneRing(container: Locator, exactSize = true): Promise<void> {
+	const svg = container.locator('svg:has(circle)');
+	await expect(svg).toHaveCount(1);
+	const circle = svg.locator('circle');
+	await expect(circle).toHaveCount(1);
+	await expect
+		.poll(() =>
+			circle.evaluate((element) => {
+				const circle = element as SVGCircleElement;
+				const svg = circle.ownerSVGElement!;
+				const style = getComputedStyle(circle);
+				const scale =
+					svg.viewBox.baseVal.width > 0
+						? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width
+						: 1;
+				const stroke = parseFloat(style.strokeWidth) * scale;
+				return {
+					open: style.fill === 'none',
+					outlined: style.stroke !== 'none' && stroke > 0,
+					diameter: circle.r.baseVal.value * scale * 2 + stroke,
+					stroke
+				};
+			})
+		)
+		.toMatchObject({ open: true, outlined: true });
+	if (exactSize) {
+		const geometry = await circle.evaluate((element) => {
+			const circle = element as SVGCircleElement;
+			const svg = circle.ownerSVGElement!;
+			const scale =
+				svg.viewBox.baseVal.width > 0
+					? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width
+					: 1;
+			const stroke = parseFloat(getComputedStyle(circle).strokeWidth) * scale;
+			return { diameter: circle.r.baseVal.value * scale * 2 + stroke, stroke };
+		});
+		expect(geometry.diameter).toBeCloseTo(14, 1);
+		expect(geometry.stroke).toBeCloseTo(2.5, 1);
+	}
+}
+
+/** Compare effective paint with a token. Use mixSpace for a color mix instead of alpha. */
+export async function expectTokenPaint(
+	target: Locator,
+	property: 'color' | 'stroke' | 'fill' | 'background-color' | 'border-left-color',
+	token: string,
+	strength = 1,
+	paper = false,
+	mixSpace?: 'oklab'
+): Promise<void> {
+	await expect
+		.poll(() =>
+			target.evaluate(
+				(element, { property, token, strength, paper, mixSpace }) => {
+					const style = getComputedStyle(element);
+					const probe = document.createElement('span');
+					probe.style.color = `var(${token})`;
+					element.append(probe);
+					const ink = getComputedStyle(probe).color;
+					probe.style.color = `var(${paper ? '--color-paper' : '--background'})`;
+					const ground = getComputedStyle(probe).color;
+					if (mixSpace)
+						probe.style.color = `color-mix(in ${mixSpace}, ${ink} ${strength * 100}%, ${ground})`;
+					const expectedInk = mixSpace ? getComputedStyle(probe).color : ink;
+					probe.remove();
+					const canvas = document.createElement('canvas');
+					canvas.width = canvas.height = 1;
+					const context = canvas.getContext('2d')!;
+					const sample = (paint: string, alpha: number) => {
+						context.globalAlpha = 1;
+						context.clearRect(0, 0, 1, 1);
+						context.fillStyle = ground;
+						context.fillRect(0, 0, 1, 1);
+						context.globalAlpha = alpha;
+						context.fillStyle = paint;
+						context.fillRect(0, 0, 1, 1);
+						return [...context.getImageData(0, 0, 1, 1).data];
+					};
+					let opacity = 1;
+					for (let node: Element | null = element; node; node = node.parentElement) {
+						opacity *= Number(getComputedStyle(node).opacity);
+					}
+					const actual = sample(style.getPropertyValue(property), opacity);
+					const expected = sample(expectedInk, mixSpace ? 1 : strength);
+					return actual.every((channel, index) => Math.abs(channel - expected[index]) <= 2);
+				},
+				{ property, token, strength, paper, mixSpace }
+			)
+		)
+		.toBe(true);
+}
+
+/** Checks the Today line's actual ink strength instead of an unset opacity property. */
+export async function expectTodayLine(line: Locator, paper = false): Promise<void> {
+	await expect(line).toHaveCSS('border-left-width', '1px');
+	await expect(line).toHaveCSS('border-left-style', 'dashed');
+	await expectTokenPaint(
+		line,
+		'border-left-color',
+		paper ? '--color-paper-ink' : '--foreground',
+		0.6,
+		paper
+	);
+}
+
+/** Reads tag, line, date area, milestone and row bounds in one browser snapshot. */
+export async function todayTagGeometry(chart: Locator, paper = false) {
+	return chart.evaluate((chart, paper) => {
+		const prefix = paper ? 'sheet-gantt' : 'gantt';
+		const line = chart.querySelector(`[data-testid="${prefix}-today"]`)!.getBoundingClientRect();
+		const tagElement = chart.querySelector(`[data-testid="${prefix}-today-label"]`)!;
+		const tag = tagElement.getBoundingClientRect();
+		const dateArea = tagElement.parentElement!;
+		const dateBounds = dateArea.getBoundingClientRect();
+		const milestone = chart.querySelector(
+			paper ? '[role="img"][aria-label^="Milestone"]' : '[data-testid="gantt-milestone"]'
+		);
+		const mark = milestone?.querySelector('svg')?.getBoundingClientRect();
+		const row = dateArea.parentElement!.getBoundingClientRect();
+		return {
+			line: line.x,
+			tagLeft: tag.left,
+			tagRight: tag.right,
+			tagWidth: tag.width,
+			markLeft: mark?.left ?? NaN,
+			markRight: mark?.right ?? NaN,
+			dateAreaLeft: dateBounds.left,
+			dateAreaRight: dateBounds.right,
+			inRow: tag.top >= row.top - 0.5 && tag.bottom <= row.bottom + 0.5,
+			rowHeight: row.height
+		};
+	}, paper);
+}
+
+/** Checks the 2 px stage rule in the active layout. */
+export async function expectStageRule(section: Locator, paper = false): Promise<void> {
+	const narrow =
+		!paper && (await section.evaluate((element) => element.getBoundingClientRect().width < 640));
+	const rule = narrow ? section.getByTestId('stage-band') : section.locator('thead th').first();
+	await expect(rule).toBeVisible();
+	await expect
+		.poll(() =>
+			rule.evaluate((element, narrow) => {
+				const style = getComputedStyle(element);
+				return narrow
+					? element.getBoundingClientRect().height === 2
+					: parseFloat(style.borderTopWidth) === 2 || /(?:^|\s)2px(?:\s|,)/.test(style.boxShadow);
+			}, narrow)
+		)
+		.toBe(true);
+}
+
+/** Checks a revealed or focused row against all sticky chrome. */
+export async function expectJumpTarget(page: Page, title: string): Promise<void> {
+	await expect
+		.poll(() =>
+			row(page, title).evaluate((element) => {
+				const stage = element.closest('[data-testid="stage"]')!;
+				const header = stage.querySelector(':scope > header')!.getBoundingClientRect();
+				const narrow = stage.getBoundingClientRect().width < 640;
+				const band = stage
+					.querySelector(narrow ? '[data-testid="stage-band"]' : 'thead th')!
+					.getBoundingClientRect();
+				const bounds = element.getBoundingClientRect();
+				const content = document.querySelector('[data-testid="workspace-content"]')!;
+				const tabs = content.getAttribute('data-layout') === 'tabs';
+				const scroller = tabs ? content : document.querySelector('#work-pane')!;
+				const island = document
+					.querySelector('[data-testid="workspace-tabs"]')!
+					.getBoundingClientRect();
+				return (
+					bounds.top >=
+						Math.max(
+							header.bottom,
+							band.bottom,
+							tabs ? document.querySelector('#timeline')!.getBoundingClientRect().bottom : 0
+						) -
+							0.5 &&
+					bounds.bottom <=
+						Math.min(scroller.getBoundingClientRect().bottom, tabs ? island.top : Infinity) - 1
+				);
+			})
+		)
+		.toBe(true);
+}
+
+/** Checks that the center of a milestone sign still represents the center of its date. */
+export async function expectMilestoneDatePosition(
+	mark: Locator,
+	date: string,
+	range: { start: string; end: string }
+): Promise<void> {
+	await expect
+		.poll(() =>
+			mark.evaluate(
+				(element, { date, range }) => {
+					const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86400000;
+					const fraction =
+						(day(date) - day(range.start) + 0.5) / (day(range.end) - day(range.start) + 1);
+					const timeline = element.parentElement!.getBoundingClientRect();
+					const icon = element.querySelector('svg')!.getBoundingClientRect();
+					return Math.abs(
+						(icon.left + icon.right) / 2 - (timeline.left + fraction * timeline.width)
+					);
+				},
+				{ date, range }
+			)
+		)
+		.toBeLessThanOrEqual(0.5);
+}
+
+/** Checks the text contrast on a rendered stage badge, including caller styles. */
+export async function expectBadgeContrast(badge: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			badge.evaluate((element) => {
+				const style = getComputedStyle(element);
+				const canvas = document.createElement('canvas');
+				canvas.width = canvas.height = 1;
+				const context = canvas.getContext('2d')!;
+				const luminance = (paint: string) => {
+					context.fillStyle = paint;
+					context.fillRect(0, 0, 1, 1);
+					const [r, g, b] = [...context.getImageData(0, 0, 1, 1).data].map((channel) => {
+						const value = channel / 255;
+						return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+					});
+					return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+				};
+				const background = luminance(style.backgroundColor);
+				const text = luminance(style.color);
+				return (Math.max(background, text) + 0.05) / (Math.min(background, text) + 0.05);
+			})
+		)
+		.toBeGreaterThanOrEqual(4.5);
+}
+
+/** Load a split Gantt with satisfied, open and cyclic dependencies in both directions. */
+export async function openContinuationPlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-04-10' };
+		plan.footer.date = '2027-01-15';
+		plan.stages = [{ ...plan.stages[0], description: '', color: 'blue' }];
+		plan.objective = '';
+		plan.remarks = [];
+		plan.bands = [];
+		plan.milestones = [
+			{
+				...plan.milestones[0],
+				id: 'split-milestone',
+				date: '2027-01-15',
+				title: 'Split milestone',
+				symbol: 'diamond'
+			}
+		];
+		const base: Task = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			start: '2027-01-10',
+			end: '2027-02-10',
+			owners: [],
+			deliverable: '',
+			note: '',
+			status: 'todo',
+			dependsOn: []
+		};
+		plan.tasks = [
+			{
+				...base,
+				id: 'up-target',
+				title: 'Up target',
+				start: '2027-01-01',
+				end: '2027-01-20',
+				dependsOn: ['up-source']
+			},
+			{ ...base, id: 'a', title: 'Source A', status: 'done' as const },
+			{ ...base, id: 'b', title: 'Source B' },
+			...Array.from({ length: 120 }, (_, i) => ({
+				...base,
+				id: `split-${i}`,
+				title: `Split task ${i + 1}`
+			})),
+			{
+				...base,
+				id: 'ta',
+				title: 'Target A',
+				start: '2027-03-20',
+				end: '2027-03-25',
+				dependsOn: ['a']
+			},
+			{
+				...base,
+				id: 'tb',
+				title: 'Target B',
+				start: '2027-03-21',
+				end: '2027-03-27',
+				dependsOn: ['b']
+			},
+			{
+				...base,
+				id: 'up-source',
+				title: 'Up source',
+				start: '2027-04-01',
+				end: '2027-05-10',
+				dependsOn: ['up-target']
+			}
+		].map((task, i) => ({
+			...task,
+			createdAt: new Date(Date.UTC(2030, 0, 1, 0, 0, i)).toISOString()
+		}));
+	});
+}
+
+/** Load the branching route fixture. Keep route setup in one place. */
+export async function openRoutePlan(page: Page): Promise<void> {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.range = { start: '2027-01-01', end: '2027-01-31' };
+		plan.stages = [{ ...plan.stages[0], color: 'blue', description: '' }];
+		plan.bands = [];
+		plan.milestones = [];
+		const base: Task = {
+			...plan.tasks[0],
+			stageId: plan.stages[0].id,
+			parentId: null,
+			owners: [],
+			deliverable: '',
+			note: '',
+			status: 'todo',
+			dependsOn: [],
+			start: '2027-01-02',
+			end: '2027-01-05'
+		};
+		plan.tasks = [
+			{ ...base, id: 'up', title: 'Route upstream', status: 'done' as const },
+			{ ...base, id: 'parent', title: 'Route parent', dependsOn: ['up'] },
+			{ ...base, id: 'child-a', title: 'Route child A', parentId: 'parent' },
+			{ ...base, id: 'child-b', title: 'Route child B', parentId: 'parent' },
+			{
+				...base,
+				id: 'down',
+				title: 'Route downstream',
+				dependsOn: ['parent', 'child-a', 'up'],
+				start: '2027-01-10',
+				end: '2027-01-15'
+			},
+			{
+				...base,
+				id: 'branch',
+				title: 'Route branch',
+				dependsOn: ['child-b'],
+				start: '2027-01-12',
+				end: '2027-01-17'
+			},
+			{
+				...base,
+				id: 'point',
+				title: 'Route point',
+				dependsOn: ['down'],
+				start: '2027-01-20',
+				end: null
+			},
+			{ ...base, id: 'other', title: 'Route unrelated' },
+			{ ...base, id: 'cycle-a', title: 'Route cycle A', dependsOn: ['cycle-b'] },
+			{
+				...base,
+				id: 'cycle-b',
+				title: 'Route cycle B',
+				dependsOn: ['cycle-a'],
+				start: '2027-01-21',
+				end: '2027-01-25'
+			}
+		].map((task, i) => ({
+			...task,
+			createdAt: new Date(Date.UTC(2027, 0, 1, 0, 0, i)).toISOString()
+		}));
+	});
+}
+
+/** Read row and edge route membership without including outgoing decorations. */
+export async function routeMembership(page: Page) {
+	return page.evaluate(() => ({
+		rows: [...document.querySelectorAll<HTMLElement>('[data-testid="gantt-row"][data-route="lit"]')]
+			.map((e) => e.dataset.taskId)
+			.sort(),
+		lines: [
+			...document.querySelectorAll<SVGElement>('[data-testid="gantt-dependency"][data-route="lit"]')
+		]
+			.map((e) => `${e.dataset.from}->${e.dataset.to}`)
+			.sort()
+	}));
+}
+
+/** Hold frame callbacks until release. Keep cancellation active while frames are held. */
+export async function holdAnimationFrames(page: Page) {
+	type FrameWindow = Window & {
+		heldTestFrames?: {
+			request: typeof requestAnimationFrame;
+			cancel: typeof cancelAnimationFrame;
+			callbacks: Map<number, FrameRequestCallback>;
+			cancelled: number;
+		};
+	};
+	await page.evaluate(() => {
+		const target = window as FrameWindow;
+		const state = {
+			request: window.requestAnimationFrame,
+			cancel: window.cancelAnimationFrame,
+			callbacks: new Map<number, FrameRequestCallback>(),
+			cancelled: 0
+		};
+		target.heldTestFrames = state;
+		let nextId = -1;
+		window.requestAnimationFrame = (callback) => {
+			const id = nextId--;
+			state.callbacks.set(id, callback);
+			return id;
+		};
+		window.cancelAnimationFrame = (id) => {
+			if (state.callbacks.delete(id)) state.cancelled++;
+			else state.cancel.call(window, id);
+		};
+	});
+	return {
+		state: () =>
+			page.evaluate(() => {
+				const state = (window as FrameWindow).heldTestFrames!;
+				return { pending: state.callbacks.size, cancelled: state.cancelled };
+			}),
+		release: () =>
+			page.evaluate(() => {
+				const target = window as FrameWindow;
+				const state = target.heldTestFrames;
+				if (!state) return;
+				window.requestAnimationFrame = state.request;
+				window.cancelAnimationFrame = state.cancel;
+				delete target.heldTestFrames;
+				for (const callback of state.callbacks.values()) callback(performance.now());
+			})
+	};
+}
+
+/** The diagram stage of the Timeline. */
+export const diagramStage = (page: Page) => page.getByTestId('diagram-stage');
+
+/**
+ * Checks that the stage shows one settled layer of a diagram view and that the view switch
+ * marks this view as selected.
+ */
+export async function expectView(page: Page, id: string): Promise<void> {
+	await expect(diagramStage(page)).toHaveAttribute('data-view', id);
+	await expect(page.getByTestId(`diagram-view-${id}`)).toHaveAttribute('aria-checked', 'true');
+	await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+}
+
+/** Selects a diagram view in the view switch and waits until the stage has one settled layer. */
+export async function chooseView(page: Page, id: string): Promise<void> {
+	await page.getByTestId(`diagram-view-${id}`).click();
+	await expectView(page, id);
+}
+
+/** Verifies a Kanban focus target is fully contained in its scrollers, Timeline body, viewport, and below the sticky heading. */
+export async function expectKanbanFocusContained(target: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			target.evaluate((element) => {
+				const item = element.getBoundingClientRect();
+				const board = element.closest('[data-testid="kanban"]')!;
+				const scroll = board
+					.querySelector('[data-testid="kanban-scroll"]')!
+					.getBoundingClientRect();
+				const stripRect = board
+					.querySelector('[data-testid="kanban-strip"]')!
+					.getBoundingClientRect();
+				const heading = board
+					.querySelector('[data-testid="kanban-heading"]')!
+					.getBoundingClientRect();
+				const stageHeading = board
+					.querySelector('[data-testid="kanban-stage-heading"]')!
+					.getBoundingClientRect();
+				const body = element.closest('[data-testid="timeline-body"]')!.getBoundingClientRect();
+				return {
+					belowHeading: item.top >= heading.bottom - 1,
+					besideStage: item.left >= stageHeading.right - 1,
+					insideScroll: item.top >= scroll.top - 1 && item.bottom <= scroll.bottom + 1,
+					insideStrip: item.left >= stripRect.left - 1 && item.right <= stripRect.right + 1,
+					insideBody:
+						item.top >= body.top - 1 &&
+						item.bottom <= body.bottom + 1 &&
+						item.left >= body.left - 1 &&
+						item.right <= body.right + 1,
+					insideViewport:
+						item.top >= 0 &&
+						item.bottom <= window.innerHeight &&
+						item.left >= 0 &&
+						item.right <= window.innerWidth,
+					rects: {
+						item: { top: item.top, bottom: item.bottom, left: item.left, right: item.right },
+						headingBottom: heading.bottom,
+						scroll: { top: scroll.top, bottom: scroll.bottom },
+						strip: { left: stripRect.left, right: stripRect.right },
+						body: { top: body.top, bottom: body.bottom, left: body.left, right: body.right }
+					}
+				};
+			})
+		)
+		.toMatchObject({
+			belowHeading: true,
+			besideStage: true,
+			insideScroll: true,
+			insideStrip: true,
+			insideBody: true,
+			insideViewport: true
+		});
+}
+
+/**
+ * The stage color palette in the open popover. The scope keeps it separate from other radio
+ * groups, for example the diagram view switch.
+ */
+export const stageColorPalette = (page: Page) =>
+	page.locator('[data-slot="popover-content"]').getByRole('radiogroup');
+
+/** Checks the repeated Route map paper keys and physical status icon boxes. */
+export async function expectRouteMapPaperKeys(page: Page) {
+	const fragments = page.locator('[data-testid="sheet"] [data-fragment="route-map-scene"]');
+	await expect(fragments.first()).toBeVisible();
+	await page.evaluate(() => document.fonts.ready);
+	for (const fragment of await fragments.all()) {
+		const repeat = fragment.locator('[data-part="repeat"]');
+		const signs = repeat.getByTestId('route-map-key');
+		await expect(signs.locator('li')).toHaveText([
+			'Stage journey',
+			'Subtask route',
+			'Station',
+			'Transfer',
+			'Cross-stage dependency',
+			'Dependency cycle'
+		]);
+		const status = repeat.getByRole('list', { name: 'Status', exact: true });
+		await expect(status.locator('li')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await expect(repeat).toContainText(
+			'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+		);
+		await expect(status.locator('svg')).toHaveCount(4);
+		for (const icon of await status.locator('svg').all()) {
+			await expect(icon).toHaveCSS('width', '12px');
+			await expect(icon).toHaveCSS('height', '12px');
+		}
+		for (const icon of await fragment.locator('.paper-label [data-route-map-status] svg').all()) {
+			await expect(icon).toHaveCSS('width', '12px');
+			await expect(icon).toHaveCSS('height', '12px');
+		}
+	}
+}
+
+/** Pause new Web Animations at creation while a view switch is under inspection. */
+export async function holdViewChange(
+	page: Page,
+	view: string,
+	fraction: number,
+	options: { holdFrames?: boolean } = {}
+) {
+	const frames = options.holdFrames === false ? null : await holdAnimationFrames(page);
+	type MotionWindow = Window & {
+		testMotionHold?: { original: typeof Element.prototype.animate; created: Animation[] };
+	};
+	await page.evaluate(() => {
+		const target = window as MotionWindow;
+		const state = { original: Element.prototype.animate, created: [] as Animation[] };
+		target.testMotionHold = state;
+		Element.prototype.animate = function (
+			this: Element,
+			...args: Parameters<typeof Element.prototype.animate>
+		) {
+			const animation = state.original.apply(this, args);
+			if (Number(animation.effect?.getComputedTiming().duration) > 0) animation.pause();
+			state.created.push(animation);
+			return animation;
+		};
+	});
+	const restore = () =>
+		page.evaluate(() => {
+			const target = window as MotionWindow;
+			if (target.testMotionHold) Element.prototype.animate = target.testMotionHold.original;
+			delete target.testMotionHold;
+		});
+	const switchTo = (next: string, progress: number, previous?: number) =>
+		page.evaluate(
+			async ({ next, progress, previous, duration }) => {
+				const state = (window as MotionWindow).testMotionHold!;
+				const setFrame = (fraction: number) => {
+					for (const animation of document.getAnimations()) {
+						animation.pause();
+						animation.currentTime = duration * fraction;
+					}
+				};
+				if (previous !== undefined) setFrame(previous);
+				const stage = document.querySelector('[data-testid="diagram-stage"]')!;
+				const before = [...stage.querySelectorAll<HTMLElement>('[data-flight-copy]')].map(
+					(copy) => {
+						const rect = copy.getBoundingClientRect();
+						return {
+							id: copy.dataset.flightCopy!,
+							x: rect.left + rect.width / 2,
+							y: rect.top + rect.height / 2
+						};
+					}
+				);
+				const outgoing = stage.querySelector('[data-diagram-layer]:not([inert])');
+				const first = state.created.length;
+				document.querySelector<HTMLElement>(`[data-testid="diagram-view-${next}"]`)!.click();
+				for (let attempt = 0; attempt < 100; attempt++) {
+					await new Promise((resolve) => setTimeout(resolve));
+					const incoming = stage.querySelector(`[data-diagram-view="${next}"]:not([inert])`);
+					const created = new Set(state.created.slice(first));
+					const hasNew = (element: Element | null) =>
+						element
+							?.getAnimations()
+							.some(
+								(animation) =>
+									created.has(animation) &&
+									Number(animation.effect?.getComputedTiming().duration) > 0
+							);
+					const copyReady = [
+						...stage.querySelectorAll('[data-diagram-flight] [data-flight-copy]')
+					].some((copy) => hasNew(copy));
+					if (
+						stage.querySelectorAll('[data-diagram-layer]').length >= 2 &&
+						hasNew(outgoing) &&
+						hasNew(incoming) &&
+						(duration <= 0 || copyReady)
+					) {
+						setFrame(progress);
+						return { ready: true, before };
+					}
+				}
+				return { ready: false, before };
+			},
+			{ next, progress, previous, duration: VIEW_MOTION_MS }
+		);
+	const seek = (progress: number) =>
+		page.evaluate(
+			({ value, duration }) => {
+				for (const animation of document.getAnimations()) {
+					animation.pause();
+					animation.currentTime = duration * value;
+				}
+			},
+			{ value: progress, duration: VIEW_MOTION_MS }
+		);
+	try {
+		expect((await switchTo(view, fraction)).ready).toBe(true);
+	} catch (error) {
+		await restore();
+		if (frames) await frames.release();
+		throw error;
+	}
+	return {
+		seek,
+		switchTo: async (next: string, progress: number, previous: number) => {
+			const result = await switchTo(next, progress, previous);
+			expect(result.ready).toBe(true);
+			return result.before;
+		},
+		release: async () => {
+			await restore();
+			await page.evaluate(() => {
+				for (const animation of document.getAnimations()) animation.play();
+			});
+			if (frames) await frames.release();
+			await expect(diagramStage(page).locator('[data-diagram-layer]')).toHaveCount(1);
+			await expect(diagramStage(page).locator('[data-diagram-flight] > *')).toHaveCount(0);
+		}
+	};
+}

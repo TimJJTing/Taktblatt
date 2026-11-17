@@ -4,6 +4,7 @@
  */
 import { getContext, setContext } from 'svelte';
 import { motionDuration } from '#lib/motion.ts';
+import { RouteFocusState } from './route-focus.svelte.ts';
 
 /** The duration of the row flash, before motionDuration. The row-flash class uses it. */
 export const FLASH_MS = 1200;
@@ -18,6 +19,7 @@ function afterNextFrame(fn: () => void) {
 }
 
 export class EditingState {
+	readonly routeFocus = new RouteFocusState(() => this.detailsTaskId);
 	/** The id of a new task. Its title starts in edit mode. */
 	newTaskId = $state<string | null>(null);
 	/** The id of a new remark section. Its title starts in edit mode. */
@@ -26,16 +28,24 @@ export class EditingState {
 	detailsTaskId = $state<string | null>(null);
 	/** The element that opened the task modal. The focus goes back to it. */
 	detailsReturnFocus: HTMLElement | null = null;
+	/** Optional resolver supplied by a diagram view to restore focus when the modal closes. */
+	detailsReturnResolver: (() => HTMLElement | null) | null = null;
 	/** The task that has hover or focus, for the linked highlight between Gantt and table. */
 	highlightId = $state<string | null>(null);
+	/** The task whose dependency route is lit across diagram views. */
+	get routeId(): string | null {
+		return this.routeFocus.resolve();
+	}
 	/** A task row that flashes one time, after a jump from the Gantt. */
 	flashId = $state<string | null>(null);
 
 	#flashTimer: ReturnType<typeof setTimeout> | undefined;
 	#flashCount = 0;
 
-	openDetails(id: string, from: HTMLElement | null) {
+	openDetails(id: string, from: HTMLElement | null, resolve?: (() => HTMLElement | null) | null) {
+		this.routeFocus.clearPointer();
 		this.detailsReturnFocus = from;
+		this.detailsReturnResolver = resolve ?? null;
 		this.detailsTaskId = id;
 	}
 

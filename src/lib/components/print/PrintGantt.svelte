@@ -2,21 +2,24 @@
 	The Gantt chart on paper. A fragment shows the rows `from` to `to` of the segment.
 	The first fragment has the title and the milestone row. Each fragment has the month header.
 	Rows have a fixed height, so the paginator can split between rows. There are no controls and no motion.
-	A dependency line shows only when both of its rows are in the same fragment.
+	Complete dependencies use local routes. Crossing dependencies use boundary signs.
 -->
 <script lang="ts">
+	import TodayTag from '#lib/components/timeline/TodayTag.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
 	import {
 		bandFill,
 		bandPaperTint,
-		stagePaperColor,
-		subtaskFill
+		markColorLevel,
+		stagePaperColor
 	} from '#lib/components/plan/colors.ts';
-	import { clipEdges, elbowPath, rowCenterY } from '#lib/components/timeline/gantt-layout.ts';
+	import { ganttFragment, type GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
+	import { routePath } from '#lib/scene/route-path.ts';
+	import TaskMark from '#lib/components/diagram/TaskMark.svelte';
+	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
 	import { markLabel } from '#lib/components/timeline/mark-label.ts';
 	import { MILESTONE_SYMBOLS } from '#lib/components/timeline/milestone-symbols.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveOf } from '#lib/domain/derive.ts';
+	import { isFinished } from '#lib/domain/derive.ts';
 	import { formatDate, formatMonth, formatRangeDisplay } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { GanttSegment } from '#lib/domain/print-model.ts';
@@ -27,7 +30,8 @@
 		GANTT_LABEL_WIDTH,
 		GANTT_MILESTONE_HEIGHT,
 		GANTT_MONTH_HEIGHT,
-		GANTT_ROW_HEIGHT
+		GANTT_ROW_HEIGHT,
+		GANTT_TODAY_TAG_WIDTH
 	} from './print-layout.ts';
 
 	interface Props {
@@ -37,23 +41,33 @@
 		first: boolean;
 		/** The width of the sheet content in pixels. 0 while the paginator measures. */
 		width: number;
-		/** A key that is unique for the fragment. It names the arrow marker. */
-		uid: string;
+		paper?: GanttPaperLayout;
 	}
 
-	let { segment, from, to, first, width, uid }: Props = $props();
+	let { segment, from, to, first, width, paper }: Props = $props();
 
 	const ws = getWorkspace();
 	const intl = uiIntl();
-	const rows = $derived(segment.rows.slice(from, to));
+	const fragment = $derived(
+		ganttFragment(segment.rows, segment.lines, { from, to, first, width, paper })
+	);
+	const rows = $derived(fragment.rows);
+	const scene = $derived(fragment.scene);
+	const continuations = $derived(new Map(fragment.continuations.map((edge) => [edge.key, edge])));
+	const marks = $derived(new Map(scene.marks.map((m) => [m.id, m])));
+	const sourceRows = $derived(new Map(segment.rows.map((r) => [r.id, r])));
+	const edges = $derived(
+		[...scene.geometry.edges, ...fragment.continuations].sort(
+			(a, b) =>
+				Number(a.cycle) - Number(b.cycle) ||
+				Number(isFinished(sourceRows.get(b.from)!.status)) -
+					Number(isFinished(sourceRows.get(a.from)!.status)) ||
+				a.key.localeCompare(b.key)
+		)
+	);
 	const colors = $derived(new Map(ws.plan.stages.map((s) => [s.id, stagePaperColor(s.color)])));
 	const timelineWidth = $derived(Math.max(0, width - GANTT_LABEL_WIDTH));
-	const bodyTop = $derived(first ? GANTT_MILESTONE_HEIGHT : 0);
-	const lines = $derived(
-		segment.lines.filter((l) => l.row0 >= from && l.row0 < to && l.row1 >= from && l.row1 < to)
-	);
-	const centerY = (row: number) => rowCenterY(row - from, bodyTop, GANTT_ROW_HEIGHT);
-	const marker = $derived(`arrow-${uid}`);
+	const milestoneFractions = $derived(segment.milestones.map((item) => item.x));
 </script>
 
 {#if first}
@@ -64,7 +78,12 @@
 		{m.section_timeline()}
 	</h2>
 {/if}
-<div class="text-[9px] text-paper-ink" role="group" aria-label={m.gantt_label()}>
+<div
+	data-gantt-fragment
+	class="text-[9px] text-paper-ink"
+	role="group"
+	aria-label={m.gantt_label()}
+>
 	<div
 		data-part="repeat"
 		class="flex border-y border-paper-rule text-paper-ink-3"
@@ -82,7 +101,7 @@
 					style:left="{tick.x0 * 100}%"
 					style:width="{(tick.x1 - tick.x0) * 100}%"
 				>
-					<span class="truncate">{formatMonth(tick.month, intl)}</span>
+					<span class="truncate tabular-nums">{formatMonth(tick.month, intl)}</span>
 				</div>
 			{/each}
 		</div>
@@ -106,30 +125,48 @@
 						<span
 							role="img"
 							class="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 text-[9px] font-medium"
-							style:left="calc({item.x * 100}% - 6px)"
+							style:left="calc({item.x * 100}% - 7px)"
+							data-milestone-sign
 							aria-label={m.gantt_milestone({
 								label: item.label,
 								title: item.milestone.title,
 								date: formatDate(item.milestone.date, intl)
 							})}
 						>
-							<Symbol class="size-3 fill-current" />{item.label}
+							<Symbol class="size-3.5 fill-current" aria-hidden="true" />{item.label}
 						</span>
 					{/each}
+					{#if segment.today !== null}
+						<TodayTag
+							x={segment.today}
+							today={segment.today}
+							milestones={milestoneFractions}
+							chartWidth={timelineWidth}
+							width={GANTT_TODAY_TAG_WIDTH}
+							still
+						/>
+					{/if}
 				</div>
 			</div>
 		{/if}
 		{#each rows as row, i (row.id)}
 			{@const task = ws.index.byId.get(row.id)}
 			{@const title = task?.title || m.task_untitled()}
-			{@const done = row.done === 'done'}
+			<!-- The print model is a snapshot. Undo can remove a task before the model updates. -->
+			{@const taskState = ws.index.state.get(row.id)}
+			{@const muted = isFinished(row.status)}
 			{@const mark = row.mark}
-			{@const eff = effectiveOf(ws.index, row.id)}
+			{@const eff = taskState?.eff ?? null}
 			{@const base = colors.get(row.stageId) ?? stagePaperColor('slate')}
-			{@const fill = row.level === 1 ? subtaskFill(base) : base}
+			{@const geom = marks.get(row.id)!}
+			{@const dot = geom.stations[0]}
+			{@const x0 = geom.line?.x0 ?? (dot ? dot.x - dot.r : 0)}
+			{@const x1 = geom.line?.x1 ?? (dot ? dot.x + dot.r : 0)}
+			{@const markHeight = Math.max(geom.line?.height ?? 0, ...geom.stations.map((s) => s.r * 2))}
 			<div
 				data-item={from + i}
 				data-testid="sheet-gantt-row"
+				data-task-id={row.id}
 				class="relative z-[1] flex border-b border-paper-rule-3"
 				style:height="{GANTT_ROW_HEIGHT}px"
 			>
@@ -140,48 +177,42 @@
 					)}
 					style:width="{GANTT_LABEL_WIDTH}px"
 				>
-					<ReadyDot count={readyCount(ws.index, row.id)} still reserve />
+					<ReadyDot readiness={taskState?.readiness ?? { kind: 'inactive' }} still reserve />
 					<span
 						class={cn(
 							'min-w-0 truncate',
 							row.level === 0 && 'font-medium',
-							done && 'text-paper-ink-3 line-through decoration-paper-ink-3/50'
+							muted && 'text-paper-ink-3 line-through decoration-paper-ink-3/50'
 						)}>{title}</span
 					>
 				</div>
-				<div class="relative flex-1">
+				<div class="relative flex-1" style:height="{GANTT_ROW_HEIGHT}px">
 					{#if mark.kind === 'bar' || mark.kind === 'point'}
-						{@const name = markLabel({ mark, title, dates: eff, done })}
-						{#if mark.kind === 'bar'}
-							<div
-								role="img"
-								aria-label={name}
-								class={cn(
-									'absolute top-1/2 min-w-0.5 -translate-y-1/2',
-									!mark.clipStart && 'rounded-l-[2px]',
-									!mark.clipEnd && 'rounded-r-[2px]',
-									done && 'opacity-40'
+						{@const name = markLabel({ mark, title, dates: eff, status: row.status })}
+						<div
+							role="img"
+							aria-label={name}
+							class="absolute top-1/2 -translate-y-1/2"
+							style:left="{x0}px"
+							style:width="{x1 - x0}px"
+							style:height="{markHeight}px"
+							data-testid={mark.kind === 'bar' ? 'sheet-gantt-bar' : 'sheet-gantt-point'}
+							data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
+							data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}
+						>
+							<TaskMark
+								subtask={row.level === 1}
+								box={{ x0, x1 }}
+								{geom}
+								status={row.status}
+								color={base}
+								width={timelineWidth}
+								taps={scene.geometry.junctions.filter(
+									(j) => j.kind === 'tap' && j.source === row.id
 								)}
-								style:left="{mark.x0 * 100}%"
-								style:width="{(mark.x1 - mark.x0) * 100}%"
-								style:height={row.level === 1 ? '5px' : '9px'}
-								style:background={fill}
-								style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
-								data-testid="sheet-gantt-bar"
-							></div>
-						{:else}
-							<div
-								role="img"
-								aria-label={name}
-								class={cn(
-									'absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45',
-									done && 'opacity-40'
-								)}
-								style:left="{mark.x * 100}%"
-								style:background={fill}
-								data-testid="sheet-gantt-point"
-							></div>
-						{/if}
+								still
+							/>
+						</div>
 					{:else if mark.kind === 'outside'}
 						{@const name =
 							mark.side === 'before' ? m.gantt_outside_before() : m.gantt_outside_after()}
@@ -234,53 +265,87 @@
 			{/each}
 			{#if segment.today !== null}
 				<div
-					class="absolute inset-y-0 border-l border-dashed border-paper-ink-2"
+					class="absolute inset-y-0 border-l border-dashed border-paper-ink/60"
 					style:left="{segment.today * 100}%"
 					data-testid="sheet-gantt-today"
-				>
-					<!-- The label sits below the milestone row, so it does not cover a milestone. -->
-					<span
-						class="absolute left-1 bg-paper/80 px-0.5 text-[8px] leading-tight font-medium"
-						style:top="{bodyTop + 2}px"
-						data-testid="sheet-gantt-today-label">{m.gantt_today()}</span
-					>
-				</div>
+				></div>
 			{/if}
-			{#if timelineWidth > 0 && lines.length > 0}
+			{#if timelineWidth > 0 && edges.length > 0}
 				<svg
 					class="absolute inset-0 size-full overflow-visible text-paper-ink-3"
+					style:clip-path="inset({first ? GANTT_MILESTONE_HEIGHT : 0}px 0 0 0)"
 					aria-hidden="true"
 				>
-					<defs>
-						<marker
-							id={marker}
-							viewBox="0 0 6 6"
-							refX="5"
-							refY="3"
-							markerWidth="5"
-							markerHeight="5"
-							orient="auto"
-						>
-							<path d="M 0 0 L 6 3 L 0 6 z" fill="currentColor" />
-						</marker>
-					</defs>
-					{#each lines as line (line.key)}
-						{@const done = segment.rows[line.row0].done === 'done'}
+					{#each edges as line (line.key)}
+						{@const d = routePath(line.points, { w: timelineWidth, h: 0 })}
+						{@const muted = isFinished(sourceRows.get(line.from)!.status)}
+						{@const continuation = continuations.get(line.key)}
+						{@const stroke = line.cycle
+							? 'currentColor'
+							: muted
+								? `color-mix(in oklab, currentColor ${markColorLevel(sourceRows.get(line.from)!.status, 'connector', false, true)}%, #FFFFFF)`
+								: 'currentColor'}
+						{@const strokeWidth = line.cycle
+							? 2
+							: sourceRows.get(line.from)!.level === 1 && sourceRows.get(line.to)!.level === 1
+								? 0.75
+								: 1}
+						{#if line.cycle}<path
+								{d}
+								fill="none"
+								stroke="#FFFFFF"
+								stroke-width="4"
+								aria-hidden="true"
+								data-overlay-for={line.key}
+							/>{/if}
 						<path
-							class={done ? 'opacity-40' : undefined}
-							d={elbowPath(
-								line.x0 * timelineWidth,
-								centerY(line.row0),
-								line.x1 * timelineWidth,
-								centerY(line.row1)
-							)}
+							{d}
+							class={line.cycle ? 'text-paper-warning' : undefined}
+							data-cycle={line.cycle ? 'true' : undefined}
 							fill="none"
-							stroke="currentColor"
-							stroke-width="1"
-							marker-end="url(#{marker})"
+							{stroke}
+							stroke-width={strokeWidth}
+							stroke-dasharray={line.cycle ? '1 4' : undefined}
+							stroke-linecap={line.cycle ? 'round' : undefined}
 							data-testid="sheet-gantt-dependency"
+							data-from={line.from}
+							data-to={line.to}
+							data-continuation={continuation?.kind}
 						/>
+						{#if continuation}
+							{#each continuation.stubs as points, i (i)}
+								<path
+									d={routePath(points, { w: timelineWidth, h: 0 })}
+									class={line.cycle ? 'text-paper-warning' : undefined}
+									fill="none"
+									{stroke}
+									stroke-width={strokeWidth}
+									stroke-dasharray="none"
+									aria-hidden="true"
+									data-overlay-for={line.key}
+									data-testid="sheet-gantt-continuation-stub"
+								/>
+							{/each}
+							{#each continuation.ticks as points, i (i)}
+								<path
+									d={routePath(points, { w: timelineWidth, h: 0 })}
+									class={line.cycle ? 'text-paper-warning' : undefined}
+									fill="none"
+									{stroke}
+									stroke-width={strokeWidth}
+									stroke-dasharray="none"
+									aria-hidden="true"
+									data-overlay-for={line.key}
+									data-testid="sheet-gantt-continuation-tick"
+								/>
+							{/each}
+						{/if}
 					{/each}
+					{#each scene.geometry.junctions.filter((j) => j.kind === 'junction') as junction (junction.key)}<DiagramRing
+							{junction}
+							width={timelineWidth}
+							still
+						/>{/each}
 				</svg>
 			{/if}
 		</div>

@@ -32,7 +32,7 @@ test('the milestone date is picked with the calendar', async ({ page }) => {
 	);
 	const saved = (await storedPlan(page)).milestones.find(
 		(item: { title: string }) => item.title === 'Soil check'
-	);
+	)!;
 	expect(saved.date).toBe(picked);
 });
 
@@ -42,7 +42,7 @@ test('Escape closes the milestone calendar before it cancels the dialog', async 
 	const button = legend.getByRole('button', { name: /Beds ready/ });
 	const before = (await storedPlan(page)).milestones.find(
 		(item: { title: string }) => item.title === 'Beds ready'
-	).date as string;
+	)!.date as string;
 	await button.click();
 	const dialog = page.getByRole('dialog');
 	await dialog.getByLabel('Title', { exact: true }).fill('Beds almost ready');
@@ -60,6 +60,6 @@ test('Escape closes the milestone calendar before it cancels the dialog', async 
 	await expect(button).toContainText('Beds ready');
 	const saved = (await storedPlan(page)).milestones.find(
 		(item: { title: string }) => item.title === 'Beds ready'
-	);
+	)!;
 	expect(saved.date).toBe(before);
 });

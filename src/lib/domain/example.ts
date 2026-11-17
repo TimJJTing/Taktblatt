@@ -4,6 +4,7 @@
  * All dates are relative to `today`, so the example is always current.
  */
 import { dayNumber, isoFromDayNumber, todayISO, type ISODate } from './date.ts';
+import { expandParents } from './derive.ts';
 import { createId } from './ids.ts';
 import type { Plan, Task } from './schema.ts';
 
@@ -33,7 +34,7 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		start: start === null ? null : at(start),
 		end: end === null ? null : at(end),
 		owners,
-		done: false,
+		status: 'todo',
 		note: '',
 		dependsOn: [],
 		createdAt: new Date(Date.parse(now) + order++).toISOString(),
@@ -41,22 +42,23 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 	});
 
 	const survey = task(stage.prepare, 'Site survey', 'Bed layout sketch', -14, -7, ['Noor'], {
-		done: true
+		status: 'done'
 	});
 	const soil = task(stage.prepare, 'Soil preparation', 'Ready beds', null, null, []);
 	const soilTest = task(stage.prepare, 'Soil test', 'Test results', -6, -2, ['Kai'], {
 		parentId: soil.id,
-		done: true
+		status: 'done'
 	});
 	const compost = task(stage.prepare, 'Add compost', 'Amended beds', -1, 6, ['Kai', 'Rosa'], {
 		parentId: soil.id,
+		status: 'in_progress',
 		dependsOn: [soilTest.id]
 	});
 	const seeds = task(stage.prepare, 'Order seeds', 'Seed stock', -5, 3, ['Rosa'], {
 		dependsOn: [survey.id]
 	});
 	const sowing = task(stage.grow, 'Sowing', 'Planted beds', 8, 20, ['Noor', 'Kai'], {
-		dependsOn: [soil.id, seeds.id],
+		dependsOn: [compost.id, seeds.id],
 		note: `Start after the soil work. Refer to @[task:${compost.id}].`
 	});
 	const watering = task(stage.grow, 'Watering rota', 'Weekly schedule', 10, 60, ['Rosa']);
@@ -65,7 +67,15 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 	});
 	const market = task(stage.share, 'Neighbourhood stall', 'Stall day', 72, 72, ['Kai']);
 
-	return {
+	const booking = task(stage.share, 'Book a table', '', 65, 65, ['Kai'], {
+		parentId: market.id
+	});
+	const signs = task(stage.share, 'Make signs', '', 72, 72, ['Kai'], {
+		parentId: market.id,
+		dependsOn: [booking.id]
+	});
+
+	const plan: Plan = {
 		id: createId(),
 		heading: 'Community Garden — Spring Season',
 		subheading: 'Example plan',
@@ -94,7 +104,19 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 				color: 'blue'
 			}
 		],
-		tasks: [survey, soil, soilTest, compost, seeds, sowing, watering, harvest, market],
+		tasks: [
+			survey,
+			soil,
+			soilTest,
+			compost,
+			seeds,
+			sowing,
+			watering,
+			harvest,
+			market,
+			booking,
+			signs
+		],
 		milestones: [
 			{
 				id: createId(),
@@ -127,4 +149,6 @@ export function createExamplePlan(today: ISODate = todayISO()): Plan {
 		createdAt: now,
 		updatedAt: now
 	};
+	expandParents(plan);
+	return plan;
 }

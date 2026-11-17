@@ -3,6 +3,7 @@
 	Tasks sort by start date. The reorder is animated (FLIP).
 -->
 <script lang="ts">
+	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import { flip } from 'svelte/animate';
@@ -10,12 +11,13 @@
 	import { fade } from 'svelte/transition';
 	import { dragHandle } from 'svelte-dnd-action';
 	import AddLine from '#lib/components/edit/AddLine.svelte';
+	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
 	import AnimatedNumber from '#lib/components/edit/AnimatedNumber.svelte';
 	import DeleteConfirm from '#lib/components/app/DeleteConfirm.svelte';
 	import { buttonVariants } from '#lib/components/ui/button/index.ts';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
 	import { stageDeleteImpact } from '#lib/domain/dependencies.ts';
-	import { effectiveValues, stageProgress, stageSpan } from '#lib/domain/derive.ts';
+	import { stageProgress, stageSpan } from '#lib/domain/derive.ts';
 	import { formatMonthSpan } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { type Stage, type Task } from '#lib/domain/schema.ts';
@@ -48,12 +50,23 @@
 	const ws = getWorkspace();
 	const viewer = getViewer();
 	const editing = getEditing();
+	const routeTarget = editing.routeFocus.target;
 
 	const tasks = $derived(ws.index.stageTasks.get(stage.id) ?? []);
 	const progress = $derived(stageProgress(ws.index, stage.id));
-	// Let the message place the animated done count in the locale's word order.
+	// Keep both animated counts in the message's word order.
+	const progressLabel = $derived(
+		progress.inProgress > 0 ? m.stage_progress_in_progress(progress) : m.stage_progress(progress)
+	);
 	const progressText = $derived(
-		m.stage_progress({ done: '{done}', total: progress.total }).split('{done}')
+		(progress.inProgress > 0
+			? m.stage_progress_in_progress({
+					done: '{done}',
+					inProgress: '{inProgress}',
+					total: progress.total
+				})
+			: m.stage_progress({ done: '{done}', total: progress.total })
+		).split(/(\{done\}|\{inProgress\})/)
 	);
 	const span = $derived(stageSpan(ws.index, stage.id));
 	const months = $derived(span ? formatMonthSpan(span.start, span.end, uiIntl()) : '');
@@ -71,12 +84,12 @@
 	let headerHeight = $state(0);
 	let columnHeaderHeight = $state(0);
 
-	// The band (top) and the bottom line are inset shadows, because a border does not stick with its cell.
+	// The rule (top) and the bottom line are inset shadows, because a border does not stick with its cell.
 	// From 640 px up, the table does not scroll, so the cells stick below the stage header.
-	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate band sticks instead.
+	// Below that, the wrapper scrolls sideways and a cell cannot stick. A separate rule sticks instead.
 	// In forced-colors mode shadows are removed, so borders take over.
 	const headCell =
-		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
+		'z-20 bg-background pt-2 pb-[7px] font-medium shadow-[inset_0_-1px_0_var(--border)] @min-[640px]:sticky @min-[640px]:top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] @min-[640px]:shadow-[inset_0_2px_0_var(--stage-band),inset_0_-1px_0_var(--border)] forced-colors:border-t-2 forced-colors:border-b';
 
 	let confirmDelete = $state(false);
 	const impact = $derived(confirmDelete ? stageDeleteImpact(ws.plan, stage.id) : null);
@@ -92,16 +105,17 @@
 </script>
 
 <section
-	class="group/stage @container scroll-mt-anchor"
+	class="group/stage @container"
 	aria-labelledby="stage-{stage.id}-title"
 	data-testid="stage"
+	data-motion={motionDuration(1) > 0}
 	data-stage-id={stage.id}
 	style:--stage-header-h="{headerHeight}px"
 	style:--stage-columns-h="{columnHeaderHeight}px"
 >
 	<header
 		bind:offsetHeight={headerHeight}
-		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px))] z-25 flex items-center gap-2 bg-background pb-2"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px))] z-25 flex flex-wrap items-center gap-x-2 gap-y-1 bg-background pb-2"
 	>
 		<!-- Not a <button>: svelte-dnd-action ignores keyboard drag on elements with a "disabled" property. -->
 		<div
@@ -124,28 +138,35 @@
 			class="flex min-w-0 items-baseline gap-1 text-base font-semibold"
 		>
 			<span class="flex min-w-0 items-baseline">
-				<span class="shrink-0 whitespace-pre">{stageLabelParts[0]}</span>
+				<span class="flex shrink-0 items-baseline gap-1 whitespace-pre">
+					<span aria-hidden="true">
+						<StageBadge color={stage.color} label={m.stage_badge({ n: number })} />
+					</span>{stageLabelParts[0]}
+				</span>
 				<span class="min-w-0"><StageTitle {stage} {number} /></span>
 				{#if stageLabelParts[1]}<span class="shrink-0 whitespace-pre">{stageLabelParts[1]}</span
 					>{/if}
 			</span>
 			{#if months}
 				<span
-					class="shrink-0 font-normal text-muted-foreground"
+					class="shrink-0 font-normal text-muted-foreground tabular-nums"
 					transition:fade={{ duration: motionDuration(150) }}
 					>{m.parenthetical({ text: months })}</span
 				>
 			{/if}
 		</h3>
 		<span
-			class="ml-auto text-xs whitespace-nowrap text-muted-foreground"
+			class="ml-auto text-xs whitespace-nowrap text-muted-foreground tabular-nums"
 			data-testid="stage-progress"
 		>
 			<span aria-hidden="true">
-				{progressText[0]}<AnimatedNumber value={progress.done} />{progressText[1]}
+				{#each progressText as part, i (i)}
+					{#if part === '{done}'}<AnimatedNumber value={progress.done} />
+					{:else if part === '{inProgress}'}<AnimatedNumber value={progress.inProgress} />
+					{:else}{part}{/if}
+				{/each}
 			</span>
-			<span class="sr-only">{m.stage_progress({ done: progress.done, total: progress.total })}</span
-			>
+			<span class="sr-only">{progressLabel}</span>
 		</span>
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger
@@ -173,18 +194,23 @@
 		</DropdownMenu.Root>
 	</header>
 
-	<!-- Below 640 px only: the band sticks here, because the header cells cannot stick in the scrolling wrapper. -->
+	<!-- Below 640 px only: the rule sticks here, because the header cells cannot stick in the scrolling wrapper. -->
 	<div
 		aria-hidden="true"
 		data-testid="stage-band"
-		class="sticky top-[calc(var(--app-header-h,7rem)+var(--gantt-pinned-h,0px)+var(--stage-header-h))] z-20 h-0.5 @min-[640px]:hidden"
+		class="sticky top-[calc(var(--gantt-pinned-h,0px)-var(--pane-padding,0px)+var(--stage-header-h))] z-20 h-0.5 @min-[640px]:hidden"
 		style="background: {stageColorVar(stage.color)}"
 	></div>
 	<!-- The table is at least 640 px wide (min-w-[640px]). A narrower wrapper scrolls the table sideways.
 		Keep the 640 px of the wrapper, the table and the header cells (@min-[640px]) the same.
 		The section is the container for the pinned "+" buttons. A wider wrapper does not scroll,
-		so the header cells can stick below the stage header. -->
-	<div class="relative @max-[640px]:overflow-x-auto">
+		so the header cells can stick below the stage header.
+		The wrapper scrolls only sideways. The bottom padding holds the "+" line, and the negative
+		margin keeps the layout. A vertical wheel or swipe on the table scrolls the group. -->
+	<div
+		use:overlayScrollbar={{ axis: 'x' }}
+		class="relative @max-[640px]:-mb-2.5 @max-[640px]:overflow-x-auto @max-[640px]:overflow-y-hidden @max-[640px]:pb-2.5"
+	>
 		<table
 			class="w-full min-w-[640px] table-fixed border-collapse text-sm [--stage-sticky-columns-h:2px] @min-[640px]:[--stage-sticky-columns-h:var(--stage-columns-h)]"
 			aria-label={stageName}
@@ -202,7 +228,7 @@
 					class="text-left text-xs text-muted-foreground"
 					style="--stage-band: {stageColorVar(stage.color)}"
 				>
-					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_done()}</span></th>
+					<th class={cn(headCell, 'pl-1')}><span class="sr-only">{m.column_status()}</span></th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_task()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_deliverable()}</th>
 					<th class={cn(headCell, 'px-1.5')}>{m.column_target()}</th>
@@ -218,14 +244,16 @@
 					animate:flip={{ duration: flipDuration, easing: cubicOut }}
 				>
 					{#each [task, ...(expanded ? children : [])] as rowTask (rowTask.id)}
-						{@const eff = effectiveValues(rowTask, ws.index.children.get(rowTask.id) ?? [])}
+						{@const taskState = ws.index.state.get(rowTask.id)!}
 						<tr
 							data-grid-row
 							data-task-id={rowTask.id}
+							data-route-target={rowTask.id}
+							use:routeTarget={rowTask.id}
 							class={cn(
 								'border-b transition-colors',
 								rowTask.parentId !== null ? 'border-border/50' : 'border-border',
-								eff.done === 'done' && 'text-muted-foreground',
+								taskState.finished && 'text-muted-foreground',
 								editing.highlightId === rowTask.id && 'bg-accent/60',
 								editing.flashId === rowTask.id && 'row-flash'
 							)}
@@ -233,10 +261,24 @@
 							style:animation-duration={editing.flashId === rowTask.id
 								? `${motionDuration(FLASH_MS)}ms`
 								: undefined}
-							onpointerenter={() => (editing.highlightId = rowTask.id)}
-							onpointerleave={() =>
-								editing.highlightId === rowTask.id && (editing.highlightId = null)}
-							onfocusin={() => (editing.highlightId = rowTask.id)}
+							onpointerenter={(event) => {
+								editing.highlightId = rowTask.id;
+								editing.routeFocus.hoverEnter(
+									rowTask.id,
+									editing.routeFocus.tokenFor(event.currentTarget),
+									event.pointerType
+								);
+							}}
+							onpointerleave={(event) => {
+								if (editing.highlightId === rowTask.id) editing.highlightId = null;
+								editing.routeFocus.hoverLeave(
+									editing.routeFocus.tokenFor(event.currentTarget),
+									event.pointerType
+								);
+							}}
+							onfocusin={() => {
+								editing.highlightId = rowTask.id;
+							}}
 							animate:flip={{ duration: flipDuration, easing: cubicOut }}
 							data-testid="task-row"
 						>
@@ -296,7 +338,14 @@
 />
 
 <style>
-	/* The root scroll padding clears the app header and pinned Timeline section. */
+	/* Sticky offsets follow Timeline motion. The global 0.01 ms fallback must not delay them. */
+	section[data-motion='false'] > header,
+	section[data-motion='false'] thead th,
+	section[data-motion='false'] > [data-testid='stage-band'] {
+		transition: none;
+	}
+
+	/* The scroller padding clears the pinned Timeline section. */
 	table :global(:is(button, input, textarea, [tabindex])) {
 		scroll-margin-top: calc(var(--stage-header-h) + var(--stage-sticky-columns-h));
 	}

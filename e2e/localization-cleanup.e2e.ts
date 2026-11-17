@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+	choosePrint,
 	importJson,
 	openExample,
 	openPreview,
@@ -9,7 +10,8 @@ import {
 	stage,
 	storedPlan,
 	waitForAnimations,
-	writeStoredPlan
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 const localizedProse = {
@@ -107,7 +109,7 @@ for (const [locale, separator] of [
 			row(page, 'Site survey').getByTestId('task-owners').getByRole('button')
 		).toHaveAccessibleName(new RegExp(names));
 		await stage(page, 0).getByTestId('stage-color').click();
-		const palette = page.getByRole('radiogroup');
+		const palette = stageColorPalette(page);
 		await expect(palette).toBeVisible();
 		await waitForAnimations(palette.locator('..'));
 		const amberName = await palette
@@ -120,7 +122,7 @@ for (const [locale, separator] of [
 		expect(amberName).toContain(separator);
 		if (locale === 'zh-TW') expect(amberName).not.toContain('・');
 		await page.keyboard.press('Escape');
-		await expect(page.locator('footer span[aria-hidden="true"]')).toHaveText([
+		await expect(page.locator('#header [role="group"] span[aria-hidden="true"]')).toHaveText([
 			separator,
 			separator
 		]);
@@ -135,7 +137,7 @@ for (const [locale, separator] of [
 			return Math.round(title.getBoundingClientRect().left - prefix.getBoundingClientRect().right);
 		});
 		expect(prefixToTitleGap).toBe(0);
-		await page.getByTestId('preview-open').click();
+		await choosePrint(page);
 		const sheets = page.getByTestId('sheet');
 		await expect(sheets.first()).toBeVisible();
 		const printedTask = sheets.getByTestId('sheet-task-row').filter({ hasText: 'Site survey' });

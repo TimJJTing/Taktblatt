@@ -1,5 +1,6 @@
 /** Import and export of plan files. Refer to docs/data-model.md. */
 import * as v from 'valibot';
+import { expandParents } from './derive.ts';
 import {
 	englishImportDiagnostic,
 	isValidationCode,
@@ -15,6 +16,7 @@ import { migrate, MigrationError } from './migrate.ts';
 import {
 	AnyFileSchema,
 	SCHEMA_VERSION,
+	TASK_STATUSES,
 	type BackupFile,
 	type Plan,
 	type PlanFile
@@ -54,9 +56,14 @@ export function parseFile(
 			ok: false,
 			errors: result.issues.map((issue) => {
 				const custom = isValidationCode(issue.message) ? issue.message : undefined;
-				const code = custom ?? issueCode(issue);
-				const values =
-					code === 'choice' && issue.expected
+				const path = v.getDotPath(issue) ?? undefined;
+				// A missing task status must also list the allowed values.
+				const missingStatus =
+					issue.received === 'undefined' && /(?:^|\.)tasks\.\d+\.status$/.test(path ?? '');
+				const code = missingStatus ? 'choice' : (custom ?? issueCode(issue));
+				const values = missingStatus
+					? TASK_STATUSES.map((status) => JSON.stringify(status))
+					: code === 'choice' && issue.expected
 						? issue.expected.replace(/^\((.*)\)$/, '$1').split(' | ')
 						: undefined;
 				const message = custom
@@ -69,7 +76,7 @@ export function parseFile(
 				return formatDiagnostic({
 					code,
 					values,
-					path: v.getDotPath(issue) ?? undefined,
+					path,
 					message
 				});
 			})
@@ -78,6 +85,7 @@ export function parseFile(
 	const plans = result.output.kind === 'plan' ? [result.output.plan] : result.output.plans;
 	for (const plan of plans) {
 		for (const task of plan.tasks) task.owners = normalizeOwners(task.owners);
+		expandParents(plan);
 	}
 	return { ok: true, plans };
 }

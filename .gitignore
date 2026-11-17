@@ -32,3 +32,16 @@ project.inlang/cache/
 
 # Working plans (local only)
 docs/plans/
+
+# Impeccable design tool: local runtime files. Commit PRODUCT.md and .impeccable/surfaces/.
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/review/
+.impeccable/hook.cache.json
+.impeccable/config.local.json
+
+# Local agent state and nested worktrees
+/.codex/
+/.claude/worktrees/
+/.svelte-kit-fixtures
+/build-fixtures

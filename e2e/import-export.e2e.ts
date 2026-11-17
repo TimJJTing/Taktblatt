@@ -1,11 +1,18 @@
-import { readFile } from 'node:fs/promises';
+import { SCHEMA_VERSION, type Plan } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	chooseView,
+	diagramStage,
 	importJson,
 	openApp,
 	openExample,
-	openSettings,
+	chooseLanguage,
+	openMenu,
+	openMenuWithKeyboard,
+	openPlans,
+	openPreview,
 	planIds,
+	readDownload,
 	row,
 	storedPlan
 } from './helpers.ts';
@@ -13,15 +20,6 @@ import {
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const isoDate = /\d{4}-\d{2}-\d{2}/;
-
-async function readDownload(page: Page, menuItem: string) {
-	await page.getByTestId('export-menu').click();
-	const pending = page.waitForEvent('download');
-	await page.getByRole('menuitem', { name: menuItem }).click();
-	const download = await pending;
-	const text = await readFile((await download.path())!, 'utf8');
-	return { name: download.suggestedFilename(), file: JSON.parse(text) as Json };
-}
 
 async function exportedExample(page: Page) {
 	await openExample(page);
@@ -31,8 +29,13 @@ async function exportedExample(page: Page) {
 test.describe('icons', () => {
 	test('import points into the tray and export points out of it', async ({ page }) => {
 		await openApp(page);
-		await expect(page.getByTestId('import-open').locator('svg')).toHaveClass(/lucide-download/);
-		await expect(page.getByTestId('export-menu').locator('svg')).toHaveClass(/lucide-upload/);
+		const menu = await openPlans(page);
+		await expect(menu.getByTestId('plans-import').locator('svg')).toHaveClass(/lucide-download/);
+		await page.keyboard.press('Escape');
+		const current = await openMenu(page);
+		await expect(current.getByTestId('menu-export-plan').locator('svg').first()).toHaveClass(
+			/lucide-upload/
+		);
 	});
 });
 
@@ -52,12 +55,64 @@ test.describe('export', () => {
 		expect(file.plan.id).toBe((await storedPlan(page)).id);
 	});
 
-	test('"Export all plans" writes a backup file with every plan', async ({ page }) => {
+	test('diagram viewer controls do not change exported plan bytes', async ({ page }) => {
 		await openExample(page);
-		await page.getByTestId('plan-switcher').click();
-		await page.getByRole('menuitem', { name: 'New plan' }).click();
+		const before = await readDownload(page, 'Export this plan');
+		expect(before.file.schemaVersion).toBe(SCHEMA_VERSION);
+		await chooseView(page, 'route-map');
+		const routeToggle = diagramStage(page).getByRole('button', {
+			name: 'Expand Soil preparation',
+			exact: true
+		});
+		await routeToggle.click();
+		await expect(
+			diagramStage(page).getByRole('button', { name: 'Collapse Soil preparation', exact: true })
+		).toHaveAttribute('aria-expanded', 'true');
+		await chooseView(page, 'kanban');
+		const kanbanToggle = diagramStage(page).getByRole('button', {
+			name: 'Collapse Soil preparation',
+			exact: true
+		});
+		await expect(kanbanToggle).toHaveAttribute('aria-expanded', 'true');
+		await kanbanToggle.click();
+		await expect(
+			diagramStage(page).getByRole('button', { name: 'Expand Soil preparation', exact: true })
+		).toHaveAttribute('aria-expanded', 'false');
+		await diagramStage(page)
+			.getByRole('button', { name: 'Expand Soil preparation', exact: true })
+			.click();
+		await chooseView(page, 'gantt');
+		await chooseView(page, 'kanban');
+		const preview = await openPreview(page);
+		await preview.getByTestId('print-diagram-route-map').click();
+		await preview.getByTestId('print-diagram-kanban').click();
+		await preview.getByTestId('print-diagram-gantt').click();
+		await preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' }).click();
+		await expect(preview.getByTestId('print-diagram-gantt')).toHaveAttribute(
+			'aria-checked',
+			'false'
+		);
+		await expect(preview.getByTestId('print-diagram-route-map')).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
+		await expect(preview.getByTestId('print-diagram-kanban')).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
+		await expect(preview.getByTestId('print-subtasks')).toHaveAttribute('aria-checked', 'true');
+		await page.keyboard.press('Escape');
+		const after = await readDownload(page, 'Export this plan');
+		expect(after.file.schemaVersion).toBe(SCHEMA_VERSION);
+		expect(after.text).toBe(before.text);
+	});
+
+	test('"Back up all plans" writes a backup file with every plan', async ({ page }) => {
+		await openExample(page);
+		const plans = await openPlans(page);
+		await plans.getByRole('menuitem', { name: 'New plan' }).click();
 		await expect(page.getByTestId('plan-heading')).toHaveText('Untitled plan');
-		const { name, file } = await readDownload(page, 'Export all plans');
+		const { name, file } = await readDownload(page, 'Back up all plans');
 		expect(name).toMatch(new RegExp(`^taktblatt-backup-${isoDate.source}\\.json$`));
 		expect(file.kind).toBe('backup');
 		expect(file.plans).toHaveLength(2);
@@ -68,8 +123,7 @@ test.describe('export', () => {
 test.describe('import', () => {
 	test('importing a plan in another language leaves the UI language alone', async ({ page }) => {
 		const file = await exportedExample(page);
-		await openSettings(page);
-		await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
+		await chooseLanguage(page, 'Deutsch');
 		// The plan has history, so the app asks before it reloads.
 		await page.getByTestId('language-reload-confirm').click();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -80,9 +134,9 @@ test.describe('import', () => {
 		await importJson(page, file);
 		await expect(page.getByTestId('plan-heading')).toHaveText('Japanese plan');
 		// The old language key of the file is dropped.
-		expect((await storedPlan(page)).locale).toBeUndefined();
+		expect(((await storedPlan(page)) as Plan & { locale?: string }).locale).toBeUndefined();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-		await expect(page.getByTestId('settings-menu')).toHaveAccessibleName('Einstellungen');
+		await expect(page.getByTestId('app-menu')).toHaveAccessibleName('Menü');
 		expect(await page.evaluate(() => localStorage.getItem('taktblatt:locale'))).toBe('de');
 		await page.reload();
 		await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -137,7 +191,7 @@ test.describe('import', () => {
 
 	test('a backup file asks about each plan that exists', async ({ page }) => {
 		await openExample(page);
-		const { file } = await readDownload(page, 'Export all plans');
+		const { file } = await readDownload(page, 'Back up all plans');
 		file.plans.push({ ...structuredClone(file.plans[0]), id: 'other', heading: 'Other plan' });
 		await importJson(page, file, 'backup.json');
 		const dialog = page.getByTestId('import-conflicts');
@@ -197,16 +251,70 @@ test.describe('import', () => {
 		survey.end = '2099-01-02';
 		await importJson(page, file);
 		await expect(page.getByText('Plan imported', { exact: true })).toBeVisible();
-		await expect(page.getByText(/Dependencies that break the date rule: 1/)).toBeVisible();
+		await expect(page.getByText(/(?:Dependencies|Dependency).*: 1/)).toBeVisible();
 		await row(page, 'Order seeds').getByTestId('task-details').click();
 		await expect(page.getByLabel(/starts after this task ends/)).toBeVisible();
 	});
 });
 
-test('the header keeps Import and Export visible at 768 px', async ({ page }) => {
-	await page.setViewportSize({ width: 768, height: 800 });
+test('the header keeps the menu visible at 360 px', async ({ page }) => {
+	await page.setViewportSize({ width: 360, height: 800 });
 	await openApp(page);
-	await expect(page.getByTestId('import-open')).toBeInViewport();
-	await expect(page.getByTestId('export-menu')).toBeInViewport();
+	await expect(page.getByTestId('app-menu')).toBeInViewport();
 	await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeInViewport();
+	const menu = await openPlans(page);
+	await expect(menu.getByTestId('plans-import')).toBeInViewport();
+	await expect(page.getByTestId('plans-backup')).toBeInViewport();
+});
+
+/**
+ * Starts to wait for the file chooser. Call it some steps before the action.
+ * Playwright turns on the file chooser interception asynchronously. A fast action, such as one key
+ * press, can open the chooser before the interception is on. Then no event comes.
+ */
+function waitForFileChooser(page: Page) {
+	return page.waitForEvent('filechooser');
+}
+
+test('Import in Plans opens the file chooser', async ({ page }) => {
+	await openApp(page);
+	const chooser = waitForFileChooser(page);
+	const menu = await openPlans(page);
+	await menu.getByTestId('plans-import').click();
+	await chooser;
+	await expect(page.getByRole('menu')).toHaveCount(0);
+});
+
+test('keyboard Import opens the file chooser, and the focus returns to the plan switcher', async ({
+	page
+}) => {
+	await openApp(page);
+	const chooser = waitForFileChooser(page);
+	const menu = await openMenuWithKeyboard(page, 'plan-switcher');
+	await page.keyboard.press('End');
+	await page.keyboard.press('ArrowUp');
+	await expect(menu.getByTestId('plans-import')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await (
+		await chooser
+	).setFiles({
+		name: 'plan.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from('this is not json')
+	});
+	const dialog = page.getByTestId('import-errors');
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await expect(page.getByTestId('plan-switcher')).toBeFocused();
+});
+
+test('keyboard Export downloads the plan directly from This plan', async ({ page }) => {
+	await openApp(page);
+	await openMenuWithKeyboard(page);
+	await page.keyboard.press('ArrowDown');
+	await expect(page.getByTestId('menu-export-plan')).toBeFocused();
+	const pending = page.waitForEvent('download');
+	await page.keyboard.press('Enter');
+	expect((await pending).suggestedFilename()).toMatch(/\.json$/);
 });

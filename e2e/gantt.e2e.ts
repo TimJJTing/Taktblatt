@@ -1,22 +1,249 @@
+import { MILESTONE_SYMBOLS } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
-	dependencyArrowFades,
+	expectNoArrowheads,
+	expectOpaqueMark,
+	expectLineStatus,
+	expectStationStatus,
+	expectMilestoneRing,
+	expectMilestoneDatePosition,
+	expectTokenPaint,
+	formatted,
+	writeStoredPlan,
 	dependencyContrast,
 	defaultPanelHeight,
 	expectPanelHeight,
 	expectStickyBelowHeader,
 	openExample,
 	row,
-	storedPlan
+	storedPlan,
+	setTaskStatus,
+	ganttRow,
+	openLinePlan,
+	dependencyGeometry,
+	expectCoveredCrossing,
+	expectLocalTap,
+	expectJunctionBehindMark,
+	startDependencyMonitor,
+	changePlanInOtherTab,
+	waitForFrames,
+	waitForAnimations,
+	holdAnimationFrames
 } from './helpers.ts';
 
 const gantt = (page: Page) => page.getByTestId('gantt');
 
-/** The Gantt row of a task, found by its label text. */
-const ganttRow = (page: Page, title: string) =>
-	gantt(page)
-		.getByTestId('gantt-row')
-		.filter({ has: page.getByTestId('gantt-label').and(page.getByText(title, { exact: true })) });
+test('screen lines, stations and sibling connectors use physical sizes', async ({ page }) => {
+	await openLinePlan(page);
+	await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+	for (const [title, lineHeight, dotSize] of [
+		['Source', 8, 8],
+		['Child A', 6, 6]
+	] as const) {
+		const mark = ganttRow(page, title).getByTestId('gantt-bar');
+		await expect(mark.locator('[data-gantt-line]')).toHaveCSS('height', `${lineHeight}px`);
+		await expect(mark.locator('.station-dot')).toHaveCount(2);
+		await expect(mark.locator('.station-dot').first()).toHaveCSS('width', `${dotSize}px`);
+	}
+	const lines = gantt(page).getByTestId('gantt-dependency');
+	await expect(lines.and(page.locator('[data-from="source"]')).first()).toHaveCSS(
+		'stroke-width',
+		'2px'
+	);
+	await expect(lines.and(page.locator('[data-from="child-a"][data-to="child-b"]'))).toHaveCSS(
+		'stroke-width',
+		'1.5px'
+	);
+	await expectNoArrowheads(lines.first());
+});
+
+test('tiny, point and clipped marks use exact ports and flat cuts', async ({ page }) => {
+	await openLinePlan(page);
+	const tiny = ganttRow(page, 'Tiny').getByTestId('gantt-bar');
+	await expect(tiny.locator('.station-dot')).toHaveCount(1);
+	const tinySize = await tiny.evaluate((mark) => {
+		const rect = mark.getBoundingClientRect(),
+			dot = mark.querySelector('.station-dot')!.getBoundingClientRect();
+		return {
+			width: rect.width,
+			dateWidth: mark.parentElement!.clientWidth / 100,
+			left: dot.left - rect.left,
+			right: rect.right - dot.right
+		};
+	});
+	expect(tinySize.width).toBeCloseTo(tinySize.dateWidth, 1);
+	expect(tinySize.left).toBeCloseTo(tinySize.right, 2);
+	expect(tinySize.left).toBeGreaterThanOrEqual(-0.1);
+	const point = ganttRow(page, 'Point').getByTestId('gantt-point');
+	await expect(point).toHaveAccessibleName(/^Point:/);
+	await expect(point.locator('.station-dot')).toHaveCSS('width', '10px');
+	await point.focus();
+	await expect(point).toBeFocused();
+	const clipped = ganttRow(page, 'Tap source').getByTestId('gantt-bar');
+	await expect(clipped.locator('.station-dot')).toHaveCount(1);
+	await expect(clipped.locator('[data-gantt-line]')).toHaveCSS('clip-path', 'none');
+	await expect(clipped.locator('[data-gantt-line]')).toHaveCSS('border-top-right-radius', '0px');
+	for (const to of ['point', 'tiny', 'tap-target']) {
+		const line = gantt(page)
+			.getByTestId('gantt-dependency')
+			.and(page.locator(`[data-to="${to}"]`));
+		await expect
+			.poll(async () => {
+				const g = await dependencyGeometry(line);
+				return g.out && g.in
+					? Math.max(
+							Math.abs(g.first.x - g.out.x),
+							Math.abs(g.first.y - g.out.y),
+							Math.abs(g.last.x - g.in.x),
+							Math.abs(g.last.y - g.in.y)
+						)
+					: Infinity;
+			})
+			.toBeLessThan(0.6);
+	}
+});
+
+test('finished marks cover crossing connectors in both themes', async ({ page }) => {
+	await openLinePlan(page);
+	await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+	// Sample status paint with route focus inactive after the chevron hover.
+	await page.mouse.move(0, 0);
+	await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
+	for (const colorScheme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+		const mark = ganttRow(page, 'Crossing').getByTestId('gantt-bar');
+		await expectOpaqueMark(mark);
+		await expectStationStatus(mark, 'done');
+		await expectLineStatus(mark, 'done');
+		const child = ganttRow(page, 'Child A').getByTestId('gantt-bar');
+		await expectStationStatus(child, 'done');
+		await expectLineStatus(child, 'done');
+		await expectCoveredCrossing(child, gantt(page).getByTestId('gantt-dependency'));
+		await expectCoveredCrossing(mark, gantt(page).getByTestId('gantt-dependency'));
+		await expect(ganttRow(page, 'Crossing').getByTestId('gantt-label')).toHaveClass(/line-through/);
+	}
+});
+
+test('status sorting preserves base DOM identity, parent and geometry', async ({ page }) => {
+	await openLinePlan(page);
+	const line = gantt(page)
+		.getByTestId('gantt-dependency')
+		.and(page.locator('[data-from="tap-source"]'));
+	const original = await line.evaluateHandle((element) => ({
+		element,
+		parent: element.parentNode,
+		d: element.getAttribute('d')
+	}));
+	await setTaskStatus(page, row(page, 'Tap source'), 'done');
+	await expect
+		.poll(() =>
+			original.evaluate(({ element, parent, d }) => {
+				const paths = [...document.querySelectorAll('[data-testid="gantt-dependency"]')];
+				return (
+					paths[0] === element &&
+					element.parentNode === parent &&
+					element.getAttribute('d') === d &&
+					paths.every((p) => p.parentNode === parent)
+				);
+			})
+		)
+		.toBe(true);
+	await original.dispose();
+	await expect(line).toHaveCSS('opacity', '1');
+});
+
+test('ordinary rings stay below bars and taps stay in their source marks', async ({ page }) => {
+	await openLinePlan(page);
+	const rings = gantt(page).getByTestId('gantt-junction');
+	expect(await rings.count()).toBeGreaterThan(0);
+	await expect(rings.first()).toHaveCSS('width', '6px');
+	const source = ganttRow(page, 'Tap source').getByTestId('gantt-bar');
+	const tap = source.getByTestId('gantt-tap');
+	await expect(tap).toHaveAttribute('data-source', 'tap-source');
+	await expect(tap).toHaveAttribute('aria-hidden', 'true');
+	await expectLocalTap(source, 'tap-source');
+	await expectJunctionBehindMark(
+		rings.first(),
+		ganttRow(page, 'Crossing').getByTestId('gantt-bar')
+	);
+	await expect(
+		gantt(page).locator('svg:has([data-testid="gantt-dependency"])').getByTestId('gantt-tap')
+	).toHaveCount(0);
+});
+
+test('a width-only resize has no intermediate connector route', async ({ page }) => {
+	await page.setViewportSize({ width: 1900, height: 1000 });
+	await openLinePlan(page);
+	const line = gantt(page)
+		.getByTestId('gantt-dependency')
+		.and(page.locator('[data-from="tap-source"]'));
+	const monitor = await startDependencyMonitor(line);
+	await page.setViewportSize({ width: 1550, height: 1000 });
+	const frames = await monitor.finish();
+	const width = frames.at(-1)!.width;
+	const resized = frames.filter((f) => f.width === width);
+	expect(resized.length).toBeGreaterThan(1);
+	expect(new Set(resized.map((f) => f.d)).size).toBe(1);
+	const geometry = await dependencyGeometry(line);
+	expect(geometry.first.x).toBeCloseTo(geometry.out!.x, 0);
+	expect(geometry.last.x).toBeCloseTo(geometry.in!.x, 0);
+	// The new route must be expressed as six-point scene geometry, not a resized elbow.
+	expect(geometry.d).not.toMatch(/[HV]/);
+});
+
+for (const reducedMotion of ['reduce', 'no-preference'] as const) {
+	test(`range and row motion stays attached with ${reducedMotion} during repeated changes`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ reducedMotion });
+		await openLinePlan(page);
+		const line = gantt(page)
+			.getByTestId('gantt-dependency')
+			.and(page.locator('[data-from="source"][data-to="target"]'));
+		const before = await line.getAttribute('d');
+		const monitor = await startDependencyMonitor(line);
+		await changePlanInOtherTab(page, (plan) => {
+			plan.range.end = '2027-05-10';
+		});
+		await waitForFrames(page, 2);
+		await changePlanInOtherTab(page, (plan) => {
+			plan.range.end = '2027-06-10';
+		});
+		await ganttRow(page, 'Crossing').getByTestId('gantt-toggle').click();
+		const frames = await monitor.finish();
+		const end = frames.at(-1)!.d;
+		expect(end).not.toBe(before);
+		const intermediate = frames.filter((f) => f.d !== before && f.d !== end);
+		if (reducedMotion === 'no-preference') expect(intermediate.length).toBeGreaterThan(0);
+		// All rendered path frames must use scene segments, including the first frame.
+		expect(frames.every((f) => !/[HV]/.test(f.d ?? ''))).toBe(true);
+		await expect
+			.poll(async () => {
+				const g = await dependencyGeometry(line);
+				return Math.abs(g.first.x - g.out!.x) + Math.abs(g.last.y - g.in!.y);
+			})
+			.toBeLessThan(0.7);
+	});
+}
+
+test('linked highlight keeps label paint and ready dots without a timeline wash', async ({
+	page
+}) => {
+	await openLinePlan(page);
+	const source = ganttRow(page, 'Source');
+	await source.getByTestId('gantt-bar').focus();
+	await expect(row(page, 'Source')).toHaveClass(/bg-accent/);
+	await expect(source).toHaveAttribute('data-highlighted', 'true');
+	const dateArea = source.getByTestId('gantt-bar').locator('..');
+	await expect(dateArea).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+	await expect(source.getByTestId('gantt-label').locator('..')).not.toHaveCSS(
+		'background-color',
+		'rgba(0, 0, 0, 0)'
+	);
+	await expect(ganttRow(page, 'Child A')).toHaveCount(0);
+	await setTaskStatus(page, row(page, 'Source'), 'done');
+	await expect(ganttRow(page, 'Target').getByTestId('ready-dot')).toHaveCount(1);
+});
 
 test('the Gantt shows bars, lines and the today line of the example plan', async ({ page }) => {
 	await openExample(page);
@@ -33,7 +260,7 @@ test('the Gantt shows bars, lines and the today line of the example plan', async
 	);
 });
 
-test('outgoing dependency lines become fainter when their source is done', async ({ page }) => {
+test('outgoing dependency lines mute done and canceled sources', async ({ page }) => {
 	await openExample(page);
 	await page.reload();
 	await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
@@ -47,15 +274,34 @@ test('outgoing dependency lines become fainter when their source is done', async
 	);
 	await expect(line).toHaveCount(1);
 	const normal = await dependencyContrast(line);
-	await row(page, 'First harvest').getByTestId('task-done').click();
+	await setTaskStatus(page, row(page, 'First harvest'), 'done');
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
-	await row(page, 'Sowing').getByTestId('task-done').click();
+	await setTaskStatus(page, row(page, 'Sowing'), 'in_progress');
+	await expect.poll(() => dependencyContrast(line)).toBe(normal);
+	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-bar')).toHaveAccessibleName(
+		/, in progress$/
+	);
+	await expectOpaqueMark(ganttRow(page, 'Sowing').getByTestId('gantt-bar'));
+	await expectStationStatus(ganttRow(page, 'Sowing').getByTestId('gantt-bar'), 'in_progress');
+	await expect(ganttRow(page, 'Sowing').getByTestId('gantt-label')).not.toHaveClass(/line-through/);
+	await setTaskStatus(page, row(page, 'Sowing'), 'done');
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
-	await expect.poll(() => dependencyArrowFades(line)).toBe(true);
+	await expect(line).toHaveCSS('opacity', '1');
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	await expect.poll(() => dependencyContrast(line)).toBe(normal);
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();
 	await expect.poll(() => dependencyContrast(line)).toBeLessThan(normal);
+	await waitForAnimations(line);
+	const doneContrast = await dependencyContrast(line);
+	await setTaskStatus(page, row(page, 'Sowing'), 'canceled');
+	await expect.poll(() => dependencyContrast(line)).toBe(doneContrast);
+	await expect(line).toHaveCSS('opacity', '1');
+	const canceled = ganttRow(page, 'Sowing');
+	await expect(canceled.getByTestId('gantt-bar')).toHaveAccessibleName(/, canceled$/);
+	await expectOpaqueMark(canceled.getByTestId('gantt-bar'));
+	await expectStationStatus(canceled.getByTestId('gantt-bar'), 'canceled');
+	await expectLineStatus(canceled.getByTestId('gantt-bar'), 'canceled');
+	await expect(canceled.getByTestId('gantt-label')).toHaveClass(/line-through/);
 });
 
 test('expand and collapse are shared between the Gantt and the table', async ({ page }) => {
@@ -142,8 +388,27 @@ for (const surface of ['table', 'Gantt'] as const) {
 			await toggle.scrollIntoViewIfNeeded();
 			const box = (await toggle.boundingBox())!;
 			const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-			await recordHighlightAfterClick(page);
-			await page.mouse.click(pointer.x, pointer.y);
+			await page.mouse.move(0, 0);
+			await waitForFrames(page);
+			const frames = surface === 'Gantt' ? await holdAnimationFrames(page) : null;
+			try {
+				await recordHighlightAfterClick(page);
+				await page.mouse.move(pointer.x, pointer.y);
+				const beforeDown = await frames?.state();
+				if (beforeDown) {
+					expect(beforeDown.pending).toBeGreaterThan(0);
+					// The new hover has not painted. It must flush during pointerdown.
+					await expect(ganttRow(page, 'Soil preparation')).not.toHaveAttribute('data-highlighted');
+				}
+				await page.mouse.down();
+				if (frames) expect((await frames.state()).cancelled).toBeGreaterThan(beforeDown!.cancelled);
+				await page.mouse.up();
+				if (frames) expect(await page.locator(HIGHLIGHTED).count()).toBe(0);
+			} finally {
+				await frames?.release();
+			}
+			// Deliver the held callbacks. A stale hover frame must not restore the highlight.
+			if (frames) expect(await page.locator(HIGHLIGHTED).count()).toBe(0);
 			await expect(tableToggle).toHaveAttribute('aria-expanded', String(expanding));
 			await expect(ganttToggle).toHaveAttribute('aria-expanded', String(expanding));
 			await expect(row(page, 'Soil test')).toHaveCount(expanding ? 1 : 0);
@@ -266,9 +531,41 @@ test('the pinned Timeline section resizes with the keyboard within its limits', 
 
 test('a band click opens the band dialog', async ({ page }) => {
 	await openExample(page);
-	await gantt(page)
-		.getByTestId('gantt-band')
-		.click({ position: { x: 4, y: 4 } });
+	const point = await gantt(page).evaluate((chart) => {
+		const band = chart.querySelector('[data-testid="gantt-band"]')!.getBoundingClientRect();
+		const view = chart.querySelector('[data-testid="gantt-scroller"]')!.getBoundingClientRect();
+		for (const row of chart.querySelectorAll('[data-testid="gantt-row"]')) {
+			const bounds = row.getBoundingClientRect();
+			const label = row
+				.querySelector('[data-testid="gantt-label"]')!
+				.parentElement!.getBoundingClientRect();
+			const mark = row
+				.querySelector('[data-testid="gantt-bar"], [data-testid="gantt-point"]')
+				?.getBoundingClientRect();
+			const left = Math.max(band.left, label.right, view.left) + 2;
+			const right = Math.min(band.right, bounds.right, view.right) - 2;
+			const top = Math.max(band.top, bounds.top, view.top);
+			const bottom = Math.min(band.bottom, bounds.bottom, view.bottom);
+			const x = (left + right) / 2;
+			const y = bottom - 3;
+			if (
+				left >= right ||
+				y <= top ||
+				(mark && x >= mark.left && x <= mark.right && y >= mark.top && y <= mark.bottom)
+			)
+				continue;
+			return {
+				x,
+				y,
+				inBand: x > band.left && x < band.right && y > band.top && y < band.bottom,
+				inRow: x > bounds.left && x < bounds.right && y > bounds.top && y < bounds.bottom
+			};
+		}
+		throw new Error('No visible band and task row intersection outside labels and marks');
+	});
+	expect(point.inBand).toBe(true);
+	expect(point.inRow).toBe(true);
+	await page.mouse.click(point.x, point.y);
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Frost risk');
@@ -282,4 +579,59 @@ test('a milestone click opens the milestone dialog', async ({ page }) => {
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Open day');
+});
+
+test('the Default ring and ten ink alternatives keep milestone names, dates and editing', async ({
+	page
+}) => {
+	await openExample(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.milestones = MILESTONE_SYMBOLS.map((symbol, i) => ({
+			id: `sign-${symbol}`,
+			title: `Review ${symbol}`,
+			description: 'Original description',
+			date: new Date(Date.parse(`${plan.range.start}T00:00:00Z`) + (i + 2) * 86400000)
+				.toISOString()
+				.slice(0, 10),
+			symbol
+		}));
+	});
+	const plan = await storedPlan(page);
+	for (const theme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme: theme });
+		await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
+		for (const [index, milestone] of plan.milestones.entries()) {
+			const mark = gantt(page).getByTestId('gantt-milestone').nth(index);
+			await expect(mark).toHaveAccessibleName(
+				`Milestone M${index + 1}: ${milestone.title} (${formatted(milestone.date)})`
+			);
+			await expectTokenPaint(mark.locator('svg'), 'color', '--foreground');
+			await expectMilestoneDatePosition(mark, milestone.date, plan.range);
+			if (index === 0) await expectMilestoneRing(mark);
+			else {
+				const icon = milestone.symbol === 'pin' ? 'map-pin' : milestone.symbol;
+				await expect(mark.locator(`svg.lucide-${icon}`)).toBeVisible();
+			}
+		}
+	}
+	const mark = gantt(page).getByTestId('gantt-milestone').first();
+	await mark.focus();
+	await mark.press('Enter');
+	const dialog = page.getByTestId('milestone-dialog');
+	await expect(dialog).toBeVisible();
+	await expect(dialog.getByTestId('milestone-symbol')).toHaveText('Default');
+	await expectMilestoneRing(dialog.getByTestId('milestone-symbol'), false);
+	await expect(dialog.getByLabel('Description', { exact: true })).toHaveValue(
+		'Original description'
+	);
+	await dialog.getByLabel('Title', { exact: true }).fill('Edited ring');
+	await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(mark).toBeFocused();
+	await expect
+		.poll(async () => (await storedPlan(page)).milestones[0])
+		.toEqual({ ...plan.milestones[0], title: 'Edited ring' });
+	await page.reload();
+	await expectMilestoneRing(mark);
+	await expect(mark).toHaveAccessibleName(/Edited ring/);
 });

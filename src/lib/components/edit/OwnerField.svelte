@@ -21,6 +21,7 @@
 
 	interface Props {
 		owners: readonly string[];
+		locked?: readonly string[];
 		/** All owners of the plan, for suggestions. */
 		suggestions: readonly string[];
 		label: string;
@@ -28,12 +29,14 @@
 		onRename: (from: string, to: string) => void;
 	}
 
-	let { owners, suggestions, label, onChange, onRename }: Props = $props();
+	let { owners, locked = [], suggestions, label, onChange, onRename }: Props = $props();
 
 	let open = $state(false);
 	let text = $state('');
 	let renameFrom = $state<string | null>(null);
 	let renameTo = $state('');
+
+	const lockedKeys = $derived(new Set(locked.map(ownerKey)));
 
 	const filtered = $derived.by(() => {
 		const used = new Set(owners.map(ownerKey));
@@ -73,6 +76,7 @@
 	}
 
 	function remove(name: string) {
+		if (lockedKeys.has(ownerKey(name))) return;
 		onChange(owners.filter((o) => o !== name));
 	}
 
@@ -129,14 +133,16 @@
 								</DropdownMenu.Item>
 							</DropdownMenu.Content>
 						</DropdownMenu.Root>
-						<button
-							type="button"
-							class="mr-0.5 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
-							aria-label={m.owner_remove({ name: owner })}
-							onclick={() => remove(owner)}
-						>
-							<XIcon class="size-3" aria-hidden="true" />
-						</button>
+						{#if !lockedKeys.has(ownerKey(owner))}
+							<button
+								type="button"
+								class="mr-0.5 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+								aria-label={m.owner_remove({ name: owner })}
+								onclick={() => remove(owner)}
+							>
+								<XIcon class="size-3" aria-hidden="true" />
+							</button>
+						{/if}
 					</li>
 				{/each}
 			</ul>

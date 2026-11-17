@@ -3,7 +3,7 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { mergeProps } from 'bits-ui';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import { isComposing } from '#lib/browser/keyboard.ts';
+	import { focusRadio, radioGroupIndex } from '#lib/browser/keyboard.ts';
 	import * as Popover from '#lib/components/ui/popover/index.ts';
 	import { STAGE_COLOR_KEYS, type StageColor } from '#lib/domain/palette.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -29,31 +29,12 @@
 	}
 
 	function onKeydown(event: KeyboardEvent, key: StageColor) {
-		if (isComposing(event)) return;
-		const index = STAGE_COLOR_KEYS.indexOf(key);
-		let next: number;
-		switch (event.key) {
-			case 'ArrowRight':
-			case 'ArrowDown':
-				next = (index + 1) % STAGE_COLOR_KEYS.length;
-				break;
-			case 'ArrowLeft':
-			case 'ArrowUp':
-				next = (index - 1 + STAGE_COLOR_KEYS.length) % STAGE_COLOR_KEYS.length;
-				break;
-			case 'Home':
-				next = 0;
-				break;
-			case 'End':
-				next = STAGE_COLOR_KEYS.length - 1;
-				break;
-			default:
-				return;
-		}
+		const next = radioGroupIndex(event, STAGE_COLOR_KEYS.indexOf(key), STAGE_COLOR_KEYS.length);
+		if (next === null) return;
 		event.preventDefault();
 		focusedColor = STAGE_COLOR_KEYS[next];
 		onChange(focusedColor);
-		group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+		focusRadio(group, next);
 	}
 	const duplicate = $derived(used.includes(value));
 </script>

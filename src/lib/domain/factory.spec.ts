@@ -64,7 +64,7 @@ describe('content factories', () => {
 		expect(createStage(['blue'])).toMatchObject({ title: '', description: '', color: 'amber' });
 	});
 
-	it('makes an empty open task in the given stage and parent', () => {
+	it('makes an empty todo task in the given stage and parent', () => {
 		const task = createTask('s1', 'p1');
 		expect(task).toMatchObject({
 			stageId: 's1',
@@ -73,7 +73,7 @@ describe('content factories', () => {
 			start: null,
 			end: null,
 			owners: [],
-			done: false,
+			status: 'todo',
 			dependsOn: []
 		});
 		expect(createTask('s1').parentId).toBeNull();

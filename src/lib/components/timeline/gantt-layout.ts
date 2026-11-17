@@ -1,6 +1,6 @@
 /**
- * Screen layout of the Gantt: sizes (CSS lengths and pixels) and small drawing helpers.
- * The geometry (fractions of the width) comes from #lib/domain/gantt.
+ * Screen layout sizes and pinned-height limits for the Gantt.
+ * The geometry (fractions of the width) comes from #lib/domain/gantt.ts.
  */
 import { GANTT_HEIGHT } from '#lib/state/viewer.svelte.ts';
 
@@ -15,56 +15,32 @@ export const TIMELINE_MIN_WIDTH = 640;
 export const HEADER_HEIGHT = 28;
 export const MILESTONE_ROW_HEIGHT = 28;
 export const ROW_HEIGHT = 28;
-/** The duration of the row and line motion, before motionDuration. */
-export const ROW_MOTION_MS = 240;
+export const CHART_BORDER_HEIGHT = 2;
+export const MIN_CHART_HEIGHT =
+	HEADER_HEIGHT + MILESTONE_ROW_HEIGHT + 3 * ROW_HEIGHT + CHART_BORDER_HEIGHT;
+export const TIMELINE_HANDLE_RESERVE = 12;
+export const STAGE_EDGE_HEIGHT = 4;
+export const TIMELINE_HANDLE_HEIGHT = 20;
+export const COLLAPSED_TIMELINE_HEIGHT = STAGE_EDGE_HEIGHT + TIMELINE_HANDLE_HEIGHT;
+/**
+ * The space above the heading in the expanded tabs section. It is the same as --pane-padding with
+ * tabs (WorkspaceShell.svelte). Change both together.
+ */
+export const TABS_TIMELINE_TOP_SPACE = 16;
 /** The duration of section height, control and legend motion, before motionDuration. */
 export const TIMELINE_MOTION_MS = 180;
 
 /**
- * The vertical center of a task row. `top` is the height above the first row (the milestone row)
- * and `rowHeight` is the height of a row. The defaults are the screen values.
+ * The limits of the pinned height in pixels, for a viewport height. With tabs, the expanded section
+ * adds TABS_TIMELINE_TOP_SPACE to this height.
  */
-export function rowCenterY(
-	row: number,
-	top: number = MILESTONE_ROW_HEIGHT,
-	rowHeight: number = ROW_HEIGHT
-): number {
-	return top + row * rowHeight + rowHeight / 2;
-}
-
-/** An elbow path from the end of the predecessor to the start of the dependent. */
-export function elbowPath(x0: number, y0: number, x1: number, y1: number): string {
-	const out = x0 + 6;
-	if (x1 >= out + 4) return `M ${x0} ${y0} H ${out} V ${y1} H ${x1}`;
-	// The dependent starts before the predecessor ends: go around between the rows.
-	const mid = (y0 + y1) / 2;
-	return `M ${x0} ${y0} H ${out} V ${mid} H ${x1 - 6} V ${y1} H ${x1}`;
-}
-
-/** A clip path that gives a jagged edge to each clipped side of a bar. */
-export function clipEdges(clipStart: boolean, clipEnd: boolean): string | undefined {
-	if (!clipStart && !clipEnd) return undefined;
-	const left = clipStart ? ['4px 100%', '0 75%', '4px 50%', '0 25%', '4px 0'] : ['0 100%', '0 0'];
-	const right = clipEnd
-		? [
-				'calc(100% - 4px) 0',
-				'100% 25%',
-				'calc(100% - 4px) 50%',
-				'100% 75%',
-				'calc(100% - 4px) 100%'
-			]
-		: ['100% 0', '100% 100%'];
-	return `polygon(${[...left, ...right].join(', ')})`;
-}
-
-/** The limits of the pinned height in pixels, for a viewport height. */
-export function heightLimits(viewport: number): { min: number; max: number } {
-	const max = GANTT_HEIGHT.max * viewport;
+export function heightLimits(viewport: number, split = true): { min: number; max: number } {
+	const max = (split ? GANTT_HEIGHT.max : GANTT_HEIGHT.narrowMax) * viewport;
 	return { min: Math.min(GANTT_HEIGHT.minPx, max), max };
 }
 
-/** The pinned height in pixels, clamped to the limits. */
-export function pinnedHeight(fraction: number, viewport: number): number {
-	const { min, max } = heightLimits(viewport);
+/** The pinned height in pixels, clamped to the limits. See heightLimits for the tabs top space. */
+export function pinnedHeight(fraction: number, viewport: number, split = true): number {
+	const { min, max } = heightLimits(viewport, split);
 	return Math.min(max, Math.max(min, fraction * viewport));
 }

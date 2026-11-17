@@ -6,9 +6,10 @@
  * Refer to docs/spec.md, section 5.4.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
-import { effectiveValues, orderedMilestones, type DoneState, type TaskIndex } from './derive.ts';
-import { effectiveDependencies } from './dependencies.ts';
-import type { Band, Milestone } from './schema.ts';
+import { dependencyEdgeKey, dependencyWarnings } from './dependencies.ts';
+import { orderedMilestones, type TaskIndex } from './derive.ts';
+import type { Band, Milestone, TaskStatus } from './schema.ts';
+import { lineKey } from './route.ts';
 
 /** The visible range of the timeline. Both dates are inclusive. */
 export interface GanttWindow {
@@ -120,7 +121,7 @@ export interface GanttRow {
 	parentId: string | null;
 	isParent: boolean;
 	expanded: boolean;
-	done: DoneState;
+	status: TaskStatus;
 	mark: GanttMark;
 	/** 0-based. */
 	row: number;
@@ -128,12 +129,12 @@ export interface GanttRow {
 
 /**
  * Rows in table order: stages in plan order, then ws.index.stageTasks order.
- * Subtasks (ws.index.children order) show only when the parent is expanded.
+ * Subtasks (ws.index.children order) show only when showChildren(parentId) is true.
  */
 export function ganttRows(
 	index: TaskIndex,
 	stageIds: readonly string[],
-	isExpanded: (id: string) => boolean,
+	showChildren: (id: string) => boolean,
 	win: GanttWindow
 ): GanttRow[] {
 	const rows: GanttRow[] = [];
@@ -141,8 +142,8 @@ export function ganttRows(
 		for (const task of index.stageTasks.get(stageId) ?? []) {
 			const children = index.children.get(task.id) ?? [];
 			const isParent = children.length > 0;
-			const expanded = isParent && isExpanded(task.id);
-			const eff = effectiveValues(task, children);
+			const expanded = isParent && showChildren(task.id);
+			const eff = index.state.get(task.id)!.eff;
 			rows.push({
 				id: task.id,
 				stageId,
@@ -150,13 +151,13 @@ export function ganttRows(
 				parentId: null,
 				isParent,
 				expanded,
-				done: eff.done,
+				status: eff.status,
 				mark: taskMark(win, eff),
 				row: rows.length
 			});
 			if (!expanded) continue;
 			for (const child of children) {
-				const childEff = effectiveValues(child);
+				const childEff = index.state.get(child.id)!.eff;
 				rows.push({
 					id: child.id,
 					stageId,
@@ -164,7 +165,7 @@ export function ganttRows(
 					parentId: task.id,
 					isParent: false,
 					expanded: false,
-					done: childEff.done,
+					status: childEff.status,
 					mark: taskMark(win, childEff),
 					row: rows.length
 				});
@@ -175,6 +176,7 @@ export function ganttRows(
 }
 
 export interface DependencyLine {
+	cycle: boolean;
 	/** `${fromId}->${toId}`. */
 	key: string;
 	/** The row of the dependency (predecessor). */
@@ -197,9 +199,8 @@ function markEnd(mark: GanttMark): number {
 	return mark.kind === 'bar' ? mark.x1 : mark.kind === 'point' ? mark.x : 0;
 }
 
-/** The dependencies that a row draws. An expanded parent draws only its own dependencies. */
+/** Every row draws only its own stored dependencies. */
 function rowDependencies(index: TaskIndex, row: GanttRow): Iterable<string> {
-	if (!row.expanded) return effectiveDependencies(index, row.id);
 	const task = index.byId.get(row.id);
 	if (!task) return [];
 	const childIds = new Set((index.children.get(row.id) ?? []).map((c) => c.id));
@@ -220,15 +221,26 @@ export function dependencyLines(index: TaskIndex, rows: readonly GanttRow[]): De
 		const parentId = index.byId.get(id)?.parentId;
 		return parentId ? byId.get(parentId) : undefined;
 	};
+	const cycles = new Set(
+		dependencyWarnings(index)
+			.filter((w) => w.kind === 'cycle')
+			.map((w) => dependencyEdgeKey(w.taskId, w.dependencyId))
+	);
 	const lines = new Map<string, DependencyLine>();
 	for (const to of rows) {
 		if (!isDrawn(to.mark)) continue;
 		for (const depId of rowDependencies(index, to)) {
 			const from = visibleRow(depId);
 			if (!from || from.row === to.row || !isDrawn(from.mark)) continue;
-			const key = `${from.id}->${to.id}`;
-			if (lines.has(key)) continue;
+			const key = lineKey(from.id, to.id);
+			const cycle = cycles.has(dependencyEdgeKey(to.id, depId));
+			const existing = lines.get(key);
+			if (existing) {
+				existing.cycle ||= cycle;
+				continue;
+			}
 			lines.set(key, {
+				cycle,
 				key,
 				fromId: from.id,
 				toId: to.id,

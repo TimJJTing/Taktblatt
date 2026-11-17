@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_TINT_KEYS, STAGE_COLOR_KEYS, STAGE_COLORS, nextStageColor } from './palette.ts';
+import { THEME_COLORS } from '#lib/theme.ts';
+import {
+	BAND_TINT_KEYS,
+	STAGE_BADGE_TEXT,
+	STAGE_COLOR_KEYS,
+	STAGE_COLORS,
+	nextStageColor
+} from './palette.ts';
 
 /** Returns the WCAG relative luminance of a "#RRGGBB" color. */
 function luminance(hex: string): number {
@@ -8,6 +15,12 @@ function luminance(hex: string): number {
 		return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 	});
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(first: string, second: string): number {
+	const a = luminance(first);
+	const b = luminance(second);
+	return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
 describe('nextStageColor', () => {
@@ -31,12 +44,29 @@ describe('nextStageColor', () => {
 });
 
 describe('palette', () => {
-	it('gives each stage color a contrast of 3:1 or more against white', () => {
+	it('gives each light stage color a contrast of 4.5:1 or more against white', () => {
 		for (const key of STAGE_COLOR_KEYS) {
-			const ratio = 1.05 / (luminance(STAGE_COLORS[key].light) + 0.05);
-			expect(ratio, key).toBeGreaterThanOrEqual(3);
+			expect.soft(contrast(STAGE_COLORS[key].light, '#FFFFFF'), key).toBeGreaterThanOrEqual(4.5);
 		}
 	});
+
+	it('gives each dark stage color a contrast of 6:1 or more against the dark ground', () => {
+		for (const key of STAGE_COLOR_KEYS) {
+			expect
+				.soft(contrast(STAGE_COLORS[key].dark, THEME_COLORS.dark), key)
+				.toBeGreaterThanOrEqual(6);
+		}
+	});
+
+	for (const theme of ['light', 'dark'] as const) {
+		it(`gives ${theme} badge text a contrast of 4.5:1 or more against every stage fill`, () => {
+			for (const key of STAGE_COLOR_KEYS) {
+				expect
+					.soft(contrast(STAGE_BADGE_TEXT[theme], STAGE_COLORS[key][theme]), key)
+					.toBeGreaterThanOrEqual(4.5);
+			}
+		});
+	}
 
 	it('starts the band tints with gray, the default band tint', () => {
 		expect(BAND_TINT_KEYS[0]).toBe('gray');

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { overlayScrollbarInside } from '#lib/components/app/overlay-scrollbar.ts';
 	import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui';
 	import { cn, type WithoutChildrenOrChild } from '#lib/utils.js';
 	import DropdownMenuPortal from './dropdown-menu-portal.svelte';
@@ -17,7 +18,9 @@
 </script>
 
 <DropdownMenuPortal {...portalProps}>
+	<!-- Keep the overlay inside the menu so a thumb press is not an outside press. -->
 	<DropdownMenuPrimitive.Content
+		{@attach overlayScrollbarInside}
 		bind:ref
 		data-slot="dropdown-menu-content"
 		{sideOffset}

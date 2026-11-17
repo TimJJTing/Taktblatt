@@ -36,7 +36,6 @@ export function formatImportDiagnostic(diagnostic: ImportDiagnostic): string {
 		validation_remark_ids: () => m.validation_remark_ids(),
 		validation_dependency: () => m.validation_dependency(),
 		validation_dependency_parent: () => m.validation_dependency_parent(),
-		validation_dependency_cycle: () => m.validation_dependency_cycle(),
 		validation_backup_empty: () => m.validation_backup_empty(),
 		validation_plan_ids: () => m.validation_plan_ids()
 	};

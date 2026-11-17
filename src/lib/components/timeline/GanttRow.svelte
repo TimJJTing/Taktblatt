@@ -9,124 +9,158 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { mergeProps } from 'bits-ui';
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
+	import type { Action } from 'svelte/action';
+	import type { RoutePaint } from '#lib/components/plan/colors.ts';
+	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import { fade } from 'svelte/transition';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { subtaskFill } from '#lib/components/plan/colors.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveOf } from '#lib/domain/derive.ts';
-	import type { GanttMark, GanttRow } from '#lib/domain/gantt.ts';
+	import ExpandToggle from '#lib/components/task/ExpandToggle.svelte';
+	import TaskMark from '#lib/components/diagram/TaskMark.svelte';
+	import type { GanttMarkGeom } from '#lib/scene/gantt-scene.ts';
+	import type { Junction } from '#lib/scene/types.ts';
+	import type { GanttRow } from '#lib/domain/gantt.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { cn } from '#lib/utils.ts';
-	import { clipEdges, ROW_HEIGHT, ROW_MOTION_MS } from './gantt-layout.ts';
+	import { ROW_HEIGHT } from './gantt-layout.ts';
 	import { markLabel } from './mark-label.ts';
 
 	interface Props {
 		row: GanttRow;
+		routeTarget: Action<HTMLElement, string>;
+		geom: GanttMarkGeom;
+		width: number;
+		taps: readonly Junction[];
 		/** The stage color as a CSS value. */
 		color: string;
 		highlighted: boolean;
+		route?: RoutePaint;
+		tapRoutes?: ReadonlyMap<string, RoutePaint>;
 		onJump: (id: string) => void;
 		onHighlight: (id: string, on: boolean) => void;
 	}
 
-	let { row, color, highlighted, onJump, onHighlight }: Props = $props();
+	let {
+		row,
+		routeTarget,
+		geom,
+		width,
+		taps,
+		color,
+		highlighted,
+		onJump,
+		onHighlight,
+		route = null,
+		tapRoutes
+	}: Props = $props();
+	const editing = getEditing();
+	const targetId = $props.id();
 
 	const ws = getWorkspace();
 	const viewer = getViewer();
 
 	const task = $derived(ws.index.byId.get(row.id));
 	const titleText = $derived(task?.title || m.task_untitled());
-	const eff = $derived(effectiveOf(ws.index, row.id));
-	const ready = $derived(readyCount(ws.index, row.id));
-	const done = $derived(row.done === 'done');
+	const taskState = $derived(ws.index.state.get(row.id)!);
+	const eff = $derived(taskState.eff);
+	const muted = $derived(taskState.finished);
 	const subtask = $derived(row.level === 1);
 	const mark = $derived(row.mark);
 
-	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, done }));
+	const markName = $derived(markLabel({ mark, title: titleText, dates: eff, status: row.status }));
 
-	const fill = $derived(subtask ? subtaskFill(color) : color);
-
-	const y = new Tween(untrack(() => row.row * ROW_HEIGHT));
+	const y = new GeometryTween(
+		untrack(() => row.row * ROW_HEIGHT),
+		untrack(() => width)
+	);
 	$effect(() => {
-		y.set(row.row * ROW_HEIGHT, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+		y.set(row.row * ROW_HEIGHT, { width });
 	});
 
-	// The mark moves to its new position when the plan range changes.
-	const markX = (value: GanttMark) =>
-		value.kind === 'bar'
-			? { x0: value.x0, x1: value.x1 }
-			: value.kind === 'point'
-				? { x0: value.x, x1: value.x }
-				: null;
-	const x = new Tween(untrack(() => markX(mark) ?? { x0: 0, x1: 0 }));
+	const bounds = (g: GanttMarkGeom) => {
+		const dot = g.stations[0];
+		return {
+			x0: g.line?.x0 ?? (dot ? dot.x - dot.r : 0),
+			x1: g.line?.x1 ?? (dot ? dot.x + dot.r : 0),
+			height: Math.max(g.line?.height ?? 0, ...g.stations.map((s) => s.r * 2))
+		};
+	};
+	const x = new GeometryTween(
+		untrack(() => bounds(geom)),
+		untrack(() => width)
+	);
+	let previousVisible = untrack(() => geom.line !== null || geom.stations.length > 0);
 	$effect(() => {
-		const next = markX(mark);
-		if (next) x.set(next, { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
+		const visible = geom.line !== null || geom.stations.length > 0;
+		const newlyVisible = !previousVisible && visible;
+		previousVisible = visible;
+		x.set(bounds(geom), { width, snap: newlyVisible });
 	});
 	const colorDuration = $derived(`${motionDuration(150)}ms`);
 
-	const showRowId = $props.id();
+	const showRowId = `${targetId}-show`;
 	const showRow = $derived(m.gantt_show_row({ task: titleText }));
 
-	const hover = {
-		onpointerenter: () => onHighlight(row.id, true),
-		onpointerleave: () => onHighlight(row.id, false),
+	const focusInput = {
 		onfocusin: () => onHighlight(row.id, true),
 		onfocusout: () => onHighlight(row.id, false)
 	};
+	function markClick(event: MouseEvent) {
+		if (editing.routeFocus.lastPointerType === 'touch')
+			editing.routeFocus.toggleTouch(
+				row.id,
+				editing.routeFocus.tokenFor(event.currentTarget as Element)
+			);
+	}
 </script>
 
 <div
 	class="pointer-events-none absolute inset-x-0 flex"
 	style:top="{y.current}px"
 	style:height="{ROW_HEIGHT}px"
+	data-route-target={row.id}
+	use:routeTarget={row.id}
 	data-testid="gantt-row"
 	data-task-id={row.id}
 	data-highlighted={highlighted || undefined}
+	data-route={route ?? undefined}
 	transition:fade={{ duration: motionDuration(150) }}
 >
 	<div
 		class={cn(
 			'pointer-events-auto sticky left-0 z-10 flex w-(--gantt-label-width) shrink-0 items-center gap-1 border-r px-1 transition-colors',
-			highlighted ? 'bg-accent' : 'bg-background',
+			highlighted
+				? 'bg-accent forced-colors:bg-[Highlight] forced-colors:text-[HighlightText] forced-colors:forced-color-adjust-none forced-colors:[&_button]:text-inherit'
+				: 'bg-background',
 			subtask && 'pl-6'
 		)}
 		style:transition-duration={colorDuration}
-		{...hover}
+		data-route-target={row.id}
+		data-route-focus="keyboard"
+		use:routeTarget={row.id}
+		{...focusInput}
 	>
 		{#if row.isParent}
-			<button
-				type="button"
-				class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-				aria-expanded={row.expanded}
-				aria-label={row.expanded
-					? m.task_collapse({ task: titleText })
-					: m.task_expand({ task: titleText })}
-				onclick={(event) => {
+			<ExpandToggle
+				expanded={row.expanded}
+				task={titleText}
+				onToggle={(event) => {
 					viewer.toggleExpanded(ws.plan.id, row.id);
 					if (event.detail > 0) {
-						event.currentTarget.blur();
+						(event.currentTarget as HTMLButtonElement).blur();
 						onHighlight(row.id, false);
 					}
 				}}
-				data-testid="gantt-toggle"
-			>
-				<span
-					class={cn('flex transition-transform', row.expanded && 'rotate-90')}
-					style:transition-duration={`${motionDuration(200)}ms`}
-					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
-				>
-			</button>
+				testid="gantt-toggle"
+			/>
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} reserve />
+		<ReadyDot readiness={taskState.readiness} reserve />
 		<Hint text={showRow}>
 			{#snippet child({ props })}
 				<button
@@ -135,73 +169,53 @@
 					class={cn(
 						'min-w-0 flex-1 truncate rounded-sm px-0.5 text-left text-xs hover:underline focus-visible:outline-2 focus-visible:outline-ring',
 						!subtask && 'font-medium',
-						done && 'text-muted-foreground line-through decoration-muted-foreground/50'
+						muted && 'text-muted-foreground line-through decoration-muted-foreground/50'
 					)}
 					aria-describedby={showRowId}
+					data-diagram-label={row.id}
 					data-testid="gantt-label">{titleText}</button
 				>
 			{/snippet}
 		</Hint>
 		<span id={showRowId} class="sr-only">{showRow}</span>
 	</div>
-	<div
-		class={cn('relative flex-1 transition-colors', highlighted && 'bg-accent/60')}
-		style:transition-duration={colorDuration}
-	>
-		{#if mark.kind === 'bar'}
+	<div class="relative flex-1" style:transition-duration={colorDuration}>
+		{#if mark.kind === 'bar' || mark.kind === 'point'}
 			<Hint text={markName}>
 				{#snippet child({ props })}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
-						{...mergeProps(props, hover)}
+						{...mergeProps(props, focusInput, { onclick: markClick })}
 						role="img"
 						tabindex="0"
 						aria-label={markName}
-						class={cn(
-							'pointer-events-auto absolute top-1/2 min-w-0.5 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							!mark.clipStart && 'rounded-l-sm',
-							!mark.clipEnd && 'rounded-r-sm',
-							highlighted && 'ring-2 ring-ring/70'
-						)}
-						style:left="{x.current.x0 * 100}%"
-						style:width="{(x.current.x1 - x.current.x0) * 100}%"
-						style:height={subtask ? '8px' : '14px'}
-						data-testid="gantt-bar"
-						data-clip-start={mark.clipStart || undefined}
-						data-clip-end={mark.clipEnd || undefined}
+						class="pointer-events-auto absolute top-1/2 -translate-y-1/2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+						style:left="{x.current.x0}px"
+						style:width="{x.current.x1 - x.current.x0}px"
+						style:height="{x.current.height}px"
+						data-route-target={row.id}
+						data-route-focus="keyboard"
+						data-route-touch
+						use:routeTarget={row.id}
+						data-diagram-task={row.id}
+						data-diagram-parent={row.parentId ?? undefined}
+						data-testid={mark.kind === 'bar' ? 'gantt-bar' : 'gantt-point'}
+						data-clip-start={(mark.kind === 'bar' && mark.clipStart) || undefined}
+						data-clip-end={(mark.kind === 'bar' && mark.clipEnd) || undefined}
 					>
-						<!-- The clip path is on the fill only. The focus outline and the ring stay visible. -->
-						<div
-							class={cn(
-								'absolute inset-0',
-								!mark.clipStart && 'rounded-l-sm',
-								!mark.clipEnd && 'rounded-r-sm',
-								done && 'opacity-40'
-							)}
-							style:background={fill}
-							style:clip-path={clipEdges(mark.clipStart, mark.clipEnd)}
-						></div>
+						<TaskMark
+							{route}
+							{tapRoutes}
+							{subtask}
+							{geom}
+							box={x.current}
+							status={row.status}
+							{color}
+							{width}
+							{taps}
+							taskId={row.id}
+						/>
 					</div>
-				{/snippet}
-			</Hint>
-		{:else if mark.kind === 'point'}
-			<Hint text={markName}>
-				{#snippet child({ props })}
-					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-					<div
-						{...mergeProps(props, hover)}
-						role="img"
-						tabindex="0"
-						aria-label={markName}
-						class={cn(
-							'pointer-events-auto absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-							done && 'opacity-40',
-							highlighted && 'ring-2 ring-ring/70'
-						)}
-						style:left="{x.current.x0 * 100}%"
-						style:background={fill}
-						data-testid="gantt-point"
-					></div>
 				{/snippet}
 			</Hint>
 		{:else if mark.kind === 'outside'}

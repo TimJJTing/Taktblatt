@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import {
 	GANTT_HEIGHT,
+	addWorkspaceOverflow,
+	timelineHandle,
 	defaultPanelHeight,
 	expectPanelHeight,
 	expectStickyStageStack,
@@ -9,8 +11,14 @@ import {
 	openExample,
 	row,
 	stage,
+	storedPlan,
 	titles,
-	waitForAnimations
+	waitForAnimations,
+	setTaskStatus,
+	selectTab,
+	groupScroller,
+	writeStoredPlan,
+	stageColorPalette
 } from './helpers.ts';
 
 test.describe('work plan', () => {
@@ -56,16 +64,161 @@ test.describe('work plan', () => {
 		await expect(first.getByTestId('task-deliverable').nth(1)).toBeFocused();
 	});
 
-	test('the done checkbox updates the stage progress and the ready light', async ({ page }) => {
+	test('the status select updates the stage progress and the ready light', async ({ page }) => {
 		await openExample(page);
 		const grow = stage(page, 1);
 		await expect(grow.getByTestId('stage-progress')).toContainText('0 / 2');
 		// "First harvest" depends on "Sowing". Marking "Sowing" done turns on the ready light of "First harvest".
 		const harvest = row(page, 'First harvest');
 		await expect(harvest.getByTestId('ready-dot')).toHaveCount(0);
-		await row(page, 'Sowing').getByTestId('task-done').click();
+		await setTaskStatus(page, row(page, 'Sowing'), 'done');
 		await expect(grow.getByTestId('stage-progress')).toContainText('1 / 2');
 		await expect(harvest.getByTestId('ready-dot')).toBeVisible();
+	});
+
+	test('status changes are one history step; opening, closing and reselecting are not', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.title === 'Sowing')!.status = 'todo';
+		});
+		const task = row(page, 'Sowing');
+		const trigger = task.getByTestId('task-status');
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		const redo = page.getByRole('button', { name: 'Redo', exact: true });
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeDisabled();
+		await trigger.click();
+		await expect(page.getByRole('listbox')).toBeVisible();
+		await waitForAnimations(page.getByRole('listbox'));
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('listbox')).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+		await setTaskStatus(page, task, 'todo');
+		await expect(undo).toBeDisabled();
+		await setTaskStatus(page, task, 'in_progress');
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+		await expect(task).not.toHaveClass(/text-muted-foreground/);
+		await undo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Todo');
+		await expect(undo).toBeDisabled();
+		await redo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+		await expect(redo).toBeDisabled();
+		await setTaskStatus(page, task, 'done');
+		await expect(task).toHaveClass(/text-muted-foreground/);
+	});
+
+	test('the fourth status cancels and mutes a task in one undo step', async ({ page }) => {
+		await openExample(page);
+		// Loading the example is an undo step. A reload starts with an empty history.
+		await page.reload();
+		await expect(page.getByTestId('plan-heading')).toContainText('Community Garden');
+		const task = row(page, 'Sowing');
+		const trigger = task.getByTestId('task-status');
+		const undo = page.getByRole('button', { name: 'Undo', exact: true });
+		await expect(undo).toBeDisabled();
+		await trigger.click();
+		await expect(page.getByRole('option')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await page.keyboard.press('Escape');
+		await setTaskStatus(page, task, 'canceled');
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Canceled');
+		await expect(task).toHaveClass(/text-muted-foreground/);
+		await expect(task.getByTestId('task-title')).toHaveClass(/line-through/);
+		await undo.click();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: Todo');
+		await expect(task).not.toHaveClass(/text-muted-foreground/);
+		await expect(undo).toBeDisabled();
+	});
+
+	test('keyboard selects the next status and returns focus to the trigger', async ({ page }) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.title === 'Sowing')!.status = 'todo';
+		});
+		const trigger = row(page, 'Sowing').getByTestId('task-status');
+		await focusPreviousControl(trigger);
+		await page.keyboard.press('Tab');
+		await expect(trigger).toBeFocused();
+		await page.keyboard.press('Enter');
+		const listbox = page.getByRole('listbox');
+		await expect(listbox).toBeVisible();
+		await waitForAnimations(listbox);
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Enter');
+		await expect(listbox).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+		await page.keyboard.press('Space');
+		await expect(listbox).toBeVisible();
+		await waitForAnimations(listbox);
+		await page.keyboard.press('Escape');
+		await expect(listbox).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+		await expect(trigger).toHaveAccessibleName('Status of Sowing: In progress');
+	});
+
+	test('the parent status is disabled and its hint wrapper gets keyboard focus', async ({
+		page
+	}) => {
+		await openExample(page);
+		const parent = row(page, 'Soil preparation');
+		const trigger = parent.getByTestId('task-status');
+		await expect(trigger).toBeDisabled();
+		const wrapper = parent
+			.locator('[data-slot="tooltip-trigger"]')
+			.filter({ has: page.getByTestId('task-status') });
+		await wrapper.focus();
+		await expect(wrapper).toBeFocused();
+	});
+
+	test('the task dialog changes the shared status and the table shows the result', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			plan.tasks.find((task) => task.title === 'Sowing')!.status = 'todo';
+		});
+		await row(page, 'Sowing').getByTestId('task-details').click();
+		const dialog = page.getByRole('dialog');
+		await expect(dialog).toBeVisible();
+		await waitForAnimations(dialog);
+		await setTaskStatus(page, dialog, 'in_progress');
+		await expect(dialog.getByTestId('task-status')).toContainText('In progress');
+		await dialog.getByTestId('task-status').click();
+		await expect(page.getByRole('option')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await page.keyboard.press('Escape');
+		await setTaskStatus(page, dialog, 'canceled');
+		await expect(dialog.getByTestId('task-status')).toContainText('Canceled');
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+		await expect(row(page, 'Sowing').getByTestId('task-status')).toHaveAccessibleName(
+			'Status of Sowing: Canceled'
+		);
+	});
+
+	test('stage progress includes in-progress tasks and hides that clause at zero', async ({
+		page
+	}) => {
+		await openExample(page);
+		await writeStoredPlan(page, (plan) => {
+			const tasks = plan.tasks.filter((task) => task.parentId === null).slice(0, 3);
+			plan.tasks = tasks;
+			for (const [index, task] of tasks.entries()) {
+				task.stageId = plan.stages[0].id;
+				task.dependsOn = [];
+				task.status = (['done', 'in_progress', 'todo'] as const)[index];
+				task.title = ['Progress done', 'Progress working', 'Progress todo'][index];
+			}
+		});
+		const first = stage(page, 0);
+		const progress = first.getByTestId('stage-progress');
+		await expect(progress).toContainText('1 / 3 done · 1 in progress');
+		const working = row(page, 'Progress working');
+		await setTaskStatus(page, working, 'todo');
+		await expect(progress).toContainText('1 / 3 done');
+		await expect(progress).not.toContainText('in progress');
 	});
 
 	test('the ready light does not move the title', async ({ page }) => {
@@ -81,13 +234,13 @@ test.describe('work plan', () => {
 		};
 		await expect(harvest.getByTestId('ready-dot')).toHaveCount(0);
 		const before = await left();
-		await row(page, 'Sowing').getByTestId('task-done').click();
+		await setTaskStatus(page, row(page, 'Sowing'), 'done');
 		await expect(harvest.getByTestId('ready-dot')).toHaveCount(1);
 		// Read both positions in one snapshot. Retry them together.
 		await expect.poll(left).toEqual(before);
 	});
 
-	test('a subtask can be added, and the parent shows derived values', async ({ page }) => {
+	test("a new subtask's owner is added to the parent's owners", async ({ page }) => {
 		await openExample(page);
 		const first = stage(page, 0);
 		const parent = row(page, 'Soil preparation');
@@ -105,7 +258,18 @@ test.describe('work plan', () => {
 			'Mulch',
 			'Order seeds'
 		]);
-		await expect(parent.getByTestId('task-owners')).toContainText('Kai');
+		await row(page, 'Mulch').getByTestId('owner-field').click();
+		await page.getByTestId('owner-input').fill('Mira');
+		await page.getByTestId('owner-input').press('Enter');
+		await page.keyboard.press('Escape');
+		// The cell can fold extra owners into "+N". The accessible name lists all owners.
+		await expect(parent.getByRole('button', { name: /^Owner:/ })).toHaveAccessibleName(/Mira/);
+		await expect
+			.poll(
+				async () =>
+					(await storedPlan(page)).tasks.find((task) => task.title === 'Soil preparation')!.owners
+			)
+			.toContain('Mira');
 	});
 
 	test('a date change re-sorts the tasks', async ({ page }) => {
@@ -121,7 +285,8 @@ test.describe('work plan', () => {
 
 	test('owners can be added and renamed everywhere', async ({ page }) => {
 		await openExample(page);
-		const stall = row(page, 'Neighbourhood stall');
+		await row(page, 'Neighbourhood stall').getByTestId('task-toggle').click();
+		const stall = row(page, 'Book a table');
 		await stall.getByTestId('owner-field').click();
 		await page.getByTestId('owner-input').fill('Lee');
 		await page.getByTestId('owner-input').press('Enter');
@@ -166,30 +331,33 @@ test.describe('work plan', () => {
 		await expect(page.getByTestId('stage')).toHaveCount(3);
 	});
 
-	test('the stage color picker does not scroll the page', async ({ page }) => {
+	test('the stage color picker does not scroll the Work plan region', async ({ page }) => {
 		await page.setViewportSize({ width: 1000, height: 500 });
 		await openExample(page);
+		await selectTab(page, 'Work plan');
 		for (let i = 0; i < 3; i++) await page.getByTestId('add-stage').click();
 		const swatch = stage(page, 5).getByTestId('stage-color');
 		await swatch.scrollIntoViewIfNeeded();
 		// Put the swatch near the bottom edge, so the popover opens below the fold.
-		await page.evaluate(() => window.scrollBy(0, 80));
-		const monitor = await page.evaluateHandle(() => {
-			const baseline = window.scrollY;
+		const scroller = await groupScroller(page, 'work-plan');
+		await scroller.evaluate((element) => (element.scrollTop += 80));
+		const monitor = await scroller.evaluateHandle((element) => {
+			const baseline = element.scrollTop;
 			const positions = [baseline];
-			const record = () => positions.push(window.scrollY);
+			const record = () => positions.push(element.scrollTop);
 			let frame: number;
 			const sample = () => {
 				record();
 				frame = requestAnimationFrame(sample);
 			};
-			window.addEventListener('scroll', record);
+			element.addEventListener('scroll', record);
 			frame = requestAnimationFrame(sample);
 			return {
 				baseline,
 				positions,
+				element,
 				stop() {
-					window.removeEventListener('scroll', record);
+					element.removeEventListener('scroll', record);
 					cancelAnimationFrame(frame);
 				}
 			};
@@ -201,10 +369,10 @@ test.describe('work plan', () => {
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
 					})
 			);
-			const state = await monitor.evaluate(({ baseline, positions }) => ({
+			const state = await monitor.evaluate(({ baseline, positions, element }) => ({
 				baseline,
 				positions,
-				current: window.scrollY
+				current: element.scrollTop
 			}));
 			expect(state.positions.filter((position) => position !== state.baseline)).toEqual([]);
 			expect(state.current).toBe(state.baseline);
@@ -212,7 +380,7 @@ test.describe('work plan', () => {
 		try {
 			expect(await monitor.evaluate(({ baseline }) => baseline)).toBeGreaterThan(0);
 			await swatch.click();
-			const palette = page.getByRole('radiogroup');
+			const palette = stageColorPalette(page);
 			const content = page.locator('[data-slot="popover-content"]');
 			await expect(palette).toBeVisible();
 			await expect(palette.getByRole('radio', { checked: true })).toBeFocused();
@@ -230,17 +398,20 @@ test.describe('work plan', () => {
 		}
 	});
 
-	test('a stage keeps its title and colored column header below the app header while scrolling', async ({
+	test('a stage keeps its title and colored column header at the top of its region while scrolling', async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 1000, height: 400 });
 		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await selectTab(page, 'Work plan');
 		await expectStickyStageStack(stage(page, 0));
 	});
 
 	test('on a narrow screen the header cells stay in the table', async ({ page }) => {
 		await page.setViewportSize({ width: 600, height: 400 });
 		await openExample(page);
+		await selectTab(page, 'Work plan');
 		const section = stage(page, 0);
 		// Measure both in one call, so a layout change cannot fall between two measurements.
 		await expect
@@ -253,11 +424,13 @@ test.describe('work plan', () => {
 			.toBeLessThanOrEqual(1);
 	});
 
-	test('on a narrow screen the stage title and colored band stay visible while scrolling', async ({
+	test('on a narrow screen the stage title and stage badge stay visible while scrolling', async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 600, height: 400 });
 		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await selectTab(page, 'Work plan');
 		const section = stage(page, 0);
 		await expectStickyStageStack(section);
 		await section.locator('table').evaluate((table) => (table.parentElement!.scrollLeft = 100));
@@ -272,11 +445,12 @@ test.describe('work plan', () => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
-			await page.getByTestId('gantt-pin').click();
-			await page.getByTestId('gantt-resize').press('Home');
+			await addWorkspaceOverflow(page);
+			await selectTab(page, 'Work plan');
+			await timelineHandle(page).press('Home');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx);
 			await expectStickyStageStack(stage(page, 0));
-			await page.getByTestId('gantt-resize').press('PageDown');
+			await timelineHandle(page).press('PageDown');
 			await expectPanelHeight(page, GANTT_HEIGHT.minPx + 90);
 			await expectStickyStageStack(stage(page, 0));
 		});
@@ -287,25 +461,22 @@ test.describe('work plan', () => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
-			await page.getByTestId('gantt-pin').click();
+			await addWorkspaceOverflow(page);
+			await selectTab(page, 'Work plan');
 			await expectPanelHeight(page, defaultPanelHeight(page));
 			const first = stage(page, 0);
 			await expectStickyStageStack(first);
 			for (const remaining of [0.75, 0.5, 0.25]) {
 				await first.evaluate(async (element, fraction) => {
-					const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
+					const scroller = document.querySelector<HTMLElement>(
+						'[data-testid="workspace-content"]'
+					)!;
 					const panel = document
 						.querySelector('[data-testid="timeline-panel"]')!
 						.getBoundingClientRect();
 					const header = element.querySelector(':scope > header')!.getBoundingClientRect();
-					window.scrollTo(
-						0,
-						window.scrollY +
-							element.getBoundingClientRect().bottom -
-							app.bottom -
-							panel.height -
-							header.height * fraction
-					);
+					scroller.scrollTop +=
+						element.getBoundingClientRect().bottom - panel.bottom - header.height * fraction;
 					await new Promise(requestAnimationFrame);
 				}, remaining);
 				// Read overlap and the painted target together while the stage header leaves its scope.
@@ -337,6 +508,8 @@ test.describe('work plan', () => {
 		await page.setViewportSize({ width: 1000, height: 700 });
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await openExample(page);
+		await addWorkspaceOverflow(page);
+		await selectTab(page, 'Work plan');
 		const first = stage(page, 0);
 		const header = first.locator(':scope > header');
 		const headerHeight = () => header.evaluate((element) => element.getBoundingClientRect().height);
@@ -383,26 +556,23 @@ test.describe('work plan', () => {
 			await page.setViewportSize({ width: 1280, height: 800 });
 			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await openExample(page);
+			await addWorkspaceOverflow(page);
 			if (pinned) {
 				await page.getByTestId('gantt-pin').click();
 				await page.getByTestId('gantt-resize').press('Home');
 				await expectPanelHeight(page, GANTT_HEIGHT.minPx);
 			}
 			const first = stage(page, 0);
-			const checkbox = first.getByTestId('task-done').first();
+			const checkbox = first.getByTestId('task-status').first();
 			await checkbox.evaluate(async (element) => {
-				const app = document.querySelector('[data-app-header]')!.getBoundingClientRect();
-				const pinnedHeight =
-					parseFloat(
-						getComputedStyle(document.documentElement).getPropertyValue('--gantt-pinned-h')
-					) || 0;
+				const scroller = document.querySelector<HTMLElement>('#work-pane')!;
 				const header = element
 					.closest('[data-testid="stage"]')!
 					.querySelector(':scope > header')!
 					.getBoundingClientRect();
 				const bounds = element.getBoundingClientRect();
-				const center = app.bottom + pinnedHeight + header.height / 2;
-				window.scrollTo(0, window.scrollY + bounds.top + bounds.height / 2 - center);
+				const center = scroller.getBoundingClientRect().top + header.height / 2;
+				scroller.scrollTop += bounds.top + bounds.height / 2 - center;
 				await new Promise(requestAnimationFrame);
 			});
 			await focusPreviousControl(checkbox);

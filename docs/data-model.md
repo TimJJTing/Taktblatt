@@ -8,14 +8,14 @@ The workspace has limits that the schema does not have, for example the length o
 
 There are two kinds of file. Each file has a `schemaVersion` and a `kind`.
 
-| `kind`   | Content              | Menu command         |
-| -------- | -------------------- | -------------------- |
-| `plan`   | One plan in `plan`   | **Export this plan** |
-| `backup` | All plans in `plans` | **Export all plans** |
+| `kind`   | Content              | Command                       |
+| -------- | -------------------- | ----------------------------- |
+| `plan`   | One plan in `plan`   | **Menu → Export this plan**   |
+| `backup` | All plans in `plans` | **Plans → Back up all plans** |
 
 The current `schemaVersion` is `1`.
 
-The UI language and screen theme are browser preferences. Plan files and backup files do not include them. An import does not change them.
+The UI language, screen theme, diagram view (`diagramView`), print selection (`printDiagrams`), print detail (`printSubtasks`) and expanded tasks are browser preferences. Plan files and backup files do not include them. An import does not change them. Refer to [specification section 4.4](spec.md#44-viewer-state).
 
 ```json
 { "schemaVersion": 1, "kind": "plan", "plan": { "id": "…", "heading": "…" } }
@@ -66,21 +66,27 @@ The export file name is `taktblatt-<heading-slug>-<YYYY-MM-DD>.json`.
 
 A **task** has `parentId: null`. A **subtask** has the id of a task in `parentId`.
 
-| Field          | Type             | Rule                                                        |
-| -------------- | ---------------- | ----------------------------------------------------------- |
-| `id`           | string           | Unique in the plan.                                         |
-| `stageId`      | string           | A stage of the plan. A subtask has the stage of its parent. |
-| `parentId`     | string \| `null` | A task (not a subtask) of the same stage.                   |
-| `title`        | string           |                                                             |
-| `deliverable`  | string           |                                                             |
-| `start`, `end` | date \| `null`   |                                                             |
-| `owners`       | string[]         | Compared without case, after the app trims them.            |
-| `done`         | boolean          |                                                             |
-| `note`         | string           | Plain text. Can contain mention tokens `@[task:<id>]`.      |
-| `dependsOn`    | string[]         | Ids of other tasks of the plan. Not its own id.             |
-| `createdAt`    | timestamp        | Sort tie-breaker.                                           |
+| Field          | Type                                            | Rule                                                                                                                                             |
+| -------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`           | string                                          | Unique in the plan.                                                                                                                              |
+| `stageId`      | string                                          | A stage of the plan. A subtask has the stage of its parent. This value is redundant on purpose. Import rejects a subtask with a different stage. |
+| `parentId`     | string \| `null`                                | A task (not a subtask) of the same stage.                                                                                                        |
+| `title`        | string                                          |                                                                                                                                                  |
+| `deliverable`  | string                                          |                                                                                                                                                  |
+| `start`, `end` | date \| `null`                                  |                                                                                                                                                  |
+| `owners`       | string[]                                        | Compared without case, after the app trims them.                                                                                                 |
+| `status`       | `todo` \| `in_progress` \| `done` \| `canceled` | Required. New tasks default to `todo`.                                                                                                           |
+| `note`         | string                                          | Plain text. Can contain mention tokens `@[task:<id>]`.                                                                                           |
+| `dependsOn`    | string[]                                        | Ids of other tasks of the plan. Not its own id.                                                                                                  |
+| `createdAt`    | timestamp                                       | Sort tie-breaker.                                                                                                                                |
 
-A parent keeps its own `start`, `end`, `owners` and `done`. The app does not show these values while the parent has subtasks. Refer to [spec.md](spec.md), section 2.
+A parent's stored `start` and `end` form its **planned window**. All views use these values. For a parent with subtasks, `start` is no later than each non-empty subtask start, and `end` is no earlier than each non-empty subtask end. When the window has both dates, it contains every subtask date. An open window stays open. Its `owners` include all subtask owners. The app normalizes the union with parent owners first. Canceled subtasks contribute dates and owners.
+
+The app expands these stored values after each edit, load and import. A wider window stays. A narrower subtask range or removal of a subtask owner does not remove stored parent values. Users can edit parent dates and owners within the subtask limits. When both parent dates are set, the range must contain every subtask date, including a start-only or end-only date. An open range can stay open if it meets the start and end limits.
+
+The app derives and stores parent `status` from its subtasks on each edit, load and import. It ignores canceled subtasks unless all are canceled. When the last subtask is deleted or moved out, the task keeps its stored dates, owners and status. The action and any expansion form one undo step.
+
+These semantics use the existing fields. The file shape and `schemaVersion` stay unchanged at version 1. Refer to [spec.md](spec.md), section 2, and [ADR 15](adr/0015-parent-planned-window.md).
 
 ## Milestone
 
@@ -92,7 +98,7 @@ A parent keeps its own `start`, `end`, `owners` and `done`. The app does not sho
 | `date`        | date                                                                                                                             |
 | `symbol`      | `diamond` \| `flag` \| `star` \| `circle` \| `triangle` \| `square` \| `hexagon` \| `pentagon` \| `pin` \| `bookmark` \| `heart` |
 
-The `pin` key represents a map pin. Symbol keys are language-neutral. The UI language controls the displayed names.
+The stored `diamond` key shows as the Default ring. The key stays unchanged for existing milestones. The `pin` key represents a map pin. Symbol keys are language-neutral. The UI language controls the displayed names.
 
 ## Band
 
@@ -124,15 +130,22 @@ The app rejects a file when one of these conditions is true:
 - A backup file has no plan, or two plans in it have the same id.
 - A task depends on itself.
 - A parent depends on one of its own subtasks, or a subtask depends on its own parent.
-- The effective dependency graph has a cycle.
 
-A subtask uses its own dependencies in the effective graph. A parent uses its own dependencies and the dependencies of its subtasks. Remove the parent's own subtasks from this set.
+A subtask uses its own dependencies and the own dependencies of its parent in the effective graph. A task, with or without subtasks, uses its own dependencies. The app excludes the task itself and unknown ids. Remove a task's own subtasks from this set. A parent does not inherit the stored dependencies of its subtasks.
 
-The date rule uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
+Load and import accept cycles in the effective dependency graph. A stored dependency shows a cycle warning when its own effective edge, or an edge that a subtask inherits from it, is part of a cycle. The app computes strongly connected components without recursion. Refer to [ADR 13](adr/0013-cycles-are-warnings.md).
+
+The sibling dependency rule is an editor rule. A subtask can add dependencies only on siblings with the same parent. A task can depend on other tasks and on subtasks of other tasks. Stored and imported legacy subtask dependencies outside the parent stay valid. They count for that subtask only and show a scope warning. No migration or new schema validation is required. Refer to [ADR 14](adr/0014-subtasks-depend-only-on-siblings.md).
+
+Import counts stored dependency rows with cycle, date or scope warnings. A row with one or more warning kinds counts once. Warnings do not change the stored data.
+
+The date rule checks stored dependencies only. It uses effective task dates. If a dependency starts after its dependent task ends, the app shows a warning. The app permits this condition on import.
 
 The app shows the path of each wrong field, for example `plan.range.start`. A missing field says that the field is required. A value outside a fixed set lists the allowed values. The error text uses the UI language. The app does not change data.
 
 ## Versions
+
+The ready-light change keeps `schemaVersion` at 1. The file shape does not change. Files valid before this change stay valid: cycle rejection is removed, and no validation rule is added. Older app builds can reject a file with a cycle.
 
 When the schema changes, the `schemaVersion` increases by 1. The app migrates old files when it reads them. It cannot read files from a newer app version.
 

@@ -1,54 +1,67 @@
-<!--
-	One dependency line: a thin elbow path from the end of the predecessor to the start of the dependent.
-	The end points move with a tween when rows come in or go out. The line fades in and out.
--->
 <script lang="ts">
-	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { Tween } from 'svelte/motion';
-	import { fade } from 'svelte/transition';
-	import type { DependencyLine } from '#lib/domain/gantt.ts';
+	import { svgPolyline } from '#lib/components/diagram/svg-polyline.ts';
+	import type { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
+	import { markColorLevel, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { motionDuration } from '#lib/motion.ts';
-	import { elbowPath, rowCenterY, ROW_MOTION_MS } from './gantt-layout.ts';
-
+	import type { EdgeGeom } from '#lib/scene/types.ts';
 	interface Props {
-		line: DependencyLine;
-		/** Whether the visible predecessor row is done. */
-		done: boolean;
-		/** The width of the timeline area in pixels. */
-		width: number;
-		/** The id of the arrow marker. */
-		marker: string;
+		line: EdgeGeom;
+		muted: boolean;
+		strokeWidth?: number;
+		tween: Pick<GeometryTween<{ x: number; y: number }[]>, 'current'>;
+		route?: RoutePaint;
 	}
-
-	let { line, done, width, marker }: Props = $props();
-
-	const ends = (l: DependencyLine) => ({
-		x0: l.x0,
-		y0: rowCenterY(l.row0),
-		x1: l.x1,
-		y1: rowCenterY(l.row1)
-	});
-
-	const pos = new Tween(untrack(() => ends(line)));
-	$effect(() => {
-		pos.set(ends(line), { duration: motionDuration(ROW_MOTION_MS), easing: cubicOut });
-	});
-
-	const d = $derived(
-		elbowPath(pos.current.x0 * width, pos.current.y0, pos.current.x1 * width, pos.current.y1)
-	);
+	let { line, muted, strokeWidth = 2, tween, route = null }: Props = $props();
+	const d = $derived(svgPolyline(tween.current));
+	const offRoute = $derived(!line.cycle && route === 'off');
 </script>
 
+{#if line.cycle}
+	<path
+		{d}
+		class="cycle-casing"
+		fill="none"
+		stroke="var(--background, #FFFFFF)"
+		stroke-width="4"
+		aria-hidden="true"
+		data-overlay-for={line.key}
+	/>
+{/if}
 <path
 	{d}
-	class={done ? 'opacity-40' : undefined}
+	class:muted
+	class:off-route={offRoute}
+	data-route={line.cycle ? (route === 'lit' ? 'lit' : undefined) : (route ?? undefined)}
+	class={line.cycle ? 'text-destructive' : undefined}
+	data-cycle={line.cycle ? 'true' : undefined}
 	fill="none"
-	stroke="currentColor"
-	stroke-width="1.25"
-	marker-end="url(#{marker})"
+	stroke={line.cycle
+		? 'currentColor'
+		: offRoute
+			? `color-mix(in oklab, currentColor ${markColorLevel('done', 'connector', true)}%, var(--background, #FFFFFF))`
+			: muted
+				? `color-mix(in oklab, currentColor ${markColorLevel('done', 'connector')}%, var(--background, #FFFFFF))`
+				: 'currentColor'}
+	stroke-width={line.cycle ? 2 : strokeWidth}
+	stroke-dasharray={line.cycle ? '1 4' : undefined}
+	stroke-linecap={line.cycle ? 'round' : undefined}
+	style:transition-property="stroke"
+	style:transition-duration={`${motionDuration(150)}ms`}
 	data-testid="gantt-dependency"
-	data-from={line.fromId}
-	data-to={line.toId}
-	transition:fade={{ duration: motionDuration(180) }}
+	data-from={line.from}
+	data-to={line.to}
 />
+
+<style>
+	@media (forced-colors: active) {
+		.cycle-casing {
+			forced-color-adjust: none;
+			stroke: Canvas;
+		}
+		.muted,
+		.off-route {
+			forced-color-adjust: none;
+			stroke: CanvasText;
+		}
+	}
+</style>

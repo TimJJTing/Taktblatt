@@ -32,7 +32,9 @@
 		</span>
 	{/each}
 	{#if hidden > 0}
-		<span class="inline-block rounded-full bg-muted px-2 text-xs leading-5 text-foreground/80">
+		<span
+			class="inline-block rounded-full bg-muted px-2 text-xs leading-5 text-foreground/80 tabular-nums"
+		>
 			{m.owner_more({ count: hidden })}
 		</span>
 	{/if}

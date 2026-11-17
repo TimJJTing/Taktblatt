@@ -1,8 +1,16 @@
 # Taktblatt
 
-Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
+Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a Route map, a Kanban board, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
 
-![The workspace with the plan header and the Gantt timeline](docs/screenshots/workspace.png)
+![The split workspace: the plan header, sheet footer and Gantt timeline on the left, the work plan on the right](docs/screenshots/workspace.png)
+
+## Workspace layout
+
+On a wide screen (1024 px or more), the workspace has two panes. The left pane shows the plan: the header, the timeline, the stage overview and the remarks. The right pane shows the work plan. Each pane scrolls on its own. Drag the divider between the panes to change their widths, or select it and use the arrow keys. Double-click the divider to reset it to 50/50.
+
+On a narrower screen, a tab bar at the bottom has two tabs, **Overview** and **Work plan**. They show one group at a time. The timeline is always pinned at the top. Tap the handle on its bottom edge to collapse or expand it, or drag the handle to change its height. When you scroll down, the timeline collapses to a thin stage edge. Scroll back to the top to expand it again. Turn on **Keep timeline open** to stop this.
+
+The Preview and the printed sheets do not change with the screen layout.
 
 ## Features
 
@@ -10,17 +18,37 @@ Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows i
 
 Each plan has a heading, a subheading and an objective. The plan range sets the dates that the Gantt shows. Click **Fit to tasks** to set the range to the dates of all tasks.
 
+The **Sheet footer** row below the objective has a note, a version, a date and a text on the right side. The sheets show this footer at the bottom of each page.
+
 ### Gantt timeline
 
-![The Gantt timeline with an expanded parent task and dependency lines](docs/screenshots/gantt.png)
+![The Gantt timeline with an expanded parent task and dependency connectors](docs/screenshots/gantt.png)
 
-- Each task has one bar. A parent task has a chevron. Click it to show the subtasks.
-- Thin lines show the dependencies between tasks.
-- Bands show a time range as a tint behind the bars, for example a time of frost risk.
-- Milestones show as symbols on their own row. Each milestone has a label M1, M2 and so on.
+- A task with a date range has a task line. A task with one date has a station dot. A parent task has a chevron. Click it to show the subtasks.
+- Station dots show status: a ring for Todo, half filled for In progress, solid for Done, and a ring with a diagonal slash for Canceled. Done and canceled task lines use a 40 % color mix of the stage color with the ground.
+- Thin connectors show the dependencies between tasks. They have no arrowheads.
+- Hover anywhere on a Gantt row, in the label cell or timeline band, or on a Work plan row to show its dependency route. The first route waits 300 ms. While a hover route shows, a switch to another row waits 120 ms. Leaving all route targets keeps the route for 250 ms. Entering any route target cancels this grace period. Other task marks dim. Keyboard focus shows the route at once. On a touch screen, tap a task mark to toggle its route.
+- Hover on a Gantt row highlights its label cell and Work plan row at once. The label cell highlight is the cue on the chart. No ring surrounds the task line. In forced colors, the highlighted label cell uses `Highlight` for its background and `HighlightText` for its text.
+- Stage badges S1, S2 and so on show each stage color and number.
+- Bands show a time range as a tint behind the task lines, for example a time of frost risk.
+- Milestones show as symbols on their own row. The Default symbol is a ring. Each milestone has a label M1, M2 and so on.
 - A dashed line shows today.
 - Click a task label to go to its row in the work plan.
-- Use the pin button to keep the whole Timeline section at the top of the page while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. Use the Legends button to show or hide Stages, Milestones and Bands together.
+- In split view, use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. In split view, use the Legends button to show or hide Stages, Milestones and Bands together. With tabs, the section is always pinned, and the legends are one line of chips below the chart. Swipe the line to see more.
+
+### Diagram views
+
+The view switch is in the **Timeline** heading row. Choose **Gantt**, **Route map** or **Kanban**. Arrow keys, Home and End change the choice. The app saves the choice in this browser for all plans. A view change does not change the plan, an open task dialog or undo history. Task cues move between views. With reduced motion, the view changes at once.
+
+Work plan, Gantt, Route map and Kanban share the expanded tasks for each plan. Use the same chevron button in each view to show or hide subtasks.
+
+![The Route map with stage rails and an expanded subtask branch](docs/screenshots/route-map.png)
+
+The **Route map** shows workflow without a time scale. Colored rails join tasks of a stage. A rail alone does not prove a stored dependency. Ordinary dependencies between stages have thin paths with an open chevron at the waiting task. Stations on these paths have transfer capsules. An expanded family has a connected double-line branch in the stage color. Each task name has a status icon. The first station of each stage has a stage badge. Hover or focus shows the dependency route. Cycles have red dotted paths. A status key and family summaries explain task state. The map has no ready light.
+
+![The Kanban board with stage swimlanes and expanded family detail](docs/screenshots/kanban.png)
+
+The **Kanban** board has stage swimlanes and four columns: **Blocked**, **Todo**, **In progress** and **Done**. Each eligible top-level task has one card. A parent has one summary card. Its family row is below the cards of the stage. Expand the row to show subtasks without changing card counts. Canceled top-level tasks stay hidden. Click a card or press Enter to open **Task details**. The board is read-only. Change status in the Work plan or task dialog.
 
 ### Stage overview
 
@@ -33,9 +61,9 @@ Each stage has a card. The card shows the months of the stage, a title, a descri
 ![The work plan table with stages, subtasks and ready lights](docs/screenshots/work-plan.png)
 
 - Tasks are in stages. Each stage has a color.
-- A task can have subtasks. The parent shows the earliest start, the latest end, the owners and the progress of its subtasks.
-- Each row has a done checkbox, a deliverable, a target date and owner chips.
-- A green dot, the ready light, shows that all dependencies of a task are done and the task is not done.
+- A task can have subtasks. The parent has a planned window: its dates and owners grow to include its subtasks, and you can make the window wider. The parent's status follows its subtasks.
+- Each row has a status select (Todo, In progress, Done or Canceled), a deliverable, a target date and owner chips.
+- A green dot, the ready light, shows that all dependencies of a task are done or canceled and the task is still Todo. A subtask also waits for the dependencies of its parent. A parent is ready when its status is Todo and one or more of its subtasks are ready.
 - Click a cell to edit it. Drag a stage to change the stage order.
 
 ### Task dialog
@@ -44,28 +72,33 @@ Each stage has a card. The card shows the months of the stage, a title, a descri
 
 Click the "…" button of a row to open the task dialog ("Task details"). You can change the stage or the parent of the task, write a note and choose the dependencies. Type `@` in a note to mention a task. If a change causes a conflict, the app lists it before the change.
 
-### Remarks and footer
+### Remarks
 
-![Remark sections and the plan footer](docs/screenshots/remarks-footer.png)
+![Two remark sections with bullets](docs/screenshots/remarks.png)
 
-Remark sections hold lists of short bullets at the end of the plan. The footer has a note, a version, a date and a text on the right side. The sheets show the same footer on each page.
+Remark sections hold lists of short bullets. They are at the end of the plan pane. On the sheets, they come after the work plan.
 
 ### Preview and print
 
 ![The preview with the first A4 sheet of the example plan](docs/screenshots/preview.png)
 
-Click **Preview** to see the paper sheets. Choose A4 or US Letter. Click **Print** to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
+Open **Menu** (**…**) in the app header and choose **Print…**. The preview shows the paper sheets. Choose A4 or US Letter. Click **Print** in the preview to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
+
+Use **Diagrams to print** to select any one, any two or all three diagrams. Keep at least one selected. The default is Gantt only. Use **Show subtasks in printed diagrams** to include subtask detail in every selected diagram. The default is off. The printed Work plan always shows all subtasks. Route map and Kanban use landscape sheets. Diagrams print in the order Gantt, Route map, Kanban. Each later diagram starts on a new sheet.
 
 ### Several plans, import, export and offline use
 
-- Create, rename, duplicate and delete plans with the plan switcher in the app header.
-- Export one plan or all plans as JSON files. Import them again on any device.
+- Open the plan switcher (**Plans**) in the app header to change plans, create a plan, import files and back up all plans.
+- Open **Menu** (**…**) to print, export, rename, duplicate or delete the open plan.
+- Export the open plan with **Menu → Export this plan**. Back up all plans in one file with **Plans → Back up all plans**. Import the files again on any device with **Plans → Import…**.
+- When the primary pointer is touch, as on phones and most tablets, both menus open as bottom sheets.
 - Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
+- The diagram view, print selection, print detail choice and expanded tasks stay in this browser after a reload, also offline. Exports and backups do not include these viewer choices. An import does not change them.
 
 ### Languages
 
-The app has four UI languages: English, German, Traditional Chinese and Japanese. Open **Settings → Language** to select one. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
+The app has four UI languages: English, German, Traditional Chinese and Japanese. Open **Menu → Language** to select one. The UI language also sets the date formats and the printed labels. A plan file has no language, so you can open the same file in any UI language.
 
 ### Privacy
 
@@ -75,7 +108,7 @@ The app has four UI languages: English, German, Traditional Chinese and Japanese
 
 ### Dark mode
 
-Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark** or **System**. The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
+Open **Menu** (**…**) in the app header. Under **Theme**, choose **Light** (sun icon), **Dark** (moon icon) or **System** (monitor icon). The default is **System**. The app saves your choice in this browser. Preview sheets and printed sheets are always light.
 
 ![The workspace in dark mode](docs/screenshots/workspace-dark.png)
 
@@ -84,9 +117,9 @@ Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark**
 1. Open the app in a modern browser.
 2. Click **Load example** to see a complete example plan. Or start with the empty plan.
 3. Click a heading, a date or a task to edit it.
-4. Click **Preview** to see the sheets.
-5. Click **Print** to print the plan or to save it as a PDF.
-6. Click **Export → Export this plan** to save a copy of your plan as a JSON file.
+4. Click **Menu → Print…** to see the sheets in the preview.
+5. Click **Print** in the preview to print the plan or to save it as a PDF.
+6. Click **Menu → Export this plan** to save a copy of your plan as a JSON file.
 
 ## Development
 
@@ -113,12 +146,13 @@ Open **Settings** in the app header. Under **Theme**, choose **Light**, **Dark**
 
 ### Do the checks
 
-| Command                | Check                                     |
-| ---------------------- | ----------------------------------------- |
-| `pnpm lint`            | Format (Prettier) and code rules (ESLint) |
-| `pnpm check`           | Types (svelte-check)                      |
-| `pnpm test:unit --run` | Unit tests                                |
-| `pnpm test:e2e`        | End-to-end tests (Playwright)             |
+| Command                  | Check                                                |
+| ------------------------ | ---------------------------------------------------- |
+| `pnpm lint`              | Format (Prettier) and code rules (ESLint)            |
+| `pnpm check`             | Types for the app, E2E tests and service worker      |
+| `pnpm test:unit --run`   | Unit tests                                           |
+| `pnpm test:e2e`          | End-to-end tests (Playwright)                        |
+| `pnpm test:e2e:fixtures` | End-to-end tests of test-only diagram views (ADR 20) |
 
 ### Format the code
 
@@ -158,6 +192,7 @@ Use the URL reported by Vite if port 5173 is occupied. Read the snapshot for ele
 | Folder                | Content                                                  |
 | --------------------- | -------------------------------------------------------- |
 | `src/lib/domain/`     | Pure logic: schema, derived values, dependencies, Gantt  |
+| `src/lib/scene/`      | Diagram scenes, routing and paper adapters               |
 | `src/lib/state/`      | The store, commands, undo history and viewer state       |
 | `src/lib/components/` | Svelte components for the workspace and the print sheets |
 | `src/service-worker/` | The service worker for offline use                       |

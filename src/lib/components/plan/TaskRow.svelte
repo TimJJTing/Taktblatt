@@ -1,23 +1,21 @@
 <!--
 	The cells of one work-plan row: a task (level 1) or a subtask (level 2).
-	A parent shows derived values for target, owners and done. These cells are read-only.
+	A parent has editable dates and owners. Its status comes from its subtasks.
 -->
 <script lang="ts">
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import { mergeProps } from 'bits-ui';
 	import { tick } from 'svelte';
 	import Hint from '#lib/components/app/Hint.svelte';
-	import OwnerChips, { ownerListHint } from '#lib/components/edit/OwnerChips.svelte';
 	import DateRangeField from '#lib/components/edit/DateRangeField.svelte';
 	import InlineText from '#lib/components/edit/InlineText.svelte';
 	import OwnerField from '#lib/components/edit/OwnerField.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.ts';
+	import ExpandToggle from '#lib/components/task/ExpandToggle.svelte';
+	import TaskStatusSelect from '#lib/components/task/TaskStatusSelect.svelte';
 	import { focusSiblingRow } from '#lib/browser/grid.ts';
-	import { readyCount } from '#lib/domain/dependencies.ts';
-	import { effectiveValues } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay, formatTarget } from '#lib/domain/format.ts';
+	import { squashSubtasks, subtaskFloor } from '#lib/domain/derive.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Task } from '#lib/domain/schema.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -43,13 +41,14 @@
 
 	const children = $derived(ws.index.children.get(task.id) ?? []);
 	const isParent = $derived(children.length > 0);
+	const subtaskValues = $derived(isParent ? squashSubtasks(children) : undefined);
 	const isSubtask = $derived(task.parentId !== null);
-	const eff = $derived(effectiveValues(task, children));
-	const ready = $derived(readyCount(ws.index, task.id));
+	const taskState = $derived(ws.index.state.get(task.id)!);
+	const eff = $derived(taskState.eff);
 	const expanded = $derived(viewer.isExpanded(ws.plan.id, task.id));
 	const locale = uiIntl();
 	const titleText = $derived(task.title || m.task_untitled());
-	const muted = $derived(eff.done === 'done');
+	const muted = $derived(taskState.finished);
 
 	let titleCell = $state<HTMLTableCellElement | null>(null);
 
@@ -62,57 +61,33 @@
 </script>
 
 <td class="py-1 pl-1 align-middle">
-	{#if isParent}
-		<Hint text={m.task_done_derived()}>
-			{#snippet child({ props })}
-				<span {...props} role="group" aria-label={m.task_done_derived()} class="inline-flex">
-					<Checkbox
-						checked={eff.done === 'done'}
-						indeterminate={eff.done === 'partial'}
-						disabled
-						aria-label={m.task_done_label({ task: titleText })}
-					/>
-				</span>
-			{/snippet}
-		</Hint>
-	{:else}
-		<Checkbox
-			checked={task.done}
-			onCheckedChange={(done) => updateTask(ws, task.id, { done })}
-			aria-label={m.task_done_label({ task: titleText })}
-			data-testid="task-done"
-		/>
-	{/if}
+	<TaskStatusSelect
+		status={eff.status}
+		task={titleText}
+		disabled={isParent}
+		compact
+		onChange={(status) => updateTask(ws, task.id, { status })}
+	/>
 </td>
 <td bind:this={titleCell} class="py-1" data-grid-col="title">
 	<div class={cn('flex min-w-0 items-center gap-1', isSubtask && 'pl-6')}>
 		{#if isParent}
-			<button
-				type="button"
-				class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-				aria-expanded={expanded}
-				aria-label={expanded
-					? m.task_collapse({ task: titleText })
-					: m.task_expand({ task: titleText })}
-				onclick={(event) => {
+			<ExpandToggle
+				{expanded}
+				task={titleText}
+				onToggle={(event) => {
 					viewer.toggleExpanded(ws.plan.id, task.id);
 					if (event.detail > 0) {
-						event.currentTarget.blur();
+						(event.currentTarget as HTMLButtonElement).blur();
 						editing.highlightId = null;
 					}
 				}}
-				data-testid="task-toggle"
-			>
-				<span
-					class={cn('flex transition-transform', expanded && 'rotate-90')}
-					style:transition-duration={`${motionDuration(200)}ms`}
-					aria-hidden="true"><ChevronRightIcon class="size-3.5" /></span
-				>
-			</button>
+				testid="task-toggle"
+			/>
 		{:else}
 			<span class="size-5 shrink-0" aria-hidden="true"></span>
 		{/if}
-		<ReadyDot count={ready} reserve />
+		<ReadyDot readiness={taskState.readiness} reserve />
 		<div class="min-w-0 flex-1">
 			<InlineText
 				value={task.title}
@@ -144,72 +119,45 @@
 	/>
 </td>
 <td class="py-1 whitespace-nowrap" data-grid-col="target">
-	{#if isParent}
-		<Hint
-			text={eff.start || eff.end
-				? m.label_qualifier({ name: m.target_derived(), qualifier: rangeText })
-				: m.target_derived()}
-			focusable={false}
-		>
-			{#snippet child({ props })}
-				<span {...props} class="block px-1.5 py-0.5 tabular-nums" data-testid="task-target">
-					{formatTarget(eff, true, locale)}
-				</span>
-			{/snippet}
-		</Hint>
-	{:else}
-		<DateRangeField
-			start={task.start}
-			end={task.end}
-			label={m.column_target()}
-			onCommit={(range) => updateTask(ws, task.id, range)}
-		>
-			{#snippet trigger({ props: fieldProps })}
-				<Hint text={eff.start || eff.end ? rangeText : undefined}>
-					{#snippet child({ props: hintProps })}
-						<button
-							{...mergeProps(hintProps, fieldProps)}
-							type="button"
-							class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
-							style:transition-duration={`${motionDuration(150)}ms`}
-							data-testid="task-target"
-						>
-							{#if task.end}
-								{formatTarget(task, false, locale)}
-							{:else if task.start}
-								<span class="text-muted-foreground">{formatTarget(task, false, locale)}</span>
-							{:else}
-								<span class="text-muted-foreground/70">{m.target_empty()}</span>
-							{/if}
-						</button>
-					{/snippet}
-				</Hint>
-			{/snippet}
-		</DateRangeField>
-	{/if}
+	<DateRangeField
+		floor={subtaskFloor(children)}
+		start={task.start}
+		end={task.end}
+		label={m.column_target()}
+		onCommit={(range) => updateTask(ws, task.id, range)}
+	>
+		{#snippet trigger({ props: fieldProps })}
+			<Hint text={eff.start || eff.end ? rangeText : undefined}>
+				{#snippet child({ props: hintProps })}
+					<button
+						{...mergeProps(hintProps, fieldProps)}
+						type="button"
+						class="block w-full rounded-sm px-1.5 py-0.5 text-left tabular-nums transition-colors outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+						style:transition-duration={`${motionDuration(150)}ms`}
+						data-testid="task-target"
+					>
+						{#if task.end}
+							{formatTarget(task, locale)}
+						{:else if task.start}
+							<span class="text-muted-foreground">{formatTarget(task, locale)}</span>
+						{:else}
+							<span class="text-muted-foreground/70">{m.target_empty()}</span>
+						{/if}
+					</button>
+				{/snippet}
+			</Hint>
+		{/snippet}
+	</DateRangeField>
 </td>
 <td class="py-1" data-grid-col="owner" data-testid="task-owners">
-	{#if isParent}
-		{@const ownersHint = ownerListHint(eff.owners)}
-		<Hint
-			text={ownersHint ? m.owner_derived_hint({ owners: ownersHint }) : m.owner_derived()}
-			focusable={false}
-		>
-			{#snippet child({ props })}
-				<span {...props} class="flex px-1.5 py-0.5">
-					<OwnerChips owners={eff.owners} />
-				</span>
-			{/snippet}
-		</Hint>
-	{:else}
-		<OwnerField
-			owners={task.owners}
-			suggestions={ownerSuggestions}
-			label={m.column_owner()}
-			onChange={(owners) => updateTask(ws, task.id, { owners })}
-			onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
-		/>
-	{/if}
+	<OwnerField
+		locked={subtaskValues?.owners}
+		owners={task.owners}
+		suggestions={ownerSuggestions}
+		label={m.column_owner()}
+		onChange={(owners) => updateTask(ws, task.id, { owners })}
+		onRename={(from, to) => renameOwnerEverywhere(ws, from, to)}
+	/>
 </td>
 <td class="py-1 pr-1 text-right">
 	<button

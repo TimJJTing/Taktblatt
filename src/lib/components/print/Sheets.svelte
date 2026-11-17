@@ -7,19 +7,31 @@
 	3. The paginator (src/lib/domain/paginate.ts) puts the measured blocks on sheets.
 	4. The component renders the sheets with the same block components.
 
-	The measurement runs again when the plan, the expand state or the paper size changes,
+	The selected diagrams (viewer `printDiagrams`) come from the view registry, in print order (ADR 20).
+	A landscape diagram is measured in a landscape sheet and prints on landscape sheets.
+
+	The measurement runs again when the plan, print detail, the selection or the paper size changes,
 	and when the fonts finish loading. The measurement is synchronous after the first render,
 	so a print that starts in the `beforeprint` event gets the sheets before the browser lays out the page.
-	The sheets have fixed sizes. They show the current expand state. They have no controls and no motion.
+	The sheets have fixed sizes. They use the print detail preference. They have no controls and no motion.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { todayISO } from '#lib/domain/date.ts';
-	import { buildPrintModel, itemCount, printToday, type Segment } from '#lib/domain/print-model.ts';
+	import {
+		buildPrintModel,
+		itemCount,
+		printToday,
+		type DiagramOrientation,
+		type PrintModelInput,
+		type Segment
+	} from '#lib/domain/print-model.ts';
 	import { paginate, type Sheet, type SegmentInput } from '#lib/domain/paginate.ts';
+	import { getViewRegistry } from '#lib/components/diagram/view-registry.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
+	import { createGanttPaperCache, type GanttPaperLayout } from '#lib/scene/gantt-fragment.ts';
 	import { PAPER, SHEET_SAFETY } from './print-layout.ts';
 	import SegmentView from './SegmentView.svelte';
 	import SheetFooter from './SheetFooter.svelte';
@@ -34,22 +46,41 @@
 	const ws = getWorkspace();
 	const viewer = getViewer();
 
+	const registry = getViewRegistry();
+
 	const paper = $derived(ws.plan.paper);
-	const model = $derived(
-		buildPrintModel({
+	const model = $derived.by(() => {
+		const showSubtasks = viewer.printSubtasks;
+		const input: PrintModelInput = {
 			plan: ws.plan,
 			index: ws.index,
-			isExpanded: (id) => viewer.isExpanded(ws.plan.id, id),
+			showSubtasks: () => showSubtasks,
 			today: printToday(ws.plan, todayISO())
-		})
+		};
+		const diagrams = registry.views
+			.filter((view) => viewer.printDiagrams.includes(view.id))
+			.map((view) => ({
+				id: view.id,
+				orientation: view.paper.orientation,
+				segments: view.paper.segments(input)
+			}));
+		return buildPrintModel({ ...input, diagrams });
+	});
+	const orientationOf = (segment: Segment): DiagramOrientation => segment.orientation ?? 'portrait';
+	const landscape = $derived(model.some((segment) => orientationOf(segment) === 'landscape'));
+	const orientations = $derived<DiagramOrientation[]>(
+		landscape ? ['portrait', 'landscape'] : ['portrait']
 	);
 
 	interface Layout {
 		model: Segment[];
 		sheets: Sheet[];
-		/** The width of the sheet content in pixels. */
-		width: number;
+		/** The width of the sheet content in pixels, for each orientation. */
+		width: Record<DiagramOrientation, number>;
+		paper: Map<number, GanttPaperLayout>;
 	}
+
+	const paperCache = createGanttPaperCache();
 
 	let measurer = $state<HTMLElement | null>(null);
 	let layout = $state.raw<Layout | null>(null);
@@ -61,14 +92,21 @@
 	}
 
 	function measure(): void {
-		const content = measurer?.querySelector<HTMLElement>('[data-measure-content]');
-		if (!content) return;
-		const box = content.getBoundingClientRect();
+		const content = (orientation: DiagramOrientation) =>
+			measurer?.querySelector<HTMLElement>(`[data-measure-content="${orientation}"]`) ?? null;
+		const portrait = content('portrait');
+		const wide = content('landscape');
+		if (!portrait) return;
+		const box = portrait.getBoundingClientRect();
+		const wideBox = wide?.getBoundingClientRect() ?? box;
 		// A hidden ancestor gives a zero size. Keep the last layout then.
 		if (box.height === 0 || box.width === 0) return;
 		const segments = model;
+		const width = { portrait: box.width, landscape: wideBox.width };
 		const inputs: SegmentInput[] = segments.map((segment, i) => {
-			const element = content.querySelector(`[data-segment="${i}"]`);
+			const element = (content(orientationOf(segment)) ?? portrait).querySelector(
+				`[data-segment="${i}"]`
+			);
 			const heights = element
 				? Array.from(element.querySelectorAll('[data-item]')).map((item) =>
 						Math.ceil(item.getBoundingClientRect().height)
@@ -86,17 +124,39 @@
 				items: heights,
 				keep: segment.keep,
 				gap: segment.gap,
-				breakBefore: segment.breakBefore
+				breakBefore: segment.breakBefore,
+				orientation: orientationOf(segment)
 			};
 		});
-		const contentHeight = Math.floor(box.height) - SHEET_SAFETY;
-		layout = { model: segments, sheets: paginate(contentHeight, inputs), width: box.width };
+		const contentHeight = {
+			portrait: Math.floor(box.height) - SHEET_SAFETY,
+			landscape: Math.floor(wideBox.height) - SHEET_SAFETY
+		};
+		const paperLayouts = new Map(
+			segments.flatMap((segment, i) =>
+				segment.kind === 'gantt'
+					? [
+							[
+								i,
+								paperCache.get(segment.rows, segment.lines, width[orientationOf(segment)])
+							] as const
+						]
+					: []
+			)
+		);
+		layout = {
+			model: segments,
+			sheets: paginate(contentHeight, inputs),
+			width,
+			paper: paperLayouts
+		};
 	}
 
 	// Measure after each render of the hidden blocks. The effect reads the model and the paper size.
 	$effect(() => {
 		void model;
 		void paper;
+		void landscape;
 		if (!measurer) return;
 		untrack(measure);
 	});
@@ -121,23 +181,20 @@
 	style:--sheet-w={PAPER[paper].width}
 	style:--sheet-h={PAPER[paper].height}
 >
-	<div class="sheet">
-		<div class="sheet-content" data-measure-content>
-			{#each model as segment, i (segment.id)}
-				<div data-segment={i}>
-					<SegmentView
-						{segment}
-						from={0}
-						to={itemCount(segment)}
-						first={true}
-						width={0}
-						uid="m{i}"
-					/>
-				</div>
-			{/each}
+	{#each orientations as orientation (orientation)}
+		<div class="sheet" data-orientation={orientation}>
+			<div class="sheet-content" data-measure-content={orientation}>
+				{#each model as segment, i (segment.id)}
+					{#if orientationOf(segment) === orientation}
+						<div data-segment={i}>
+							<SegmentView {segment} from={0} to={itemCount(segment)} first={true} width={0} />
+						</div>
+					{/if}
+				{/each}
+			</div>
+			<div class="sheet-footer"></div>
 		</div>
-		<div class="sheet-footer"></div>
-	</div>
+	{/each}
 </div>
 
 <div
@@ -160,6 +217,7 @@
 				aria-label={m.preview_sheet({ n: sheet.number, total: current.sheets.length })}
 				data-testid="sheet"
 				data-sheet-number={sheet.number}
+				data-orientation={sheet.orientation}
 			>
 				<div class="sheet-content">
 					{#each sheet.fragments as fragment (`${fragment.segment}-${fragment.from}`)}
@@ -172,8 +230,8 @@
 								from={fragment.from}
 								to={fragment.to}
 								first={fragment.first}
-								width={current.width}
-								uid="s{sheet.number}-{fragment.segment}"
+								width={current.width[sheet.orientation]}
+								paper={current.paper.get(fragment.segment)}
 							/>
 						</div>
 					{/each}
@@ -208,6 +266,11 @@
 		font-family: var(--font-sans);
 		font-size: 11px;
 		line-height: 1.35;
+	}
+	/* A landscape sheet swaps the sides of the same paper size. */
+	.sheet[data-orientation='landscape'] {
+		width: var(--sheet-h);
+		height: var(--sheet-w);
 	}
 	.sheet-content {
 		flex: 1 1 0;
@@ -258,6 +321,10 @@
 			break-inside: avoid;
 			/* A little less than the page. This avoids an empty page from a rounding error. */
 			height: calc(var(--sheet-h) - 0.3mm);
+		}
+		/* PrintHost assigns the named landscape page to these sheets. */
+		.sheet[data-orientation='landscape'] {
+			height: calc(var(--sheet-w) - 0.3mm);
 		}
 		.sheet:last-child {
 			break-after: auto;
