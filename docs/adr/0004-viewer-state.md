@@ -4,11 +4,11 @@ Status: Accepted (2026-11-04). Amended by [ADR 17](0017-menus-by-scope.md). Amen
 
 ## Context
 
-Some settings are personal: the expanded tasks, the pinned Timeline section, its height, the collapsed Timeline legends, the UI language and the screen theme. If these are in the plan, an import from a different person changes your view.
+Some settings are personal: the diagram view, print selection, print detail, expanded tasks, pinned Timeline section, its height, collapsed Timeline legends, UI language and screen theme. If these are in the plan, an import from a different person changes your view.
 
 ## Decision
 
-- These settings are **viewer state**. The app keeps the UI language under `taktblatt:locale` and the screen theme under `taktblatt:theme`. It keeps the other viewer settings (`expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab`, `timelineCollapsed` and `timelineKeepOpen`) under `taktblatt:ui`.
+- These settings are **viewer state**. The app keeps the UI language under `taktblatt:locale` and the screen theme under `taktblatt:theme`. It keeps the other viewer settings (`diagramView`, `printDiagrams`, `printSubtasks`, `expanded`, `ganttPinned`, `ganttHeight`, `timelineLegendsCollapsed`, `splitRatio`, `narrowTab`, `timelineCollapsed` and `timelineKeepOpen`) under `taktblatt:ui`.
 - The stored keys `ganttPinned` and `ganttHeight` keep their old names for compatibility, although they now apply to the whole Timeline section.
 - `timelineLegendsCollapsed` is the legend state in split view. With tabs, the legends cannot be hidden. They show as one line of chips while the Timeline section is expanded (ADR 17). The app ignores the older field `narrowLegendsCollapsed`. An explicit stored boolean for `timelineLegendsCollapsed` takes priority over the pin state. If this field is absent from valid older viewer data, the legends start collapsed when `ganttPinned` is `true`. They start expanded when `ganttPinned` is `false` or absent. With no stored data, the split view legends start expanded and the Timeline section starts unpinned in split view. Unreadable or invalid viewer data gives these defaults. After this initial default, pin and unpin do not change the legend setting.
 - `timelineCollapsed` records only a collapse of the narrow Timeline by the user. An automatic collapse on scroll is not stored. `timelineKeepOpen` turns off the automatic collapse. It defaults to `false`.

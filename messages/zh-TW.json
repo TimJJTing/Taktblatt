@@ -343,7 +343,6 @@
 	"diagram_family_done": "{count} 個已完成",
 	"diagram_family_in_progress": "{count} 個進行中",
 	"diagram_family_ready": "{count} 個可開始",
-	"diagram_family_summary": "子任務：{summary}",
 	"diagram_print_group": "要列印的圖表",
 	"diagram_print_min": "請至少選擇一個圖表",
 	"diagram_print_subtasks": "在列印的圖表中顯示子任務",

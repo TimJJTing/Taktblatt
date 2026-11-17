@@ -299,8 +299,12 @@ export async function readDownload(page: Page, menuItem: string) {
 	await page.getByRole('menuitem', { name: menuItem }).click();
 	const download = await pending;
 	const text = await readFile((await download.path())!, 'utf8');
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	return { name: download.suggestedFilename(), file: JSON.parse(text) as Record<string, any> };
+	return {
+		name: download.suggestedFilename(),
+		text,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		file: JSON.parse(text) as Record<string, any>
+	};
 }
 
 /** Opens the This plan menu or sheet. */
@@ -1086,7 +1090,7 @@ export async function dependencyContrast(line: Locator, paper = false): Promise<
 		context.fillStyle = style.getPropertyValue(onPaper ? '--color-paper' : '--background');
 		context.fillRect(0, 0, 1, 1);
 		const background = luminance();
-		// D19 strokes must already contain their opaque ground mix.
+		// Dependency strokes must already contain their opaque ground mix.
 		context.clearRect(0, 0, 1, 1);
 		context.globalAlpha = 1;
 		context.fillStyle = style.stroke;

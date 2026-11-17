@@ -73,8 +73,6 @@ export interface RouteMapLayout {
 	clearance: number;
 	width: number;
 	height: number;
-	stageYs: readonly number[];
-	loops: readonly { taskIds: readonly string[] }[];
 	columns: readonly {
 		id: string;
 		index: number;
@@ -85,11 +83,6 @@ export interface RouteMapLayout {
 	}[];
 	lines: readonly RouteMapLine[];
 	signs: readonly RouteMapSign[];
-	familyReturns: readonly {
-		parentId: string;
-		points: readonly RouteMapPoint[];
-		columnIds: readonly string[];
-	}[];
 	gutters: readonly { x: number; width: number; risers: readonly { key: string; x: number }[] }[];
 	corridors: readonly {
 		id: string;
@@ -97,7 +90,6 @@ export interface RouteMapLayout {
 		laneCount: number;
 		intervals: readonly { key: string; start: number; end: number; lane: number }[];
 	}[];
-	junctions: readonly { point: RouteMapPoint; memberKeys: readonly string[] }[];
 	stageLabels: readonly RouteMapStageLabel[];
 	routes: readonly RouteMapRoute[];
 }
@@ -539,15 +531,11 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		clearance,
 		width: x - metrics.labelWidth / 2,
 		height: bottom,
-		stageYs: [],
-		loops: [],
 		columns,
 		lines: [],
 		signs: [],
-		familyReturns: [],
 		gutters,
 		corridors,
-		junctions: [],
 		stageLabels: [],
 		routes: []
 	};

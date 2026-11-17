@@ -45,14 +45,6 @@ export function groupingPlan(): Plan {
 	]);
 }
 
-export function clearancePlan(): Plan {
-	return makePlan([
-		task({ id: 'A', start: '2027-01-01' }),
-		task({ id: 'B', start: '2027-01-02', title: 'B label fills its reserved box' }),
-		task({ id: 'C', start: '2027-01-03', dependsOn: ['A'] })
-	]);
-}
-
 export function largePlan(): Plan {
 	const tasks: Task[] = [];
 	for (let s = 0; s < 4; s++) {
@@ -164,11 +156,8 @@ export function expectPathClear(
 	}
 }
 
-/** D53 scene fields required by the acceptance tests. Production exports must expose these fields. */
-export interface MetroLayout extends Pick<
-	RouteMapLayout,
-	'clearance' | 'width' | 'height' | 'stageYs' | 'loops'
-> {
+/** Route map layout fields required by the acceptance tests. */
+export interface MetroLayout extends Pick<RouteMapLayout, 'clearance' | 'width' | 'height'> {
 	stations: readonly (RouteMapLayout['stations'][number] & {
 		center: RouteMapPoint;
 		column: number;
@@ -201,11 +190,6 @@ export interface MetroLayout extends Pick<
 		height: number;
 		outlineWidth: number;
 	}[];
-	familyReturns: readonly {
-		parentId: string;
-		points: readonly RouteMapPoint[];
-		columnIds: readonly string[];
-	}[];
 	gutters: readonly { x: number; width: number; risers: readonly { key: string; x: number }[] }[];
 	corridors: readonly {
 		id: string;
@@ -213,7 +197,6 @@ export interface MetroLayout extends Pick<
 		laneCount: number;
 		intervals: readonly { key: string; start: number; end: number; lane: number }[];
 	}[];
-	junctions: readonly { point: RouteMapPoint; memberKeys: readonly string[] }[];
 	stageLabels: readonly {
 		stageId: string;
 		hostId: string | null;
@@ -256,25 +239,8 @@ export function expectCoverage(model: RouteMapModel, routes: readonly MetroRoute
 	);
 }
 
-/** Half-open intervals can reuse a lane when their endpoints meet. */
-export function maximumOverlap(intervals: readonly { start: number; end: number }[]) {
-	const events = intervals
-		.flatMap((i) => [
-			[i.start, 1],
-			[i.end, -1]
-		])
-		.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-	let active = 0,
-		maximum = 0;
-	for (const [, delta] of events) {
-		active += delta;
-		maximum = Math.max(maximum, active);
-	}
-	return maximum;
-}
-
 /** The original six-edge sketch. This is not the application example plan. */
-export function fablePlan(): Plan {
+export function signsPlan(): Plan {
 	const plan = makePlan(
 		[
 			task({ id: 'survey', title: 'Site survey', start: '2026-11-01', status: 'done' }),
@@ -497,4 +463,121 @@ export function expectWalkwaysClear(routes: readonly RouteMapRoute[]) {
 			}
 		}
 	}
+}
+
+type PaperPoint = { x: number; y: number };
+
+// Return the part of a segment inside the clearance capsule around another segment.
+function bandIntervals(
+	a: PaperPoint,
+	b: PaperPoint,
+	c: PaperPoint,
+	d: PaperPoint,
+	radius: number
+): [number, number][] {
+	const dx = b.x - a.x;
+	const dy = b.y - a.y;
+	const ex = d.x - c.x;
+	const ey = d.y - c.y;
+	const lengthSquared = dx * dx + dy * dy;
+	const otherLength = Math.hypot(ex, ey);
+	if (!lengthSquared) return [];
+	// A complete crossing passes through both sides of the band without turning in it.
+	if (otherLength) {
+		const sideA = ((a.x - c.x) * ey - (a.y - c.y) * ex) / otherLength;
+		const sideB = ((b.x - c.x) * ey - (b.y - c.y) * ex) / otherLength;
+		if ((sideA < -radius && sideB > radius) || (sideA > radius && sideB < -radius)) {
+			const t = sideA / (sideA - sideB);
+			const crossing = { x: a.x + t * dx, y: a.y + t * dy };
+			const position = ((crossing.x - c.x) * ex + (crossing.y - c.y) * ey) / otherLength;
+			if (position > radius && position < otherLength - radius) return [];
+		}
+	}
+	const intervals: [number, number][] = [];
+	for (const center of [c, d]) {
+		const x = a.x - center.x;
+		const y = a.y - center.y;
+		const dot = x * dx + y * dy;
+		const discriminant = dot * dot - lengthSquared * (x * x + y * y - radius * radius);
+		if (discriminant < 0) continue;
+		const start = Math.max(0, (-dot - Math.sqrt(discriminant)) / lengthSquared);
+		const end = Math.min(1, (-dot + Math.sqrt(discriminant)) / lengthSquared);
+		if (start < end) intervals.push([start, end]);
+	}
+	if (otherLength) {
+		let low = 0;
+		let high = 1;
+		const clip = (value: number, delta: number, min: number, max: number) => {
+			if (!delta) {
+				if (value < min || value > max) high = -1;
+				return;
+			}
+			const first = (min - value) / delta;
+			const second = (max - value) / delta;
+			low = Math.max(low, Math.min(first, second));
+			high = Math.min(high, Math.max(first, second));
+		};
+		const x = a.x - c.x;
+		const y = a.y - c.y;
+		clip(x * ex + y * ey, dx * ex + dy * ey, 0, otherLength * otherLength);
+		clip(x * ey - y * ex, dx * ey - dy * ex, -radius * otherLength, radius * otherLength);
+		if (low < high) intervals.push([low, high]);
+	}
+	return intervals;
+}
+
+export function paperPathOverlap(
+	branch: readonly [PaperPoint, PaperPoint][],
+	other: readonly [PaperPoint, PaperPoint][],
+	radius: number
+): number {
+	let total = 0;
+	for (const [a, b] of branch) {
+		const intervals = other
+			.flatMap(([c, d]) => bandIntervals(a, b, c, d, radius))
+			.sort((left, right) => left[0] - right[0]);
+		let start = 0;
+		let end = 0;
+		let covered = 0;
+		for (const [nextStart, nextEnd] of intervals) {
+			if (nextStart > end) {
+				covered += end - start;
+				start = nextStart;
+				end = nextEnd;
+			} else end = Math.max(end, nextEnd);
+		}
+		covered += end - start;
+		total += covered * Math.hypot(b.x - a.x, b.y - a.y);
+	}
+	return total;
+}
+
+// Shared paths may overlap within the first 16 px of a station departure.
+export function outsideStations(
+	points: readonly PaperPoint[],
+	shared: readonly PaperPoint[]
+): [PaperPoint, PaperPoint][] {
+	let segments: [PaperPoint, PaperPoint][] = points.slice(1).map((point, i) => [points[i], point]);
+	for (const center of shared) {
+		segments = segments.flatMap(([a, b]) => {
+			const dx = b.x - a.x;
+			const dy = b.y - a.y;
+			const lengthSquared = dx * dx + dy * dy;
+			if (!lengthSquared) return [];
+			const x = a.x - center.x;
+			const y = a.y - center.y;
+			const dot = x * dx + y * dy;
+			const discriminant = dot * dot - lengthSquared * (x * x + y * y - 16 * 16);
+			if (discriminant <= 0) return [[a, b]];
+			const low = Math.max(0, (-dot - Math.sqrt(discriminant)) / lengthSquared);
+			const high = Math.min(1, (-dot + Math.sqrt(discriminant)) / lengthSquared);
+			if (low >= high) return [[a, b]];
+			const at = (t: number) => ({ x: a.x + t * dx, y: a.y + t * dy });
+			const outside: [PaperPoint, PaperPoint][] = [];
+			if (low > 0) outside.push([a, at(low)]);
+			if (high < 1) outside.push([at(high), b]);
+			return outside;
+		});
+	}
+	return segments;
 }

@@ -343,7 +343,6 @@
 	"diagram_family_done": "{count} 件が完了",
 	"diagram_family_in_progress": "{count} 件が進行中",
 	"diagram_family_ready": "{count} 件が開始可能",
-	"diagram_family_summary": "サブタスク：{summary}",
 	"diagram_print_group": "印刷する図",
 	"diagram_print_min": "図を1つ以上選択してください",
 	"diagram_print_subtasks": "印刷する図にサブタスクを表示",

@@ -7,6 +7,7 @@ The text follows ASD-STE100 (Simplified Technical English). [GLOSSARY.md](../GLO
 ## 0. Product
 
 - Taktblatt shows a plan as a timeline, stages, milestones and a work table.
+- The timeline can show the plan as a Gantt, a Route map or a Kanban board.
 - Taktblatt is a static web app. It has no server and no authentication.
 - The app keeps all data in the browser `localStorage`. It sends no data on the network.
 - The app does not collect analytics or telemetry.
@@ -1067,7 +1068,7 @@ Printed work tables use the Status header and the same four status icons in pape
 - Font: Source Sans 3, self-hosted. Dates, counts, and targets use tabular figures.
 - Ink `#1A1D23`. Secondary text `#505663` and `#5A6070`. Rules `#C9CDD4` and `#DDE0E5`. Neutral fill `#EEF0F3`.
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
-- Dotted cycle connectors use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token. Dependency connectors have no arrowheads.
+- Dotted cycle connectors use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token. Gantt dependency connectors have no arrowheads.
 - Stage palette: 8 colors. Each light value has a contrast of at least 4.5:1 against white. Each dark value has a contrast of at least 6:1 against the dark ground (`#13161A`). Stage badge text is white in light mode and `#13161A` in dark mode. Band palette: 4 light tints. Dark band tints use the dark stage values at 14% opacity. Gray uses white at 7% opacity.
 
 ### 9.1 Shared diagram signs
@@ -1108,7 +1109,7 @@ The diagrams share signs where their meaning is the same. Refer to ADR 19 and [A
 
 The Gantt uses station dots and stage badges for task lines, points, stage headings and legends. Route map uses neutral stations and the status icon (section 5.14). Kanban uses the status icon (section 5.15).
 
-Diagram layers, from bottom to top: month rules, bands, Today line, base connectors, lit casings and lit connectors, cycle connectors, ordinary junction rings, task marks, milestone rings and labels. Within each task mark, a tap stays above its source line and below its station dots. It is clipped to the timeline area. Each cycle casing sits directly below its warning-painted connector.
+Gantt layers, from bottom to top: month rules, bands, Today line, base connectors, lit casings and lit connectors, cycle connectors, ordinary junction rings, task marks, milestone rings and labels. Within each task mark, a tap stays above its source line and below its station dots. It is clipped to the timeline area. Each cycle casing sits directly below its warning-painted connector.
 
 Dim diagram marks by mixing their color with the ground. Do not reduce element opacity. Task lines and station dots stay opaque over connectors. Apply one dim level at a time.
 
@@ -1120,7 +1121,7 @@ Paper Gantt rows are 18 px high. Top-level task lines are 5 px thick with 1 px c
 
 Cycle paths retain the warning style and ground casing of section 5.4. The default milestone is an ink interchange ring. Other milestone symbols keep their shapes in paper ink. Line weight, status fill and dotted cycle connectors keep the hierarchy clear in grayscale.
 
-Each task keeps its identity when its geometry changes. Each connector has six route points. Sources with identical complete target sets share a trunk. A width change applies new routes at once to preserve angles and clearances. Exact ports take priority when a short segment or chart edge cannot meet the normal minimum length. A finish-to-start chain can enter vertically when its riser and start port align.
+Each task keeps its identity when its geometry changes. In the Gantt, each connector has six route points. Sources with identical complete target sets share a trunk. A width change applies new routes at once to preserve angles and clearances. Exact ports take priority when a short segment or chart edge cannot meet the normal minimum length. A finish-to-start chain can enter vertically when its riser and start port align.
 
 Forward ports on the same row use a straight route. A hook at the left chart edge can omit its final stub to stay inside the chart.
 
@@ -1131,8 +1132,8 @@ Horizontal runs reserve their actual vertical position across both target sides.
 ## 10. Quality
 
 - TypeScript strict mode. ESLint. Prettier.
-- Vitest unit tests in two projects. The `server` project runs the `*.spec.ts` files in Node. It covers the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import, pagination. The `client` project runs the `*.svelte.spec.ts` files in Chromium. It covers the store, commands and undo history.
-- Playwright end-to-end tests in `e2e/` for the main flows, the offline app (PWA) and the pagination of the sheets.
+- Vitest unit tests in two projects. The `server` project runs the `*.spec.ts` files in Node. It covers the domain logic: derived values, sort, dependency validation, move conflicts, ready light, schema, migration, import, pagination. It also covers diagram scenes, routing and paper adapters. The `client` project runs the `*.svelte.spec.ts` files in Chromium. It covers the store, commands, undo history and diagram view components.
+- Playwright end-to-end tests in `e2e/` for the main flows, diagram views, the offline app (PWA) and the pagination of the sheets. `pnpm test:e2e:fixtures` checks test-only diagram views in a separate build (ADR 20).
 - Headless Playwright hides native scrollbars, and CI runs Chromium only. The end-to-end tests check that the native scrollbar is hidden (`scrollbar-width: none`) and test the overlay thumbs. Overlay scrollbar parity in Firefox and Safari, and on macOS, Windows, Linux, iOS and Android, is a manual check (ADR 18).
 - GitHub Actions run `pnpm lint`, `pnpm check`, the unit tests and the end-to-end tests in separate jobs. They run on each pull request, on each merge queue entry and on each push to `main`. The `CI passed` job fails when one of these jobs does not succeed. If the end-to-end tests fail, the workflow keeps the Playwright results for 7 days.
 - The branch protection rule for `main` requires the `CI passed` check before a merge. Refer to ADR 11.

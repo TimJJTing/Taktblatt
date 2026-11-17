@@ -1,6 +1,6 @@
 # Taktblatt
 
-Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
+Taktblatt is a planner for the browser. You write a plan once. Taktblatt shows it as a Gantt timeline, a Route map, a Kanban board, a stage overview and a work plan table. You can print the plan on A4 or US Letter paper, or save it as a PDF. The app has no server and no account. Your data stays in your browser.
 
 ![The split workspace: the plan header, sheet footer and Gantt timeline on the left, the work plan on the right](docs/screenshots/workspace.png)
 
@@ -36,6 +36,20 @@ The **Sheet footer** row below the objective has a note, a version, a date and a
 - Click a task label to go to its row in the work plan.
 - In split view, use the pin button to keep the whole Timeline section at the top of the plan pane while you scroll. While pinned, drag its bottom edge or use the Taller and Shorter buttons to change its height. In split view, use the Legends button to show or hide Stages, Milestones and Bands together. With tabs, the section is always pinned, and the legends are one line of chips below the chart. Swipe the line to see more.
 
+### Diagram views
+
+The view switch is in the **Timeline** heading row. Choose **Gantt**, **Route map** or **Kanban**. Arrow keys, Home and End change the choice. The app saves the choice in this browser for all plans. A view change does not change the plan, an open task dialog or undo history. Task cues move between views. With reduced motion, the view changes at once.
+
+Work plan, Gantt, Route map and Kanban share the expanded tasks for each plan. Use the same chevron button in each view to show or hide subtasks.
+
+![The Route map with stage rails and an expanded subtask branch](docs/screenshots/route-map.png)
+
+The **Route map** shows workflow without a time scale. Colored rails join tasks of a stage. A rail alone does not prove a stored dependency. Ordinary dependencies between stages have thin paths with an open chevron at the waiting task. Stations on these paths have transfer capsules. An expanded family has a connected double-line branch in the stage color. Each task name has a status icon. The first station of each stage has a stage badge. Hover or focus shows the dependency route. Cycles have red dotted paths. A status key and family summaries explain task state. The map has no ready light.
+
+![The Kanban board with stage swimlanes and expanded family detail](docs/screenshots/kanban.png)
+
+The **Kanban** board has stage swimlanes and four columns: **Blocked**, **Todo**, **In progress** and **Done**. Each eligible top-level task has one card. A parent has one summary card. Its family row is below the cards of the stage. Expand the row to show subtasks without changing card counts. Canceled top-level tasks stay hidden. Click a card or press Enter to open **Task details**. The board is read-only. Change status in the Work plan or task dialog.
+
 ### Stage overview
 
 ![Three stage cards with the stage months, the description and the deliverables](docs/screenshots/stage-overview.png)
@@ -70,6 +84,8 @@ Remark sections hold lists of short bullets. They are at the end of the plan pan
 
 Open **Menu** (**…**) in the app header and choose **Print…**. The preview shows the paper sheets. Choose A4 or US Letter. Click **Print** in the preview to print the plan or to save it as a PDF. The printed labels and dates use the UI language.
 
+Use **Diagrams to print** to select any one, any two or all three diagrams. Keep at least one selected. The default is Gantt only. Use **Show subtasks in printed diagrams** to include subtask detail in every selected diagram. The default is off. The printed Work plan always shows all subtasks. Route map and Kanban use landscape sheets. Diagrams print in the order Gantt, Route map, Kanban. Each later diagram starts on a new sheet.
+
 ### Several plans, import, export and offline use
 
 - Open the plan switcher (**Plans**) in the app header to change plans, create a plan, import files and back up all plans.
@@ -78,6 +94,7 @@ Open **Menu** (**…**) in the app header and choose **Print…**. The preview s
 - When the primary pointer is touch, as on phones and most tablets, both menus open as bottom sheets.
 - Undo with Cmd/Ctrl+Z. Redo with Shift+Cmd/Ctrl+Z or Ctrl+Y.
 - Install the app as a PWA. It works offline after the first visit.
+- The diagram view, print selection, print detail choice and expanded tasks stay in this browser after a reload, also offline. Exports and backups do not include these viewer choices. An import does not change them.
 
 ### Languages
 
@@ -175,6 +192,7 @@ Use the URL reported by Vite if port 5173 is occupied. Read the snapshot for ele
 | Folder                | Content                                                  |
 | --------------------- | -------------------------------------------------------- |
 | `src/lib/domain/`     | Pure logic: schema, derived values, dependencies, Gantt  |
+| `src/lib/scene/`      | Diagram scenes, routing and paper adapters               |
 | `src/lib/state/`      | The store, commands, undo history and viewer state       |
 | `src/lib/components/` | Svelte components for the workspace and the print sheets |
 | `src/service-worker/` | The service worker for offline use                       |

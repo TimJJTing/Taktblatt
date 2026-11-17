@@ -343,7 +343,6 @@
 	"diagram_family_done": "{count} done",
 	"diagram_family_in_progress": "{count} in progress",
 	"diagram_family_ready": "{count} ready",
-	"diagram_family_summary": "Subtasks: {summary}",
 	"diagram_print_group": "Diagrams to print",
 	"diagram_print_min": "Select at least one diagram",
 	"diagram_print_subtasks": "Show subtasks in printed diagrams",

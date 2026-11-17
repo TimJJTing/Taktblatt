@@ -12,7 +12,7 @@ import {
 } from '#lib/components/plan/colors.ts';
 import { DIAGRAM_ATTR } from '#lib/components/diagram/view-contract.ts';
 import {
-	fablePlan,
+	signsPlan,
 	longNamePlan,
 	pinnedExamplePlan,
 	screenMetrics
@@ -1317,7 +1317,7 @@ describe('Route map station interactions', () => {
 
 	it('uses a 2px subtask walkway with one unfilled destination chevron', async () => {
 		motion.reduced = true;
-		const plan = fablePlan();
+		const plan = signsPlan();
 		plan.tasks.find((task) => task.id === 'water')!.dependsOn.push('test');
 		workspace.commit((current) => Object.assign(current, plan));
 		viewer.setExpanded(workspace.plan.id, 'soil', true);
@@ -1589,9 +1589,9 @@ describe('Route map station interactions', () => {
 		}
 	});
 
-	it('places one badge at the first top-level station of each fable stage in both states', async () => {
+	it('places one badge at the first top-level station of each stage in both expand states', async () => {
 		motion.reduced = true;
-		workspace.commit((plan) => Object.assign(plan, fablePlan()));
+		workspace.commit((plan) => Object.assign(plan, signsPlan()));
 		const screen = await mount(),
 			root = screen.container;
 		for (const expanded of [false, true]) {
@@ -1617,7 +1617,7 @@ describe('Route map station interactions', () => {
 
 	it('renders one station size and equal empty child and top-level transfers', async () => {
 		motion.reduced = true;
-		const plan = fablePlan();
+		const plan = signsPlan();
 		plan.tasks.find((task) => task.id === 'water')!.dependsOn.push('test');
 		workspace.commit((current) => Object.assign(current, plan));
 		viewer.setExpanded(workspace.plan.id, 'soil', true);
@@ -1686,7 +1686,7 @@ describe('Route map station interactions', () => {
 	});
 
 	it('prints a neutral ring and badge without a status icon for an empty stage', async () => {
-		const plan = fablePlan();
+		const plan = signsPlan();
 		plan.stages = [plan.stages[0], { ...plan.stages[1], id: 'empty', title: 'Empty stage' }];
 		plan.tasks = [plan.tasks[0]];
 		const model = routeMapModel(plan, new Set(), indexTasks(plan.tasks));
@@ -1769,7 +1769,7 @@ describe('Route map station interactions', () => {
 	});
 
 	it('retains imported walkway ids, one opaque off-route mix and undimmed capsule outlines', async () => {
-		workspace.commit((plan) => Object.assign(plan, fablePlan()));
+		workspace.commit((plan) => Object.assign(plan, signsPlan()));
 		viewer.setExpanded(workspace.plan.id, 'soil', true);
 		const screen = await mount();
 		const root = screen.container;
@@ -1796,7 +1796,7 @@ describe('Route map station interactions', () => {
 	});
 
 	it('prints a double child branch with a white 1.5px gap and full stage paint', async () => {
-		const plan = fablePlan();
+		const plan = signsPlan();
 		const model = routeMapModel(plan, new Set(['soil']), indexTasks(plan.tasks));
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
@@ -2054,7 +2054,6 @@ describe('Route map station interactions', () => {
 			continuations: [],
 			stageLabels: [],
 			signs: [],
-			junctions: [],
 			titles: []
 		}));
 		const truncate = (text: string) =>

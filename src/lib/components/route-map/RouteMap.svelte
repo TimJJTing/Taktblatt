@@ -2,7 +2,6 @@
 	import { untrack } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
-	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
 	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
 	import GanttLine from '#lib/components/timeline/GanttLine.svelte';
 	import RouteMapDecoration from './RouteMapDecoration.svelte';
@@ -442,19 +441,6 @@
 						<g transition:fade={{ duration: motionDuration(150) }}
 							>{@render stageLine(entry.line)}</g
 						>
-					{/each}
-					{#each layout.junctions as junction, i (JSON.stringify([ws.plan.id, i]))}
-						<DiagramRing
-							junction={{
-								key: `route-junction:${i}`,
-								trunk: `route-junction:${i}`,
-								kind: 'junction',
-								edges: junction.memberKeys,
-								point: { x: { f: 0, px: junction.point.x }, y: { f: 0, px: junction.point.y } }
-							}}
-							{width}
-							route={paint(junction.memberKeys.some((key) => focus.litLineKeys.has(key)))}
-						/>
 					{/each}
 				</svg>
 				{#each layout.stageLabels as label (JSON.stringify( [ws.plan.id, label.stageId, label.hostId] ))}

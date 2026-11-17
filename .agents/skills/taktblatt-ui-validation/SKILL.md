@@ -25,10 +25,15 @@ Reproduce the changed behavior with representative plan data. Check the affected
 
 For changed controls, check accessible names, keyboard activation, focus placement, and focus return after dismissal. For position changes, check normal motion and reduced motion. Check affected translated labels and theme variants when their length or colors can alter the result.
 
+For diagram changes, check Gantt, Route map and Kanban with the same plan. Expand a parent in one view. Confirm the same expand state in the other views and the Work plan. Check the Route map stations, status icons, family summary and connected double-line child branch. Check Kanban stage swimlanes, aligned columns, parent summaries and family detail. Expansion must not change column counts or move cards within the same swimlane.
+
+Change views with the real view switch, by pointer and keyboard. Check focus transfer and return from Task details. Check each view pair with normal motion and reduced motion. Repeat with the diagram scrollers at nonzero offsets. Interrupt a switch with another choice. Check that cues continue from their current positions and that connectors fade. After motion ends, confirm that no flight copy or hidden real cue remains. Reduced motion must change views at once.
+
 Use these rules when writing or running interaction checks:
 
-- For hover-intent checks, move the real pointer and wait past the hover timers: 300 ms cold rest, 120 ms warm switch and 250 ms leave grace. Do not use the Playwright clock, because it also stops animation-frame tweens.
+- For hover-intent checks, move the real pointer. The timers are 300 ms cold rest, 120 ms warm switch and 250 ms leave grace. Wait for observable route state in browser checks. Check exact timer boundaries in controlled unit tests. Do not use the Playwright clock, because it also stops animation-frame tweens.
 - Check hover on the full Gantt row, including the label cell and the empty timeline band. Sweeps across rows must keep the route and the dim until the pointer rests. In forced colors, check that the highlighted label cell uses `Highlight` and `HighlightText`.
+- Check hover on Route map stations and names, and on Kanban status icons. Check keyboard route focus and touch route activation on the affected targets.
 - For `:focus-visible` checks, use `keyboard.press('Tab')` to move focus. `locator.focus()` does not set `:focus-visible`.
 - In calendar tests, select a date different from the initial date. Derive local-date expectations from the browser date.
 - In history tests, start with empty history and check both Undo and Redo.
@@ -44,11 +49,15 @@ Open the app's Preview dialog through its UI. Use `openPreview` in `e2e/helpers.
 
 Check the changed content on the sheets, including labels, clipping, overlap, and page numbers. Check a page boundary when the change affects size or pagination. Compare the preview with the workspace for data and label consistency. Verify dialog dismissal and focus return when the change affects interaction.
 
+Select Gantt, Route map and Kanban in **Diagrams to print**, separately and together. Confirm that the last selected diagram cannot be cleared. Close Preview, change the workspace view and reopen Preview. Confirm that the print selection stays unchanged. Toggle **Show subtasks in printed diagrams**. Check that it changes detail in every selected diagram. The printed Work plan must show all subtasks with either choice. Close Preview, expand or collapse a parent on screen and reopen Preview. Confirm that the sheets do not change. The print detail checkbox must also show when only Gantt is registered.
+
 The workspace and sheets use separate components. Read `docs/adr/0008-print-blocks.md` when a change affects both. Do not infer that sheets are correct from a workspace screenshot. Use `e2e/print.e2e.ts` for existing pagination cases and assertions.
 
 ## Print output
 
 Check print media and generate a PDF when the available browser supports it. Inspect the rendered PDF pages, not only the preview DOM. Confirm that the sheets contain the expected content, fit the selected paper, and exclude workspace controls. Allow the clipping of oversized indivisible blocks specified in `docs/spec.md`, section 7. When geometry or pagination changes, check both A4 and Letter. When printed colors change, also check output with background graphics off. Check page breaks, page count, and the affected colors or graphics against the Preview dialog.
+
+For diagram changes, generate A4 and US Letter PDFs with all three diagrams and with print detail off and on. Confirm landscape Route map and Kanban sheets, portrait Gantt and shared plan sections, diagram order and one page-number total. Each later diagram and each orientation change must start a new sheet. Check repeated diagram headings and keys at page breaks. Confirm that family detail follows the print detail choice and that the Work plan stays complete.
 
 Use the PDF options and print setup in `e2e/print.e2e.ts` as a reference. CSS print emulation checks styles; it does not by itself validate PDF pagination or a native print dialog. A generated PDF does not prove physical printer output. State which evidence was available.
 
@@ -58,8 +67,8 @@ Use the fresh production build. The default CLI profile is isolated and headless
 
 For offline checks:
 
-1. Load the test plan online. Wait for `navigator.serviceWorker.ready` and confirm that `navigator.serviceWorker.controller` is non-null.
-2. Set the browser context offline, then reload. Check the plan content and the affected controls.
+1. Load the test plan online. Wait for `navigator.serviceWorker.ready` and confirm that `navigator.serviceWorker.controller` is non-null. Set the diagram view, print selection, print detail choice and a parent's expand state through the UI. Record the choices.
+2. Set the browser context offline, then reload. Check the plan content and the affected controls. Confirm that `diagramView`, `printDiagrams`, `printSubtasks` and the plan's `expanded` state retain the recorded choices. Check Route map and Kanban offline, including their shared expansion controls. Open Preview and confirm the saved diagram selection and print detail choice.
 3. Make a relevant edit in the disposable plan. Reload offline and confirm that it persists when persistence is part of the expected behavior. Check the Preview dialog offline.
 4. Restore the browser context to online in cleanup, including after failures.
 

@@ -890,7 +890,7 @@ export function buildRouteMapRoutes(
 	layout: RouteMapLayout,
 	metrics: { paper: boolean; pitch: number },
 	family?: readonly { key: string; from: string; to: string }[]
-): Pick<RouteMapLayout, 'routes' | 'corridors' | 'gutters' | 'junctions'> {
+): Pick<RouteMapLayout, 'routes' | 'corridors' | 'gutters'> {
 	const stations = new Map(layout.stations.map((station) => [station.id, station]));
 	const edges = family
 		? family.map((edge) => ({
@@ -997,8 +997,7 @@ export function buildRouteMapRoutes(
 			};
 		}),
 		corridors: layout.corridors,
-		gutters: layout.gutters,
-		junctions: []
+		gutters: layout.gutters
 	};
 }
 

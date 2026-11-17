@@ -212,13 +212,6 @@
 							{/if}
 						</g>
 					{/each}
-					{#each item.junctions ?? [] as junction, index (index)}
-						<DiagramRing
-							junction={ring(junction.point, junction.memberKeys.join(':'))}
-							width={item.width}
-							still
-						/>
-					{/each}
 				</svg>
 				{#each item.stations as station (station.id)}
 					{@const n = node(station.id)!}

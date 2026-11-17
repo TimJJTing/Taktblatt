@@ -63,7 +63,7 @@ export interface DiagramPaperAdapter {
  * focus transfer and scroll reveal. The value of `task`, `station`, `label` and `parent` is a
  * task id.
  * - `task`: the task box (bar, card or label-only node).
- * - `station`: inside a task box, the identity station dot, if the task has one.
+ * - `station`: inside a task box, the identity station mark (dot, glyph or status icon wrapper).
  * - `label`: the rendered label of the task.
  * - `parent`: on a task box, the parent task id. Capture it before a task disappears for focus
  *   return. Motion also uses it for emerging subtasks.

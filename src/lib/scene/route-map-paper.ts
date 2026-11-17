@@ -2,6 +2,7 @@ import type { SceneSegment } from '#lib/domain/print-model.ts';
 import type { RouteMapModel } from '#lib/domain/route-map.ts';
 import {
 	routeMapLayout,
+	type RouteMapBox,
 	type RouteMapMetrics,
 	type RouteMapPoint,
 	type RouteMapStation,
@@ -9,7 +10,12 @@ import {
 	type RouteMapSign,
 	type RouteMapStageLabel
 } from './route-map-layout.ts';
-import { chamferRouteMapPath, routeMapChevron, type RouteMapRoute } from './route-map-router.ts';
+import {
+	chamferRouteMapPath,
+	routeMapChevron,
+	routeMapSizes,
+	type RouteMapRoute
+} from './route-map-router.ts';
 
 export const ROUTE_MAP_HEADING_LIMIT = 40;
 
@@ -159,7 +165,6 @@ export interface RouteMapPaperItem {
 	lines: readonly RouteMapLine[];
 	signs: readonly RouteMapSign[];
 	stageLabels: readonly RouteMapStageLabel[];
-	junctions?: readonly { point: RouteMapPoint; memberKeys: readonly string[] }[];
 }
 export interface RouteMapPaper {
 	columns: readonly { id: string; width: number }[];
@@ -225,6 +230,333 @@ function clipLine(points: readonly RouteMapPoint[], left: number, right: number)
 	}
 	return result;
 }
+/** Allocate a missing family rail after all paper paths and labels are reserved. */
+function restoredFamilyRoute(
+	item: RouteMapPaperItem,
+	line: RouteMapLine,
+	isChild: (id: string) => boolean,
+	allowCrossings = false
+): readonly RouteMapPoint[] | undefined {
+	type Segment = readonly [RouteMapPoint, RouteMapPoint];
+	const segments = (points: readonly RouteMapPoint[]): Segment[] =>
+		points.slice(1).map((point, index): Segment => [points[index], point]);
+	const source = item.stations.find((station) => station.id === line.taskIds[0])!.center;
+	const target = item.stations.find((station) => station.id === line.taskIds[1])!.center;
+	// Leave 1 px between strokes and 2 px more for the rendered bend curves.
+	const gap = 3;
+	const padding = line.width / 2 + gap;
+	const bottom = Math.min(item.height, item.markerY ?? item.height, item.titleY ?? item.height);
+	const inside = (point: RouteMapPoint) =>
+		point.x >= padding &&
+		point.x <= item.width - padding &&
+		point.y >= padding &&
+		point.y <= bottom - padding;
+	const inflate = (box: RouteMapBox, margin: number): RouteMapBox => ({
+		x: box.x - margin,
+		y: box.y - margin,
+		w: box.w + 2 * margin,
+		h: box.h + 2 * margin
+	});
+	const boxes = [
+		...item.stations.flatMap((station) => [
+			station.labelBox,
+			...(line.taskIds.includes(station.id) ? [] : [station.hitBox, station.focusBox])
+		]),
+		...item.stageLabels.map((label) => label.box),
+		...item.signs
+			.filter((sign) => !sign.stationId || !line.taskIds.includes(sign.stationId))
+			.map((sign) => ({
+				x: sign.center.x - sign.width / 2,
+				y: sign.center.y - sign.height / 2,
+				w: sign.width,
+				h: sign.height
+			}))
+	].map((box) => inflate(box, padding));
+	const routeWidth = (route: RouteMapRoute) =>
+		route.cycle
+			? 4
+			: route.carrier === 'line'
+				? isChild(route.from) || isChild(route.to)
+					? routeMapSizes.paper.branch
+					: routeMapSizes.paper.rail
+				: routeMapSizes.paper.path;
+	const paths: {
+		points: readonly RouteMapPoint[];
+		ids: readonly string[];
+		width: number;
+	}[] = [
+		...item.lines.map((entry) => ({
+			points: entry.points,
+			ids: entry.taskIds,
+			width: entry.width
+		})),
+		...[...item.edges, ...item.continuations].flatMap((route) => [
+			{ points: route.points, ids: [route.from, route.to], width: routeWidth(route) },
+			...(route.chevron?.length
+				? [{ points: route.chevron, ids: [], width: routeMapSizes.paper.path }]
+				: [])
+		]),
+		...(item.markers ?? []).flatMap((marker) =>
+			(marker.stubs ?? []).map((stub) => ({
+				points: stub.points,
+				ids: [stub.from, stub.to],
+				width: Math.max(routeWidth(stub), stub.ring ? 4 : 0)
+			}))
+		)
+	];
+	// A shared station permits only the first 16 px of a common departure.
+	const outsideStations = (parts: readonly Segment[], centers: readonly RouteMapPoint[]) => {
+		let result = [...parts];
+		for (const center of centers)
+			result = result.flatMap(([a, b]): Segment[] => {
+				const dx = b.x - a.x,
+					dy = b.y - a.y;
+				const lengthSquared = dx * dx + dy * dy;
+				if (!lengthSquared) return [];
+				const x = a.x - center.x,
+					y = a.y - center.y;
+				const dot = x * dx + y * dy;
+				const discriminant = dot * dot - lengthSquared * (x * x + y * y - 16 * 16);
+				if (discriminant <= 0) return [[a, b]];
+				const low = Math.max(0, (-dot - Math.sqrt(discriminant)) / lengthSquared);
+				const high = Math.min(1, (-dot + Math.sqrt(discriminant)) / lengthSquared);
+				if (low >= high) return [[a, b]];
+				const at = (t: number) => ({ x: a.x + t * dx, y: a.y + t * dy });
+				return [
+					...(low > 0 ? [[a, at(low)] as const] : []),
+					...(high < 1 ? [[at(high), b] as const] : [])
+				];
+			});
+		return result;
+	};
+	const reservations = paths.map((path) => {
+		const shared = item.stations
+			.filter((station) => line.taskIds.includes(station.id) && path.ids.includes(station.id))
+			.map((station) => station.center);
+		const parts = outsideStations(segments(path.points), shared);
+		const radius = (line.width + path.width) / 2 + gap;
+		return {
+			shared,
+			parts,
+			radius,
+			boxes: parts.map(([a, b]) =>
+				inflate(
+					{
+						x: Math.min(a.x, b.x),
+						y: Math.min(a.y, b.y),
+						w: Math.abs(b.x - a.x),
+						h: Math.abs(b.y - a.y)
+					},
+					radius
+				)
+			)
+		};
+	});
+	// Open bounds let a reserved corridor use the exact clearance boundary.
+	const hitsBox = ([a, b]: Segment, box: RouteMapBox) => {
+		let low = 0,
+			high = 1;
+		for (const [position, delta, min, max] of [
+			[a.x, b.x - a.x, box.x, box.x + box.w],
+			[a.y, b.y - a.y, box.y, box.y + box.h]
+		]) {
+			if (!delta) {
+				if (position <= min || position >= max) return false;
+				continue;
+			}
+			const first = (min - position) / delta,
+				last = (max - position) / delta;
+			low = Math.max(low, Math.min(first, last));
+			high = Math.min(high, Math.max(first, last));
+			if (low >= high) return false;
+		}
+		return true;
+	};
+	const clear = (points: readonly RouteMapPoint[], partial = false) => {
+		if (!points.every(inside)) return false;
+		const parts = segments(points);
+		if (boxes.some((box) => parts.some((part) => hitsBox(part, box)))) return false;
+		return reservations.every((reservation) =>
+			outsideStations(parts, reservation.shared).every((part) =>
+				reservation.boxes.every((box, index) => {
+					if (!hitsBox(part, box)) return true;
+					if (!allowCrossings) return false;
+					const [a, b] = part,
+						[c, d] = reservation.parts[index];
+					const dx = b.x - a.x,
+						dy = b.y - a.y,
+						ex = d.x - c.x,
+						ey = d.y - c.y;
+					const length = Math.hypot(dx, dy),
+						otherLength = Math.hypot(ex, ey);
+					// Grid steps must not allow a parallel run through many short segments.
+					if (!length || !otherLength || Math.abs(dx * ex + dy * ey) > 1e-6 * length * otherLength)
+						return false;
+					if (partial) return true;
+					// Cross the complete stroke band. Do not turn or join at the crossing.
+					const first = ((a.x - c.x) * ey - (a.y - c.y) * ex) / otherLength;
+					const last = ((b.x - c.x) * ey - (b.y - c.y) * ex) / otherLength;
+					const along = ((c.x - a.x) * dy - (c.y - a.y) * dx) / (dx * ey - dy * ex);
+					return (
+						Math.min(first, last) <= -reservation.radius &&
+						Math.max(first, last) >= reservation.radius &&
+						along * otherLength >= reservation.radius &&
+						(1 - along) * otherLength >= reservation.radius
+					);
+				})
+			)
+		);
+	};
+	const obstacles = [...boxes, ...reservations.flatMap((reservation) => reservation.boxes)];
+	const coordinates = (axis: 'x' | 'y', limit: number) =>
+		[
+			...new Set([
+				padding,
+				limit - padding,
+				source[axis],
+				target[axis],
+				...[source, target].flatMap((point) => [point[axis] - 16, point[axis] + 16]),
+				...obstacles.flatMap((box) => [box[axis], box[axis] + (axis === 'x' ? box.w : box.h)])
+			])
+		]
+			.filter((value) => value >= padding && value <= limit - padding)
+			.sort((a, b) => a - b);
+	const xs = coordinates('x', item.width),
+		ys = coordinates('y', bottom);
+	const count = xs.length * ys.length;
+	// Bound each search. The caller retries crossings, then uses family-cut strokes.
+	if (!inside(source) || !inside(target) || count > 131072) return;
+	const pointAt = (node: number) => ({
+		x: xs[node % xs.length],
+		y: ys[Math.floor(node / xs.length)]
+	});
+	const nodeAt = (point: RouteMapPoint) => ys.indexOf(point.y) * xs.length + xs.indexOf(point.x);
+	const start = nodeAt(source),
+		goal = nodeAt(target);
+	const costs = new Float64Array(count * 2).fill(Infinity);
+	const previous = new Int32Array(count * 2).fill(-1);
+	const heap: { state: number; cost: number; priority: number }[] = [];
+	const push = (state: number, cost: number, prior: number) => {
+		if (cost >= costs[state]) return;
+		costs[state] = cost;
+		previous[state] = prior;
+		const point = pointAt(Math.floor(state / 2));
+		const entry = {
+			state,
+			cost,
+			priority: cost + Math.abs(target.x - point.x) + Math.abs(target.y - point.y)
+		};
+		heap.push(entry);
+		let at = heap.length - 1;
+		while (at && heap[Math.floor((at - 1) / 2)].priority > entry.priority) {
+			const parent = Math.floor((at - 1) / 2);
+			heap[at] = heap[parent];
+			at = parent;
+		}
+		heap[at] = entry;
+	};
+	const pop = () => {
+		const first = heap[0],
+			last = heap.pop()!;
+		if (heap.length) {
+			let at = 0;
+			while (at * 2 + 1 < heap.length) {
+				let child = at * 2 + 1;
+				if (child + 1 < heap.length && heap[child + 1].priority < heap[child].priority) child++;
+				if (heap[child].priority >= last.priority) break;
+				heap[at] = heap[child];
+				at = child;
+			}
+			heap[at] = last;
+		}
+		return first;
+	};
+	const segmentClear = new Map<number, boolean>();
+	push(start * 2, 0, -1);
+	push(start * 2 + 1, 0, -1);
+	let visits = 0;
+	while (heap.length && visits++ < 32768) {
+		const entry = pop();
+		if (costs[entry.state] !== entry.cost) continue;
+		const node = Math.floor(entry.state / 2);
+		if (node === goal) {
+			const points: RouteMapPoint[] = [];
+			for (let state = entry.state; state >= 0; state = previous[state])
+				points.push(pointAt(Math.floor(state / 2)));
+			points.reverse();
+			const simple = points.filter(
+				(point, index) =>
+					!index ||
+					index === points.length - 1 ||
+					((points[index - 1].x !== point.x || point.x !== points[index + 1].x) &&
+						(points[index - 1].y !== point.y || point.y !== points[index + 1].y))
+			);
+			const rounded = chamferRouteMapPath(simple, 5);
+			if (clear(rounded)) return rounded;
+			if (clear(simple)) return simple;
+			return;
+		}
+		const x = node % xs.length,
+			y = Math.floor(node / xs.length);
+		for (const [next, axis] of [
+			[x ? node - 1 : -1, 0],
+			[x + 1 < xs.length ? node + 1 : -1, 0],
+			[y ? node - xs.length : -1, 1],
+			[y + 1 < ys.length ? node + xs.length : -1, 1]
+		]) {
+			if (next < 0) continue;
+			const key = Math.min(node, next) * count + Math.max(node, next);
+			let allowed = segmentClear.get(key);
+			if (allowed === undefined) {
+				allowed = clear([pointAt(node), pointAt(next)], true);
+				segmentClear.set(key, allowed);
+			}
+			if (!allowed) continue;
+			const a = pointAt(node),
+				b = pointAt(next);
+			push(
+				next * 2 + axis,
+				entry.cost + Math.abs(b.x - a.x) + Math.abs(b.y - a.y) + (entry.state % 2 === axis ? 0 : 8),
+				entry.state
+			);
+		}
+	}
+}
+
+/** Return one endpoint stroke where a family rail meets a paper boundary. */
+function paperFamilyCut(
+	item: RouteMapPaperItem,
+	line: RouteMapLine,
+	stationId: string,
+	exit: boolean,
+	key = `${line.key}:${item.id}`
+): RouteMapLine {
+	const station = item.stations.find((station) => station.id === stationId)!;
+	const laneY = Math.max(3, station.center.y - 16);
+	const points = exit
+		? [station.center, { x: station.center.x + 16, y: laneY }, { x: item.width, y: laneY }]
+		: [{ x: 0, y: laneY }, { x: station.center.x - 16, y: laneY }, station.center];
+	return { ...line, key, points };
+}
+
+/**
+ * Return a clear family rail. Retry with perpendicular crossings if needed.
+ * If neither search finds a route, return a family-cut stroke at each station.
+ */
+export function restorePaperFamilyRail(
+	item: RouteMapPaperItem,
+	line: RouteMapLine,
+	isChild: (id: string) => boolean
+): RouteMapLine[] {
+	const points =
+		restoredFamilyRoute(item, line, isChild) ?? restoredFamilyRoute(item, line, isChild, true);
+	if (points) return [{ ...line, points }];
+	return [
+		paperFamilyCut(item, line, line.taskIds[0], true, `${line.key}:${item.id}:exit`),
+		paperFamilyCut(item, line, line.taskIds[1], false, `${line.key}:${item.id}:entry`)
+	];
+}
+
 export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetrics): RouteMapPaper {
 	const width =
 		metrics.sheetWidth - 2 * metrics.margin - metrics.repeatedLabelWidth - 2 * metrics.gutter;
@@ -414,9 +746,6 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				...l,
 				box: box(l.box)
 			}));
-			item.junctions = layout.junctions
-				.filter((j) => j.memberKeys.every((key) => edges.some((r) => r.key === key)))
-				.map((j) => ({ ...j, point: point(j.point) }));
 			items.push(item);
 			wholePanels.add(item);
 			for (const s of item.stations) stationItems.set(s.id, item);
@@ -634,22 +963,23 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		}
 	}
 
-	// A family cut keeps its hierarchy stroke in each actual endpoint fragment.
+	const missingFamilyRails: { item: RouteMapPaperItem; line: RouteMapLine }[] = [];
+	// Keep family rails after row merging and at each endpoint fragment.
 	for (const line of layout.lines.filter((line) => line.kind === 'family')) {
 		const from = stationItems.get(line.taskIds[0])!,
 			to = stationItems.get(line.taskIds[1])!;
-		if (from === to) continue;
+		if (from === to) {
+			// Merged rows can share an item without their original cross-row rail.
+			if (wholePanels.has(from) || from.lines.some((entry) => entry.key === line.key)) continue;
+			missingFamilyRails.push({ item: from, line });
+			continue;
+		}
 		for (const [item, id, exit] of [
 			[from, line.taskIds[0], true],
 			[to, line.taskIds[1], false]
 		] as const) {
 			if (wholePanels.has(item)) continue;
-			const station = item.stations.find((station) => station.id === id)!;
-			const laneY = Math.max(3, station.center.y - 16);
-			const points = exit
-				? [station.center, { x: station.center.x + 16, y: laneY }, { x: item.width, y: laneY }]
-				: [{ x: 0, y: laneY }, { x: station.center.x - 16, y: laneY }, station.center];
-			item.lines = [...item.lines, { ...line, key: `${line.key}:${item.id}`, points }];
+			item.lines = [...item.lines, paperFamilyCut(item, line, id, exit)];
 		}
 	}
 
@@ -914,6 +1244,13 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				? { ...label, box: { ...label.box, y: station.labelBox.y + station.labelBox.h + 4 } }
 				: label;
 		});
+	}
+	// Continuations, stubs and final label bounds must exist before corridor allocation.
+	for (const { item, line } of missingFamilyRails) {
+		item.lines = [
+			...item.lines,
+			...restorePaperFamilyRail(item, line, (id) => !!nodes.get(id)?.parentId)
+		];
 	}
 	return {
 		columns,

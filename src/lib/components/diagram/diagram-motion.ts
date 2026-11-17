@@ -89,32 +89,6 @@ export function routersCompatible(a: DiagramMotionInfo, b: DiagramMotionInfo): b
 	return a.routerId === b.routerId && a.connectorSchema === b.connectorSchema;
 }
 
-/** The scroll container of a task node: its nearest scrolling ancestor inside the stage. */
-export interface ScrollContainer {
-	element: HTMLElement;
-	/** The viewport bounds of the container, in stage coordinates. */
-	bounds: Box;
-	scrollLeft: number;
-	scrollTop: number;
-}
-
-export function scrollContainerOf(element: Element, stage: Element): ScrollContainer | null {
-	const origin = stage.getBoundingClientRect();
-	for (let node = element.parentElement; node && node !== stage; node = node.parentElement) {
-		const style = getComputedStyle(node);
-		const scrolls = /(auto|scroll)/.test(style.overflowX + style.overflowY);
-		if (scrolls) {
-			return {
-				element: node,
-				bounds: toStage(node.getBoundingClientRect(), origin),
-				scrollLeft: node.scrollLeft,
-				scrollTop: node.scrollTop
-			};
-		}
-	}
-	return null;
-}
-
 interface Cue extends Box {
 	kind: 'station' | 'label';
 }

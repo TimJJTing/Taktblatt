@@ -3,15 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { makePlan } from '#lib/domain/test-helpers.ts';
 import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
-import { routeMapLayout } from './route-map-layout.ts';
+import { routeMapLayout, type RouteMapLine } from './route-map-layout.ts';
 import {
+	restorePaperFamilyRail,
 	routeMapPaper,
 	routeMapPaperHeaderHeight,
 	type RouteMapPaper,
+	type RouteMapPaperItem,
 	type RouteMapPaperMetrics
 } from './route-map-paper.ts';
 import {
 	expectClearRoutes,
+	paperPathOverlap,
+	outsideStations,
 	pinnedExamplePlan,
 	largePlan,
 	screenMetrics,
@@ -124,6 +128,154 @@ function expectEmptyStage(paper: RouteMapPaper, stageId: string) {
 	expect(box.x + box.w).toBeLessThanOrEqual(item.width);
 	expect(box.y + box.h).toBeLessThanOrEqual(item.height);
 }
+
+describe('restored paper family rails', () => {
+	const family: RouteMapLine = {
+		key: 'family:a:b',
+		stageId: 's1',
+		taskIds: ['a', 'b'],
+		dependencyKeys: [],
+		points: [],
+		width: 3.5,
+		kind: 'family',
+		form: 'double'
+	};
+	const station = (id: string, x: number, y: number) => ({
+		id,
+		columnId: id,
+		column: 0,
+		rank: 0,
+		track: 0,
+		center: { x, y },
+		hitBox: { x: x - 4, y: y - 4, w: 8, h: 8 },
+		focusBox: { x: x - 4, y: y - 4, w: 8, h: 8 },
+		labelBox: { x: x - 10, y: y + 10, w: 20, h: 10 },
+		controlBoxes: [],
+		inPort: { x, y },
+		outPort: { x, y },
+		collapsedParent: false,
+		reference: id,
+		labelLines: [id]
+	});
+	const item = (): RouteMapPaperItem => ({
+		id: 'row:blocked',
+		panelId: 'panel',
+		width: 200,
+		height: 200,
+		stations: [station('a', 40, 40), station('b', 160, 160)],
+		titles: [],
+		edges: [],
+		continuations: [],
+		lines: [],
+		signs: [],
+		stageLabels: []
+	});
+
+	it('accepts complete crossings but detects long runs and turns inside the band', () => {
+		const other: [{ x: number; y: number }, { x: number; y: number }][] = [
+			[
+				{ x: 100, y: 0 },
+				{ x: 100, y: 1000 }
+			]
+		];
+		const overlap = (points: { x: number; y: number }[]) =>
+			paperPathOverlap(outsideStations(points, []), other, 5.25);
+		expect(
+			overlap([
+				{ x: 80, y: 100 },
+				{ x: 120, y: 100 }
+			])
+		).toBe(0);
+		for (const length of [774, 654, 56])
+			expect(
+				overlap([
+					{ x: 102, y: 100 },
+					{ x: 102, y: 100 + length }
+				])
+			).toBeGreaterThan(5);
+		expect(
+			overlap([
+				{ x: 80, y: 100 },
+				{ x: 100, y: 100 },
+				{ x: 100, y: 120 }
+			])
+		).toBeGreaterThan(5);
+		expect(
+			overlap([
+				{ x: 80, y: 2 },
+				{ x: 120, y: 2 }
+			])
+		).toBeGreaterThan(5);
+	});
+
+	it('keeps a family stroke at both endpoints when an obstacle blocks every corridor', () => {
+		const blocked = item();
+		blocked.stageLabels = [{ stageId: 'wall', hostId: null, box: { x: 0, y: 95, w: 200, h: 10 } }];
+		const lines = restorePaperFamilyRail(blocked, family, () => true);
+		expect(lines).toHaveLength(2);
+		expect(new Set(lines.map((line) => line.key)).size).toBe(2);
+		for (const line of lines) {
+			expect(line.points.some((point) => point.x === 0 || point.x === blocked.width)).toBe(true);
+			for (const point of line.points) {
+				expect(point.x).toBeGreaterThanOrEqual(0);
+				expect(point.x).toBeLessThanOrEqual(blocked.width);
+				expect(point.y).toBeGreaterThanOrEqual(0);
+				expect(point.y).toBeLessThanOrEqual(blocked.height);
+			}
+			const above = line.points.every((point) => point.y <= 95 - line.width / 2);
+			const below = line.points.every((point) => point.y >= 105 + line.width / 2);
+			expect(above || below, `stroke ${line.key} clears the label wall`).toBe(true);
+		}
+		for (const station of blocked.stations) {
+			expect(
+				lines.some(
+					(line) =>
+						line.form === 'double' &&
+						line.width === family.width &&
+						[line.points[0], line.points.at(-1)].some(
+							(point) => point?.x === station.center.x && point?.y === station.center.y
+						)
+				),
+				`family stroke reaches ${station.id}`
+			).toBe(true);
+		}
+	});
+
+	it('crosses a reserved rail when no clear corridor exists without running along it', () => {
+		const blocked = item();
+		const barrier: RouteMapLine = {
+			key: 'other',
+			stageId: 's1',
+			taskIds: ['x', 'y'],
+			dependencyKeys: [],
+			points: [
+				{ x: 100, y: 0 },
+				{ x: 100, y: 200 }
+			],
+			width: 5,
+			form: 'single'
+		};
+		blocked.lines = [barrier];
+		const lines = restorePaperFamilyRail(blocked, family, () => true);
+		expect(lines).toHaveLength(1);
+		expect(lines[0].form).toBe('double');
+		expect(lines[0].points[0]).toEqual(blocked.stations[0].center);
+		expect(lines[0].points.at(-1)).toEqual(blocked.stations[1].center);
+		const points = lines[0].points;
+		expect(
+			points.some(
+				(point, i) =>
+					i > 0 &&
+					Math.min(points[i - 1].x, point.x) <= 100 &&
+					Math.max(points[i - 1].x, point.x) >= 100
+			)
+		).toBe(true);
+		const clearance = (family.width + barrier.width) / 2 + 1;
+		expect(
+			paperPathOverlap(outsideStations(points, []), outsideStations(barrier.points, []), clearance)
+		).toBeLessThanOrEqual(barrier.width);
+	});
+});
 
 describe('Workflow Route map paper', () => {
 	it('reserves heading and key rows and grows when the keys wrap', () => {
@@ -285,7 +437,7 @@ describe('Workflow Route map paper', () => {
 		expect(paper.segment.items.flatMap((item) => item.stations)).toHaveLength(0);
 	});
 
-	it('prints equal empty transfer capsules for a child and a top-level task without termini', () => {
+	it('prints equal empty transfer capsules for a child and a top-level task without terminus signs', () => {
 		const plan = makePlan(
 			[
 				task({ id: 'parent' }),

@@ -38,7 +38,7 @@ Show effective task dates only in the station Hint on hover or keyboard focus of
 
 Reuse shared route-focus ownership, task-dialog activation, focus return, expansion state, `Hint`, `joinList()` and `DIAGRAM_ATTR` marks. Preserve the parent identity and separate title and chevron controls. Expansion changes no plan content or history. **Amended by ADR 23:** the chevron is the shared expansion control. Focus return and missing focus targets follow the shared rules of spec section 5.13.
 
-Route position changes through `motionDuration()`. Retarget interrupted motion from its current frame. Cross-fade incompatible paths. Reduced motion applies geometry immediately. Keep shared Gantt routing and view contracts unchanged.
+Route position changes through `motionDuration()`. Retarget interrupted motion from its current frame. Fade connectors on every view change. Reduced motion applies geometry immediately. Keep shared Gantt routing and view contracts unchanged.
 
 Register locally through the diagram view contract. Use owned `route_map_` messages and shared `diagram_` names. Keep schema, export, persistence, domain behavior and offline contracts unchanged.
 

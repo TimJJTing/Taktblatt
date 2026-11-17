@@ -92,14 +92,7 @@
 	const summary = $derived(
 		hasChildren ? familySummaryText(familySummary(ws.index, node.id), getLocale()) : ''
 	);
-	const status = $derived(
-		{
-			todo: m.task_status_todo,
-			in_progress: m.task_status_in_progress,
-			done: m.task_status_done,
-			canceled: m.task_status_canceled
-		}[node.status]()
-	);
+	const status = $derived(taskStatusLabel(node.status));
 	const name = $derived(m.route_map_station_name({ task: title, stage: stage.title, status }));
 	const dateHint = $derived(
 		m.gantt_bar({

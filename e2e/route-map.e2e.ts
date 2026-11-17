@@ -779,7 +779,7 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 	}
 });
 
-test('D53 incoming connectors stay scoped during Gantt ↔ Route map layer coexistence', async ({
+test('incoming connectors stay scoped during Gantt ↔ Route map layer coexistence', async ({
 	page
 }) => {
 	await openRoutePlan(page);
@@ -841,7 +841,7 @@ test('D53 incoming connectors stay scoped during Gantt ↔ Route map layer coexi
 	}
 });
 
-test('D53 paper continuations name all targets once per station and remain with endpoint fragments', async ({
+test('paper continuations name all targets once per station and remain with endpoint fragments', async ({
 	page
 }) => {
 	await openRoutePlan(page);
@@ -899,7 +899,7 @@ test('D53 paper continuations name all targets once per station and remain with 
 		).toEqual(['entry', 'exit']);
 });
 
-test('D53 Fable signs and imported status paint survive dark and forced-color rendering', async ({
+test('diagram signs and imported status paint survive dark and forced-color rendering', async ({
 	page
 }) => {
 	await openRoutePlan(page);
@@ -1047,28 +1047,31 @@ test('double branch gap follows dark and forced-color grounds', async ({ page })
 	await chooseTheme(page, 'Dark');
 	for (const forced of [false, true]) {
 		await page.emulateMedia({ forcedColors: forced ? 'active' : 'none', reducedMotion: 'reduce' });
-		const result = await incoming(page).evaluate((root) => {
-			const branch = root.querySelector<SVGElement>('[data-family-branch]');
-			if (!branch) return null;
-			const peers = [...root.querySelectorAll<SVGElement>('path')].filter(
-				(p) => p.getAttribute('d') === branch.getAttribute('d')
-			);
-			const gap = peers.find((p) => getComputedStyle(p).strokeWidth === '2px');
-			const probe = document.createElement('span');
-			probe.style.color = matchMedia('(forced-colors: active)').matches
-				? 'Canvas'
-				: 'var(--background)';
-			root.appendChild(probe);
-			const ground = getComputedStyle(probe).color;
-			probe.remove();
-			return {
-				gap: gap ? getComputedStyle(gap).stroke : null,
-				ground,
-				adjust: gap ? getComputedStyle(gap).forcedColorAdjust : null
-			};
-		});
-		expect(result?.gap).toBe(result?.ground);
-		if (forced) expect(result?.adjust).toBe('none');
+		await expect(async () => {
+			const result = await incoming(page).evaluate((root) => {
+				const branch = root.querySelector<SVGElement>('[data-family-branch]');
+				if (!branch) return null;
+				const peers = [...root.querySelectorAll<SVGElement>('path')].filter(
+					(p) => p.getAttribute('d') === branch.getAttribute('d')
+				);
+				const gap = peers.find((p) => getComputedStyle(p).strokeWidth === '2px');
+				const probe = document.createElement('span');
+				probe.style.color = matchMedia('(forced-colors: active)').matches
+					? 'Canvas'
+					: 'var(--background)';
+				root.appendChild(probe);
+				const ground = getComputedStyle(probe).color;
+				probe.remove();
+				return {
+					gap: gap ? getComputedStyle(gap).stroke : null,
+					ground,
+					adjust: gap ? getComputedStyle(gap).forcedColorAdjust : null
+				};
+			});
+			expect(result).not.toBeNull();
+			expect(result?.gap).toBe(result?.ground);
+			if (forced) expect(result?.adjust).toBe('none');
+		}).toPass();
 	}
 });
 

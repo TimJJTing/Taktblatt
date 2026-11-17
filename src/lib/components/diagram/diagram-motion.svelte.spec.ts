@@ -1,12 +1,6 @@
 import '../../../routes/layout.css';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-	captureGeometry,
-	createFlight,
-	cueOf,
-	routersCompatible,
-	scrollContainerOf
-} from './diagram-motion.ts';
+import { captureGeometry, createFlight, cueOf, routersCompatible } from './diagram-motion.ts';
 
 describe('motion adapter hooks', () => {
 	const hosts: HTMLElement[] = [];
@@ -236,14 +230,5 @@ describe('motion adapter hooks', () => {
 		expect(routersCompatible(gantt, { ...gantt })).toBe(true);
 		expect(routersCompatible(gantt, { ...gantt, routerId: 'other' })).toBe(false);
 		expect(routersCompatible(gantt, { ...gantt, connectorSchema: 'other-v1' })).toBe(false);
-	});
-	it('scrollContainerOf reads the nearest scrolling ancestor and offsets', () => {
-		const { find, stage } = fixture();
-		const scroller = find('#out-inner');
-		const container = scrollContainerOf(find('#out [data-diagram-task]'), stage)!;
-		expect(container.element).toBe(scroller);
-		expect(container.scrollLeft).toBe(30);
-		expect(container.scrollTop).toBe(40);
-		expect(scrollContainerOf(find('[data-diagram-flight]'), stage)).toBeNull();
 	});
 });

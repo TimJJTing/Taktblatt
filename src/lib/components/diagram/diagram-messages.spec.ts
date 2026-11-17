@@ -33,7 +33,6 @@ describe('shared diagram messages', () => {
 			'diagram_family_done',
 			'diagram_family_in_progress',
 			'diagram_family_ready',
-			'diagram_family_summary',
 			'diagram_status_key',
 			'diagram_status_key_readiness'
 		];

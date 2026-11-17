@@ -330,7 +330,7 @@ test.describe('Today tag geometry', () => {
 		const before = await todayTagGeometry(chart);
 		expect(before.tagLeft).toBeGreaterThanOrEqual(before.line);
 		// Exercise a width change without remounting or moving the milestone.
-		// The wider tag must still fit left of the line, so D30 does not keep it on the right.
+		// The wider tag must still fit left of the line, so the placement rule does not keep it on the right.
 		await chart.getByTestId('gantt-today-label').evaluate((tag) => {
 			(tag as HTMLElement).style.paddingInline = '40px';
 		});

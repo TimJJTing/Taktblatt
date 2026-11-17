@@ -49,7 +49,7 @@ export function resolvePrintDiagrams(
 type ViewerData = v.InferOutput<typeof ViewerSchema>;
 
 export class ViewerState {
-	/** The expanded task ids, for each plan. The Gantt and the table share them. */
+	/** The expanded task ids, for each plan. Work plan and all diagram views share them. */
 	expanded = $state<Record<string, string[]>>({});
 	ganttPinned = $state(false);
 	splitRatio = $state(0.5);

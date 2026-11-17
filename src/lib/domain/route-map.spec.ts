@@ -34,7 +34,7 @@ describe('Route map model', () => {
 		expect(routeMapModel(emptyPlan, new Set(), emptyIndex).stages).toEqual([]);
 	});
 
-	it('counts D51 top-level effective open work independently of expansion', () => {
+	it('counts top-level effective open work independently of expansion', () => {
 		const plan = makePlan(
 			[
 				task({ id: 'P' }),

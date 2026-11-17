@@ -124,7 +124,6 @@
 			cancelAnimationFrame(motionFrame);
 			for (const animation of animations.values()) animation.cancel();
 			animations.clear();
-			cancelAnimationFrame(frame);
 		};
 	});
 	function reveal(id: string) {
