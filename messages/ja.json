@@ -26,7 +26,6 @@
 	"route_map_successors": "次のタスク：{tasks}。",
 	"route_map_title_continuation": "{reference}：{title}",
 	"route_map_to_go": "残り {count} 件",
-	"route_map_untitled_task": "無題のタスク",
 	"route_map_workflow_continuation": "{pair} 作業順 {direction} → {reference}",
 	"app_name": "Taktblatt",
 	"menu": "メニュー",

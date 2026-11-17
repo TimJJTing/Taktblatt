@@ -3,6 +3,7 @@
 	import { fade } from 'svelte/transition';
 	import { overlayScrollbar } from '#lib/components/app/overlay-scrollbar.ts';
 	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
+	import { svgPolyline } from '#lib/components/diagram/svg-polyline.ts';
 	import GanttLine from '#lib/components/timeline/GanttLine.svelte';
 	import RouteMapDecoration from './RouteMapDecoration.svelte';
 	import RouteMapStageLabel from './RouteMapStageLabel.svelte';
@@ -83,8 +84,6 @@
 			labelWidth: 96,
 			labelHeight: 32,
 			columnGap: 16,
-			stageGap: 120,
-			laneGap: 40,
 			clearance: 5,
 			labelHeights,
 			controlsHeights
@@ -156,7 +155,7 @@
 			joinList(
 				[...new Set(ids)]
 					.sort()
-					.map((taskId) => ws.index.byId.get(taskId)?.title || m.route_map_untitled_task()),
+					.map((taskId) => ws.index.byId.get(taskId)?.title || m.task_untitled()),
 				uiIntl()
 			);
 		const predecessors = storedDependencies
@@ -171,7 +170,7 @@
 				successors.length ? m.route_map_successors({ tasks: names(successors) }) : '',
 				nodes.get(id)?.parentId
 					? m.route_map_subtask_of({
-							task: nodes.get(nodes.get(id)!.parentId!)?.title || m.route_map_untitled_task()
+							task: nodes.get(nodes.get(id)!.parentId!)?.title || m.task_untitled()
 						})
 					: '',
 				...model.warnings
@@ -183,7 +182,7 @@
 								? m.dependency_warning_subtask_scope()
 								: w.kind === 'date' && w.taskId === id
 									? m.dependency_warning({
-											task: ws.index.byId.get(w.dependencyId)?.title || m.route_map_untitled_task()
+											task: ws.index.byId.get(w.dependencyId)?.title || m.task_untitled()
 										})
 									: ''
 					)
@@ -290,8 +289,6 @@
 		const level = markColorLevel(nodes.get(edge.from)!.status, 'connector', route === 'off');
 		return `color-mix(in oklab, currentColor ${level}%, var(--background, #FFFFFF))`;
 	};
-	const openPath = (points: readonly { x: number; y: number }[]) =>
-		points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
 </script>
 
 {#snippet stageLine(line: RouteMapLine)}
@@ -352,7 +349,7 @@
 	{#if frame.chevron.length}
 		<path
 			data-chevron
-			d={openPath(frame.chevron)}
+			d={svgPolyline(frame.chevron)}
 			fill="none"
 			stroke={thinColor(edge)}
 			stroke-width={sizes.path}
@@ -494,7 +491,6 @@
 								{onTitleHeight}
 								hasChildren={false}
 								expanded={false}
-								controls={childId(child.id)}
 							/>
 						{/each}
 					</div>

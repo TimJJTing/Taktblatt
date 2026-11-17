@@ -1,4 +1,3 @@
-import { HOVER_COLD_MS } from '#lib/state/route-focus.svelte.ts';
 import { expect, test } from '@playwright/test';
 import {
 	addWorkspaceOverflow,
@@ -20,8 +19,6 @@ import {
 	workPane
 } from './helpers.ts';
 
-const HOVER_SCHEDULING_MARGIN_MS = 50;
-
 test('keeps the chart dimmed through a continuous sweep across example row bands', async ({
 	page
 }) => {
@@ -34,7 +31,6 @@ test('keeps the chart dimmed through a continuous sweep across example row bands
 	const first = ganttRow(page, 'Site survey');
 	const mark = first.getByTestId('gantt-bar');
 	await mark.hover();
-	await page.waitForTimeout(350);
 	await expect(first).toHaveAttribute('data-route', 'lit');
 	await expect(last).toHaveAttribute('data-route', 'off');
 	const geometry = await page.getByTestId('gantt').evaluate((chart) => {
@@ -52,9 +48,6 @@ test('keeps the chart dimmed through a continuous sweep across example row bands
 	});
 	await expect(last).toHaveAttribute('data-task-id', geometry.lastId);
 	await expect(last.getByTestId('gantt-label')).toBeInViewport({ ratio: 1 });
-	// The full sweep lasts longer than leave grace. Each 28 px row takes about 80 ms.
-	const duration = ((geometry.to - geometry.from) / 350) * 1000;
-	expect(duration).toBeGreaterThan(250);
 	type MonitorWindow = Window & { routeSweep?: { frame: number; counts: number[] } };
 	await page.evaluate(() => {
 		const target = window as MonitorWindow;
@@ -68,17 +61,15 @@ test('keeps the chart dimmed through a continuous sweep across example row bands
 	});
 	let counts: number[];
 	try {
-		const startedAt = performance.now();
 		const steps = Math.ceil((geometry.to - geometry.from) / 6);
 		for (let step = 1; step <= steps; step++) {
-			const due = startedAt + (duration * step) / steps;
-			await page.waitForTimeout(Math.max(0, due - performance.now()));
+			await waitForFrames(page, 1);
 			await page.mouse.move(
 				geometry.x,
 				geometry.from + ((geometry.to - geometry.from) * step) / steps
 			);
 		}
-		await page.waitForTimeout(170);
+		await expect.poll(async () => (await routeMembership(page)).rows).toEqual([geometry.lastId]);
 	} finally {
 		counts = await page.evaluate(() => {
 			const target = window as MonitorWindow;
@@ -97,7 +88,6 @@ test('keeps the chart dimmed through a continuous sweep across example row bands
 	await expect(last).toHaveAttribute('data-highlighted', 'true');
 	await page.mouse.move(0, 0);
 	expect((await routeMembership(page)).rows).toEqual([geometry.lastId]);
-	await page.waitForTimeout(300);
 	await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 });
 
@@ -109,27 +99,28 @@ test('uses system highlight colors on the Gantt label when its Work plan row is 
 	const chartRow = ganttRow(page, 'Route parent');
 	const cell = chartRow.getByTestId('gantt-label').locator('..');
 	await row(page, 'Route parent').hover();
-	await page.waitForTimeout(350);
 	await expect(chartRow).toHaveAttribute('data-highlighted', 'true');
-	const paint = await cell.evaluate((element) => {
-		const probe = document.createElement('span');
-		probe.style.backgroundColor = 'Highlight';
-		probe.style.color = 'HighlightText';
-		probe.style.forcedColorAdjust = 'none';
-		element.append(probe);
-		const style = getComputedStyle(element);
-		const system = getComputedStyle(probe);
-		const result = {
-			background: style.backgroundColor,
-			text: style.color,
-			highlight: system.backgroundColor,
-			highlightText: system.color
-		};
-		probe.remove();
-		return result;
-	});
-	expect(paint.background).toBe(paint.highlight);
-	expect(paint.text).toBe(paint.highlightText);
+	await expect(async () => {
+		const paint = await cell.evaluate((element) => {
+			const probe = document.createElement('span');
+			probe.style.backgroundColor = 'Highlight';
+			probe.style.color = 'HighlightText';
+			probe.style.forcedColorAdjust = 'none';
+			element.append(probe);
+			const style = getComputedStyle(element);
+			const system = getComputedStyle(probe);
+			const result = {
+				background: style.backgroundColor,
+				text: style.color,
+				highlight: system.backgroundColor,
+				highlightText: system.color
+			};
+			probe.remove();
+			return result;
+		});
+		expect(paint.background).toBe(paint.highlight);
+		expect(paint.text).toBe(paint.highlightText);
+	}).toPass();
 });
 
 test('hover targets share delayed route input and preserve saved plan and history', async ({
@@ -196,13 +187,11 @@ test('keyboard route outranks hover and the task dialog outranks keyboard focus'
 }) => {
 	await openRoutePlan(page);
 	const point = ganttRow(page, 'Route point').getByTestId('gantt-point');
+	await ganttRow(page, 'Route branch').getByTestId('gantt-bar').hover();
+	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'lit');
 	await focusPreviousControl(point);
 	await page.keyboard.press('Tab');
 	await expect(point).toBeFocused();
-	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
-	await ganttRow(page, 'Route branch').getByTestId('gantt-bar').hover();
-	// Wait beyond cold hover intent so this checks priority after hover is accepted.
-	await page.waitForTimeout(HOVER_COLD_MS + HOVER_SCHEDULING_MARGIN_MS);
 	await expect(ganttRow(page, 'Route branch')).toHaveAttribute('data-route', 'off');
 	await row(page, 'Route branch').getByTestId('task-details').click();
 	const dialog = page.getByTestId('task-dialog');

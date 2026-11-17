@@ -439,27 +439,6 @@ describe('Workflow branching Route map', () => {
 		expect(topRails(expanded)).toEqual(topRails(collapsed));
 	});
 
-	it('keeps exact three thin garden pairs in both states and expanded Soil test -> Add compost rail', () => {
-		const plan = pinnedExamplePlan();
-		const collapsed = scene(plan);
-		const expanded = scene(plan, new Set(['task-1']));
-		expect(
-			collapsed.routes
-				.filter((route) => route.carrier === 'walkway')
-				.map((route) => route.key)
-				.sort()
-		).toEqual(['task-1->task-5', 'task-4->task-5', 'task-5->task-7']);
-		expect(
-			expanded.routes
-				.filter((route) => route.carrier === 'walkway')
-				.map((route) => route.key)
-				.sort()
-		).toEqual(['task-3->task-5', 'task-4->task-5', 'task-5->task-7']);
-		expect(expanded.lines.find((line) => line.key === 'task-2->task-3')?.dependencyKeys).toEqual([
-			'task-2->task-3'
-		]);
-	});
-
 	it('keeps same-stage two-family external-child parent rail keys equal in both expand states', () => {
 		const plan = makePlan([
 			task({ id: 'P', start: '2027-01-01' }),

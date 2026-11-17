@@ -1,4 +1,4 @@
-# 23. One visual language for diagram views
+# 23. Unified diagram language
 
 Status: Accepted (2026-11-16). Proposed 2026-11-14. The user selected the visual direction and made the decisions in "Reconciliation" below.
 
@@ -69,7 +69,7 @@ The design uses the existing rounded status icons and gives Route map a distinct
 
 ## Reconciliation (2026-11-16)
 
-The requesting developer made these decisions. Rows 9–12 followed the plan verification, and the last three rows followed direction check 1 on 2026-11-16. Where a decision differs from the proposal of 2026-11-14 or from a study, the decision applies.
+The requesting developer made these decisions. Where a decision differs from the proposal of 2026-11-14 or from a study, the decision applies.
 
 | Decision                     | Result                                                                                                                                                                                                                                                                                                            |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

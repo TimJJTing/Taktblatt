@@ -1,4 +1,5 @@
 import type { RouteMapEdge, RouteMapModel } from '#lib/domain/route-map.ts';
+import { MinHeap } from './min-heap.ts';
 import type { RouteMapLayout, RouteMapPoint } from './route-map-layout.ts';
 
 export const routeMapSizes = {
@@ -752,36 +753,9 @@ function createWalkwayRouter(layout: RouteMapLayout, paper: boolean) {
 			});
 			const generation = ++searchGeneration;
 			type Entry = { state: number; cost: number; priority: number };
-			const heap: Entry[] = [];
 			const before = (a: Entry, b: Entry) =>
 				a.priority < b.priority || (a.priority === b.priority && a.state < b.state);
-			const push = (entry: Entry) => {
-				let index = heap.length;
-				heap.push(entry);
-				while (index) {
-					const parent = Math.floor((index - 1) / 2);
-					if (!before(entry, heap[parent])) break;
-					heap[index] = heap[parent];
-					index = parent;
-				}
-				heap[index] = entry;
-			};
-			const pop = () => {
-				const first = heap[0],
-					last = heap.pop()!;
-				if (heap.length) {
-					let index = 0;
-					while (index * 2 + 1 < heap.length) {
-						let child = index * 2 + 1;
-						if (child + 1 < heap.length && before(heap[child + 1], heap[child])) child++;
-						if (!before(heap[child], last)) break;
-						heap[index] = heap[child];
-						index = child;
-					}
-					heap[index] = last;
-				}
-				return first;
-			};
+			const heap = new MinHeap(before);
 			const visit = (node: number, axis: number, phase: number, cost: number, prior: number) => {
 				const state = node * 9 + phase * 3 + axis;
 				if (seen[state] === generation && cost >= costs[state]) return;
@@ -789,7 +763,7 @@ function createWalkwayRouter(layout: RouteMapLayout, paper: boolean) {
 				costs[state] = cost;
 				previous[state] = prior;
 				const point = pointAt(node);
-				push({
+				heap.push({
 					state,
 					cost,
 					priority: cost + Math.hypot(target.center.x - point.x, target.center.y - point.y)
@@ -808,7 +782,7 @@ function createWalkwayRouter(layout: RouteMapLayout, paper: boolean) {
 			while (heap.length) {
 				if (sceneVisits >= maxSceneVisits) return;
 				sceneVisits++;
-				const entry = pop();
+				const entry = heap.pop()!;
 				if (entry.cost !== costs[entry.state]) continue;
 				const node = Math.floor(entry.state / 9),
 					point = pointAt(node),

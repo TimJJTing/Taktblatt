@@ -144,16 +144,12 @@ describe('restored paper family rails', () => {
 		id,
 		columnId: id,
 		column: 0,
-		rank: 0,
 		track: 0,
 		center: { x, y },
 		hitBox: { x: x - 4, y: y - 4, w: 8, h: 8 },
 		focusBox: { x: x - 4, y: y - 4, w: 8, h: 8 },
 		labelBox: { x: x - 10, y: y + 10, w: 20, h: 10 },
 		controlBoxes: [],
-		inPort: { x, y },
-		outPort: { x, y },
-		collapsedParent: false,
 		reference: id,
 		labelLines: [id]
 	});

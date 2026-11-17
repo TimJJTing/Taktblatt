@@ -1,8 +1,6 @@
-# ADR 22: Kanban board and command seam
+# 22. Kanban
 
-Status: Accepted (2026-11-17). Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): the leaf board decision is superseded.
-
-Date: 2026-11-13.
+Status: Accepted (2026-11-17). Decided 2026-11-13. Amended 2026-11-16 by [ADR 23](0023-unified-diagram-language.md): the leaf board decision is superseded.
 
 ## Amendment (2026-11-16)
 

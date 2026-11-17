@@ -365,11 +365,6 @@ export function tasksSpan(index: TaskIndex): { start: ISODate; end: ISODate } | 
 	return { start: dates[0], end: dates[dates.length - 1] };
 }
 
-/** Returns true when the task has a valid range: both dates are set and start ≤ end. */
-export function hasValidRange(values: { start: ISODate | null; end: ISODate | null }): boolean {
-	return values.start !== null && values.end !== null && values.start <= values.end;
-}
-
 export type FamilySummary = {
 	ready: number;
 	blocked: number;

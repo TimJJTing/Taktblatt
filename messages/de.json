@@ -26,7 +26,6 @@
 	"route_map_successors": "Nachfolger: {tasks}.",
 	"route_map_title_continuation": "{reference}: {title}",
 	"route_map_to_go": "{count} verbleibend",
-	"route_map_untitled_task": "Unbenannte Aufgabe",
 	"route_map_workflow_continuation": "{pair} Ablauf {direction} → {reference}",
 	"app_name": "Taktblatt",
 	"menu": "Menü",

@@ -90,6 +90,11 @@ describe('Work plan route input', () => {
 			width: ganttStyle.outlineWidth,
 			color: ganttStyle.outlineColor
 		};
+		expect(ganttOutline.style).not.toBe('none');
+		expect(ganttOutline.style).not.toBe('auto');
+		expect(parseFloat(ganttOutline.width)).toBeGreaterThanOrEqual(2);
+		expect(ganttOutline.color).not.toBe('transparent');
+		expect(ganttOutline.color).not.toBe('rgba(0, 0, 0, 0)');
 		(screen.getByTestId('outside-row').element() as HTMLElement).focus();
 		for (let i = 0; i < 100 && document.activeElement !== toggle.element(); i++) {
 			await userEvent.tab();

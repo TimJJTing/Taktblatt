@@ -36,11 +36,11 @@
 	data-stage={stage.id}
 	data-host={label.hostId ?? undefined}
 >
-	<div class="flex h-5 items-center justify-center gap-1" data-stage-title>
+	<div class="flex h-5 items-center justify-center gap-1">
 		{#if still}
 			<StageBadge color={stage.color} label={m.stage_badge({ n: index + 1 })} still />
 		{:else}
-			<Hint text={stage.title}
+			<Hint text={stage.title} focusable={false}
 				>{#snippet child({ props })}<span {...props}>
 						<StageBadge color={stage.color} label={m.stage_badge({ n: index + 1 })} />
 					</span>{/snippet}</Hint

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { svgPolyline } from '#lib/components/diagram/svg-polyline.ts';
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
 	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
 	import RouteMapDecoration from './RouteMapDecoration.svelte';
@@ -106,8 +107,6 @@
 			: edge.cycle
 				? 'var(--color-paper-warning, #C8352D)'
 				: `color-mix(in oklab, currentColor ${markColorLevel(node(edge.from)?.status ?? 'todo', 'connector', false, true)}%, white)`;
-	const openPath = (points: readonly { x: number; y: number }[]) =>
-		points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
 </script>
 
 <div>
@@ -179,7 +178,7 @@
 							{#if edge.chevron?.length}
 								<path
 									data-chevron
-									d={openPath(edge.chevron)}
+									d={svgPolyline(edge.chevron)}
 									fill="none"
 									stroke={connectorColor(edge)}
 									stroke-width={sizes.path}
@@ -190,7 +189,6 @@
 					{#each item.lines as line (line.key)}
 						<g data-carrier="line" data-from={line.taskIds[0]} data-to={line.taskIds[1]}>
 							<path
-								data-paper-line
 								data-carrier-path
 								data-family-branch={line.form === 'double' ? '' : undefined}
 								d={path(line.points)}
@@ -272,11 +270,7 @@
 				aria-hidden="true"
 			>
 				{#each (item.markers ?? []).flatMap((marker) => marker.stubs ?? []) as stub (`${stub.id}:${stub.kind}`)}
-					<g
-						data-continuation-pair={stub.id}
-						data-direction={stub.kind}
-						data-boundary={stub.boundary}
-					>
+					<g data-continuation-pair={stub.id} data-direction={stub.kind}>
 						<path
 							data-continuation-stub
 							d={path(stub.points)}

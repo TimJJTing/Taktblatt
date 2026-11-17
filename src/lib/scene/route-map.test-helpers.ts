@@ -1,80 +1,32 @@
+export {
+	task,
+	adr13Plan,
+	groupingPlan,
+	largePlan,
+	shuffled,
+	signsPlan,
+	pinnedExamplePlan,
+	longNamePlan,
+	densePlan
+} from './route-map-fixtures.test-helper.ts';
 import { expect } from 'vitest';
-import { createExamplePlan } from '#lib/domain/example.ts';
-import { makePlan, makeTask } from '#lib/domain/test-helpers.ts';
-import type { Plan, Task } from '#lib/domain/schema.ts';
 import {
-	routeMapLayout,
 	type RouteMapLayout,
 	type RouteMapMetrics,
 	type RouteMapPoint,
 	type RouteMapBox
 } from './route-map-layout.ts';
 import { type RouteMapModel } from '#lib/domain/route-map.ts';
-import { routeMapRoutes } from './route-map-router.ts';
 import type { RouteMapRoute } from './route-map-router.ts';
-
-export const task = (input: Partial<Task> & { id: string }) =>
-	makeTask({ createdAt: '2027-01-01T00:00:00.000Z', ...input });
 
 export const screenMetrics: RouteMapMetrics & { measureText: (text: string) => number } = {
 	hitSize: 28,
 	labelWidth: 96,
 	labelHeight: 32,
 	columnGap: 16,
-	stageGap: 120,
-	laneGap: 40,
 	clearance: 5,
 	measureText: (text: string) => Array.from(text).length * 7
 };
-
-export function adr13Plan(): Plan {
-	return makePlan([
-		task({ id: 'P', dependsOn: ['X'] }),
-		task({ id: 'S', parentId: 'P' }),
-		task({ id: 'X', dependsOn: ['S'] })
-	]);
-}
-
-export function groupingPlan(): Plan {
-	return makePlan([
-		task({ id: 'P', dependsOn: ['Q'] }),
-		task({ id: 'S', parentId: 'P' }),
-		task({ id: 'Q' }),
-		task({ id: 'T', parentId: 'Q', dependsOn: ['X'] }),
-		task({ id: 'X', dependsOn: ['S'] })
-	]);
-}
-
-export function largePlan(): Plan {
-	const tasks: Task[] = [];
-	for (let s = 0; s < 4; s++) {
-		for (let i = 0; i < 30; i++) {
-			const dependsOn: string[] = [];
-			if (i > 0) dependsOn.push(`T${s}-${i - 1}`);
-			if (i >= 2 && i <= 20) dependsOn.push(`T${s}-${i - 2}`);
-			if (i === 0) dependsOn.push(`T${s}-29`, `T${(s + 3) % 4}-29`);
-			tasks.push(
-				task({
-					id: `T${s}-${i}`,
-					stageId: `s${s}`,
-					start: '2027-01-01',
-					end: '2027-01-02',
-					dependsOn
-				})
-			);
-		}
-	}
-	return makePlan(tasks, ['s0', 's1', 's2', 's3']);
-}
-
-export function shuffled(plan: Plan): Plan {
-	return {
-		...plan,
-		tasks: [...plan.tasks.filter((_, i) => i % 2), ...plan.tasks.filter((_, i) => !(i % 2))]
-			.reverse()
-			.map((t) => ({ ...t, dependsOn: [...t.dependsOn].reverse() }))
-	};
-}
 
 /** Test a segment against the open interior of a rectangle. Boundary contact is legal. */
 function crosses(
@@ -156,63 +108,6 @@ export function expectPathClear(
 	}
 }
 
-/** Route map layout fields required by the acceptance tests. */
-export interface MetroLayout extends Pick<RouteMapLayout, 'clearance' | 'width' | 'height'> {
-	stations: readonly (RouteMapLayout['stations'][number] & {
-		center: RouteMapPoint;
-		column: number;
-		track: number;
-		focusBox: RouteMapBox;
-		controlBoxes: readonly RouteMapBox[];
-	})[];
-	columns: readonly {
-		id: string;
-		index: number;
-		x: number;
-		width: number;
-		stationIds: readonly string[];
-		routingOnly: boolean;
-	}[];
-	lines: readonly {
-		key: string;
-		stageId: string;
-		taskIds: readonly string[];
-		dependencyKeys: readonly string[];
-		points: readonly RouteMapPoint[];
-		width: number;
-	}[];
-	signs: readonly {
-		kind: 'empty-stage' | 'interchange';
-		stationId: string | null;
-		stageId: string;
-		center: RouteMapPoint;
-		width: number;
-		height: number;
-		outlineWidth: number;
-	}[];
-	gutters: readonly { x: number; width: number; risers: readonly { key: string; x: number }[] }[];
-	corridors: readonly {
-		id: string;
-		trackY: number;
-		laneCount: number;
-		intervals: readonly { key: string; start: number; end: number; lane: number }[];
-	}[];
-	stageLabels: readonly {
-		stageId: string;
-		hostId: string | null;
-		box: RouteMapBox;
-	}[];
-}
-export interface MetroRoute extends RouteMapRoute {
-	corridorId?: string;
-	lane?: number;
-	trunkId?: string;
-}
-
-export const metroLayout = (model: RouteMapModel, metrics = screenMetrics) =>
-	routeMapLayout(model, metrics) as unknown as MetroLayout;
-export const metroRoutes = (model: RouteMapModel, layout: MetroLayout) =>
-	routeMapRoutes(model, layout as unknown as RouteMapLayout) as readonly MetroRoute[];
 export const center = (
 	station: Pick<RouteMapLayout['stations'][number], 'hitBox'>
 ): RouteMapPoint => ({
@@ -229,7 +124,7 @@ export function expectOctilinear(points: readonly RouteMapPoint[]) {
 		);
 	}
 }
-export function expectCoverage(model: RouteMapModel, routes: readonly MetroRoute[]) {
+export function expectCoverage(model: RouteMapModel, routes: readonly RouteMapRoute[]) {
 	expect(routes.map((r) => r.key).sort()).toEqual(model.edges.map((e) => e.key).sort());
 	expect(routes.every((r) => ['line', 'walkway'].includes(r.carrier))).toBe(true);
 	const identity = (edge: { taskId: string; dependencyId: string }) =>
@@ -237,85 +132,6 @@ export function expectCoverage(model: RouteMapModel, routes: readonly MetroRoute
 	expect(routes.flatMap((r) => r.stored.map(identity)).sort()).toEqual(
 		model.edges.flatMap((e) => e.stored.map(identity)).sort()
 	);
-}
-
-/** The original six-edge sketch. This is not the application example plan. */
-export function signsPlan(): Plan {
-	const plan = makePlan(
-		[
-			task({ id: 'survey', title: 'Site survey', start: '2026-11-01', status: 'done' }),
-			task({ id: 'soil', title: 'Soil preparation', start: '2026-11-02', dependsOn: ['survey'] }),
-			task({
-				id: 'test',
-				title: 'Soil test',
-				parentId: 'soil',
-				start: '2026-11-02',
-				status: 'done'
-			}),
-			task({
-				id: 'compost',
-				title: 'Add compost',
-				parentId: 'soil',
-				start: '2026-11-03',
-				dependsOn: ['test'],
-				status: 'in_progress'
-			}),
-			task({ id: 'seeds', title: 'Order seeds', start: '2026-11-04', dependsOn: ['survey'] }),
-			task({ id: 'water', title: 'Watering rota', stageId: 's2', dependsOn: ['soil', 'seeds'] }),
-			task({ id: 'stall', title: 'Neighbourhood stall', stageId: 's3', dependsOn: ['water'] })
-		],
-		['s1', 's2', 's3']
-	);
-	plan.stages.forEach((s, i) => {
-		s.title = ['Prepare', 'Grow', 'Share'][i];
-		s.color = ['green', 'amber', 'blue'][i] as typeof s.color;
-	});
-	return plan;
-}
-
-export function pinnedExamplePlan(): Plan {
-	const plan = createExamplePlan('2026-11-14');
-	const stages = new Map(plan.stages.map((stage, i) => [stage.id, `stage-${i}`]));
-	const tasks = new Map(plan.tasks.map((task, i) => [task.id, `task-${i}`]));
-	plan.stages = plan.stages.map((s) => ({ ...s, id: stages.get(s.id)! }));
-	plan.tasks = plan.tasks.map((t, i) => ({
-		...t,
-		id: tasks.get(t.id)!,
-		stageId: stages.get(t.stageId)!,
-		parentId: t.parentId ? tasks.get(t.parentId)! : null,
-		dependsOn: t.dependsOn.map((id) => tasks.get(id)!),
-		note: t.note.replace(/@\[task:([^\]]+)\]/g, (_, id) => `@[task:${tasks.get(id)!}]`),
-		createdAt: new Date(Date.parse('2026-11-14T00:00:00.000Z') + i).toISOString()
-	}));
-	return plan;
-}
-
-export function longNamePlan(): Plan {
-	const plan = pinnedExamplePlan();
-	const title = 'Garden tasks need careful planning for every growing season!';
-	return { ...plan, tasks: plan.tasks.map((item) => ({ ...item, title })) };
-}
-
-export function densePlan(): Plan {
-	const tasks: Task[] = [];
-	for (let i = 0; i < 3; i++) {
-		const stageId = `s${i}`;
-		const id = (suffix: string) => `${i}${suffix}`;
-		tasks.push(
-			task({ id: id('A'), stageId, dependsOn: i === 0 ? ['2E'] : [] }),
-			task({ id: id('B'), stageId, dependsOn: [id('A'), ...(i === 1 ? ['0x'] : [])] }),
-			task({ id: id('C'), stageId, dependsOn: [id('A'), ...(i === 2 ? ['1B'] : [])] }),
-			task({ id: id('D'), stageId, dependsOn: [id('B'), id('C'), ...(i === 1 ? ['0B'] : [])] }),
-			task({ id: id('E'), stageId, dependsOn: i === 2 ? ['0A'] : [] })
-		);
-	}
-	tasks.push(
-		task({ id: 'parent', stageId: 's0' }),
-		task({ id: '0x', stageId: 's0', parentId: 'parent', dependsOn: ['2B'] }),
-		task({ id: '0y', stageId: 's0', parentId: 'parent', dependsOn: ['0x', '1C'] }),
-		task({ id: '0z', stageId: 's0', parentId: 'parent' })
-	);
-	return makePlan(tasks, ['s0', 's1', 's2']);
 }
 
 export function expectReservations(layout: RouteMapLayout, routes: readonly RouteMapRoute[]) {

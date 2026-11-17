@@ -1,7 +1,7 @@
 const compareIds = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 import { dependencyWarnings, type DependencyEdge, type DependencyWarning } from './dependencies.ts';
-import { effectiveDependencies, stageProgress, type TaskIndex } from './derive.ts';
+import { stageProgress, type TaskIndex } from './derive.ts';
 import { lineKey } from './route.ts';
 import type { Plan, TaskStatus } from './schema.ts';
 
@@ -26,7 +26,6 @@ export interface RouteMapModel {
 	nodes: readonly RouteMapNode[];
 	groups: readonly { id: string; taskIds: readonly string[] }[];
 	stages: readonly { id: string; toGo: number }[];
-	effectivePairs: readonly { from: string; to: string }[];
 	edges: readonly RouteMapEdge[];
 	warnings: readonly DependencyWarning[];
 }
@@ -69,9 +68,6 @@ export function routeMapModel(
 			compareIds(a.taskId, b.taskId) ||
 			compareIds(a.dependencyId, b.dependencyId)
 	);
-	const effectivePairs = tasks
-		.flatMap((t) => [...effectiveDependencies(index, t.id)].map((from) => ({ from, to: t.id })))
-		.sort((a, b) => compareIds(a.from, b.from) || compareIds(a.to, b.to));
 	type MutableEdge = Omit<RouteMapEdge, 'stored'> & { stored: DependencyEdge[] };
 	const projected = new Map<string, MutableEdge>();
 	const merge = (edges: Map<string, MutableEdge>, incoming: RouteMapEdge) => {
@@ -132,7 +128,6 @@ export function routeMapModel(
 		nodes,
 		groups,
 		stages,
-		effectivePairs,
 		edges: [...edges.values()].sort((a, b) => compareIds(a.key, b.key)),
 		warnings
 	};

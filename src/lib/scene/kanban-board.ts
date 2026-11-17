@@ -16,7 +16,6 @@ export interface KanbanCard {
 	title: string;
 	status: TaskStatus;
 	column: BoardColumn;
-	stageId: string;
 	stageNumber: number;
 	stageTitle: string;
 	owners: string[];
@@ -39,7 +38,6 @@ function buildCard(
 		title: task.title,
 		status: state.eff.status,
 		column,
-		stageId: stage.id,
 		stageNumber,
 		stageTitle: stage.title,
 		owners: state.eff.owners,
@@ -56,13 +54,11 @@ export interface KanbanItem {
 	status: TaskStatus;
 	column: BoardColumn | null;
 	parentId: string;
-	readiness: Readiness;
 }
 export interface KanbanFamily {
 	parentId: string;
 	title: string;
 	total: number;
-	summary: FamilySummary;
 	children: KanbanItem[];
 }
 export interface KanbanLane {
@@ -105,7 +101,6 @@ export function kanbanSwimlanes(plan: Plan, index: TaskIndex): KanbanSwimlanes {
 					parentId: task.id,
 					title: task.title,
 					total: children.length,
-					summary,
 					children: children.map((child) => {
 						const childState = index.state.get(child.id)!;
 						return {
@@ -113,8 +108,7 @@ export function kanbanSwimlanes(plan: Plan, index: TaskIndex): KanbanSwimlanes {
 							title: child.title,
 							status: childState.eff.status,
 							column: boardColumn(childState),
-							parentId: task.id,
-							readiness: childState.readiness
+							parentId: task.id
 						};
 					})
 				});

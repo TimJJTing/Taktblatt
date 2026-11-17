@@ -66,7 +66,6 @@
 		<div
 			class="sticky top-0 z-10 shrink-0 bg-background text-xs"
 			style:height="{scroll.paddingTop}px"
-			data-testid="fixture-sticky-top"
 		>
 			Header
 		</div>
@@ -82,7 +81,6 @@
 			<div
 				class="sticky left-0 z-10 shrink-0 bg-background text-xs"
 				style:width="{scroll.paddingLeft}px"
-				data-testid="fixture-sticky-left"
 			>
 				Stage
 			</div>

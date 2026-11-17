@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { kanbanColumnLabel } from '#lib/components/kanban/card-text.ts';
 import { indexTasks } from '#lib/domain/derive.ts';
 import type { Plan, Task } from '#lib/domain/schema.ts';
 import { makePlan } from '#lib/domain/test-helpers.ts';
-import { kanbanSwimlanes } from './kanban-board.ts';
+import { KANBAN_COLUMNS, kanbanSwimlanes } from './kanban-board.ts';
 import { done300, kanbanTask } from './kanban-fixtures.test-helper.ts';
 import { kanbanPaperSegments, kanbanPaperItems } from './kanban-paper.ts';
 
@@ -35,10 +36,10 @@ describe('Kanban paper adapter', () => {
 		expect(segment.items).toEqual(kanbanPaperItems(board, () => false).items);
 		expect(segment.data).toMatchObject({
 			columns: [
-				{ id: 'blocked', label: 'Blocked', count: 1 },
-				{ id: 'todo', label: 'Todo', count: 1 },
-				{ id: 'in_progress', label: 'In progress', count: 1 },
-				{ id: 'done', label: 'Done', count: 1 }
+				{ id: 'blocked', count: 1 },
+				{ id: 'todo', count: 1 },
+				{ id: 'in_progress', count: 1 },
+				{ id: 'done', count: 1 }
 			],
 			lanes: board.lanes.map(({ stageId, stageNumber, stageTitle, color, count }) => ({
 				stageId,
@@ -48,6 +49,12 @@ describe('Kanban paper adapter', () => {
 				count
 			}))
 		});
+		expect(KANBAN_COLUMNS.map(kanbanColumnLabel)).toEqual([
+			'Blocked',
+			'Todo',
+			'In progress',
+			'Done'
+		]);
 		expect(segments.slice(1)).toEqual([
 			expect.objectContaining({ kind: 'legend', which: 'stages' })
 		]);

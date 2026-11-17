@@ -1,5 +1,6 @@
 import type { SceneSegment } from '#lib/domain/print-model.ts';
 import type { RouteMapModel } from '#lib/domain/route-map.ts';
+import { MinHeap } from './min-heap.ts';
 import {
 	routeMapLayout,
 	type RouteMapBox,
@@ -18,6 +19,10 @@ import {
 } from './route-map-router.ts';
 
 export const ROUTE_MAP_HEADING_LIMIT = 40;
+
+const MAX_PAPER_FAMILY_GRID_NODES = 131_072;
+// Count heap pops for each restoredFamilyRoute attempt, including stale entries.
+const MAX_PAPER_FAMILY_SEARCH_POPS = 32_768;
 
 export function boundedHeading(text: string): string {
 	const characters = Array.from(text);
@@ -123,7 +128,6 @@ export interface RouteMapPaperMetrics extends RouteMapMetrics {
 	formatTargets?: (targets: RouteMapContinuationMarker['targets']) => string;
 }
 export interface RouteMapPaperStation extends RouteMapStation {
-	collapsedParent: boolean;
 	reference: string;
 	labelLines: readonly string[];
 	summaryLines?: readonly string[];
@@ -425,7 +429,7 @@ function restoredFamilyRoute(
 		ys = coordinates('y', bottom);
 	const count = xs.length * ys.length;
 	// Bound each search. The caller retries crossings, then uses family-cut strokes.
-	if (!inside(source) || !inside(target) || count > 131072) return;
+	if (!inside(source) || !inside(target) || count > MAX_PAPER_FAMILY_GRID_NODES) return;
 	const pointAt = (node: number) => ({
 		x: xs[node % xs.length],
 		y: ys[Math.floor(node / xs.length)]
@@ -435,7 +439,9 @@ function restoredFamilyRoute(
 		goal = nodeAt(target);
 	const costs = new Float64Array(count * 2).fill(Infinity);
 	const previous = new Int32Array(count * 2).fill(-1);
-	const heap: { state: number; cost: number; priority: number }[] = [];
+	const heap = new MinHeap<{ state: number; cost: number; priority: number }>(
+		(a, b) => a.priority < b.priority
+	);
 	const push = (state: number, cost: number, prior: number) => {
 		if (cost >= costs[state]) return;
 		costs[state] = cost;
@@ -447,36 +453,13 @@ function restoredFamilyRoute(
 			priority: cost + Math.abs(target.x - point.x) + Math.abs(target.y - point.y)
 		};
 		heap.push(entry);
-		let at = heap.length - 1;
-		while (at && heap[Math.floor((at - 1) / 2)].priority > entry.priority) {
-			const parent = Math.floor((at - 1) / 2);
-			heap[at] = heap[parent];
-			at = parent;
-		}
-		heap[at] = entry;
-	};
-	const pop = () => {
-		const first = heap[0],
-			last = heap.pop()!;
-		if (heap.length) {
-			let at = 0;
-			while (at * 2 + 1 < heap.length) {
-				let child = at * 2 + 1;
-				if (child + 1 < heap.length && heap[child + 1].priority < heap[child].priority) child++;
-				if (heap[child].priority >= last.priority) break;
-				heap[at] = heap[child];
-				at = child;
-			}
-			heap[at] = last;
-		}
-		return first;
 	};
 	const segmentClear = new Map<number, boolean>();
 	push(start * 2, 0, -1);
 	push(start * 2 + 1, 0, -1);
 	let visits = 0;
-	while (heap.length && visits++ < 32768) {
-		const entry = pop();
+	while (heap.length && visits++ < MAX_PAPER_FAMILY_SEARCH_POPS) {
+		const entry = heap.pop()!;
 		if (costs[entry.state] !== entry.cost) continue;
 		const node = Math.floor(entry.state / 2);
 		if (node === goal) {
@@ -726,15 +709,10 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 			item.stations = members.map((s) => ({
 				...s,
 				center: point(s.center),
-				inPort: point(s.inPort),
-				outPort: point(s.outPort),
 				hitBox: { ...point({ x: s.center.x - 4, y: s.center.y - 4 }), w: 8, h: 8 },
 				focusBox: { ...point({ x: s.center.x - 4, y: s.center.y - 4 }), w: 8, h: 8 },
 				labelBox: box(s.labelBox),
 				controlBoxes: [],
-				collapsedParent:
-					model.groups.some((g) => g.id === s.id && g.taskIds.length > 1) &&
-					!model.nodes.some((n) => n.parentId === s.id),
 				reference: refs.get(s.id)!,
 				labelLines: labelLines(s.id, s.labelBox.w).slice(0, 2),
 				summaryLines: summaryLines(s.id, s.labelBox.w)
@@ -780,8 +758,6 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				return {
 					...station,
 					center,
-					inPort: center,
-					outPort: center,
 					hitBox,
 					focusBox: hitBox,
 					controlBoxes: [],
@@ -791,9 +767,6 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 						w: labelWidth,
 						h: (Math.max(1, name.length) + summary.length) * 14
 					},
-					collapsedParent:
-						model.groups.some((group) => group.id === station.id && group.taskIds.length > 1) &&
-						!model.nodes.some((node) => node.parentId === station.id),
 					reference: refs.get(station.id)!,
 					labelLines: name,
 					summaryLines: summary
@@ -906,8 +879,6 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					...item.stations.map((station) => ({
 						...station,
 						center: point(station.center),
-						inPort: point(station.inPort),
-						outPort: point(station.outPort),
 						hitBox: box(station.hitBox),
 						focusBox: box(station.focusBox),
 						labelBox: box(station.labelBox)

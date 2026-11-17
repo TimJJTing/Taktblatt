@@ -22,8 +22,6 @@ export interface RouteMapMetrics {
 	labelWidth: number;
 	labelHeight: number;
 	columnGap: number;
-	stageGap: number;
-	laneGap: number;
 	clearance: number;
 	paper?: boolean;
 	labelHeights?: ReadonlyMap<string, number>;
@@ -33,15 +31,12 @@ export interface RouteMapStation {
 	id: string;
 	columnId: string;
 	column: number;
-	rank: number;
 	track: number;
 	center: RouteMapPoint;
 	hitBox: RouteMapBox;
 	labelBox: RouteMapBox;
 	focusBox: RouteMapBox;
 	controlBoxes: readonly RouteMapBox[];
-	inPort: RouteMapPoint;
-	outPort: RouteMapPoint;
 }
 export interface RouteMapLine {
 	key: string;
@@ -495,7 +490,6 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 			id: node.id,
 			columnId: `column:${column}`,
 			column,
-			rank: column,
 			track,
 			center,
 			hitBox,
@@ -511,9 +505,7 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 								h: controlsHeight(node)
 							}
 						]
-					: [],
-			inPort: center,
-			outPort: center
+					: []
 		};
 	});
 	const columns = [...columnXs].map(([index, x]) => ({

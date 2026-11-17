@@ -10,13 +10,12 @@
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import type { KanbanFamily, KanbanItem, KanbanLane } from '#lib/scene/kanban-board.ts';
-	import { kanbanColumnLabel } from '#lib/scene/kanban-paper.ts';
+	import type { KanbanFamily, KanbanLane } from '#lib/scene/kanban-board.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
-	import { kanbanTaskContext } from './card-text.ts';
+	import { kanbanStateText, kanbanTaskContext } from './card-text.ts';
 
 	let {
 		family,
@@ -33,7 +32,7 @@
 	const viewer = getViewer();
 	const editing = getEditing();
 	const layer = getDiagramLayer();
-	const locale = uiIntl();
+	const intl = uiIntl();
 	const detailId = $props.id();
 	const title = $derived(family.title || m.task_untitled());
 	const expanded = $derived(viewer.isExpanded(ws.plan.id, family.parentId));
@@ -62,9 +61,6 @@
 			else button.tabIndex = -1;
 		}
 	});
-	function stateText(item: KanbanItem) {
-		return item.column === null ? m.task_status_canceled() : kanbanColumnLabel(item.column);
-	}
 	function openDetails(id: string, from: HTMLElement) {
 		editing.openDetails(id, from, layer.returnFocus?.(id, from));
 	}
@@ -104,7 +100,7 @@
 		>
 			{#each family.children as item (item.id)}
 				{@const itemTitle = item.title || m.task_untitled()}
-				{@const state = stateText(item)}
+				{@const state = kanbanStateText(item.column)}
 				{@const level = markColorLevel('todo', 'line', dimmed.has(item.id))}
 				<li
 					class="item min-w-0 rounded-md border bg-background"
@@ -127,12 +123,11 @@
 								})}
 								type="button"
 								class="flex w-full min-w-0 items-start gap-2 rounded-md p-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-ring"
-								tabindex={expanded ? undefined : -1}
 								aria-label={m.kanban_card_action({
 									task: itemTitle,
 									context: m.kanban_item_context({
 										parent: title,
-										context: kanbanTaskContext(stage, item.column, locale)
+										context: kanbanTaskContext(stage, item.column, intl)
 									})
 								})}
 								data-diagram-label={item.id}

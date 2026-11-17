@@ -20,8 +20,7 @@ const required = [
 	'route_map_station_name',
 	'route_map_successors',
 	'route_map_title_continuation',
-	'route_map_to_go',
-	'route_map_untitled_task'
+	'route_map_to_go'
 ];
 
 const parameters: Record<string, string[]> = {
@@ -43,8 +42,7 @@ const parameters: Record<string, string[]> = {
 	route_map_station_name: ['stage', 'status', 'task'],
 	route_map_successors: ['tasks'],
 	route_map_title_continuation: ['reference', 'title'],
-	route_map_to_go: ['count'],
-	route_map_untitled_task: []
+	route_map_to_go: ['count']
 };
 const params = (text: unknown) => [...String(text).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 

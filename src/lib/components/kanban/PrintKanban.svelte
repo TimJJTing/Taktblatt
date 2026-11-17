@@ -4,20 +4,22 @@
 	import StageBadge from '#lib/components/diagram/StageBadge.svelte';
 	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { readyLightText } from '#lib/components/edit/ready-light-text.ts';
 	import { stagePaperColor } from '#lib/components/plan/colors.ts';
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { joinList } from '#lib/domain/format.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import type { KanbanCard } from '#lib/scene/kanban-board.ts';
-	import {
-		kanbanColumnLabel,
-		type KanbanPaperItem,
-		type KanbanPaperSceneData
-	} from '#lib/scene/kanban-paper.ts';
+	import type { KanbanPaperItem, KanbanPaperSceneData } from '#lib/scene/kanban-paper.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
-	import { cardDates, kanbanTaskContext } from './card-text.ts';
+	import {
+		cardDates,
+		cardOwners,
+		cardReadinessText,
+		kanbanColumnLabel,
+		kanbanStateText,
+		kanbanTaskContext
+	} from './card-text.ts';
 
 	let { segment, from, to }: DiagramPaperProps = $props();
 	const data = $derived(segment.data as KanbanPaperSceneData);
@@ -27,8 +29,7 @@
 	const intl = uiIntl();
 
 	function cardLabel(card: KanbanCard, owners: string, dates: string, summary: string): string {
-		const readiness =
-			card.readiness.kind === 'blocked' ? m.kanban_blocked() : readyLightText(card.readiness);
+		const readiness = cardReadinessText(card.readiness);
 		return joinList(
 			[
 				card.title || m.task_untitled(),
@@ -52,7 +53,9 @@
 					data-testid="sheet-kanban-heading"
 					data-column={column.id}
 				>
-					<span>{column.label}</span><span data-testid="kanban-count">{column.count}</span>
+					<span>{kanbanColumnLabel(column.id)}</span><span data-testid="kanban-count"
+						>{column.count}</span
+					>
 				</div>
 			{/each}
 		</div>
@@ -99,10 +102,7 @@
 					>
 						{lane.stageTitle}
 					</h3>
-					<p
-						class="relative ml-2 text-[9px] text-paper-ink-2"
-						data-testid="sheet-kanban-stage-count"
-					>
+					<p class="relative ml-2 text-[9px] text-paper-ink-2">
 						{m.kanban_stage_count({ count: lane.count })}
 					</p>
 				</div>
@@ -111,9 +111,7 @@
 				{#each item.cards as card, column (column)}
 					{#if card}
 						{@const summary = card.summary ? familySummaryText(card.summary, locale) : ''}
-						{@const owners = card.owners.length
-							? joinList(card.owners, intl)
-							: m.kanban_no_owners()}
+						{@const owners = cardOwners(card.owners, intl)}
 						{@const dates = cardDates(card, intl)}
 						<div
 							class="flex min-w-0 flex-col gap-0.5 rounded-sm border border-paper-rule p-1 text-[9px]"
@@ -150,11 +148,7 @@
 				{@const title = item.line.title || m.task_untitled()}
 				<div class="col-start-2 col-end-6 min-w-0 text-[9px]">
 					{#if item.kind === 'family-start'}
-						<p
-							class="pb-1 font-semibold wrap-anywhere"
-							data-testid="sheet-kanban-family"
-							data-parent={item.parentId}
-						>
+						<p class="pb-1 font-semibold wrap-anywhere" data-parent={item.parentId}>
 							{m.kanban_family_row({ parent: parentTitle, count: family.total })}
 						</p>
 					{/if}
@@ -181,10 +175,8 @@
 							class:text-paper-ink-2={item.line.status === 'done' ||
 								item.line.status === 'canceled'}>{title}</span
 						>
-						<span class="shrink-0 text-paper-ink-2" data-testid="sheet-kanban-line-state">
-							{item.line.column === null
-								? m.task_status_canceled()
-								: kanbanColumnLabel(item.line.column)}
+						<span class="shrink-0 text-paper-ink-2">
+							{kanbanStateText(item.line.column)}
 						</span>
 					</div>
 				</div>

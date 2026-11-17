@@ -26,7 +26,6 @@
 	"route_map_successors": "後續任務：{tasks}。",
 	"route_map_title_continuation": "{reference}：{title}",
 	"route_map_to_go": "剩餘 {count} 項",
-	"route_map_untitled_task": "未命名任務",
 	"route_map_workflow_continuation": "{pair} 流程 {direction} → {reference}",
 	"app_name": "Taktblatt",
 	"menu": "選單",

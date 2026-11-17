@@ -7,12 +7,12 @@
 	import { diagramRouteTargets } from '#lib/components/diagram/diagram-layer.ts';
 	import { revealTarget, taskFocusTarget } from '#lib/components/diagram/diagram-focus.ts';
 	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
+	import { svgPolyline } from '#lib/components/diagram/svg-polyline.ts';
 	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
 	import { effectiveDependencyGraph, routeFocusModel } from '#lib/domain/route.ts';
 	import { GEOMETRY_MOTION_MS, motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { KANBAN_COLUMNS, kanbanSwimlanes } from '#lib/scene/kanban-board.ts';
-	import { kanbanColumnLabel } from '#lib/scene/kanban-paper.ts';
 	import {
 		kanbanNodeEdges,
 		kanbanScene,
@@ -22,6 +22,7 @@
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import { GANTT_HEIGHT, getViewer } from '#lib/state/viewer.svelte.ts';
+	import { kanbanColumnLabel } from './card-text.ts';
 	import KanbanSwimlane from './KanbanSwimlane.svelte';
 	let { class: className, onReveal }: DiagramViewProps = $props();
 	const clipId = $props.id();
@@ -333,7 +334,7 @@
 		>
 			<div class="min-w-[36rem]" style="--kanban-tracks: 6rem repeat(4, minmax(7.5rem, 1fr));">
 				<div
-					class="headings relative z-30 grid border-b bg-background"
+					class="relative z-30 grid border-b bg-background"
 					style:grid-template-columns="var(--kanban-tracks)"
 					style:transform="translateY(var(--kanban-scroll-top, 0px))"
 				>
@@ -369,9 +370,9 @@
 				><rect x={viewport.x} y={viewport.y} width={viewport.w} height={viewport.h} /></clipPath
 			></defs
 		><g clip-path={`url(#${clipId})`}
-			>{#each scene.paths as path (path.key)}{@const d = path.points
-					.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`)
-					.join(' ')}<g transition:fade={{ duration: motionDuration(150) }}>
+			>{#each scene.paths as path (path.key)}{@const d = svgPolyline(path.points)}<g
+					transition:fade={{ duration: motionDuration(150) }}
+				>
 					<path
 						{d}
 						class:cycle-casing={path.cycle}

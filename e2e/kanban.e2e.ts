@@ -1282,22 +1282,41 @@ test('returns focus to a moved card and reveals it when the task dialog closes o
 	await setTaskStatus(page, dialog, 'done');
 	await expect(column(page, 'done').locator('[data-diagram-task="A"]')).toHaveCount(1);
 	const monitor = await startTimelineIslandMonitor(page);
-	await page.keyboard.press('Escape');
-	await expect(dialog).toHaveCount(0);
-	await waitForAnimations(page.locator('#timeline'));
-	await waitForAnimations(workspaceTabs(page));
-	await waitForFrames(page);
-	const samples = await monitor.finish();
+	let samples: Awaited<ReturnType<typeof monitor.stop>>;
+	try {
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+		await expect(action(page, 'A')).toBeFocused();
+		await expect.poll(() => strip(page).evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+		await expect.poll(() => vertical(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+		await expectKanbanFocusContained(action(page, 'A'));
+		await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
+		expect(await workspaceTabSize(page)).toEqual(fullIsland);
+		await waitForAnimations(page.locator('#timeline'));
+		await waitForAnimations(workspaceTabs(page));
+		await waitForAnimations(board(page));
+		await waitForFrames(page, 2);
+		await expect
+			.poll(() =>
+				workspaceContent(page).evaluate(
+					(root) =>
+						root
+							.getAnimations({ subtree: true })
+							.filter(
+								(animation) =>
+									Number.isFinite(animation.effect?.getComputedTiming().endTime) &&
+									animation.playState === 'running'
+							).length
+				)
+			)
+			.toBe(0);
+	} finally {
+		samples = await monitor.stop();
+	}
 	expect(samples.length).toBeGreaterThan(1);
 	for (const sample of samples) {
 		expect(sample).toEqual({ expanded: 'true', ...fullIsland });
 	}
-	await expect(action(page, 'A')).toBeFocused();
-	await expect.poll(() => strip(page).evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
-	await expect.poll(() => vertical(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-	await expectKanbanFocusContained(action(page, 'A'));
-	await expect(timelineHandle(page)).toHaveAttribute('aria-expanded', 'true');
-	expect(await workspaceTabSize(page)).toEqual(fullIsland);
 });
 
 test('reveals an offscreen station target when keyboard focus reaches it', async ({ page }) => {
@@ -1437,9 +1456,7 @@ test('updates the connector as another card reorders its focused endpoint', asyn
 	await expect(line).toHaveAttribute('data-from', 'C');
 	await expect(line).toHaveAttribute('data-to', 'D');
 	await page.keyboard.press('ControlOrMeta+z');
-	await expect
-		.poll(() => card(page, 'C').evaluate((node) => node.getAnimations().length))
-		.toBeGreaterThan(0);
+	await expect(column(page, 'todo').locator('[data-diagram-task="C"]')).toHaveCount(1);
 	await waitForAnimations(board(page));
 	await expect(station(page, 'C')).toBeFocused();
 	await expect(line).toHaveCount(1);

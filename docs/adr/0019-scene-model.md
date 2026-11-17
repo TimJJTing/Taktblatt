@@ -85,7 +85,7 @@ More diagrams come soon: a route map without a time axis, and a Kanban board (sp
 
 ### Route-focus projection (slice 4)
 
-- Add a pure effective-dependency graph builder in `src/lib/domain/route.ts`. Store upstream and downstream adjacency maps and the effective predecessor/dependent pairs. `Gantt.svelte` derives this graph once per `ws.index`. Reuse it across route changes and across focus tasks. Keep `dependencyRoute(index, focus)` as a wrapper for existing callers and tests. Add a graph-based walk for projection.
+- Add a pure effective-dependency graph builder in `src/lib/domain/route.ts`. Store upstream and downstream adjacency maps and the effective predecessor/dependent pairs. `Gantt.svelte` derives this graph once per `ws.index`. Reuse it across route changes and across focus tasks. Callers use `routeFocusModel`, which walks the shared graph. The earlier `dependencyRoute(index, focus)` wrapper is removed.
 - Add the pure `routeFocusModel(graph, index, rows, lines, focusId)` function in the same module. It returns `active`, `onRouteRowIds` and `litLineKeys`. It has no DOM, timer, Svelte or store dependency. Gantt derives it from the shared graph, current index, visible rows, drawn lines and `editing.routeId`.
 - A null or missing focus gives an inactive model with empty sets. For a collapsed parent, the focus set contains the parent and all its hidden subtasks. Otherwise it contains only the focus task. Walk the shared graph separately for each focus in this set.
 - A valid focus activates the model, including an isolated focus. Refer to spec 5.4 for its visible treatment.

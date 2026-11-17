@@ -55,17 +55,13 @@ describe('Route map model', () => {
 		}
 	});
 
-	it('derives readiness from effective inherited work and status from the children', () => {
+	it('uses the effective parent status from the shared index', () => {
 		const plan = makePlan([
-			task({ id: 'up' }),
-			task({ id: 'P', dependsOn: ['up'] }),
-			task({ id: 'S', parentId: 'P' }),
 			task({ id: 'doneFamily' }),
-			task({ id: 'doneChild', parentId: 'doneFamily', status: 'done' }),
-			task({ id: 'down', dependsOn: ['doneFamily'] })
+			task({ id: 'doneChild', parentId: 'doneFamily', status: 'done' })
 		]);
 		const index = indexTasks(plan.tasks);
-		const model = routeMapModel(plan, new Set(['P']), index);
+		const model = routeMapModel(plan, new Set(), index);
 		expect(model.nodes.find((n) => n.id === 'doneFamily')).toMatchObject({ status: 'done' });
 	});
 
@@ -105,7 +101,6 @@ describe('Route map model', () => {
 			crossStage: false,
 			cycle: false
 		});
-		expect(open.effectivePairs).toContainEqual({ from: 'up', to: 'S' });
 		expect(open.edges.some((e) => e.from === 'up' && e.to === 'S')).toBe(false);
 		expect(open.warnings).toContainEqual({
 			kind: 'subtask_scope',
@@ -257,7 +252,6 @@ describe('Route map model', () => {
 		const index = indexTasks(plan.tasks);
 		const closed = routeMapModel(plan, new Set(), index);
 		expect(closed.edges).toEqual([]);
-		expect(closed.effectivePairs).toContainEqual({ from: 'A', to: 'B' });
 		expect(closed.warnings).toContainEqual({ kind: 'date', taskId: 'B', dependencyId: 'A' });
 		expect(routeMapModel(plan, new Set(['P']), index).edges).toEqual([
 			{

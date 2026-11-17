@@ -6,16 +6,14 @@
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
-	import { readyLightText } from '#lib/components/edit/ready-light-text.ts';
 	import { markColorLevel } from '#lib/components/plan/colors.ts';
-	import { joinList } from '#lib/domain/format.ts';
 	import { motionDuration } from '#lib/motion.ts';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import type { KanbanCard } from '#lib/scene/kanban-board.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
-	import { cardDates, kanbanTaskContext } from './card-text.ts';
+	import { cardDates, cardOwners, cardReadinessText, kanbanTaskContext } from './card-text.ts';
 	interface Props {
 		card: KanbanCard;
 		dimmed: boolean;
@@ -28,23 +26,19 @@
 	function openDetails(from: HTMLElement) {
 		editing.openDetails(card.id, from, layer.returnFocus?.(card.id, from));
 	}
-	const locale = uiIntl();
+	const intl = uiIntl();
 	const cardId = $props.id();
 	const descId = `${cardId}-description`;
 	const summaryId = `${cardId}-summary`;
 	const summary = $derived(card.summary ? familySummaryText(card.summary, getLocale()) : '');
 	const title = $derived(card.title || m.task_untitled());
-	const owners = $derived(
-		card.owners.length ? joinList(card.owners, locale) : m.kanban_no_owners()
-	);
-	const dates = $derived(cardDates(card, locale));
-	const readiness = $derived(
-		card.readiness.kind === 'blocked' ? m.kanban_blocked() : readyLightText(card.readiness)
-	);
+	const owners = $derived(cardOwners(card.owners, intl));
+	const dates = $derived(cardDates(card, intl));
+	const readiness = $derived(cardReadinessText(card.readiness));
 	const label = $derived(
 		m.kanban_card_action({
 			task: title,
-			context: kanbanTaskContext(card, card.column, locale)
+			context: kanbanTaskContext(card, card.column, intl)
 		})
 	);
 	const level = $derived(markColorLevel('todo', 'line', dimmed));

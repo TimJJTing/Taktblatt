@@ -1,12 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
 import { indexTasks } from './derive.ts';
-import { dependencyRoute, isLitEdge, effectiveDependencyGraph, routeFocusModel } from './route.ts';
+import { isLitEdge, effectiveDependencyGraph, routeFocusModel } from './route.ts';
 import * as derive from './derive.ts';
 import { dependencyLines, ganttRows } from './gantt.ts';
 import type { Task } from './schema.ts';
 import { makeTask } from './test-helpers.ts';
 
-describe('dependencyRoute', () => {
+const projectRouteSides = (index: ReturnType<typeof indexTasks>, id: string) => {
+	const graph = effectiveDependencyGraph(index);
+	const rows = [...index.byId.values()].map((task) => ({
+		id: task.id,
+		isParent: false,
+		expanded: true
+	}));
+	const side = (direction: 'upstream' | 'downstream') => {
+		const oneSide = { ...graph, [direction === 'upstream' ? 'downstream' : 'upstream']: new Map() };
+		const result = routeFocusModel(oneSide, index, rows, [], id).onRouteRowIds;
+		result.delete(id);
+		return result;
+	};
+	return { upstream: side('upstream'), downstream: side('downstream') };
+};
+
+describe('routeFocusModel graph traversal', () => {
 	it('follows a chain and both arms of a fork, excluding unrelated tasks and the focus', () => {
 		const index = indexTasks([
 			makeTask({ id: 'root' }),
@@ -18,7 +34,7 @@ describe('dependencyRoute', () => {
 			makeTask({ id: 'tail', dependsOn: ['c'] }),
 			makeTask({ id: 'unrelated' })
 		]);
-		expect(dependencyRoute(index, 'focus')).toEqual({
+		expect(projectRouteSides(index, 'focus')).toEqual({
 			upstream: new Set(['root', 'a', 'b']),
 			downstream: new Set(['c', 'd', 'tail'])
 		});
@@ -30,7 +46,7 @@ describe('dependencyRoute', () => {
 			makeTask({ id: 'b', dependsOn: ['a'] }),
 			makeTask({ id: 'c', dependsOn: ['b'] })
 		]);
-		expect(dependencyRoute(index, 'a')).toEqual({
+		expect(projectRouteSides(index, 'a')).toEqual({
 			upstream: new Set(['b', 'c']),
 			downstream: new Set(['b', 'c'])
 		});
@@ -43,11 +59,11 @@ describe('dependencyRoute', () => {
 			makeTask({ id: 'sibling', parentId: 'parent' }),
 			makeTask({ id: 'child', parentId: 'parent', dependsOn: ['sibling'] })
 		]);
-		expect(dependencyRoute(index, 'child')).toEqual({
+		expect(projectRouteSides(index, 'child')).toEqual({
 			upstream: new Set(['external', 'sibling']),
 			downstream: new Set()
 		});
-		expect(dependencyRoute(index, 'external').downstream).toEqual(
+		expect(projectRouteSides(index, 'external').downstream).toEqual(
 			new Set(['parent', 'sibling', 'child'])
 		);
 	});
@@ -63,7 +79,7 @@ describe('isLitEdge', () => {
 			makeTask({ id: 'd', dependsOn: ['c'] }),
 			makeTask({ id: 'other' })
 		]);
-		const route = dependencyRoute(index, 'focus');
+		const route = projectRouteSides(index, 'focus');
 		for (const [from, to] of [
 			['a', 'b'],
 			['b', 'focus'],

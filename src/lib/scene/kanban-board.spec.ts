@@ -103,7 +103,6 @@ describe('Kanban swimlanes', () => {
 		expect(board.lanes[0].families[0]).toMatchObject({
 			parentId: 'P',
 			total: 3,
-			summary: { ready: 1, blocked: 0, inProgress: 0, done: 1, canceled: 1, total: 3 },
 			children: [
 				{ id: 'A', status: 'todo', column: 'todo' },
 				{ id: 'B', status: 'done', column: 'done' },

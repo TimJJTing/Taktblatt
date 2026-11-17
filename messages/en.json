@@ -26,7 +26,6 @@
 	"route_map_successors": "Required by {tasks}.",
 	"route_map_title_continuation": "{reference}: {title}",
 	"route_map_to_go": "{count} to go",
-	"route_map_untitled_task": "Untitled task",
 	"route_map_workflow_continuation": "{pair} Workflow {direction} → {reference}",
 	"app_name": "Taktblatt",
 	"menu": "Menu",

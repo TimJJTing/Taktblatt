@@ -1,6 +1,5 @@
 import type { BoardColumn } from '#lib/domain/derive.ts';
 import type { DiagramSegment, PrintModelInput } from '#lib/domain/print-model.ts';
-import { m } from '#lib/paraglide/messages.js';
 import {
 	KANBAN_COLUMNS,
 	kanbanSwimlanes,
@@ -12,23 +11,11 @@ import {
 	type KanbanSwimlanes
 } from './kanban-board.ts';
 export interface KanbanPaperSceneData {
-	columns: { id: BoardColumn; label: string; count: number }[];
+	columns: { id: BoardColumn; count: number }[];
 	lanes: (Pick<KanbanLane, 'stageId' | 'stageNumber' | 'stageTitle' | 'color' | 'count'> & {
-		families: Pick<KanbanFamily, 'parentId' | 'title' | 'total' | 'summary'>[];
+		families: Pick<KanbanFamily, 'parentId' | 'title' | 'total'>[];
 	})[];
 	emptyKind: KanbanEmptyKind;
-}
-export function kanbanColumnLabel(id: BoardColumn): string {
-	switch (id) {
-		case 'blocked':
-			return m.kanban_blocked();
-		case 'todo':
-			return m.task_status_todo();
-		case 'in_progress':
-			return m.task_status_in_progress();
-		case 'done':
-			return m.task_status_done();
-	}
 }
 export function kanbanPaperSegments(input: PrintModelInput): DiagramSegment[] {
 	const board = kanbanSwimlanes(input.plan, input.index);
@@ -36,7 +23,6 @@ export function kanbanPaperSegments(input: PrintModelInput): DiagramSegment[] {
 	const data: KanbanPaperSceneData = {
 		columns: scene.repeat.columns.map(({ id, count }) => ({
 			id,
-			label: kanbanColumnLabel(id),
 			count
 		})),
 		lanes: board.lanes.map(({ stageId, stageNumber, stageTitle, color, count, families }) => ({
@@ -45,11 +31,10 @@ export function kanbanPaperSegments(input: PrintModelInput): DiagramSegment[] {
 			stageTitle,
 			color,
 			count,
-			families: families.map(({ parentId, title, total, summary }) => ({
+			families: families.map(({ parentId, title, total }) => ({
 				parentId,
 				title,
-				total,
-				summary
+				total
 			}))
 		})),
 		emptyKind: scene.repeat.emptyKind

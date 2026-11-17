@@ -1,5 +1,4 @@
-import type { TaskStatus } from '#lib/domain/schema.ts';
-import { createExamplePlan } from '#lib/domain/example.ts';
+import { pinnedExamplePlan, signsPlan } from '#lib/scene/route-map-fixtures.test-helper.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	expectRouteMapPaperKeys,
@@ -33,25 +32,8 @@ declare global {
 const incoming = (page: Page, view = 'route-map') =>
 	diagramStage(page).locator(`[data-diagram-view="${view}"]:not([inert])`);
 const station = (page: Page, id: string) =>
-	incoming(page).locator(`button[data-route-target="${id}"][data-route-focus="keyboard"]`);
+	incoming(page).locator(`button:has([data-diagram-station="${id}"])`);
 const paper = (page: Page) => page.locator('[data-fragment="route-map-scene"]');
-
-function pinnedGardenPlan() {
-	const fixture = createExamplePlan('2026-11-14');
-	const stageIds = new Map(fixture.stages.map((stage, i) => [stage.id, `stage-${i}`]));
-	const taskIds = new Map(fixture.tasks.map((task, i) => [task.id, `task-${i}`]));
-	fixture.stages = fixture.stages.map((stage) => ({ ...stage, id: stageIds.get(stage.id)! }));
-	fixture.tasks = fixture.tasks.map((task, i) => ({
-		...task,
-		id: taskIds.get(task.id)!,
-		stageId: stageIds.get(task.stageId)!,
-		parentId: task.parentId ? taskIds.get(task.parentId)! : null,
-		dependsOn: task.dependsOn.map((id) => taskIds.get(id)!),
-		note: task.note.replace(/@\[task:([^\]]+)\]/g, (_, id) => `@[task:${taskIds.get(id)!}]`),
-		createdAt: new Date(Date.parse('2026-11-14T00:00:00.000Z') + i).toISOString()
-	}));
-	return fixture;
-}
 
 test('shows every top-level station, including undated, done and canceled work', async ({
 	page
@@ -524,7 +506,7 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 	page
 }) => {
 	await openRoutePlan(page);
-	const fixture = pinnedGardenPlan();
+	const fixture = pinnedExamplePlan();
 	await writeStoredPlan(page, (plan) => Object.assign(plan, fixture, { id: plan.id }));
 	await chooseView(page, 'route-map');
 	await page.evaluate(() => document.fonts.ready);
@@ -911,24 +893,15 @@ test('diagram signs and imported status paint survive dark and forced-color rend
 			title,
 			color: (['green', 'amber', 'blue'] as const)[i]
 		}));
-		const station = (
-			id: string,
-			title: string,
-			stageId: string,
-			dependsOn: string[] = [],
-			parentId: string | null = null,
-			status: TaskStatus = 'todo'
-		) => ({ ...base, id, title, stageId, parentId, dependsOn, status, start: null, end: null });
-		plan.tasks = [
-			station('survey', 'Site survey', 's1', [], null, 'done'),
-			station('soil', 'Soil preparation', 's1', ['survey']),
-			station('test', 'Soil test', 's1', [], 'soil', 'done'),
-			station('compost', 'Add compost', 's1', ['test'], 'soil', 'in_progress'),
-			station('seeds', 'Order seeds', 's1', ['survey']),
-			station('water', 'Watering rota', 's2', ['soil', 'seeds']),
-			station('stall', 'Neighbourhood stall', 's3', ['water'])
-		].map((task, i) => ({
-			...task,
+		plan.tasks = signsPlan().tasks.map((task, i) => ({
+			...base,
+			id: task.id,
+			title: task.title,
+			stageId: task.stageId,
+			parentId: task.parentId,
+			dependsOn: task.dependsOn,
+			status: task.status,
+			end: null,
 			createdAt: new Date(Date.UTC(2026, 10, 14, 0, 0, i)).toISOString(),
 			start: `2026-11-${String(i + 1).padStart(2, '0')}`
 		}));
@@ -1116,7 +1089,7 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 	page
 }) => {
 	await openRoutePlan(page);
-	const garden = pinnedGardenPlan();
+	const garden = pinnedExamplePlan();
 	await writeStoredPlan(page, (plan) => Object.assign(plan, garden, { id: plan.id }));
 	await chooseView(page, 'route-map');
 	await waitForAnimations(incoming(page));
@@ -1159,7 +1132,7 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 		)
 	).toHaveCSS('stroke-width', '6px');
 
-	const u9 = pinnedGardenPlan();
+	const u9 = pinnedExamplePlan();
 	u9.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');
 	await writeStoredPlan(page, (plan) => Object.assign(plan, u9, { id: plan.id }));
 	await expectView(page, 'route-map');

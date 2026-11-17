@@ -1,4 +1,8 @@
-import type { Plan } from '#lib/domain/schema.ts';
+import { makeTask } from '#lib/domain/test-helpers.ts';
+import type { Plan, Task } from '#lib/domain/schema.ts';
+
+const verificationTask = (input: Partial<Task> & { id: string }) =>
+	makeTask({ ...input, createdAt: '2026-01-01T00:00:00.000Z' });
 
 // Plan used to verify paper branches across crowded panels.
 export const verificationPlan: Plan = {
@@ -44,497 +48,272 @@ export const verificationPlan: Plan = {
 		}
 	],
 	tasks: [
-		{
+		verificationTask({
 			id: 't1',
-			stageId: 's1',
-			parentId: null,
 			title: 'Interview stakeholders',
-			deliverable: '',
 			start: '2026-03-01',
 			end: '2026-03-04',
 			owners: ['Ana', 'Ben'],
-			status: 'done',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'done'
+		}),
+		verificationTask({
 			id: 't2',
-			stageId: 's1',
-			parentId: null,
 			title: 'Draft requirements',
-			deliverable: '',
 			start: '2026-03-03',
 			end: '2026-03-09',
 			owners: ['Ana'],
 			status: 'in_progress',
-			note: '',
-			dependsOn: ['t1'],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			dependsOn: ['t1']
+		}),
+		verificationTask({
 			id: 't3',
-			stageId: 's1',
-			parentId: null,
 			title:
 				'Review requirements with the whole committee and agree on a final wording for every item',
-			deliverable: '',
 			start: '2026-03-10',
 			end: '2026-03-13',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: ['t2'],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			dependsOn: ['t2']
+		}),
+		verificationTask({
 			id: 't4',
-			stageId: 's1',
-			parentId: null,
 			title: 'Pick tooling',
-			deliverable: '',
 			start: '2026-03-02',
 			end: '2026-03-05',
-			owners: ['Cy'],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			owners: ['Cy']
+		}),
+		verificationTask({
 			id: 't5',
-			stageId: 's1',
-			parentId: null,
 			title: 'Prototype',
-			deliverable: '',
 			start: '2026-03-05',
 			end: '2026-03-15',
-			owners: ['Dee'],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			owners: ['Dee']
+		}),
+		verificationTask({
 			id: 't6',
-			stageId: 's1',
 			parentId: 't5',
 			title: 'Wireframes',
-			deliverable: '',
 			start: '2026-03-05',
-			end: '2026-03-07',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-07'
+		}),
+		verificationTask({
 			id: 't7',
-			stageId: 's1',
 			parentId: 't5',
 			title: 'Clickable mock',
-			deliverable: '',
 			start: '2026-03-08',
-			end: '2026-03-11',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-11'
+		}),
+		verificationTask({
 			id: 't8',
-			stageId: 's1',
 			parentId: 't5',
 			title: 'Usability test',
-			deliverable: '',
 			start: '2026-03-12',
 			end: '2026-03-15',
-			owners: [],
-			status: 'canceled',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'canceled'
+		}),
+		verificationTask({
 			id: 't9',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 1',
-			deliverable: '',
 			start: '2026-03-01',
-			end: '2026-03-03',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-03'
+		}),
+		verificationTask({
 			id: 't10',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 2',
-			deliverable: '',
 			start: '2026-03-02',
 			end: '2026-03-04',
 			owners: ['Eli'],
-			status: 'in_progress',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'in_progress'
+		}),
+		verificationTask({
 			id: 't11',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 3',
-			deliverable: '',
 			start: '2026-03-03',
 			end: '2026-03-05',
-			owners: [],
-			status: 'done',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'done'
+		}),
+		verificationTask({
 			id: 't12',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 4',
-			deliverable: '',
 			start: '2026-03-04',
 			end: '2026-03-06',
-			owners: ['Eli'],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			owners: ['Eli']
+		}),
+		verificationTask({
 			id: 't13',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 5',
-			deliverable: '',
 			start: '2026-03-05',
-			end: '2026-03-07',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-07'
+		}),
+		verificationTask({
 			id: 't14',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 6',
-			deliverable: '',
 			start: '2026-03-06',
 			end: '2026-03-08',
 			owners: ['Eli'],
-			status: 'done',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'done'
+		}),
+		verificationTask({
 			id: 't15',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 7',
-			deliverable: '',
 			start: '2026-03-07',
 			end: '2026-03-09',
-			owners: [],
-			status: 'in_progress',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'in_progress'
+		}),
+		verificationTask({
 			id: 't16',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 8',
-			deliverable: '',
 			start: '2026-03-08',
 			end: '2026-03-10',
-			owners: ['Eli'],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			owners: ['Eli']
+		}),
+		verificationTask({
 			id: 't17',
-			stageId: 's1',
-			parentId: null,
 			title: 'Research topic 9',
-			deliverable: '',
 			start: '2026-03-09',
-			end: '2026-03-11',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-11'
+		}),
+		verificationTask({
 			id: 't18',
 			stageId: 's3',
-			parentId: null,
 			title: 'Regional rollout',
-			deliverable: '',
 			start: '2026-03-11',
 			end: '2026-03-26',
-			owners: ['Fay', 'Gus'],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			owners: ['Fay', 'Gus']
+		}),
+		verificationTask({
 			id: 't19',
 			stageId: 's3',
 			parentId: 't18',
 			title: 'Region north',
-			deliverable: '',
 			start: '2026-03-11',
 			end: '2026-03-16',
-			owners: [],
-			status: 'in_progress',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'in_progress'
+		}),
+		verificationTask({
 			id: 't20',
 			stageId: 's3',
 			parentId: 't18',
 			title: 'Region south',
-			deliverable: '',
 			start: '2026-03-15',
 			end: '2026-03-19',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: ['t19'],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			dependsOn: ['t19']
+		}),
+		verificationTask({
 			id: 't21',
 			stageId: 's3',
 			parentId: 't18',
 			title: 'Region east',
-			deliverable: '',
 			start: '2026-03-17',
-			end: '2026-03-21',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-21'
+		}),
+		verificationTask({
 			id: 't22',
 			stageId: 's3',
 			parentId: 't18',
 			title: 'Region west',
-			deliverable: '',
 			start: '2026-03-11',
 			end: '2026-03-13',
-			owners: [],
-			status: 'done',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'done'
+		}),
+		verificationTask({
 			id: 't23',
 			stageId: 's3',
-			parentId: null,
 			title: 'Acceptance',
-			deliverable: '',
 			start: '2026-03-21',
 			end: '2026-03-29',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: ['t3'],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			dependsOn: ['t3']
+		}),
+		verificationTask({
 			id: 't24',
 			stageId: 's3',
 			parentId: 't23',
 			title: 'Test plan',
-			deliverable: '',
 			start: '2026-03-21',
-			end: '2026-03-23',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-23'
+		}),
+		verificationTask({
 			id: 't25',
 			stageId: 's3',
 			parentId: 't23',
 			title: 'Sign-off',
-			deliverable: '',
 			start: '2026-03-24',
-			end: '2026-03-29',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-29'
+		}),
+		verificationTask({
 			id: 't26',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 1',
-			deliverable: '',
 			start: '2026-03-13',
 			end: '2026-03-15',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: ['t1'],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			dependsOn: ['t1']
+		}),
+		verificationTask({
 			id: 't27',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 2',
-			deliverable: '',
 			start: '2026-03-14',
 			end: '2026-03-16',
-			owners: [],
-			status: 'in_progress',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'in_progress'
+		}),
+		verificationTask({
 			id: 't28',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 3',
-			deliverable: '',
 			start: '2026-03-15',
 			end: '2026-03-17',
-			owners: [],
-			status: 'done',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'done'
+		}),
+		verificationTask({
 			id: 't29',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 4',
-			deliverable: '',
 			start: '2026-03-16',
-			end: '2026-03-18',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-18'
+		}),
+		verificationTask({
 			id: 't30',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 5',
-			deliverable: '',
 			start: '2026-03-17',
-			end: '2026-03-19',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-19'
+		}),
+		verificationTask({
 			id: 't31',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 6',
-			deliverable: '',
 			start: '2026-03-18',
 			end: '2026-03-20',
-			owners: [],
-			status: 'in_progress',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'in_progress'
+		}),
+		verificationTask({
 			id: 't32',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 7',
-			deliverable: '',
 			start: '2026-03-19',
 			end: '2026-03-21',
-			owners: [],
-			status: 'done',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			status: 'done'
+		}),
+		verificationTask({
 			id: 't33',
 			stageId: 's3',
-			parentId: null,
 			title: 'Integration check 8',
-			deliverable: '',
 			start: '2026-03-20',
-			end: '2026-03-22',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			end: '2026-03-22'
+		}),
+		verificationTask({
 			id: 't34',
 			stageId: 's4',
-			parentId: null,
 			title: 'Retrospective',
-			deliverable: '',
 			start: '2026-03-29',
 			end: '2026-03-30',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: ['t23'],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		},
-		{
+			dependsOn: ['t23']
+		}),
+		verificationTask({
 			id: 't35',
 			stageId: 's4',
-			parentId: null,
 			title: 'Archive',
-			deliverable: '',
 			start: '2026-03-30',
-			end: '2026-03-30',
-			owners: [],
-			status: 'todo',
-			note: '',
-			dependsOn: [],
-			createdAt: '2026-01-01T00:00:00.000Z'
-		}
+			end: '2026-03-30'
+		})
 	],
 	milestones: [],
 	bands: [],

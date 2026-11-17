@@ -52,7 +52,7 @@
 		route: RoutePaint;
 		hasChildren: boolean;
 		expanded: boolean;
-		controls: string;
+		controls?: string;
 		description: string;
 		onTitleHeight?: (id: string, height: number) => void;
 		onControlsHeight?: (id: string, height: number) => void;
@@ -88,7 +88,7 @@
 			() => node.id
 		)
 	};
-	const title = $derived(node.title || m.route_map_untitled_task());
+	const title = $derived(node.title || m.task_untitled());
 	const summary = $derived(
 		hasChildren ? familySummaryText(familySummary(ws.index, node.id), getLocale()) : ''
 	);
@@ -216,12 +216,12 @@
 					data-diagram-label={node.id}
 				>
 					<span class="inline-flex max-w-full items-start justify-center gap-1">
-						<Hint text={taskStatusLabel(node.status)} focusable={false}>
+						<Hint text={status} focusable={false}>
 							{#snippet child({ props })}<span
 									{...props}
 									data-route-map-status={node.status}
 									role="img"
-									aria-label={taskStatusLabel(node.status)}
+									aria-label={status}
 									class="flex shrink-0"><TaskStatusIcon status={node.status} class="size-4" /></span
 								>{/snippet}
 						</Hint>
@@ -251,6 +251,7 @@
 					large
 					{controls}
 					data-route-target={node.id}
+					data-route-focus="keyboard"
 					onToggle={() => viewer.toggleExpanded(ws.plan.id, node.id)}
 				/>
 			</div>

@@ -56,8 +56,6 @@ export const view: DiagramViewDefinition = {
 				labelWidth: 96,
 				labelHeight: 32,
 				columnGap: 16,
-				stageGap: 120,
-				laneGap: 40,
 				clearance: 4,
 				measureText,
 				sheetWidth,

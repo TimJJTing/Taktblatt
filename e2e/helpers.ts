@@ -1272,21 +1272,22 @@ export async function startTimelineIslandMonitor(page: Page) {
 				iconHeight: icon.height
 			};
 		};
-		const state = { frames: [read()], stopped: false, done: false, until: Infinity };
+		const state = { frames: [read()], frame: 0, stop: () => {} };
 		const sample = () => {
 			state.frames.push(read());
-			if (!state.stopped || performance.now() < state.until) requestAnimationFrame(sample);
-			else state.done = true;
+			state.frame = requestAnimationFrame(sample);
 		};
-		requestAnimationFrame(sample);
+		state.stop = () => {
+			cancelAnimationFrame(state.frame);
+			state.frames.push(read());
+		};
+		state.frame = requestAnimationFrame(sample);
 		return state;
 	});
 	return {
-		async finish() {
-			const frames = await monitor.evaluate(async (state) => {
-				state.stopped = true;
-				state.until = performance.now() + 400;
-				while (!state.done) await new Promise(requestAnimationFrame);
+		async stop() {
+			const frames = await monitor.evaluate((state) => {
+				state.stop();
 				return state.frames;
 			});
 			await monitor.dispose();

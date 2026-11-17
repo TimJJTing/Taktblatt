@@ -363,6 +363,25 @@ describe('Workflow Route map dependency carriers', () => {
 			(line) => line.taskIds[0] === 'task-0' && line.taskIds[1] === 'task-1'
 		)!;
 		expect(synthetic.dependencyKeys).toEqual([]);
+		expect(
+			r.routes
+				.filter((route) => route.carrier === 'walkway')
+				.map((route) => route.key)
+				.sort()
+		).toEqual(['task-1->task-5', 'task-4->task-5', 'task-5->task-7']);
+		const partial = scene(plan, new Set(['task-1']));
+		expect(
+			partial.routes
+				.filter((route) => route.carrier === 'walkway')
+				.map((route) => route.key)
+				.sort()
+		).toEqual(['task-3->task-5', 'task-4->task-5', 'task-5->task-7']);
+		expect(
+			partial.layout.lines.find((line) => line.key === 'task-2->task-3')?.dependencyKeys
+		).toEqual(['task-2->task-3']);
+		expect(
+			partial.routes.find((route) => route.from === 'task-2' && route.to === 'task-3')?.carrier
+		).toBe('line');
 		const expanded = scene(plan, new Set(['task-1', 'task-8']));
 		expect(
 			expanded.layout.lines.some(
@@ -392,7 +411,7 @@ describe('Workflow Route map dependency carriers', () => {
 		expectCoverage(r.model, r.routes);
 		expectCoverage(expanded.model, expanded.routes);
 	});
-	it('routes U9 Order seeds -> Soil test as a top-level line in both expand states with no thin path', () => {
+	it('routes Soil test -> Order seeds as a top-level rail in both expand states with no thin path', () => {
 		const plan = pinnedExamplePlan();
 		plan.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');
 		for (const expanded of [new Set<string>(), new Set(['task-1'])]) {

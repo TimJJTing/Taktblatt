@@ -7,7 +7,6 @@ import {
 	effectiveOf,
 	effectiveValues,
 	familySummary,
-	hasValidRange,
 	indexTasks,
 	orderedMilestones,
 	readyLight,
@@ -185,17 +184,6 @@ describe('stage values', () => {
 	it('calculates the span of a stage with the planned window of a parent', () => {
 		expect(stageSpan(index, 's1')).toEqual({ start: '2027-01-03', end: '2027-02-10' });
 		expect(stageSpan(index, 's2')).toBeNull();
-	});
-});
-
-describe('hasValidRange', () => {
-	it('accepts non-empty ranges where start is on or before end', () => {
-		expect(hasValidRange({ start: '2027-01-05', end: '2027-01-05' })).toBe(true);
-		expect(hasValidRange({ start: '2027-01-01', end: '2027-01-05' })).toBe(true);
-		expect(hasValidRange({ start: '2027-01-06', end: '2027-01-05' })).toBe(false);
-		expect(hasValidRange({ start: '2027-01-01', end: null })).toBe(false);
-		expect(hasValidRange({ start: null, end: '2027-01-05' })).toBe(false);
-		expect(hasValidRange({ start: null, end: null })).toBe(false);
 	});
 });
 
