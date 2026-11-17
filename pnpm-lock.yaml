@@ -108,8 +108,8 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       tailwind-variants:
-        specifier: ^3.3.0
-        version: 3.3.1(tailwindcss@4.3.4)
+        specifier: ^4.0.2
+        version: 4.0.2
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.4
@@ -1710,17 +1710,9 @@ packages:
   tabbable@6.5.1:
     resolution: {integrity: sha512-dMCuwDUY6Noz3zVKLefBC4wq+aJV20yc7vWmM7uTNGwtQSFF5kX7OUIUsxuVajz/bdt5Xqdah3/0NLjth+cM5A==}
 
-  tailwind-variants@3.3.1:
-    resolution: {integrity: sha512-4pAvwUtM4HKBiRZftncAbpn6V9Hhwoa5Fl7O2u5zbp7Z5Cvu+/o/6+176WY3WCEES209543quG8zFIcXCsc5Jw==}
+  tailwind-variants@4.0.2:
+    resolution: {integrity: sha512-sZvOFkfe5LlYG/crRX5IvP3oUHmJPu+7WmrLQFvF0kCRq51C+lurlzFMm/jURG/5keT7VOJ/it0N3jkzYux85w==}
     engines: {node: '>=16.9.x', pnpm: '>=7.x'}
-    peerDependencies:
-      tailwind-merge: '>=3.0.0'
-      tailwindcss: '*'
-    peerDependenciesMeta:
-      tailwind-merge:
-        optional: true
-      tailwindcss:
-        optional: true
 
   tailwindcss@4.3.4:
     resolution: {integrity: sha512-PCJZTFFdG+sL3gvnP1Do9o6GbkvH2q0p04xSs3f7cSvmAeK+sttG+/7ncK1fdRwKFfC7n+wDDJaOMBSefkI9ow==}
@@ -3359,9 +3351,7 @@ snapshots:
 
   tabbable@6.5.1: {}
 
-  tailwind-variants@3.3.1(tailwindcss@4.3.4):
-    optionalDependencies:
-      tailwindcss: 4.3.4
+  tailwind-variants@4.0.2: {}
 
   tailwindcss@4.3.4: {}
 
