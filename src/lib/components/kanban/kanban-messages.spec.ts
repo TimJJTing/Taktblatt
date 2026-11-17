@@ -22,6 +22,9 @@ describe('Kanban locale inventory', () => {
 		const sourceKeys = Object.keys(source).filter((key) => key.startsWith('kanban_'));
 		for (const locale of ['en', 'de', 'ja', 'zh-TW']) {
 			const messages = catalog(locale);
+			for (const key of ['kanban_column_empty', 'kanban_parent']) {
+				expect(messages, `${locale}: ${key}`).not.toHaveProperty(key);
+			}
 			const order = Object.keys(messages);
 			const keys = order.filter((key) => key.startsWith('kanban_'));
 			expect(keys, locale).toEqual([...sourceKeys].sort());

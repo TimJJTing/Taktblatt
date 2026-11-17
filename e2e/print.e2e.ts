@@ -531,6 +531,11 @@ test('print detail is independent of screen expansion', async ({ page, context }
 	await expect(undo).toBeDisabled();
 
 	const preview = await openPreview(page);
+	await preview.getByTestId('print-diagram-kanban').click();
+	const kanbanLines = preview
+		.locator('[data-fragment="kanban-scene"]')
+		.getByTestId('sheet-kanban-line');
+	await expect(kanbanLines).toHaveCount(0);
 	const tableRows = preview.getByTestId('sheets').getByTestId('sheet-task-row');
 	const ganttRows = preview.getByTestId('sheets').getByTestId('sheet-gantt-row');
 	await expect(tableRows).toHaveCount(11);
@@ -544,12 +549,22 @@ test('print detail is independent of screen expansion', async ({ page, context }
 	const checkbox = preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
 	await expect(checkbox).toHaveAttribute('aria-checked', 'false');
 	await expect(ganttRows).toHaveCount(7);
+	await expect(kanbanLines).toHaveCount(0);
 	await expect(tableRows).toHaveCount(11);
+	const summaries = preview
+		.locator('[data-fragment="kanban-scene"]')
+		.getByTestId('sheet-kanban-card-summary');
+	await expect(summaries).toHaveCount(2);
 
 	await checkbox.focus();
 	await page.keyboard.press('Space');
 	await expect(checkbox).toHaveAttribute('aria-checked', 'true');
 	await expect(ganttRows).toHaveCount(11);
+	await expect(kanbanLines).toHaveCount(4);
+	await expect(summaries).toHaveCount(2);
+	for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
+		await expect(kanbanLines.filter({ hasText: title })).toHaveCount(1);
+	}
 	await expect(tableRows).toHaveCount(11);
 	for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
 		await expect(ganttRows.filter({ hasText: title })).toHaveCount(1);
@@ -560,6 +575,9 @@ test('print detail is independent of screen expansion', async ({ page, context }
 	await expect(undo).toBeDisabled();
 	await row(page, 'Soil preparation').getByTestId('task-toggle').click();
 	await expect(row(page, 'Soil test')).toHaveCount(0);
+	await openPreview(page);
+	await expect(kanbanLines).toHaveCount(4);
+	await page.keyboard.press('Escape');
 
 	await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
 	await expect

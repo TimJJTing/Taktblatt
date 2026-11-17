@@ -6,6 +6,7 @@
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import ReadyDot from '#lib/components/edit/ReadyDot.svelte';
+	import { readyLightText } from '#lib/components/edit/ready-light-text.ts';
 	import { markColorLevel } from '#lib/components/plan/colors.ts';
 	import { joinList } from '#lib/domain/format.ts';
 	import { motionDuration } from '#lib/motion.ts';
@@ -38,15 +39,7 @@
 	);
 	const dates = $derived(cardDates(card, locale));
 	const readiness = $derived(
-		card.readiness.kind === 'ready'
-			? card.readiness.via === 'subtasks'
-				? m.ready_label_subtasks({ count: card.readiness.count })
-				: card.readiness.count
-					? m.ready_label({ count: card.readiness.count })
-					: m.ready_label_plain()
-			: card.readiness.kind === 'blocked'
-				? m.kanban_blocked()
-				: ''
+		card.readiness.kind === 'blocked' ? m.kanban_blocked() : readyLightText(card.readiness)
 	);
 	const label = $derived(
 		m.kanban_card_action({

@@ -5,6 +5,7 @@
 	import { createAttachmentKey, fromAction } from 'svelte/attachments';
 	import Hint from '#lib/components/app/Hint.svelte';
 	import { familySummaryText } from '#lib/components/diagram/family-summary.ts';
+	import { readyLightText } from '#lib/components/edit/ready-light-text.ts';
 	import RouteMapStationGlyph from './RouteMapStationGlyph.svelte';
 	import ExpandToggle from '#lib/components/task/ExpandToggle.svelte';
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
@@ -12,7 +13,7 @@
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import type { DiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import { stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
-	import { familySummary, readyLight } from '#lib/domain/derive.ts';
+	import { familySummary } from '#lib/domain/derive.ts';
 	import { formatRangeDisplay, joinSentences } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { RouteMapNode } from '#lib/domain/route-map.ts';
@@ -138,22 +139,9 @@
 		update();
 		return () => observer.disconnect();
 	});
-	const readiness = $derived(readyLight(ws.index.state.get(node.id)!.readiness));
+	const readiness = $derived(readyLightText(ws.index.state.get(node.id)!.readiness));
 	const fullDescription = $derived(
-		joinSentences(
-			[
-				description,
-				summary,
-				readiness
-					? readiness.via === 'subtasks'
-						? m.ready_label_subtasks({ count: readiness.count })
-						: readiness.count
-							? m.ready_label({ count: readiness.count })
-							: m.ready_label_plain()
-					: ''
-			].filter(Boolean),
-			uiIntl()
-		)
+		joinSentences([description, summary, readiness].filter(Boolean), uiIntl())
 	);
 	const descriptionId = $props.id();
 	function click(event: MouseEvent) {

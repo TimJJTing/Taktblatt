@@ -3,18 +3,19 @@ import type { DiagramSegment, PrintModelInput } from '#lib/domain/print-model.ts
 import { m } from '#lib/paraglide/messages.js';
 import {
 	KANBAN_COLUMNS,
-	kanbanBoard,
+	kanbanSwimlanes,
 	type KanbanCard,
 	type KanbanEmptyKind,
+	type KanbanFamily,
 	type KanbanItem,
+	type KanbanLane,
 	type KanbanSwimlanes
 } from './kanban-board.ts';
-export const KANBAN_PAPER_METRICS = { cardHeight: (34 * 96) / 25.4 };
-export interface KanbanPaperRow {
-	cards: readonly (KanbanCard | null)[];
-}
-export interface KanbanPaperData {
+export interface KanbanPaperSceneData {
 	columns: { id: BoardColumn; label: string; count: number }[];
+	lanes: (Pick<KanbanLane, 'stageId' | 'stageNumber' | 'stageTitle' | 'color' | 'count'> & {
+		families: Pick<KanbanFamily, 'parentId' | 'title' | 'total' | 'summary'>[];
+	})[];
 	emptyKind: KanbanEmptyKind;
 }
 export function kanbanColumnLabel(id: BoardColumn): string {
@@ -30,25 +31,35 @@ export function kanbanColumnLabel(id: BoardColumn): string {
 	}
 }
 export function kanbanPaperSegments(input: PrintModelInput): DiagramSegment[] {
-	const board = kanbanBoard(input.plan, input.index);
-	const data: KanbanPaperData = {
-		columns: board.columns.map((c) => ({
-			id: c.id,
-			label: kanbanColumnLabel(c.id),
-			count: c.count
+	const board = kanbanSwimlanes(input.plan, input.index);
+	const scene = kanbanPaperItems(board, input.showSubtasks);
+	const data: KanbanPaperSceneData = {
+		columns: scene.repeat.columns.map(({ id, count }) => ({
+			id,
+			label: kanbanColumnLabel(id),
+			count
 		})),
-		emptyKind: board.emptyKind
+		lanes: board.lanes.map(({ stageId, stageNumber, stageTitle, color, count, families }) => ({
+			stageId,
+			stageNumber,
+			stageTitle,
+			color,
+			count,
+			families: families.map(({ parentId, title, total, summary }) => ({
+				parentId,
+				title,
+				total,
+				summary
+			}))
+		})),
+		emptyKind: scene.repeat.emptyKind
 	};
-	const items: KanbanPaperRow[] = Array.from(
-		{ length: Math.max(1, ...board.columns.map((c) => c.count)) },
-		(_, i) => ({ cards: board.columns.map((c) => c.cards[i] ?? null) })
-	);
 	return [
 		{
 			kind: 'scene',
 			id: 'kanban-scene',
 			diagram: 'kanban',
-			items,
+			items: scene.items,
 			data,
 			keep: 1,
 			gap: 16,

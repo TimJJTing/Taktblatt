@@ -506,6 +506,160 @@ test('keeps stems, card borders and the status key legible in dark and forced co
 		.toBe(true);
 });
 
+async function kanbanPreview(page: Page) {
+	const preview = await openPreview(page);
+	const kanban = preview.getByTestId('print-diagram-kanban');
+	const gantt = preview.getByTestId('print-diagram-gantt');
+	if ((await kanban.getAttribute('aria-checked')) !== 'true') await kanban.click();
+	await expect(kanban).toHaveAttribute('aria-checked', 'true');
+	if ((await gantt.getAttribute('aria-checked')) === 'true') await gantt.click();
+	await expect(gantt).toHaveAttribute('aria-checked', 'false');
+	return preview;
+}
+
+async function expectPaperGeometry(page: Page) {
+	const fragments = page.locator('[data-testid="sheet"] [data-fragment="kanban-scene"]');
+	await expect
+		.poll(() =>
+			fragments.evaluateAll((parts) => {
+				const measure = document.querySelector(
+					'[data-sheet-measurer] [data-testid="sheet-kanban"] [data-part="repeat"]'
+				);
+				if (!measure || parts.length === 0) return false;
+				const height = measure.getBoundingClientRect().height;
+				return parts.every((part) => {
+					const repeat = part.querySelector('[data-part="repeat"]');
+					const body = part.closest('[data-testid="sheet"]')?.querySelector('.sheet-content');
+					if (!repeat || !body || Math.abs(repeat.getBoundingClientRect().height - height) > 1)
+						return false;
+					const bounds = body.getBoundingClientRect();
+					return [...part.querySelectorAll('[data-item]')].every((item) => {
+						const rect = item.getBoundingClientRect();
+						return (
+							rect.top >= bounds.top - 1 &&
+							rect.bottom <= bounds.bottom + 1 &&
+							[
+								...item.querySelectorAll(
+									'[data-testid="sheet-kanban-card"], [data-testid="sheet-kanban-line"]'
+								)
+							].every((child) => {
+								const box = child.getBoundingClientRect();
+								return box.top >= rect.top - 1 && box.bottom <= rect.bottom + 1;
+							})
+						);
+					});
+				});
+			})
+		)
+		.toBe(true);
+}
+
+test('paper stems span every swimlane item, including hidden headings (Q1)', async ({ page }) => {
+	const plan = garden();
+	await load(page, plan);
+	const preview = await kanbanPreview(page);
+	const detail = preview.getByTestId('print-subtasks');
+	if ((await detail.getAttribute('aria-checked')) !== 'true') await detail.click();
+	await expect(detail).toHaveAttribute('aria-checked', 'true');
+	const fragments = preview.locator('[data-fragment="kanban-scene"]');
+	const items = fragments.getByTestId('sheet-kanban-item');
+	await expect(fragments.getByTestId('sheet-kanban-line')).not.toHaveCount(0);
+	await expect(
+		items.locator('[data-testid="sheet-kanban-stage"][data-visible="false"]')
+	).not.toHaveCount(0);
+	await expect
+		.poll(() => fragments.getByTestId('sheet-kanban-stem').count())
+		.toBe(await items.count());
+	const colors = Object.fromEntries(
+		plan.stages.map((stage) => {
+			const hex = STAGE_COLORS[stage.color].light;
+			return [
+				stage.id,
+				`rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`
+			];
+		})
+	);
+	await expect
+		.poll(() =>
+			fragments.evaluateAll(
+				(parts, expectedColors) =>
+					parts.every((part) => {
+						const items = [
+							...part.querySelectorAll<HTMLElement>('[data-testid="sheet-kanban-item"]')
+						];
+						return items.every((item, index) => {
+							const lane = item.dataset.lane;
+							const heading = item.querySelector<HTMLElement>('[data-testid="sheet-kanban-stage"]');
+							const stem = item.querySelector<HTMLElement>('[data-testid="sheet-kanban-stem"]');
+							if (!lane || !heading || !stem) return false;
+							const box = stem.getBoundingClientRect();
+							const headingBox = heading.getBoundingClientRect();
+							if (
+								box.width <= 0 ||
+								box.height <= 0 ||
+								getComputedStyle(stem).visibility !== 'visible' ||
+								getComputedStyle(stem).backgroundColor !== expectedColors[lane] ||
+								box.left < headingBox.left - 1 ||
+								box.right > headingBox.right + 1
+							)
+								return false;
+							const previous = items[index - 1];
+							if (previous?.dataset.lane === lane) {
+								const previousStem = previous.querySelector('[data-testid="sheet-kanban-stem"]');
+								return !!previousStem && box.top - previousStem.getBoundingClientRect().bottom <= 1;
+							}
+							const badge = heading.querySelector('.stage-badge');
+							return !!badge && box.top >= badge.getBoundingClientRect().bottom - 1;
+						});
+					}),
+				colors
+			)
+		)
+		.toBe(true);
+});
+
+test('paper keeps the ready light before the title and reserves its slot', async ({ page }) => {
+	await load(
+		page,
+		makePlan([
+			kanbanTask('ready', { title: 'Ready task' }),
+			kanbanTask('finished', { title: 'Finished task', status: 'done' })
+		])
+	);
+	const preview = await kanbanPreview(page);
+	const fragments = preview.locator('[data-fragment="kanban-scene"]');
+	const ready = fragments.locator('[data-testid="sheet-kanban-card"][data-task-id="ready"]');
+	const finished = fragments.locator('[data-testid="sheet-kanban-card"][data-task-id="finished"]');
+	const light = ready.getByRole('img');
+	await expect(light).toHaveCount(1);
+	await expect(finished.getByRole('img')).toHaveCount(0);
+	await expect
+		.poll(() =>
+			ready.evaluate((card) => {
+				const light = card.querySelector('[role="img"]');
+				const title = card.querySelector('[data-testid="sheet-kanban-card-title"]');
+				if (!light || !title || !title.firstChild) return false;
+				const range = document.createRange();
+				range.selectNodeContents(title.firstChild);
+				const firstLine = range.getClientRects()[0];
+				if (!firstLine) return false;
+				const dot = light.getBoundingClientRect();
+				return (
+					dot.left < firstLine.left && dot.top < firstLine.bottom && dot.bottom > firstLine.top
+				);
+			})
+		)
+		.toBe(true);
+	const titleOffset = (card: typeof ready) =>
+		card.evaluate((element) => {
+			const title = element.querySelector('[data-testid="sheet-kanban-card-title"]')!;
+			return title.getBoundingClientRect().left - element.getBoundingClientRect().left;
+		});
+	await expect
+		.poll(async () => Math.abs((await titleOffset(ready)) - (await titleOffset(finished))))
+		.toBeLessThanOrEqual(1);
+});
+
 test('Preview paginates each Done id once with repeated counts on landscape A4 and Letter', async ({
 	page
 }) => {
@@ -513,89 +667,235 @@ test('Preview paginates each Done id once with repeated counts on landscape A4 a
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	const plan = done300(true);
 	await load(page, plan);
-	const preview = await openPreview(page);
-	await preview.getByTestId('print-diagram-kanban').click();
-	await preview.getByTestId('print-diagram-gantt').click();
-	for (const paper of ['a4', 'letter']) {
-		await preview.getByTestId(`paper-${paper}`).click();
+	const preview = await kanbanPreview(page);
+	for (const size of ['a4', 'letter']) {
+		await preview.getByTestId(`paper-${size}`).click();
+		await expect(preview.getByTestId('sheets')).toHaveAttribute('data-paper', size);
 		const fragments = preview.locator('[data-fragment="kanban-scene"]');
-		const cards = fragments.getByTestId('sheet-kanban-card');
 		await expect
 			.poll(() =>
-				cards.evaluateAll((items) => items.map((item) => item.getAttribute('data-task-id')))
+				fragments
+					.getByTestId('sheet-kanban-card')
+					.evaluateAll((cards) => cards.map((card) => card.getAttribute('data-task-id')))
 			)
 			.toEqual(plan.tasks.map((task) => task.id));
 		expect(await fragments.count()).toBeGreaterThan(1);
 		await expect
 			.poll(() =>
-				fragments.evaluateAll((items) =>
-					items.every((fragment) => {
-						const sheet = fragment.closest<HTMLElement>('[data-testid="sheet"]')!;
-						const repeat = fragment.querySelector('[data-part="repeat"]')!;
-						const counts = [...repeat.querySelectorAll('[data-testid="kanban-count"]')].map(
-							(count) => count.textContent?.trim()
-						);
+				fragments.evaluateAll((parts) =>
+					parts.every((part) => {
+						const repeat = part.querySelector('[data-part="repeat"]');
+						const labels = [
+							...(repeat?.querySelectorAll('[data-testid="sheet-kanban-heading"]') ?? [])
+						];
 						return (
-							sheet.dataset.orientation === 'landscape' &&
-							/Kanban/.test(repeat.textContent ?? '') &&
+							part.closest('[data-testid="sheet"]')?.getAttribute('data-orientation') ===
+								'landscape' &&
+							!!repeat?.textContent?.includes('Kanban') &&
+							labels.map((label) => label.getAttribute('data-column')).join('/') ===
+								'blocked/todo/in_progress/done' &&
+							labels
+								.map((label) =>
+									label.querySelector('[data-testid="kanban-count"]')?.textContent?.trim()
+								)
+								.join('/') === '0/0/0/300' &&
 							['Blocked', 'Todo', 'In progress', 'Done'].every((label) =>
 								repeat.textContent?.includes(label)
 							) &&
-							counts.join('/') === '0/0/0/300'
+							!!repeat.querySelector('ul[aria-label="Status"]')
 						);
 					})
 				)
 			)
 			.toBe(true);
+		await expectPaperGeometry(page);
+		await expect(
+			fragments.locator('button, svg.station-dot, [data-testid="kanban-dependency"]')
+		).toHaveCount(0);
+		const longCard = fragments.locator('[data-testid="sheet-kanban-card"][data-task-id="D150"]');
+		await expect(longCard).toHaveAttribute('aria-label', /W{512}/);
+		const title = longCard.getByTestId('sheet-kanban-card-title');
 		await expect
 			.poll(() =>
-				cards.evaluateAll((items) =>
-					items.every((item) => {
-						const card = item.getBoundingClientRect();
-						const row = item.closest('[data-item]')!.getBoundingClientRect();
-						return (
-							Math.abs(card.height - (34 * 96) / 25.4) < 0.6 &&
-							card.top >= row.top - 0.6 &&
-							card.bottom <= row.bottom + 0.6
-						);
-					})
-				)
+				title.evaluate((node) => {
+					const style = getComputedStyle(node);
+					const box = node.getBoundingClientRect();
+					return (
+						style.webkitLineClamp === '2' &&
+						box.height <= parseFloat(style.lineHeight) * 2 + 1 &&
+						box.right <= node.parentElement!.getBoundingClientRect().right + 1
+					);
+				})
 			)
 			.toBe(true);
-		await expect(
-			fragments.locator('button, [data-route], [data-testid="kanban-dependency"]')
-		).toHaveCount(0);
 	}
-	await page.emulateMedia({ media: 'print' });
-	await expect(
-		preview.locator('[data-fragment="kanban-scene"]').getByTestId('sheet-kanban-card')
-	).toHaveCount(300);
-	await page.emulateMedia({ media: 'screen' });
 });
 
-test('prints a pale Done stage rule while retaining the solid station dot', async ({ page }) => {
-	await load(page, makePlan([kanbanTask('open'), kanbanTask('done', { status: 'done' })]));
-	const preview = await openPreview(page);
-	await preview.getByTestId('print-diagram-kanban').click();
-	const open = preview.locator(
-		'[data-fragment="kanban-scene"] [data-testid="sheet-kanban-card"][data-task-id="open"]'
+test('continued swimlane repeats a wrapped stage heading without overflow (AC-23)', async ({
+	page
+}) => {
+	const plan = done300();
+	plan.tasks = plan.tasks.slice(0, 35);
+	plan.stages[0].title =
+		'Long stage title that wraps across at least three lines for continued pages';
+	await load(page, plan);
+	const preview = await kanbanPreview(page);
+	const fragments = preview.locator('[data-fragment="kanban-scene"]');
+	await expect.poll(() => fragments.count()).toBeGreaterThan(1);
+	await expect
+		.poll(() =>
+			fragments.nth(1).getByTestId('sheet-kanban-stage').first().getAttribute('data-visible')
+		)
+		.toBe('true');
+	const heading = fragments.nth(1).getByTestId('sheet-kanban-stage').first();
+	await expect(heading.getByTestId('sheet-kanban-stage-title')).toHaveText(plan.stages[0].title);
+	await expect(heading).toContainText('S1');
+	await expect
+		.poll(() =>
+			heading
+				.getByTestId('sheet-kanban-stage-title')
+				.evaluate(
+					(node) =>
+						node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)
+				)
+		)
+		.toBeGreaterThan(2);
+	await expect
+		.poll(() =>
+			fragments
+				.nth(1)
+				.locator('[data-item]')
+				.first()
+				.evaluate((item) => {
+					const index = item.getAttribute('data-item');
+					const measured = document.querySelector(
+						`[data-sheet-measurer] [data-testid="sheet-kanban-item"][data-item="${index}"]`
+					);
+					const hidden = measured?.querySelector('[data-testid="sheet-kanban-stage"]');
+					return (
+						!!measured &&
+						!!hidden &&
+						hidden.getAttribute('data-visible') === 'false' &&
+						hidden.getAttribute('aria-hidden') === 'true' &&
+						getComputedStyle(hidden).visibility === 'hidden' &&
+						Math.abs(
+							item.getBoundingClientRect().height - measured.getBoundingClientRect().height
+						) <= 1
+					);
+				})
+		)
+		.toBe(true);
+	await expectPaperGeometry(page);
+});
+
+test('prints empty lanes and a single explanation for an empty board (AC-65)', async ({ page }) => {
+	await load(page, makePlan([kanbanTask('A')], ['s1', 's2']));
+	let preview = await kanbanPreview(page);
+	const empty = preview.locator('[data-fragment="kanban-scene"] [data-kind="lane-empty"]');
+	await expect(empty).toHaveCount(1);
+	await expect(empty.getByTestId('sheet-kanban-stage')).toContainText('S2');
+	await expect(empty.getByTestId('sheet-kanban-stage-empty')).toHaveText('No tasks in this stage');
+	await page.keyboard.press('Escape');
+	await load(page, makePlan([], ['s1', 's2']));
+	preview = await kanbanPreview(page);
+	const fragments = preview.locator('[data-fragment="kanban-scene"]');
+	await expect(fragments).toHaveCount(1);
+	await expect(fragments.getByTestId('sheet-kanban-empty')).toHaveText('No tasks yet.');
+	await expect(fragments.locator('[data-kind="lane-empty"]')).toHaveCount(2);
+});
+
+test('paper items retain stage heading height and accessible visibility (AC-65)', async ({
+	page
+}) => {
+	const plan = makePlan(
+		[
+			kanbanTask('P', { title: 'Parent' }),
+			kanbanTask('C1', { parentId: 'P' }),
+			kanbanTask('C2', { parentId: 'P', status: 'done' }),
+			kanbanTask('A'),
+			kanbanTask('B')
+		],
+		['s1', 's2']
 	);
-	const done = preview.locator(
-		'[data-fragment="kanban-scene"] [data-testid="sheet-kanban-card"][data-task-id="done"]'
-	);
-	await expect(open).toHaveCount(1);
-	await expect(done).toHaveCount(1);
-	const paint = (selector: typeof open) =>
-		selector.evaluate((element) => ({
-			rule: getComputedStyle(element).borderLeftColor,
-			dot: getComputedStyle(element.querySelector('svg.station-dot')!).color,
-			circles: element.querySelectorAll('svg.station-dot circle').length
-		}));
-	const openPaint = await paint(open);
-	const donePaint = await paint(done);
-	expect(donePaint.rule).not.toBe(openPaint.rule);
-	expect(donePaint.dot).toBe(openPaint.dot);
-	expect(donePaint.circles).toBe(1);
+	plan.stages[0].title = 'Long stage title that wraps across at least three lines for every item';
+	await load(page, plan);
+	const preview = await kanbanPreview(page);
+	await preview.getByTestId('print-subtasks').click();
+	const fragment = preview.locator('[data-fragment="kanban-scene"]');
+	await expect
+		.poll(() =>
+			fragment
+				.locator('[data-item]')
+				.evaluateAll((items) =>
+					[...new Set(items.map((item) => item.getAttribute('data-kind')))].sort()
+				)
+		)
+		.toEqual(['card-row', 'family-line', 'family-start', 'lane-empty', 'lane-start']);
+	await expect
+		.poll(() =>
+			fragment.locator('[data-item][data-lane="s1"]').evaluateAll((items) =>
+				items.every((item) => {
+					const heading = item.querySelector('[data-testid="sheet-kanban-stage"]');
+					if (!heading) return false;
+					const visible = heading.getAttribute('data-visible') === 'true';
+					return (
+						item.getBoundingClientRect().height + 1 >= heading.getBoundingClientRect().height &&
+						(visible ||
+							(getComputedStyle(heading).visibility === 'hidden' &&
+								heading.getAttribute('aria-hidden') === 'true'))
+					);
+				})
+			)
+		)
+		.toBe(true);
+	await expect(
+		fragment.locator('[data-testid="sheet-kanban-stage"][data-visible="false"]')
+	).not.toHaveCount(0);
+	await expectPaperGeometry(page);
+});
+
+test('paper uses 12 px status icons and finished card treatment (AC-2, AC-8)', async ({ page }) => {
+	const plan = makePlan([
+		kanbanTask('P', { title: 'Parent' }),
+		kanbanTask('C', { parentId: 'P', status: 'done' }),
+		kanbanTask('D', { status: 'done', title: 'Finished' })
+	]);
+	await load(page, plan);
+	const preview = await kanbanPreview(page);
+	await preview.getByTestId('print-subtasks').click();
+	const fragments = preview.locator('[data-fragment="kanban-scene"]');
+	await expect(fragments.getByTestId('sheet-kanban-line')).toHaveCount(1);
+	await expect
+		.poll(() =>
+			fragments.evaluateAll((parts) =>
+				parts.every((part) => {
+					const key = part.querySelector('[data-part="repeat"] ul[aria-label="Status"]');
+					const icons = [
+						...part.querySelectorAll(
+							'[data-testid="sheet-kanban-card"] svg, [data-testid="sheet-kanban-line"] svg, ul[aria-label="Status"] svg'
+						)
+					].filter((svg) => svg.getAttribute('viewBox') === '0 0 24 24');
+					return (
+						!!key &&
+						icons.length >= 6 &&
+						icons.every((icon) => {
+							const box = icon.getBoundingClientRect();
+							return Math.abs(box.width - 12) < 0.5 && Math.abs(box.height - 12) < 0.5;
+						})
+					);
+				})
+			)
+		)
+		.toBe(true);
+	const done = fragments.locator('[data-testid="sheet-kanban-card"][data-task-id="D"]');
+	await expect(done.locator('svg[viewBox="0 0 24 24"]')).toHaveCount(1);
+	await expect
+		.poll(() =>
+			done
+				.getByTestId('sheet-kanban-card-title')
+				.evaluate((node) => getComputedStyle(node).textDecorationLine)
+		)
+		.toContain('line-through');
 });
 
 test('opens Task details and returns focus to the same main action on Escape', async ({ page }) => {

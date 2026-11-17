@@ -14,8 +14,8 @@ The views need consistent status meanings, family information and motion. Their 
 
 - Route map must make workflow clear before family structure and status. PR #55's branches and transfer capsules establish that language. Its ordinary same-stage dependencies already use colored rails; thin exceptional links do not mean that every dependency has a duplicate overlay.
 - The earlier unified study made task status too prominent in Route map. Square subtask signs also misread the requested transport-map reference. The selected design retains rounded status icons and gives Route map its own family notation.
-- Kanban uses fixed `11rem` cards and `16rem` minimum columns. Normal split panes hide much of the board. Paper uses fixed 34 mm cards.
-- Kanban shows leaves and ignores shared expansion. A parent selection can dim every visible card. The selected design uses parent summaries.
+- The PR #54 Kanban baseline used fixed `11rem` cards and `16rem` minimum columns. Normal split panes hid much of the board. Paper used fixed 34 mm cards.
+- The PR #54 Kanban baseline showed leaves and ignored shared expansion. A parent selection could dim every visible card. The selected design uses parent summaries.
 - Shared motion captures station geometry but moves whole task boxes. Cross-container flights are deferred. Hooks do not prove station continuity.
 
 ## Selected design

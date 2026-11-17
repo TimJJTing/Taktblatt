@@ -7,10 +7,7 @@ import {
 	type TaskIndex,
 	type TaskState
 } from '#lib/domain/derive.ts';
-import { reaches } from '#lib/domain/dependencies.ts';
-import { effectiveDependencyGraph, lineKey } from '#lib/domain/route.ts';
 import type { Plan, Stage, Task, TaskStatus } from '#lib/domain/schema.ts';
-import type { EdgeRef } from './types.ts';
 
 export const KANBAN_COLUMNS = ['blocked', 'todo', 'in_progress', 'done'] as const;
 export type KanbanEmptyKind = 'none' | 'no-tasks' | 'all-canceled';
@@ -22,19 +19,12 @@ export interface KanbanCard {
 	stageId: string;
 	stageNumber: number;
 	stageTitle: string;
-	parentId: string | null;
-	parentTitle: string | null;
 	owners: string[];
 	start: string | null;
 	end: string | null;
 	readiness: Readiness;
 	isParent: boolean;
 	summary: FamilySummary | null;
-}
-export interface KanbanBoard {
-	columns: { id: BoardColumn; cards: KanbanCard[]; count: number }[];
-	total: number;
-	emptyKind: KanbanEmptyKind;
 }
 function buildCard(
 	task: Task,
@@ -52,8 +42,6 @@ function buildCard(
 		stageId: stage.id,
 		stageNumber,
 		stageTitle: stage.title,
-		parentId: null,
-		parentTitle: null,
 		owners: state.eff.owners,
 		start: state.eff.start,
 		end: state.eff.end,
@@ -62,48 +50,6 @@ function buildCard(
 		summary
 	};
 }
-/** Use an index built from this plan's current tasks. */
-export function kanbanBoard(plan: Plan, index: TaskIndex): KanbanBoard {
-	const columns = KANBAN_COLUMNS.map((id) => ({ id, cards: [] as KanbanCard[], count: 0 }));
-	for (const [i, stage] of plan.stages.entries()) {
-		const add = (task: Task, parent: Task | null) => {
-			const state = index.state.get(task.id)!;
-			const column = boardColumn(state);
-			if (!column) return;
-			columns
-				.find((c) => c.id === column)!
-				.cards.push({
-					...buildCard(task, state, column, stage, i + 1),
-					status: task.status,
-					parentId: parent?.id ?? null,
-					parentTitle: parent?.title ?? null
-				});
-		};
-		for (const task of index.stageTasks.get(stage.id) ?? []) {
-			const children = index.children.get(task.id) ?? [];
-			if (children.length) children.forEach((child) => add(child, task));
-			else add(task, null);
-		}
-	}
-	for (const column of columns) column.count = column.cards.length;
-	const total = columns.reduce((sum, c) => sum + c.count, 0);
-	return {
-		columns,
-		total,
-		emptyKind: total ? 'none' : plan.tasks.length ? 'all-canceled' : 'no-tasks'
-	};
-}
-export function kanbanEdges(index: TaskIndex, leafIds: ReadonlySet<string>): EdgeRef[] {
-	return effectiveDependencyGraph(index)
-		.pairs.filter(([from, to]) => leafIds.has(from) && leafIds.has(to))
-		.map(([from, to]) => ({
-			from,
-			to,
-			key: lineKey(from, to),
-			cycle: reaches(index, from, to)
-		}));
-}
-
 export interface KanbanItem {
 	id: string;
 	title: string;

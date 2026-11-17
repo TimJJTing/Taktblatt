@@ -3,7 +3,7 @@ import { indexTasks } from '#lib/domain/derive.ts';
 import { effectiveDependencyGraph, lineKey, routeFocusModel } from '#lib/domain/route.ts';
 import type { Plan } from '#lib/domain/schema.ts';
 import { makePlan } from '#lib/domain/test-helpers.ts';
-import { kanbanBoard, kanbanEdges } from './kanban-board.ts';
+import { KANBAN_COLUMNS, kanbanSwimlanes } from './kanban-board.ts';
 import { isolatedParent, kanbanTask, unrelatedCycle } from './kanban-fixtures.test-helper.ts';
 import {
 	kanbanNodeEdges,
@@ -21,14 +21,23 @@ function scene(
 	clip = viewport
 ) {
 	const index = indexTasks(plan.tasks);
-	const cardIds = kanbanBoard(plan, index).columns.flatMap((column) =>
-		column.cards.map((card) => card.id)
+	const board = kanbanSwimlanes(plan, index);
+	const cardIds = board.lanes.flatMap((lane) =>
+		KANBAN_COLUMNS.flatMap((column) => lane.cells[column].map((card) => card.id))
 	);
-	const edges = kanbanEdges(index, new Set(cardIds));
+	const edges = kanbanNodeEdges(
+		index,
+		new Set(cardIds),
+		(id) => index.byId.get(id)?.parentId ?? null
+	);
 	const route = routeFocusModel(
 		effectiveDependencyGraph(index),
 		index,
-		cardIds.map((id) => ({ id, isParent: false, expanded: false })),
+		cardIds.map((id) => ({
+			id,
+			isParent: (index.children.get(id)?.length ?? 0) > 0,
+			expanded: false
+		})),
 		edges,
 		focusId
 	);
@@ -65,17 +74,6 @@ describe('Kanban route visibility', () => {
 		expect(cycle.paths.every((path) => path.cycle)).toBe(true);
 		expect([...cycle.litCardIds].sort()).toEqual(['X', 'Y']);
 	});
-
-	it.each([false, true])(
-		'keeps isolated parent input active without a child-route union (child edge: %s)',
-		(withEdge) => {
-			const { route, result } = scene(isolatedParent(withEdge), 'P');
-			expect(route.active).toBe(true);
-			expect([...result.litCardIds]).toEqual([]);
-			expect([...result.dimmedCardIds].sort()).toEqual(['C1', 'C2', 'U']);
-			expect(result.paths).toEqual([]);
-		}
-	);
 
 	it('excludes a shortcut joining opposite sides of a focused route', () => {
 		const plan = makePlan([
@@ -168,6 +166,49 @@ describe('Kanban connector geometry', () => {
 });
 
 describe('Kanban node edges (AC-21)', () => {
+	it('retains inherited edges and omits endpoints without a visible proxy', () => {
+		const plan = makePlan([
+			kanbanTask('A'),
+			kanbanTask('P', { dependsOn: ['A'] }),
+			kanbanTask('C', { parentId: 'P' }),
+			kanbanTask('D', { dependsOn: ['P'] }),
+			kanbanTask('Z', { status: 'canceled', dependsOn: ['C'] }),
+			kanbanTask('E', { dependsOn: ['Z'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const proxy = (id: string) => index.byId.get(id)?.parentId ?? null;
+		const edge = (from: string, to: string) => ({ from, to, key: lineKey(from, to), cycle: false });
+		const expanded = kanbanNodeEdges(index, new Set(['A', 'P', 'C', 'D', 'E']), proxy);
+		expect(expanded).toEqual(
+			expect.arrayContaining([edge('A', 'C'), edge('A', 'P'), edge('P', 'D')])
+		);
+		expect(expanded.some(({ from, to }) => from === 'Z' || to === 'Z' || to === 'E')).toBe(false);
+		const collapsed = kanbanNodeEdges(index, new Set(['A', 'P', 'D', 'E']), proxy);
+		expect(collapsed).toEqual(expect.arrayContaining([edge('A', 'P'), edge('P', 'D')]));
+		expect(
+			collapsed.some(({ from, to }) => from === 'C' || to === 'C' || from === 'Z' || to === 'E')
+		).toBe(false);
+		const omitted = kanbanNodeEdges(index, new Set(['A', 'C', 'D', 'E']), proxy);
+		expect(omitted).toEqual([edge('A', 'C')]);
+	});
+
+	it('preserves inherited cycle flags for expanded and collapsed families', () => {
+		const plan = makePlan([
+			kanbanTask('P', { dependsOn: ['X'] }),
+			kanbanTask('C', { parentId: 'P' }),
+			kanbanTask('X', { dependsOn: ['C'] })
+		]);
+		const index = indexTasks(plan.tasks);
+		const proxy = (id: string) => index.byId.get(id)?.parentId ?? null;
+		const edge = (from: string, to: string) => ({ from, to, key: lineKey(from, to), cycle: true });
+		expect(kanbanNodeEdges(index, new Set(['P', 'C', 'X']), proxy)).toEqual(
+			expect.arrayContaining([edge('X', 'C'), edge('C', 'X')])
+		);
+		expect(kanbanNodeEdges(index, new Set(['P', 'X']), proxy)).toEqual(
+			expect.arrayContaining([edge('X', 'P'), edge('P', 'X')])
+		);
+	});
+
 	it('maps hidden endpoints to visible parents, drops missing endpoints and self-pairs', () => {
 		const plan = makePlan([
 			kanbanTask('P'),
@@ -253,18 +294,5 @@ describe('Kanban node edges (AC-21)', () => {
 		expect([...expanded.litCardIds].sort()).toEqual(['C1', 'C2']);
 		expect([...expanded.dimmedCardIds].sort()).toEqual(['P', 'U']);
 		expect(expanded.paths.map((path) => path.key)).toEqual([lineKey('C1', 'C2')]);
-	});
-
-	it('limits visible paths to the focused route, including an unrelated cycle', () => {
-		const plan = unrelatedCycle();
-		const active = projectedScene(plan, 'A', false);
-		expect(active.paths.map((path) => path.key)).toEqual([lineKey('A', 'B')]);
-		const cycle = projectedScene(plan, 'X', false);
-		expect(cycle.paths.map((path) => path.key).sort()).toEqual([
-			lineKey('X', 'Y'),
-			lineKey('Y', 'X')
-		]);
-		expect(cycle.paths.every((path) => path.cycle)).toBe(true);
-		expect(projectedScene(plan, null, false).paths).toEqual([]);
 	});
 });
