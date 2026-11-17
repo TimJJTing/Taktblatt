@@ -2,6 +2,7 @@ import type { RouteMapModel, RouteMapNode } from '#lib/domain/route-map.ts';
 import {
 	buildRouteMapRoutes,
 	classifyRouteMapEdges,
+	routeMapSizes,
 	type RouteMapRoute
 } from './route-map-router.ts';
 
@@ -50,6 +51,7 @@ export interface RouteMapLine {
 	points: readonly RouteMapPoint[];
 	width: number;
 	kind?: 'dependency' | 'workflow' | 'family';
+	form: 'single' | 'double';
 }
 
 export interface RouteMapSign {
@@ -216,6 +218,7 @@ function stageWorkflow(model: RouteMapModel) {
 
 export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): RouteMapLayout {
 	const paper = metrics.paper ?? false;
+	const sizes = routeMapSizes[paper ? 'paper' : 'screen'];
 	const clearance = Math.max(metrics.clearance, paper ? 3 : 5);
 	const lanePitch = paper ? 3 : 4;
 	const hit = paper ? 8 : Math.max(24, metrics.hitSize);
@@ -548,42 +551,6 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 		stageLabels: [],
 		routes: []
 	};
-	layout.routes = buildRouteMapRoutes(model, layout, { paper, pitch: lanePitch }).routes;
-	layout.lines = [
-		...layout.routes
-			.filter((route) => route.carrier === 'line')
-			.map((route) => ({
-				key: route.key,
-				stageId: model.nodes.find((node) => node.id === route.to)!.stageId,
-				taskIds: [route.from, route.to],
-				dependencyKeys: [route.key],
-				points: route.points,
-				width: model.nodes.find((node) => node.id === route.to)!.parentId
-					? paper
-						? 3.5
-						: 6
-					: paper
-						? 5
-						: 8,
-				kind: 'dependency' as const
-			})),
-		...[...workflow, ...familyEdges].map((edge) => ({
-			key: edge.key,
-			stageId: model.nodes.find((node) => node.id === edge.to)!.stageId,
-			taskIds: [edge.from, edge.to],
-			dependencyKeys: [],
-			points: buildRouteMapRoutes(model, layout, { paper, pitch: lanePitch }, [edge]).routes[0]
-				.points,
-			width: model.nodes.find((node) => node.id === edge.to)!.parentId
-				? paper
-					? 3.5
-					: 6
-				: paper
-					? 5
-					: 8,
-			kind: edge.kind
-		}))
-	];
 	layout.signs = stations.flatMap((station) => {
 		const node = model.nodes.find((node) => node.id === station.id)!;
 		const cross = model.edges.some(
@@ -596,9 +563,9 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 				stationId: station.id,
 				stageId: node.stageId,
 				center: station.center,
-				width: paper ? 10 : 16,
-				height: paper ? 20 : 32,
-				outlineWidth: paper ? 2 : 3
+				width: sizes.capsule.width,
+				height: sizes.capsule.height,
+				outlineWidth: sizes.capsule.outline
 			}
 		];
 	});
@@ -614,12 +581,46 @@ export function routeMapLayout(model: RouteMapModel, metrics: RouteMapMetrics): 
 				h: 20
 			}
 		}));
+	layout.routes = buildRouteMapRoutes(model, layout, { paper, pitch: lanePitch }).routes;
+	layout.lines = [
+		...layout.routes
+			.filter((route) => route.carrier === 'line')
+			.map((route) => ({
+				key: route.key,
+				stageId: model.nodes.find((node) => node.id === route.to)!.stageId,
+				taskIds: [route.from, route.to],
+				dependencyKeys: [route.key],
+				points: route.points,
+				width: model.nodes.find((node) => node.id === route.to)!.parentId
+					? sizes.branch
+					: sizes.rail,
+				form: model.nodes.find((node) => node.id === route.to)!.parentId
+					? ('double' as const)
+					: ('single' as const),
+				kind: 'dependency' as const
+			})),
+		...[...workflow, ...familyEdges].map((edge) => ({
+			key: edge.key,
+			stageId: model.nodes.find((node) => node.id === edge.to)!.stageId,
+			taskIds: [edge.from, edge.to],
+			dependencyKeys: [],
+			points: buildRouteMapRoutes(model, layout, { paper, pitch: lanePitch }, [edge]).routes[0]
+				.points,
+			width: model.nodes.find((node) => node.id === edge.to)!.parentId ? sizes.branch : sizes.rail,
+			form: model.nodes.find((node) => node.id === edge.to)!.parentId
+				? ('double' as const)
+				: ('single' as const),
+			kind: edge.kind
+		}))
+	];
+	// Route thin dependencies against the completed rail and label reservations.
+	layout.routes = buildRouteMapRoutes(model, layout, { paper, pitch: lanePitch }).routes;
 	// Empty stages occupy separate rows below the task bounds, in stage order.
 	const placeholders: RouteMapSign[] = [];
 	for (const stage of model.stages.filter(
 		(stage) => !model.nodes.some((node) => node.stageId === stage.id)
 	)) {
-		const size = paper ? 6 : 8;
+		const size = sizes.station;
 		const center = { x: columnXs.get(0)!, y: bottom + hit / 2 + clearance };
 		const box = {
 			x: center.x - metrics.labelWidth / 2,

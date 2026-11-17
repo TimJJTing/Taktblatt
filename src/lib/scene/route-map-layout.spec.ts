@@ -6,6 +6,9 @@ import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapLayout } from './route-map-layout.ts';
 import {
 	expectOctilinear,
+	expectReservations,
+	longNamePlan,
+	densePlan,
 	groupingPlan,
 	largePlan,
 	pinnedExamplePlan,
@@ -67,7 +70,7 @@ describe('Workflow branching Route map', () => {
 				paper
 			});
 			const dependency = result.lines.find((line) => line.dependencyKeys.includes('a->b'))!;
-			expect(dependency.width).toBe(paper ? 3.5 : 6);
+			expect(dependency.form).toBe('double');
 			for (const id of ['a', 'external']) {
 				const capsule = result.signs.find(
 					(sign) => sign.stationId === id && sign.kind === 'interchange'
@@ -220,9 +223,15 @@ describe('Workflow branching Route map', () => {
 				task({ id: 'A' }),
 				task({ id: 'B', dependsOn: ['A'] }),
 				task({ id: 'C', dependsOn: ['A'] }),
-				task({ id: 'D', dependsOn: ['B', 'C'] })
-			])
+				task({ id: 'D', dependsOn: ['B', 'C'] }),
+				task({ id: 'child-1', parentId: 'A' }),
+				task({ id: 'child-2', parentId: 'A', dependsOn: ['child-1'] }),
+				task({ id: 'child-3', parentId: 'A' })
+			]),
+			new Set(['A'])
 		);
+		expect(result.lines.some((line) => line.taskIds.includes('child-1'))).toBe(true);
+		for (const line of result.lines) expectOctilinear(line.points);
 		const root = result.stations.find((s) => s.id === 'A')!;
 		const lower = result.stations.find(
 			(s) => ['B', 'C'].includes(s.id) && s.center.y !== root.center.y
@@ -304,9 +313,20 @@ describe('Workflow branching Route map', () => {
 		expect(new Set(families.flatMap((line) => line.taskIds))).toEqual(
 			new Set(['p', ...plan.tasks.filter((t) => t.parentId === 'p').map((t) => t.id)])
 		);
+		const attachment = families.find((line) => line.taskIds.includes('p'))!;
+		expect(attachment.points[0]).toEqual(station(expanded, 'p').center);
 		for (const line of families) {
-			expect(line.width).toBe(6);
+			expect(line.form).toBe('double');
 			expectOctilinear(line.points);
+		}
+	});
+	it('reserves all label and badge boxes in example, long-name and dense scenes', () => {
+		for (const plan of [pinnedExamplePlan(), longNamePlan(), densePlan()]) {
+			const parents = new Set(plan.tasks.filter((t) => t.parentId).map((t) => t.parentId!));
+			for (const expanded of [new Set<string>(), parents]) {
+				const result = scene(plan, expanded);
+				expectReservations(result, result.routes);
+			}
 		}
 	});
 	it('bounds the garden canvas by its final label and focus clearance without an unused trailing gutter', () => {

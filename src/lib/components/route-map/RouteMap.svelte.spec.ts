@@ -4,8 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { render } from 'vitest-browser-svelte';
 import { page, userEvent } from 'vitest/browser';
+import {
+	markColorLevel,
+	stageColorVar,
+	stagePaperColor,
+	subtaskFill
+} from '#lib/components/plan/colors.ts';
 import { DIAGRAM_ATTR } from '#lib/components/diagram/view-contract.ts';
-import { fablePlan, pinnedExamplePlan, screenMetrics } from '#lib/scene/route-map.test-helpers.ts';
+import {
+	fablePlan,
+	longNamePlan,
+	pinnedExamplePlan,
+	screenMetrics
+} from '#lib/scene/route-map.test-helpers.ts';
 import { formatRangeDisplay, joinList } from '#lib/domain/format.ts';
 import { uiIntl } from '#lib/ui-language.ts';
 import { indexTasks } from '#lib/domain/derive.ts';
@@ -1181,11 +1192,397 @@ describe('Route map station interactions', () => {
 		expect(
 			root.querySelectorAll('[data-testid="route-map-guide"]:not([data-family-branch])').length
 		).toBeGreaterThan(0);
-		for (const branch of families) {
-			expect(getComputedStyle(branch).strokeWidth).toBe('6px');
+		try {
+			for (const dark of [false, true]) {
+				document.documentElement.classList.toggle('dark', dark);
+				const probe = document.createElement('span');
+				probe.style.color = 'var(--background)';
+				root.appendChild(probe);
+				const ground = getComputedStyle(probe).color;
+				probe.remove();
+				for (const branch of families) {
+					const peers = [...root.querySelectorAll<SVGElement>('path')].filter(
+						(p) => p.getAttribute('d') === branch.getAttribute('d')
+					);
+					const outer = peers.find((p) => getComputedStyle(p).strokeWidth === '6px');
+					const gap = peers.find((p) => getComputedStyle(p).strokeWidth === '2px');
+					expect(outer).toBeDefined();
+					expect(gap).toBeDefined();
+					if (gap) expect(getComputedStyle(gap).stroke).toBe(ground);
+				}
+			}
+		} finally {
+			document.documentElement.classList.remove('dark');
 		}
+		for (const rail of root.querySelectorAll(
+			'[data-testid="route-map-guide"], [data-carrier="line"] [data-carrier-path]'
+		))
+			expect(rail.getAttribute('stroke-dasharray')).toBeNull();
 		expect(root.querySelectorAll('[data-testid="route-map-stage-label"]')).toHaveLength(1);
 		expect(root.querySelector('[data-stage-progress]')).toBeNull();
+	});
+
+	it('dims finished and canceled main and child rails while active child rails keep the stage color', async () => {
+		motion.reduced = true;
+		workspace.commit((plan) => {
+			plan.tasks = [
+				makeTask({ id: 'a', status: 'done' }),
+				makeTask({ id: 'b', status: 'done', dependsOn: ['a'] }),
+				makeTask({ id: 'c', status: 'canceled', dependsOn: ['b'] }),
+				makeTask({ id: 'p', dependsOn: ['c'] }),
+				makeTask({ id: 'x', parentId: 'p', status: 'done', start: '2027-01-01' }),
+				makeTask({ id: 'y', parentId: 'p', status: 'done', start: '2027-01-02', dependsOn: ['x'] }),
+				makeTask({
+					id: 'z',
+					parentId: 'p',
+					status: 'canceled',
+					start: '2027-01-03',
+					dependsOn: ['y']
+				}),
+				makeTask({ id: 'q', parentId: 'p', start: '2027-01-04', dependsOn: ['z'] }),
+				makeTask({ id: 'r', parentId: 'p', start: '2027-01-05', dependsOn: ['q'] }),
+				makeTask({ id: 's', parentId: 'p', start: '2027-01-06' })
+			];
+		});
+		viewer.setExpanded(workspace.plan.id, 'p', true);
+		const root = (await mount()).container;
+		const base = stageColorVar(workspace.plan.stages[0].color);
+		const probe = document.createElement('span');
+		root.appendChild(probe);
+		const color = (value: string) => {
+			probe.style.color = value;
+			return getComputedStyle(probe).color;
+		};
+		const finished = color(
+			`color-mix(in oklab, ${base} ${markColorLevel('done', 'line')}%, var(--background))`
+		);
+		const full = color(base);
+		const fullMix = color(`color-mix(in oklab, ${base} 100%, var(--background))`);
+		const lighter = color(subtaskFill(base, 'var(--background)'));
+		for (const [from, to, expected] of [
+			['a', 'b', finished],
+			['b', 'c', finished],
+			['x', 'y', finished],
+			['y', 'z', finished],
+			['z', 'q', finished],
+			['q', 'r', full]
+		] as const) {
+			const rail = root.querySelector<SVGElement>(
+				`[data-testid="route-map-dependency"][data-from="${from}"][data-to="${to}"] [data-carrier-path]`
+			);
+			expect(rail, `${from}->${to}`).not.toBeNull();
+			if (rail) {
+				const actual = getComputedStyle(rail).stroke;
+				if (expected === full) expect([full, fullMix]).toContain(actual);
+				else expect(actual).toBe(expected);
+			}
+		}
+		expect(full).not.toBe(lighter);
+		expect(fullMix).not.toBe(lighter);
+		const family = [...root.querySelectorAll<SVGPathElement>('[data-family-branch]')].filter(
+			(path) => getComputedStyle(path).strokeWidth === '6px'
+		);
+		for (const [from, to] of [
+			['p', 'x'],
+			['r', 's']
+		] as const) {
+			const stationCenter = (id: string) => {
+				const box = mark(root, id).getBoundingClientRect();
+				return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+			};
+			const source = stationCenter(from),
+				target = stationCenter(to);
+			const matches = family.filter((path) => {
+				const matrix = path.getScreenCTM()!;
+				const start = path.getPointAtLength(0).matrixTransform(matrix);
+				const end = path.getPointAtLength(path.getTotalLength()).matrixTransform(matrix);
+				return (
+					Math.hypot(start.x - source.x, start.y - source.y) <= 1 &&
+					Math.hypot(end.x - target.x, end.y - target.y) <= 1
+				);
+			});
+			expect(matches, `${from}->${to} family rail`).toHaveLength(1);
+			if (matches[0]) {
+				const actual = getComputedStyle(matches[0]).stroke;
+				expect([full, fullMix]).toContain(actual);
+				expect(actual).not.toBe(lighter);
+			}
+		}
+		probe.remove();
+	});
+
+	it('uses a 2px subtask walkway with one unfilled destination chevron', async () => {
+		motion.reduced = true;
+		const plan = fablePlan();
+		plan.tasks.find((task) => task.id === 'water')!.dependsOn.push('test');
+		workspace.commit((current) => Object.assign(current, plan));
+		viewer.setExpanded(workspace.plan.id, 'soil', true);
+		const root = (await mount()).container;
+		const route = root.querySelector(
+			'[data-testid="route-map-dependency"][data-from="test"][data-to="water"]'
+		)!;
+		expect(route).not.toBeNull();
+		const path = route.querySelector<SVGElement>('[data-testid="gantt-dependency"]')!;
+		expect(getComputedStyle(path).strokeWidth).toBe('2px');
+		const chevrons = [...route.querySelectorAll<SVGElement>('path')].filter(
+			(p) => p.getAttribute('d') !== path.getAttribute('d')
+		);
+		expect(chevrons).toHaveLength(1);
+		if (chevrons[0]) {
+			expect(getComputedStyle(chevrons[0]).fill).toBe('none');
+			expect(getComputedStyle(chevrons[0]).strokeWidth).toBe('2px');
+		}
+	});
+
+	it('reserves measured long-name labels from rendered rails and paths', async () => {
+		motion.reduced = true;
+		const plan = longNamePlan();
+		workspace.commit((current) => Object.assign(current, plan));
+		for (const parent of new Set(
+			plan.tasks.filter((task) => task.parentId).map((task) => task.parentId!)
+		))
+			viewer.setExpanded(workspace.plan.id, parent, true);
+		const root = (await mount()).container;
+		await document.fonts.ready;
+		let previous = '';
+		let unchanged = 0;
+		await expect
+			.poll(() => {
+				const snapshot = JSON.stringify(
+					[
+						...root.querySelectorAll<HTMLElement>(
+							'[data-diagram-label], [data-route-map-controls], [data-testid="route-map-stage-label"]'
+						)
+					].map((element) => {
+						const box = element.getBoundingClientRect();
+						return [box.x, box.y, box.width, box.height];
+					})
+				);
+				unchanged = snapshot === previous ? unchanged + 1 : 0;
+				previous = snapshot;
+				return unchanged;
+			})
+			.toBeGreaterThanOrEqual(2);
+		const labels = [...root.querySelectorAll<HTMLElement>('[data-diagram-label]')];
+		expect(labels).toHaveLength(plan.tasks.length);
+		const boxes: {
+			owner: string | null;
+			box: DOMRect;
+			painted: DOMRect;
+			element: HTMLElement;
+			kind: 'name' | 'status' | 'controls' | 'badge' | 'station';
+		}[] = [];
+		const inflate = (box: DOMRect, amount: number) =>
+			new DOMRect(box.x - amount, box.y - amount, box.width + 2 * amount, box.height + 2 * amount);
+		// Both controls use a 2 px focus-visible outline in the project styles.
+		const focusExtent = (element: HTMLElement) => {
+			const style = getComputedStyle(element);
+			return Math.max(
+				2,
+				(parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0)
+			);
+		};
+		for (const name of labels) {
+			const id = name.getAttribute('data-diagram-label')!;
+			const station = root.querySelector<HTMLElement>(`[data-diagram-task="${id}"]`)!;
+			const stationBox = station.getBoundingClientRect();
+			const stationButton = mark(root, id);
+			const hit = stationButton.getBoundingClientRect();
+			boxes.push({
+				owner: id,
+				box: hit,
+				painted: inflate(hit, Math.max(4, focusExtent(stationButton))),
+				element: stationButton,
+				kind: 'station'
+			});
+			const nameBox = name.getBoundingClientRect();
+			expect(
+				Math.abs(nameBox.left + nameBox.width / 2 - stationBox.left - stationBox.width / 2)
+			).toBeLessThanOrEqual(1);
+			expect(nameBox.top).toBeGreaterThanOrEqual(stationBox.bottom);
+			boxes.push({
+				owner: id,
+				box: nameBox,
+				painted: inflate(nameBox, focusExtent(name)),
+				element: name,
+				kind: 'name'
+			});
+			for (const element of name.parentElement!.querySelectorAll<HTMLElement>(
+				'[data-route-map-status]'
+			))
+				boxes.push({
+					owner: id,
+					box: element.getBoundingClientRect(),
+					painted: element.getBoundingClientRect(),
+					element,
+					kind: 'status'
+				});
+		}
+		const controls = [...root.querySelectorAll<HTMLElement>('[data-route-map-controls]')];
+		expect(controls).toHaveLength(
+			new Set(plan.tasks.filter((task) => task.parentId).map((task) => task.parentId)).size
+		);
+		for (const control of controls) {
+			const box = control.getBoundingClientRect();
+			const owner = control.getAttribute('data-route-map-controls');
+			expect(owner).not.toBeNull();
+			const button = control.querySelector<HTMLElement>('button');
+			expect(button).not.toBeNull();
+			const focus = button ? inflate(button.getBoundingClientRect(), focusExtent(button)) : box;
+			const left = Math.min(box.left, focus.left),
+				top = Math.min(box.top, focus.top);
+			const right = Math.max(box.right, focus.right),
+				bottom = Math.max(box.bottom, focus.bottom);
+			boxes.push({
+				owner,
+				box,
+				painted: new DOMRect(left, top, right - left, bottom - top),
+				element: control,
+				kind: 'controls'
+			});
+		}
+		for (const badge of root.querySelectorAll<HTMLElement>('[data-testid="route-map-stage-label"]'))
+			boxes.push({
+				owner: null,
+				box: badge.getBoundingClientRect(),
+				painted: badge.getBoundingClientRect(),
+				element: badge,
+				kind: 'badge'
+			});
+		const intersects = (a: DOMRect, b: DOMRect) =>
+			a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+		for (let i = 0; i < boxes.length; i++)
+			for (let j = i + 1; j < boxes.length; j++) {
+				const a = boxes[i],
+					b = boxes[j];
+				if (a.kind === 'station' || b.kind === 'station') continue;
+				if (
+					a.owner === b.owner &&
+					((a.kind === 'name' && b.kind === 'status' && a.element.contains(b.element)) ||
+						(b.kind === 'name' && a.kind === 'status' && b.element.contains(a.element)))
+				)
+					continue;
+				expect(intersects(boxes[i].box, boxes[j].box), `labels ${i} and ${j}`).toBe(false);
+			}
+		const paths = [
+			...root.querySelectorAll<SVGPathElement>(
+				'[data-testid="route-map-guide"], [data-carrier="walkway"] path'
+			)
+		];
+		expect(paths.length).toBeGreaterThan(0);
+		for (const path of paths) {
+			const matrix = path.getScreenCTM()!;
+			const squareScale = matrix.a ** 2 + matrix.b ** 2 + matrix.c ** 2 + matrix.d ** 2;
+			const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+			const scale = Math.sqrt(
+				(squareScale + Math.sqrt(Math.max(0, squareScale ** 2 - 4 * determinant ** 2))) / 2
+			);
+			const tokens = path.getAttribute('d')!.match(/[MLQC]|-?\d*\.?\d+(?:e[+-]?\d+)?/gi) ?? [];
+			let index = 0;
+			let current = { x: 0, y: 0 };
+			const points: { x: number; y: number }[] = [];
+			const next = () => ({ x: Number(tokens[index++]), y: Number(tokens[index++]) });
+			while (index < tokens.length) {
+				const command = tokens[index++].toUpperCase();
+				if (command === 'M' || command === 'L') {
+					current = next();
+					points.push(current);
+				} else if (command === 'Q' || command === 'C') {
+					const start = current,
+						c1 = next(),
+						c2 = command === 'C' ? next() : c1,
+						end = next();
+					const curvature =
+						command === 'Q'
+							? 2 * Math.hypot(start.x - 2 * c1.x + end.x, start.y - 2 * c1.y + end.y)
+							: 6 *
+								Math.max(
+									Math.hypot(start.x - 2 * c1.x + c2.x, start.y - 2 * c1.y + c2.y),
+									Math.hypot(c1.x - 2 * c2.x + end.x, c1.y - 2 * c2.y + end.y)
+								);
+					// Linear interpolation error is at most max |second derivative| / (8 * steps²).
+					const steps = Math.max(1, Math.ceil(Math.sqrt((curvature * scale) / 4)));
+					for (let step = 1; step <= steps; step++) {
+						const t = step / steps,
+							u = 1 - t;
+						const point =
+							command === 'Q'
+								? {
+										x: u * u * start.x + 2 * u * t * c1.x + t * t * end.x,
+										y: u * u * start.y + 2 * u * t * c1.y + t * t * end.y
+									}
+								: {
+										x:
+											u ** 3 * start.x +
+											3 * u * u * t * c1.x +
+											3 * u * t * t * c2.x +
+											t ** 3 * end.x,
+										y:
+											u ** 3 * start.y +
+											3 * u * u * t * c1.y +
+											3 * u * t * t * c2.y +
+											t ** 3 * end.y
+									};
+						points.push(point);
+					}
+					current = end;
+				} else {
+					expect.fail(`Unsupported path command ${command}`);
+				}
+			}
+			const screen = points.map((point) => new DOMPoint(point.x, point.y).matrixTransform(matrix));
+			const carrier = path.closest('[data-carrier]');
+			const source = carrier?.getAttribute('data-from');
+			const target = carrier?.getAttribute('data-to');
+			const stroke = ((parseFloat(getComputedStyle(path).strokeWidth) || 0) * scale) / 2;
+			// The additional 0.5 px covers the bounded curve approximation error.
+			const margin = stroke + 0.5;
+			for (let i = 1; i < screen.length; i++)
+				for (const { painted, kind, owner, box: original } of boxes) {
+					const box = inflate(painted, margin);
+					if (kind === 'station' && !path.hasAttribute('data-chevron')) {
+						const cx = original.left + original.width / 2,
+							cy = original.top + original.height / 2;
+						const startsHere = Math.hypot(screen[0].x - cx, screen[0].y - cy) <= 1;
+						const endsHere = Math.hypot(screen.at(-1)!.x - cx, screen.at(-1)!.y - cy) <= 1;
+						const inside = (point: DOMPoint) =>
+							point.x >= box.left &&
+							point.x <= box.right &&
+							point.y >= box.top &&
+							point.y <= box.bottom;
+						if ((owner === source || startsHere) && inside(screen[0])) {
+							const exit = screen.findIndex((point) => !inside(point));
+							if (exit < 0 || i <= exit) continue;
+						}
+						if ((owner === target || endsHere) && inside(screen.at(-1)!)) {
+							const reverseExit = [...screen].reverse().findIndex((point) => !inside(point));
+							if (reverseExit < 0 || i >= screen.length - reverseExit) continue;
+						}
+					}
+					const a = screen[i - 1],
+						b = screen[i];
+					let low = 0,
+						high = 1;
+					for (const [origin, delta, min, max] of [
+						[a.x, b.x - a.x, box.left, box.right],
+						[a.y, b.y - a.y, box.top, box.bottom]
+					]) {
+						if (delta === 0) {
+							if (origin <= min || origin >= max) {
+								low = 1;
+								high = 0;
+								break;
+							}
+						} else {
+							const t0 = (min - origin) / delta,
+								t1 = (max - origin) / delta;
+							low = Math.max(low, Math.min(t0, t1));
+							high = Math.min(high, Math.max(t0, t1));
+						}
+					}
+					expect(low < high, `path intersects label ${box.x},${box.y}`).toBe(false);
+				}
+		}
 	});
 
 	it('places one badge at the first top-level station of each fable stage in both states', async () => {
@@ -1394,6 +1791,65 @@ describe('Route map station interactions', () => {
 		expect(getComputedStyle(label(root, 'seeds')).opacity).toBe('1');
 	});
 
+	it('prints a double child branch with a white 1.5px gap and full stage paint', async () => {
+		const plan = fablePlan();
+		const model = routeMapModel(plan, new Set(['soil']), indexTasks(plan.tasks));
+		const paper = routeMapPaper(model, {
+			...screenMetrics,
+			clearance: 4,
+			sheetWidth: (297 * 96) / 25.4,
+			sheetHeight: (210 * 96) / 25.4,
+			margin: 57,
+			repeatedLabelWidth: 0,
+			gutter: 0,
+			headerHeight: 36,
+			footerHeight: 54,
+			lineHeight: 16
+		});
+		const segment = {
+			...paper.segment,
+			data: { stages: plan.stages, nodes: model.nodes, panels: paper.panels }
+		};
+		const printed = await render(PrintRouteMap, {
+			segment,
+			from: 0,
+			to: segment.items.length,
+			first: true,
+			width: 1000
+		});
+		const root = printed.container;
+		const branches = [...root.querySelectorAll<SVGElement>('[data-family-branch]')];
+		const sibling = root.querySelector<SVGElement>(
+			'[data-carrier="line"][data-from="test"][data-to="compost"] [data-carrier-path]'
+		);
+		expect(sibling).not.toBeNull();
+		if (sibling) branches.push(sibling);
+		const probe = document.createElement('span');
+		root.appendChild(probe);
+		const stage = stagePaperColor(plan.stages[0].color);
+		probe.style.color = stage;
+		const fullPaper = getComputedStyle(probe).color;
+		probe.style.color = `color-mix(in oklab, ${stage} 100%, white)`;
+		const fullPaperMix = getComputedStyle(probe).color;
+		probe.remove();
+		expect(branches.length).toBeGreaterThan(0);
+		for (const branch of branches) {
+			const peers = [...root.querySelectorAll<SVGElement>('path')].filter(
+				(p) => p.getAttribute('d') === branch.getAttribute('d')
+			);
+			const outer = peers.find((p) => getComputedStyle(p).strokeWidth === '3.5px');
+			const gap = peers.find((p) => getComputedStyle(p).strokeWidth === '1.5px');
+			expect(outer).toBeDefined();
+			expect(gap).toBeDefined();
+			if (gap) expect(getComputedStyle(gap).stroke).toBe('rgb(255, 255, 255)');
+			if (outer) {
+				expect(outer.getAttribute('stroke')).not.toContain('55%');
+				if (branch === sibling)
+					expect([fullPaper, fullPaperMix]).toContain(getComputedStyle(outer).stroke);
+			}
+		}
+	});
+
 	it('renders a fitting example panel as one item with complete dependencies and no continuation stubs', async () => {
 		const plan = pinnedExamplePlan();
 		const model = routeMapModel(plan, new Set(), indexTasks(plan.tasks));
@@ -1442,8 +1898,9 @@ describe('Route map station interactions', () => {
 					end = path.getPointAtLength(path.getTotalLength());
 				expect(start.x).toBeCloseTo(route.points[0].x, 1);
 				expect(start.y).toBeCloseTo(route.points[0].y, 1);
-				expect(end.x).toBeCloseTo(route.points.at(-1)!.x, 1);
-				expect(end.y).toBeCloseTo(route.points.at(-1)!.y, 1);
+				const destination = route.chevron?.[1] ?? route.points.at(-1)!;
+				expect(end.x).toBeCloseTo(destination.x, 1);
+				expect(end.y).toBeCloseTo(destination.y, 1);
 				const item = paths[0].closest('[data-item]')!;
 				expect(item.querySelector(`[data-paper-station="${from}"]`)).not.toBeNull();
 				expect(item.querySelector(`[data-paper-station="${to}"]`)).not.toBeNull();
@@ -1753,12 +2210,13 @@ describe('Route map station interactions', () => {
 		}
 	});
 
-	it('uses thin Gantt connector widths for cross-stage legacy subtask walkways on screen and paper', async () => {
+	it('uses equal cross-stage walkway widths for subtasks and top-level tasks on screen and paper', async () => {
 		workspace.commit((plan) => {
 			plan.stages.push({ id: 's2', title: 'Next', description: '', color: 'green' });
 			plan.tasks = [
 				makeTask({ id: 'P' }),
 				makeTask({ id: 'child', parentId: 'P', dependsOn: ['outside'] }),
+				makeTask({ id: 'top', dependsOn: ['outside'] }),
 				makeTask({ id: 'outside', stageId: 's2' })
 			];
 		});
@@ -1767,7 +2225,11 @@ describe('Route map station interactions', () => {
 		const connector = screen.container.querySelector(
 			'[data-testid="route-map-dependency"][data-from="outside"][data-to="child"] [data-testid="gantt-dependency"]'
 		)!;
-		expect(getComputedStyle(connector).strokeWidth).toBe('1.5px');
+		const topConnector = screen.container.querySelector(
+			'[data-testid="route-map-dependency"][data-from="outside"][data-to="top"] [data-testid="gantt-dependency"]'
+		)!;
+		expect(getComputedStyle(connector).strokeWidth).toBe('2px');
+		expect(getComputedStyle(topConnector).strokeWidth).toBe('2px');
 		const model = routeMapModel(workspace.plan, new Set(['P']), workspace.index);
 		const paper = routeMapPaper(model, {
 			...screenMetrics,
@@ -1800,8 +2262,16 @@ describe('Route map station interactions', () => {
 				'[data-carrier="walkway"] [data-carrier-path]'
 			)
 		];
-		expect(thin.length).toBeGreaterThan(0);
-		for (const path of thin) expect(getComputedStyle(path).strokeWidth).toBe('0.75px');
+		const pairs = thin.map((path) => {
+			const carrier = path.closest('[data-carrier="walkway"]')!;
+			return `${carrier.getAttribute('data-from')}->${carrier.getAttribute('data-to')}`;
+		});
+		expect([...new Set(pairs)].sort(), `paper walkway fragments: ${pairs.join(', ')}`).toEqual([
+			'outside->child',
+			'outside->top'
+		]);
+		for (const [index, path] of thin.entries())
+			expect(getComputedStyle(path).strokeWidth, `paper fragment ${pairs[index]}`).toBe('1px');
 	});
 
 	it('routes same-stage legacy external subtask dependencies as parent rails in both expand states', async () => {

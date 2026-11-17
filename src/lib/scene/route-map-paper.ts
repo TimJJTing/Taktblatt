@@ -9,7 +9,7 @@ import {
 	type RouteMapSign,
 	type RouteMapStageLabel
 } from './route-map-layout.ts';
-import { chamferRouteMapPath, type RouteMapRoute } from './route-map-router.ts';
+import { chamferRouteMapPath, routeMapChevron, type RouteMapRoute } from './route-map-router.ts';
 
 export interface RouteMapPaperMetrics extends RouteMapMetrics {
 	measureText: (text: string) => number;
@@ -621,6 +621,7 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				return {
 					...c,
 					points: local,
+					chevron: undefined,
 					...(c.ring ? { ring: c.kind === 'exit' ? local[1] : local[0] } : {})
 				};
 			});
@@ -764,6 +765,19 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		}
 	}
 	for (const item of items) {
+		// Rebuild destination signs after paper translations and fragment routing.
+		item.edges = item.edges.map((edge) => ({
+			...edge,
+			chevron:
+				edge.carrier === 'walkway' && !edge.cycle ? routeMapChevron(edge.points, true) : undefined
+		}));
+		item.continuations = item.continuations.map((edge) => ({
+			...edge,
+			chevron:
+				edge.carrier === 'walkway' && !edge.cycle && edge.kind === 'entry'
+					? routeMapChevron(edge.points, true)
+					: undefined
+		}));
 		item.stations = item.stations.map((station) => ({
 			...station,
 			labelBox: { ...station.labelBox, h: Math.max(1, station.labelLines.length) * 14 }

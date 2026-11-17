@@ -833,6 +833,99 @@ test('D53 Fable signs and imported status paint survive dark and forced-color re
 	expect(outlines.every((opacity) => opacity === '1')).toBe(true);
 });
 
+test('cycle paths within and between stages keep dotted warning paint and no chevrons', async ({
+	page
+}) => {
+	await openRoutePlan(page);
+	await writeStoredPlan(page, (plan) => {
+		const base = plan.tasks[0],
+			stage = plan.stages[0];
+		plan.stages = [stage, { ...stage, id: 'other-stage', title: 'Other stage' }];
+		plan.tasks = [
+			{ ...base, id: 'a', title: 'A', dependsOn: ['b'], parentId: null },
+			{ ...base, id: 'b', title: 'B', dependsOn: ['a'], parentId: null },
+			{ ...base, id: 'c', title: 'C', dependsOn: ['d'], parentId: null },
+			{ ...base, id: 'd', title: 'D', stageId: 'other-stage', dependsOn: ['c'], parentId: null }
+		];
+	});
+	await chooseView(page, 'route-map');
+	await waitForAnimations(incoming(page));
+	const cycles = incoming(page).locator(
+		'[data-testid="route-map-dependency"]:has([data-cycle="true"])'
+	);
+	await expect(cycles).toHaveCount(4);
+	for (const cycle of await cycles.all()) {
+		const ink = cycle.locator('[data-cycle="true"]');
+		await expect(ink).toHaveAttribute('stroke-dasharray', '1 4');
+		await expect(ink).toHaveCSS('stroke-linecap', 'round');
+		await expect(ink).toHaveCSS('stroke-width', '2px');
+		const paints = await cycle.evaluate((group) => {
+			const ink = group.querySelector<SVGElement>('[data-cycle="true"]')!;
+			const casing = [...group.querySelectorAll<SVGElement>('path')].find(
+				(path) => path !== ink && path.getAttribute('d') === ink.getAttribute('d')
+			);
+			const groundProbe = document.createElement('span');
+			groundProbe.style.color = 'var(--background, #FFFFFF)';
+			const warningProbe = document.createElement('span');
+			warningProbe.classList.add('text-destructive');
+			group.closest('[data-testid="route-map"]')!.append(groundProbe, warningProbe);
+			const result = {
+				casing: casing ? getComputedStyle(casing).stroke : null,
+				ground: getComputedStyle(groundProbe).color,
+				ink: getComputedStyle(ink).stroke,
+				warning: getComputedStyle(warningProbe).color
+			};
+			groundProbe.remove();
+			warningProbe.remove();
+			return result;
+		});
+		expect(paints.casing).toBe(paints.ground);
+		expect(paints.ink).toBe(paints.warning);
+		const paths = await cycle.locator('path').evaluateAll((items) =>
+			items.map((item) => ({
+				d: item.getAttribute('d'),
+				width: getComputedStyle(item).strokeWidth
+			}))
+		);
+		expect(paths).toHaveLength(2);
+		expect(paths[0].d).toBe(paths[1].d);
+		expect(paths.map((item) => item.width).sort()).toEqual(['2px', '4px']);
+	}
+});
+
+test('double branch gap follows dark and forced-color grounds', async ({ page }) => {
+	await openRoutePlan(page);
+	await chooseView(page, 'route-map');
+	await incoming(page).getByRole('button', { name: 'Expand Route parent', exact: true }).click();
+	await waitForAnimations(incoming(page));
+	await chooseTheme(page, 'Dark');
+	for (const forced of [false, true]) {
+		await page.emulateMedia({ forcedColors: forced ? 'active' : 'none', reducedMotion: 'reduce' });
+		const result = await incoming(page).evaluate((root) => {
+			const branch = root.querySelector<SVGElement>('[data-family-branch]');
+			if (!branch) return null;
+			const peers = [...root.querySelectorAll<SVGElement>('path')].filter(
+				(p) => p.getAttribute('d') === branch.getAttribute('d')
+			);
+			const gap = peers.find((p) => getComputedStyle(p).strokeWidth === '2px');
+			const probe = document.createElement('span');
+			probe.style.color = matchMedia('(forced-colors: active)').matches
+				? 'Canvas'
+				: 'var(--background)';
+			root.appendChild(probe);
+			const ground = getComputedStyle(probe).color;
+			probe.remove();
+			return {
+				gap: gap ? getComputedStyle(gap).stroke : null,
+				ground,
+				adjust: gap ? getComputedStyle(gap).forcedColorAdjust : null
+			};
+		});
+		expect(result?.gap).toBe(result?.ground);
+		if (forced) expect(result?.adjust).toBe('none');
+	}
+});
+
 test('Route map keeps offline stations, expansion and Preview after a production-worker reload', async ({
 	page,
 	context
@@ -887,6 +980,20 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 			);
 
 	expect(await walkways()).toEqual(['task-1->task-5', 'task-4->task-5', 'task-5->task-7']);
+	const collapsedPaths = incoming(page).locator(
+		'[data-testid="route-map-dependency"][data-carrier="walkway"]'
+	);
+	await expect(collapsedPaths).toHaveCount(3);
+	for (const path of await collapsedPaths.all()) {
+		const shapes = await path.locator('path').evaluateAll((items) => {
+			const carrier = items.find((item) => item.getAttribute('data-testid') === 'gantt-dependency');
+			return items
+				.filter((item) => item.getAttribute('d') !== carrier?.getAttribute('d'))
+				.map((item) => getComputedStyle(item).fill);
+		});
+		expect(shapes).toEqual(['none']);
+	}
+
 	await incoming(page)
 		.getByRole('button', { name: 'Expand Soil preparation', exact: true })
 		.click();
@@ -897,6 +1004,11 @@ test('keeps garden expansion carriers free of thin same-stage links and lights U
 			'[data-testid="route-map-dependency"][data-from="task-2"][data-to="task-3"]'
 		)
 	).toHaveAttribute('data-carrier', 'line');
+	await expect(
+		incoming(page).locator(
+			'[data-testid="route-map-dependency"][data-from="task-2"][data-to="task-3"] [data-carrier-path]'
+		)
+	).toHaveCSS('stroke-width', '6px');
 
 	const u9 = pinnedGardenPlan();
 	u9.tasks.find((t) => t.id === 'task-4')!.dependsOn.push('task-2');

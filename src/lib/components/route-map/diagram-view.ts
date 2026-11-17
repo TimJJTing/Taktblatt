@@ -62,5 +62,5 @@ export const view: DiagramViewDefinition = {
 		},
 		component: PrintRouteMap
 	},
-	motion: { routerId: 'route-map', connectorSchema: 'route-map-v3' }
+	motion: { routerId: 'route-map', connectorSchema: 'route-map-v4' }
 };

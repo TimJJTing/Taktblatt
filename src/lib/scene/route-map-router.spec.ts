@@ -6,6 +6,9 @@ import { routeMapLayout } from './route-map-layout.ts';
 import { routeMapRoutes } from './route-map-router.ts';
 import {
 	adr13Plan,
+	densePlan,
+	expectRailClearance,
+	expectWalkwaysClear,
 	expectClearRoutes,
 	expectCoverage,
 	expectOctilinear,
@@ -22,6 +25,109 @@ const scene = (plan: ReturnType<typeof makePlan>, expanded = new Set<string>()) 
 	return { model, layout, routes: routeMapRoutes(model, layout) };
 };
 describe('Workflow Route map dependency carriers', () => {
+	it('keeps garden and dense walkways on separate runs in both expand states', () => {
+		for (const plan of [pinnedExamplePlan(), densePlan()]) {
+			const parents = new Set(
+				plan.tasks.filter((task) => task.parentId).map((task) => task.parentId!)
+			);
+			for (const expanded of [new Set<string>(), parents]) {
+				const result = scene(plan, expanded);
+				expectWalkwaysClear(result.routes);
+			}
+		}
+	});
+	it('lets forward non-cycle walkways depart and arrive without moving left', () => {
+		for (const plan of [pinnedExamplePlan(), densePlan()]) {
+			const parents = new Set(
+				plan.tasks.filter((task) => task.parentId).map((task) => task.parentId!)
+			);
+			for (const expanded of [new Set<string>(), parents]) {
+				const result = scene(plan, expanded);
+				for (const route of result.routes.filter(
+					(route) => route.carrier === 'walkway' && !route.cycle
+				)) {
+					const source = result.layout.stations.find((station) => station.id === route.from)!;
+					const target = result.layout.stations.find((station) => station.id === route.to)!;
+					if (target.column <= source.column) continue;
+					expect(
+						route.points[1].x - route.points[0].x,
+						`${route.key} departure`
+					).toBeGreaterThanOrEqual(0);
+					expect(
+						route.points.at(-1)!.x - route.points.at(-2)!.x,
+						`${route.key} approach`
+					).toBeGreaterThanOrEqual(0);
+				}
+			}
+		}
+	});
+	it('rejects a continuous rail overlap even when either path is subdivided, and accepts a crossing', () => {
+		const result = scene(pinnedExamplePlan());
+		const baseRail = result.layout.lines[0];
+		const baseRoute = result.routes.find((route) => route.carrier === 'walkway')!;
+		const split = [0, 4, 8, 12, 16, 20].map((x) => ({ x, y: 0 }));
+		const straight = [
+			{ x: 0, y: 0 },
+			{ x: 20, y: 0 }
+		];
+		const check = (railPoints: typeof straight, routePoints: typeof straight) =>
+			expectRailClearance(
+				{
+					...result.layout,
+					lines: [{ ...baseRail, form: 'single', kind: 'workflow', points: railPoints }]
+				},
+				[{ ...baseRoute, points: routePoints }]
+			);
+		expect(() => check(straight, split)).toThrow();
+		expect(() => check(split, straight)).toThrow();
+		expect(() => check(straight, straight)).toThrow();
+		expect(() =>
+			check(straight, [
+				{ x: 10, y: -10 },
+				{ x: 10, y: 10 }
+			])
+		).not.toThrow();
+	});
+	it('places one open chevron at each non-cycle walkway target and none on other routes', () => {
+		for (const plan of [pinnedExamplePlan(), densePlan()]) {
+			const parents = new Set(plan.tasks.filter((t) => t.parentId).map((t) => t.parentId!));
+			for (const expanded of [new Set<string>(), parents]) {
+				const r = scene(plan, expanded);
+				for (const route of r.routes) {
+					if (route.carrier !== 'walkway' || route.cycle) {
+						expect(route.chevron).toBeUndefined();
+						continue;
+					}
+					expect(route.chevron).toHaveLength(3);
+					if (!route.chevron || route.chevron.length !== 3) continue;
+					const [a, tip, b] = route.chevron;
+					expect(Math.hypot(a.x - tip.x, a.y - tip.y)).toBeCloseTo(5, 4);
+					expect(Math.hypot(b.x - tip.x, b.y - tip.y)).toBeCloseTo(5, 4);
+					const target = r.layout.stations.find((s) => s.id === route.to)!;
+					const capsule = r.layout.signs.find(
+						(s) => s.stationId === route.to && s.kind === 'interchange'
+					);
+					const x = Math.abs(tip.x - target.center.x) - (capsule ? 8 : 4);
+					const y = Math.abs(tip.y - target.center.y) - (capsule ? 16 : 4);
+					expect(Math.hypot(Math.max(0, x), Math.max(0, y))).toBeGreaterThanOrEqual(4 - 1e-6);
+					const previous = route.points[route.points.length - 2];
+					expect(
+						(target.center.x - tip.x) * (target.center.x - previous.x) +
+							(target.center.y - tip.y) * (target.center.y - previous.y)
+					).toBeGreaterThan(0);
+				}
+			}
+		}
+	});
+	it('keeps thin paths clear of prolonged rail overlap in garden and dense scenes', () => {
+		for (const plan of [pinnedExamplePlan(), densePlan()]) {
+			const parents = new Set(plan.tasks.filter((t) => t.parentId).map((t) => t.parentId!));
+			for (const expanded of [new Set<string>(), parents]) {
+				const r = scene(plan, expanded);
+				expectRailClearance(r.layout, r.routes);
+			}
+		}
+	});
 	it('draws each same-stage dependency once as a thick line even when unrelated work exists', () => {
 		const r = scene(
 			makePlan([task({ id: 'a' }), task({ id: 'b' }), task({ id: 'c', dependsOn: ['a'] })])

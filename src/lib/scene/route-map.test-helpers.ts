@@ -152,9 +152,9 @@ export function expectPathClear(
 			const obstacle = { x: box.x - c, y: box.y - c, w: box.w + 2 * c, h: box.h + 2 * c };
 			for (let i = 1; i < points.length; i++) {
 				const endpointEscape =
-					excluded.includes(station.id) &&
 					(box === station.hitBox || box === station.focusBox) &&
-					(i === 1 || i === points.length - 1);
+					((i === 1 && station.id === excluded[0]) ||
+						(i === points.length - 1 && station.id === excluded[excluded.length - 1]));
 				if (!endpointEscape)
 					expect(crosses(points[i - 1], points[i], obstacle), `Path crosses ${station.id}`).toBe(
 						false
@@ -322,4 +322,179 @@ export function pinnedExamplePlan(): Plan {
 		createdAt: new Date(Date.parse('2026-11-14T00:00:00.000Z') + i).toISOString()
 	}));
 	return plan;
+}
+
+export function longNamePlan(): Plan {
+	const plan = pinnedExamplePlan();
+	const title = 'Garden tasks need careful planning for every growing season!';
+	return { ...plan, tasks: plan.tasks.map((item) => ({ ...item, title })) };
+}
+
+export function densePlan(): Plan {
+	const tasks: Task[] = [];
+	for (let i = 0; i < 3; i++) {
+		const stageId = `s${i}`;
+		const id = (suffix: string) => `${i}${suffix}`;
+		tasks.push(
+			task({ id: id('A'), stageId, dependsOn: i === 0 ? ['2E'] : [] }),
+			task({ id: id('B'), stageId, dependsOn: [id('A'), ...(i === 1 ? ['0x'] : [])] }),
+			task({ id: id('C'), stageId, dependsOn: [id('A'), ...(i === 2 ? ['1B'] : [])] }),
+			task({ id: id('D'), stageId, dependsOn: [id('B'), id('C'), ...(i === 1 ? ['0B'] : [])] }),
+			task({ id: id('E'), stageId, dependsOn: i === 2 ? ['0A'] : [] })
+		);
+	}
+	tasks.push(
+		task({ id: 'parent', stageId: 's0' }),
+		task({ id: '0x', stageId: 's0', parentId: 'parent', dependsOn: ['2B'] }),
+		task({ id: '0y', stageId: 's0', parentId: 'parent', dependsOn: ['0x', '1C'] }),
+		task({ id: '0z', stageId: 's0', parentId: 'parent' })
+	);
+	return makePlan(tasks, ['s0', 's1', 's2']);
+}
+
+export function expectReservations(layout: RouteMapLayout, routes: readonly RouteMapRoute[]) {
+	const boxes: { box: RouteMapBox; owner: string | null }[] = layout.stations.flatMap((s) =>
+		[s.labelBox, ...s.controlBoxes].map((box) => ({ box, owner: s.id }))
+	);
+	boxes.push(...layout.stageLabels.map((label) => ({ box: label.box, owner: null })));
+	for (let i = 0; i < boxes.length; i++) {
+		for (let j = i + 1; j < boxes.length; j++) {
+			if (boxes[i].owner !== null && boxes[i].owner === boxes[j].owner) continue;
+			const a = boxes[i].box,
+				b = boxes[j].box;
+			expect(
+				a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h,
+				`label boxes ${i} and ${j}`
+			).toBe(false);
+		}
+	}
+	for (const s of layout.stations) {
+		expect(Math.abs(s.labelBox.x + s.labelBox.w / 2 - s.center.x)).toBeLessThanOrEqual(1);
+		expect(s.labelBox.y).toBeGreaterThan(s.center.y);
+	}
+	for (const path of [
+		...layout.lines.map((line) => ({ points: line.points, ends: line.taskIds, width: line.width })),
+		...routes
+			.filter((route) => route.carrier === 'walkway')
+			.flatMap((route) => [
+				{ points: route.points, ends: [route.from, route.to], width: route.cycle ? 4 : 2 },
+				...(route.chevron ? [{ points: route.chevron, ends: [] as string[], width: 2 }] : [])
+			])
+	]) {
+		const radius = path.width / 2;
+		expectPathClear(path.points, layout.stations, radius, path.ends);
+		for (const badge of layout.stageLabels)
+			for (let i = 1; i < path.points.length; i++)
+				expect(
+					crosses(path.points[i - 1], path.points[i], {
+						x: badge.box.x - radius,
+						y: badge.box.y - radius,
+						w: badge.box.w + 2 * radius,
+						h: badge.box.h + 2 * radius
+					}),
+					`path crosses badge ${badge.stageId}`
+				).toBe(false);
+	}
+}
+
+function collinearRuns(points: readonly RouteMapPoint[]): [RouteMapPoint, RouteMapPoint][] {
+	const runs: [RouteMapPoint, RouteMapPoint][] = [];
+	for (let i = 1; i < points.length; i++) {
+		const a = points[i - 1],
+			b = points[i];
+		const dx = b.x - a.x,
+			dy = b.y - a.y;
+		const length = Math.hypot(dx, dy);
+		if (!length) continue;
+		const last = runs.at(-1);
+		if (last) {
+			const ex = last[1].x - last[0].x,
+				ey = last[1].y - last[0].y;
+			const existing = Math.hypot(ex, ey);
+			const cross = (p: RouteMapPoint) => Math.abs(ex * (p.y - last[0].y) - ey * (p.x - last[0].x));
+			if (Math.abs(dx * ey - dy * ex) <= 1e-6 * length * existing && cross(a) <= 1e-6 * existing) {
+				const project = (p: RouteMapPoint) =>
+					((p.x - last[0].x) * ex + (p.y - last[0].y) * ey) / existing;
+				const t = project(b),
+					origin = last[0];
+				if (t < 0)
+					last[0] = { x: origin.x + (t * ex) / existing, y: origin.y + (t * ey) / existing };
+				if (t > existing)
+					last[1] = { x: origin.x + (t * ex) / existing, y: origin.y + (t * ey) / existing };
+				continue;
+			}
+		}
+		runs.push([a, b]);
+	}
+	return runs;
+}
+
+export function expectRailClearance(layout: RouteMapLayout, routes: readonly RouteMapRoute[]) {
+	for (const route of routes.filter((r) => r.carrier === 'walkway')) {
+		for (const [a, b] of collinearRuns(route.points)) {
+			const dx = b.x - a.x,
+				dy = b.y - a.y,
+				length = Math.hypot(dx, dy);
+			if (!length) continue;
+			for (const rail of layout.lines)
+				for (const [c, d] of collinearRuns(rail.points)) {
+					const ex = d.x - c.x,
+						ey = d.y - c.y,
+						otherLength = Math.hypot(ex, ey);
+					if (!otherLength || Math.abs(dx * ey - dy * ex) > 1e-6 * length * otherLength) continue;
+					const distance = Math.abs(dx * (c.y - a.y) - dy * (c.x - a.x)) / length;
+					const width = rail.form === 'double' || rail.kind === 'family' ? 6 : 8;
+					if (distance > width / 2 + 1) continue;
+					const project = (p: RouteMapPoint) => ((p.x - a.x) * dx + (p.y - a.y) * dy) / length;
+					const t0 = project(c),
+						t1 = project(d);
+					const overlap = Math.max(
+						0,
+						Math.min(length, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1))
+					);
+					expect(overlap, `${route.key} overlaps ${rail.key}`).toBeLessThanOrEqual(width + 1e-6);
+				}
+		}
+	}
+}
+
+export function expectWalkwaysClear(routes: readonly RouteMapRoute[]) {
+	const walkways = routes.filter((route) => route.carrier === 'walkway');
+	for (let i = 0; i < walkways.length; i++) {
+		const first = walkways[i],
+			firstRuns = collinearRuns(first.points);
+		for (let j = i + 1; j < walkways.length; j++) {
+			const second = walkways[j],
+				secondRuns = collinearRuns(second.points);
+			for (let a = 0; a < firstRuns.length; a++) {
+				const [start, end] = firstRuns[a];
+				const dx = end.x - start.x,
+					dy = end.y - start.y,
+					length = Math.hypot(dx, dy);
+				for (let b = 0; b < secondRuns.length; b++) {
+					const [otherStart, otherEnd] = secondRuns[b];
+					const ex = otherEnd.x - otherStart.x,
+						ey = otherEnd.y - otherStart.y;
+					const otherLength = Math.hypot(ex, ey);
+					if (Math.abs(dx * ey - dy * ex) > 1e-6 * length * otherLength) continue;
+					const distance =
+						Math.abs(dx * (otherStart.y - start.y) - dy * (otherStart.x - start.x)) / length;
+					if (distance > 2) continue;
+					const sharedExit = first.from === second.from && a === 0 && b === 0;
+					const sharedApproach =
+						first.to === second.to && a === firstRuns.length - 1 && b === secondRuns.length - 1;
+					if (sharedExit || sharedApproach) continue;
+					const project = (point: RouteMapPoint) =>
+						((point.x - start.x) * dx + (point.y - start.y) * dy) / length;
+					const t0 = project(otherStart),
+						t1 = project(otherEnd);
+					const overlap = Math.max(
+						0,
+						Math.min(length, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1))
+					);
+					expect(overlap, `${first.key} overlaps ${second.key}`).toBeLessThanOrEqual(8 + 1e-6);
+				}
+			}
+		}
+	}
 }

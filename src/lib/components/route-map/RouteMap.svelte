@@ -10,12 +10,7 @@
 	import { diagramRouteTargets, getDiagramLayer } from '#lib/components/diagram/diagram-layer.ts';
 	import { GeometryTween } from '#lib/components/diagram/geometry-tween.svelte.ts';
 	import type { DiagramViewProps } from '#lib/components/diagram/view-contract.ts';
-	import {
-		markColorLevel,
-		stageColorVar,
-		subtaskFill,
-		type RoutePaint
-	} from '#lib/components/plan/colors.ts';
+	import { markColorLevel, stageColorVar, type RoutePaint } from '#lib/components/plan/colors.ts';
 	import { joinList, joinSentences } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { effectiveDependencyGraph, lineKey, routeFocusModel } from '#lib/domain/route.ts';
@@ -24,7 +19,12 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { routeMapLayout, type RouteMapLine } from '#lib/scene/route-map-layout.ts';
 	import RouteMapKey from './RouteMapKey.svelte';
-	import { routeMapRoutes, routeMapPath } from '#lib/scene/route-map-router.ts';
+	import {
+		routeMapRoutes,
+		routeMapPath,
+		routeMapSizes,
+		type RouteMapRoute
+	} from '#lib/scene/route-map-router.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
 	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
@@ -212,13 +212,27 @@
 				? line.taskIds.every((id) => focus.onRouteRowIds.has(id))
 				: line.taskIds.some((id) => focus.onRouteRowIds.has(id));
 		const off = focus.active && (!line.dependencyKeys.length || !lit);
-		let color = stageColorVar(stages.get(line.stageId)!.color);
-		if (line.kind === 'family' && !dim && !off) color = subtaskFill(color, 'var(--background)');
-		// An off-route mark has one opaque mix from the base stage color.
-		if (off) color = stageColorVar(stages.get(line.stageId)!.color);
+		const color = stageColorVar(stages.get(line.stageId)!.color);
 		return `color-mix(in oklab, ${color} ${markColorLevel(dim ? 'done' : 'todo', 'line', off)}%, var(--background, #FFFFFF))`;
 	}
 	const path = routeMapPath;
+	const sizes = routeMapSizes.screen;
+	// A direction sequence describes routing semantics. Different sequences cross-fade.
+	const geometryKey = (kind: string, key: string, points: readonly { x: number; y: number }[]) =>
+		JSON.stringify([
+			kind,
+			key,
+			points
+				.slice(1)
+				.map((point, index) => [
+					Math.sign(point.x - points[index].x),
+					Math.sign(point.y - points[index].y)
+				])
+		]);
+	const lineKeyFor = (line: RouteMapLine) =>
+		geometryKey(`line:${line.form}`, line.key, line.points);
+	const routeKeyFor = (edge: RouteMapRoute) =>
+		geometryKey(`${edge.carrier}:${edge.cycle ? 'cycle' : 'dependency'}`, edge.key, edge.points);
 	let tweens = $state.raw(new Map<string, GeometryTween<{ x: number; y: number }[]>>());
 	const initializedTweens = new WeakSet<GeometryTween<{ x: number; y: number }[]>>();
 	let tweenPlanId: string | undefined;
@@ -226,15 +240,13 @@
 		const planId = ws.plan.id;
 		const items = [
 			...layout.lines.map((l) => ({
-				key: `line:${l.key}:${l.points.length}`,
-				id: l.key,
+				key: lineKeyFor(l),
 				points: l.points,
 				measured: l.taskIds.every(isMeasured)
 			})),
 			...routes.map((r) => ({
-				key: `${r.carrier}:${r.key}:${r.points.length}`,
-				id: r.key,
-				points: r.points,
+				key: routeKeyFor(r),
+				points: [...r.points, ...(r.chevron ?? [])],
 				measured: isMeasured(r.from) && isMeasured(r.to)
 			}))
 		];
@@ -245,18 +257,8 @@
 				items.map((item) => {
 					const points = [...item.points];
 					const old = previous.get(item.key);
-					const prior = old ?? [...previous].find(([key]) => key.includes(`:${item.id}:`))?.[1];
-					const start = points.map((point, index) =>
-						index === 0 && prior
-							? prior.current[0]
-							: index === points.length - 1 && prior
-								? prior.current.at(-1)!
-								: point
-					);
 					const tween =
-						old && old.current.length === points.length ? old : new GeometryTween(start);
-					// A replacement tween with measured endpoints keeps its current-frame ports.
-					if (tween !== old && item.measured) initializedTweens.add(tween);
+						old && old.current.length === points.length ? old : new GeometryTween(points);
 					tween.set(points, { snap: !initializedTweens.has(tween) });
 					if (item.measured) initializedTweens.add(tween);
 					return [item.key, tween];
@@ -271,16 +273,34 @@
 			edge: routes.find((edge) => edge.key === line.dependencyKeys[0])
 		}))
 	);
-	const routeWidth = (from: string, to: string) =>
-		nodes.get(from)?.parentId || nodes.get(to)?.parentId ? 1.5 : 2;
+	const routeFrame = (edge: RouteMapRoute) => {
+		const current = tweens.get(routeKeyFor(edge))?.current ?? [
+			...edge.points,
+			...(edge.chevron ?? [])
+		];
+		const chevron = current.slice(edge.points.length);
+		const points = current.slice(0, edge.points.length);
+		return {
+			points: chevron.length ? [...points.slice(0, -1), chevron[1]] : points,
+			chevron
+		};
+	};
+	const thinColor = (edge: RouteMapRoute) => {
+		const route = paint(focus.litLineKeys.has(edge.key));
+		if (route === 'lit') return 'var(--foreground)';
+		const level = markColorLevel(nodes.get(edge.from)!.status, 'connector', route === 'off');
+		return `color-mix(in oklab, currentColor ${level}%, var(--background, #FFFFFF))`;
+	};
+	const openPath = (points: readonly { x: number; y: number }[]) =>
+		points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
 </script>
 
 {#snippet stageLine(line: RouteMapLine)}
-	{@const points = tweens.get(`line:${line.key}:${line.points.length}`)?.current ?? line.points}
+	{@const points = tweens.get(lineKeyFor(line))?.current ?? line.points}
 	<path
 		data-testid="route-map-guide"
 		data-carrier-path
-		data-family-branch={line.kind === 'family' ? '' : undefined}
+		data-family-branch={line.form === 'double' ? '' : undefined}
 		d={path(points)}
 		fill="none"
 		stroke={lineColor(line)}
@@ -290,6 +310,60 @@
 		class="stage-line"
 		style:transition-duration={`${motionDuration(150)}ms`}
 	/>
+	{#if line.form === 'double'}
+		<path
+			d={path(points)}
+			fill="none"
+			stroke="var(--background)"
+			stroke-width={sizes.branchGap}
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class="branch-gap"
+		/>
+	{/if}
+{/snippet}
+
+{#snippet walkway(edge: RouteMapRoute, overlay = false)}
+	{@const frame = routeFrame(edge)}
+	{@const route = paint(focus.litLineKeys.has(edge.key))}
+	{#if overlay}
+		<path
+			d={path(frame.points)}
+			fill="none"
+			stroke="var(--background)"
+			stroke-width="4"
+			data-overlay-for={edge.key}
+			data-route-layer="casing"
+		/>
+	{/if}
+	<path
+		d={path(frame.points)}
+		fill="none"
+		stroke={thinColor(edge)}
+		stroke-width={sizes.path}
+		class="thin-path"
+		data-testid={overlay ? undefined : 'gantt-dependency'}
+		data-from={edge.from}
+		data-to={edge.to}
+		data-route={route ?? undefined}
+		data-overlay-for={overlay ? edge.key : undefined}
+		data-route-layer={overlay ? 'ink' : undefined}
+		style:transition-duration={`${motionDuration(150)}ms`}
+	/>
+	{#if frame.chevron.length}
+		<path
+			data-chevron
+			d={openPath(frame.chevron)}
+			fill="none"
+			stroke={thinColor(edge)}
+			stroke-width={sizes.path}
+			class="thin-path"
+			data-route={route ?? undefined}
+			data-overlay-for={overlay ? edge.key : undefined}
+			data-route-layer={overlay ? 'ink' : undefined}
+			style:transition-duration={`${motionDuration(150)}ms`}
+		/>
+	{/if}
 {/snippet}
 <div
 	bind:this={root}
@@ -313,7 +387,7 @@
 					{height}
 					aria-hidden="true"
 				>
-					{#each routes.filter((r) => r.carrier === 'walkway' && !r.cycle) as edge (JSON.stringify( [edge.key, edge.carrier, edge.points.length] ))}
+					{#each routes.filter((r) => r.carrier === 'walkway' && !r.cycle) as edge (routeKeyFor(edge))}
 						<g
 							transition:fade={{ duration: motionDuration(160) }}
 							data-testid="route-map-dependency"
@@ -322,46 +396,17 @@
 							data-carrier={edge.carrier}
 							data-route={paint(focus.litLineKeys.has(edge.key)) ?? undefined}
 						>
-							<GanttLine
-								line={{ ...edge, trunk: edge.trunkId ?? edge.key, points: [] }}
-								muted={['done', 'canceled'].includes(nodes.get(edge.from)!.status)}
-								strokeWidth={routeWidth(edge.from, edge.to)}
-								tween={tweens.get(`${edge.carrier}:${edge.key}:${edge.points.length}`) ?? {
-									current: [...edge.points]
-								}}
-								route={paint(focus.litLineKeys.has(edge.key))}
-							/>
+							{@render walkway(edge)}
 						</g>
 					{/each}
 					<g class="route-overlays">
-						{#each routes.filter((r) => r.carrier === 'walkway' && !r.cycle && focus.litLineKeys.has(r.key) && focus.active) as edge (JSON.stringify( [edge.key, edge.carrier, edge.points.length] ))}
+						{#each routes.filter((r) => r.carrier === 'walkway' && !r.cycle && focus.litLineKeys.has(r.key) && focus.active) as edge (routeKeyFor(edge))}
 							<g transition:fade={{ duration: motionDuration(160) }}>
-								<path
-									d={path(
-										tweens.get(`${edge.carrier}:${edge.key}:${edge.points.length}`)?.current ??
-											edge.points
-									)}
-									fill="none"
-									stroke="var(--background)"
-									stroke-width="4"
-									data-overlay-for={edge.key}
-									data-route-layer="casing"
-								/>
-								<path
-									d={path(
-										tweens.get(`${edge.carrier}:${edge.key}:${edge.points.length}`)?.current ??
-											edge.points
-									)}
-									fill="none"
-									stroke="var(--foreground)"
-									stroke-width={routeWidth(edge.from, edge.to)}
-									data-overlay-for={edge.key}
-									data-route-layer="ink"
-								/>
+								{@render walkway(edge, true)}
 							</g>
 						{/each}
 					</g>
-					{#each routes.filter((r) => r.cycle) as edge (JSON.stringify( [edge.key, edge.carrier, edge.points.length] ))}
+					{#each routes.filter((r) => r.cycle) as edge (routeKeyFor(edge))}
 						<g
 							transition:fade={{ duration: motionDuration(160) }}
 							data-testid="route-map-dependency"
@@ -373,14 +418,14 @@
 							<GanttLine
 								line={{ ...edge, trunk: edge.key, points: [] }}
 								muted={false}
-								tween={tweens.get(`${edge.carrier}:${edge.key}:${edge.points.length}`) ?? {
+								tween={tweens.get(routeKeyFor(edge)) ?? {
 									current: [...edge.points]
 								}}
 								route={paint(focus.litLineKeys.has(edge.key))}
 							/>
 						</g>
 					{/each}
-					{#each lineEntries.filter((entry) => entry.edge) as entry (JSON.stringify( [entry.line.key, entry.edge!.carrier, entry.line.points.length] ))}
+					{#each lineEntries.filter((entry) => entry.edge) as entry (lineKeyFor(entry.line))}
 						{@const edge = entry.edge!}
 						<g
 							transition:fade={{ duration: motionDuration(160) }}
@@ -393,7 +438,7 @@
 							{@render stageLine(entry.line)}
 						</g>
 					{/each}
-					{#each lineEntries.filter((entry) => !entry.edge) as entry (`${entry.line.key}:${entry.line.points.length}`)}
+					{#each lineEntries.filter((entry) => !entry.edge) as entry (lineKeyFor(entry.line))}
 						<g transition:fade={{ duration: motionDuration(150) }}
 							>{@render stageLine(entry.line)}</g
 						>
@@ -478,13 +523,25 @@
 </div>
 
 <style>
-	.stage-line {
+	.stage-line,
+	.thin-path {
 		transition-property: stroke;
 	}
 	@media (forced-colors: active) {
 		.stage-line {
 			forced-color-adjust: none;
 			stroke: CanvasText;
+		}
+		.branch-gap {
+			forced-color-adjust: none;
+			stroke: Canvas;
+		}
+		.thin-path {
+			forced-color-adjust: none;
+			stroke: CanvasText;
+		}
+		.thin-path[data-route='lit'] {
+			stroke: Highlight;
 		}
 		.route-overlays [data-route-layer='casing'] {
 			forced-color-adjust: none;

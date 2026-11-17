@@ -7,8 +7,8 @@
 	import RouteMapStationGlyph from './RouteMapStationGlyph.svelte';
 	import TaskStatusIcon from '#lib/components/task/TaskStatusIcon.svelte';
 	import { taskStatusLabel } from '#lib/components/task/task-status.ts';
-	import { routeMapPath } from '#lib/scene/route-map-router.ts';
-	import { markColorLevel, stagePaperColor, subtaskFill } from '#lib/components/plan/colors.ts';
+	import { routeMapPath, routeMapSizes, type RouteMapRoute } from '#lib/scene/route-map-router.ts';
+	import { markColorLevel, stagePaperColor } from '#lib/components/plan/colors.ts';
 	import type { DiagramPaperProps } from '#lib/components/diagram/view-contract.ts';
 	import type { RouteMapNode } from '#lib/domain/route-map.ts';
 	import { joinList } from '#lib/domain/format.ts';
@@ -57,13 +57,13 @@
 		].map((id) => items.flatMap((item) => item.stations).find((s) => s.id === id)?.reference ?? id)
 	);
 
-	const paperLine = (stageId: string, ids: readonly string[], branch = false) => {
+	const sizes = routeMapSizes.paper;
+	const paperLine = (stageId: string, ids: readonly string[]) => {
 		const statuses = ids.map((id) => node(id)?.status);
 		const dim =
 			statuses.includes('canceled') || (statuses.length > 1 && statuses.every((s) => s === 'done'));
 		const base = stagePaperColor(stage(stageId)!.color);
-		const color = branch && !dim ? subtaskFill(base, 'white') : base;
-		return `color-mix(in oklab, ${color} ${markColorLevel(dim ? 'done' : 'todo', 'line', false, true)}%, white)`;
+		return `color-mix(in oklab, ${base} ${markColorLevel(dim ? 'done' : 'todo', 'line', false, true)}%, white)`;
 	};
 	const path = routeMapPath;
 	const ring = (point: { x: number; y: number }, key: string) => ({
@@ -72,14 +72,33 @@
 		kind: 'junction' as const,
 		point: { x: { f: 0, px: point.x }, y: { f: 0, px: point.y } }
 	});
-	const connectorPoints = (edge: { points: readonly { x: number; y: number }[] }) => {
-		if ('kind' in edge)
-			return (edge as RouteMapContinuation).kind === 'exit'
-				? edge.points.slice(0, -1)
-				: edge.points.slice(1);
-		return edge.points;
+	const connectorPoints = (edge: RouteMapRoute | RouteMapContinuation) => {
+		const points =
+			'kind' in edge
+				? edge.kind === 'exit'
+					? edge.points.slice(0, -1)
+					: edge.points.slice(1)
+				: edge.points;
+		return edge.chevron?.length ? [...points.slice(0, -1), edge.chevron[1]] : points;
 	};
 	const child = (id: string) => !!node(id)?.parentId;
+	const branch = (edge: RouteMapRoute) => child(edge.from) || child(edge.to);
+	const connectorWidth = (edge: RouteMapRoute) =>
+		edge.carrier === 'line'
+			? branch(edge)
+				? sizes.branch
+				: sizes.rail
+			: edge.cycle
+				? 2
+				: sizes.path;
+	const connectorColor = (edge: RouteMapRoute) =>
+		edge.carrier === 'line'
+			? paperLine(node(edge.to)!.stageId, [edge.from, edge.to])
+			: edge.cycle
+				? 'var(--color-paper-warning, #C8352D)'
+				: `color-mix(in oklab, currentColor ${markColorLevel(node(edge.from)?.status ?? 'todo', 'connector', false, true)}%, white)`;
+	const openPath = (points: readonly { x: number; y: number }[]) =>
+		points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
 </script>
 
 <div>
@@ -112,7 +131,6 @@
 					aria-hidden="true"
 				>
 					{#each [...item.edges.filter((e) => e.carrier !== 'line'), ...item.continuations] as edge, index (`${edge.key}:${index}`)}
-						{@const isBranch = child(edge.from) || child(edge.to)}
 						<g data-carrier={edge.carrier} data-from={edge.from} data-to={edge.to}>
 							{#if edge.cycle}<path
 									d={path(connectorPoints(edge))}
@@ -124,38 +142,58 @@
 								data-carrier-path
 								d={path(connectorPoints(edge))}
 								fill="none"
-								stroke={edge.carrier === 'line'
-									? paperLine(node(edge.to)!.stageId, [edge.from, edge.to])
-									: edge.cycle
-										? 'var(--color-paper-warning, #C8352D)'
-										: `color-mix(in oklab, currentColor ${markColorLevel(node(edge.from)?.status ?? 'todo', 'connector', false, true)}%, white)`}
-								stroke-width={edge.carrier === 'line'
-									? isBranch
-										? 3.5
-										: 5
-									: edge.cycle
-										? 2
-										: isBranch
-											? 0.75
-											: 1}
+								stroke={connectorColor(edge)}
+								stroke-width={connectorWidth(edge)}
 								stroke-dasharray={edge.cycle ? '1 4' : undefined}
 								stroke-linecap={edge.cycle ? 'round' : undefined}
 								stroke-linejoin="round"
 								data-cycle={edge.cycle ? 'true' : undefined}
 							/>
+							{#if edge.carrier === 'line' && branch(edge)}
+								<path
+									d={path(connectorPoints(edge))}
+									fill="none"
+									stroke="white"
+									stroke-width={sizes.branchGap}
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								/>
+							{/if}
+							{#if edge.chevron?.length}
+								<path
+									data-chevron
+									d={openPath(edge.chevron)}
+									fill="none"
+									stroke={connectorColor(edge)}
+									stroke-width={sizes.path}
+								/>
+							{/if}
 						</g>
 					{/each}
 					{#each item.lines as line (line.key)}
-						<path
-							data-paper-line
-							data-family-branch={line.kind === 'family' ? '' : undefined}
-							d={path(line.points)}
-							fill="none"
-							stroke={paperLine(line.stageId, line.taskIds, line.kind === 'family')}
-							stroke-width={line.width}
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						/>
+						<g data-carrier="line" data-from={line.taskIds[0]} data-to={line.taskIds[1]}>
+							<path
+								data-paper-line
+								data-carrier-path
+								data-family-branch={line.form === 'double' ? '' : undefined}
+								d={path(line.points)}
+								fill="none"
+								stroke={paperLine(line.stageId, line.taskIds)}
+								stroke-width={line.width}
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+							{#if line.form === 'double'}
+								<path
+									d={path(line.points)}
+									fill="none"
+									stroke="white"
+									stroke-width={sizes.branchGap}
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								/>
+							{/if}
+						</g>
 					{/each}
 					{#each item.junctions ?? [] as junction, index (index)}
 						<DiagramRing
@@ -178,7 +216,9 @@
 						style:width="{station.hitBox.w}px"
 						style:height="{station.hitBox.h}px"
 					>
-						<span class="relative flex"><RouteMapStationGlyph {color} size={6} still /></span>
+						<span class="relative flex"
+							><RouteMapStationGlyph {color} size={sizes.station} still /></span
+						>
 						{#if sign}<RouteMapInterchange {sign} still />{/if}
 					</div>
 					<div
@@ -228,21 +268,17 @@
 							data-continuation-stub
 							d={path(stub.points)}
 							fill="none"
-							stroke={stub.carrier === 'line'
-								? paperLine(node(stub.to)!.stageId, [stub.from, stub.to])
-								: stub.cycle
-									? 'var(--color-paper-warning, #C8352D)'
-									: `color-mix(in oklab, currentColor ${markColorLevel(node(stub.from)?.status ?? 'todo', 'connector', false, true)}%, white)`}
-							stroke-width={stub.carrier === 'line'
-								? child(stub.from) || child(stub.to)
-									? 3.5
-									: 5
-								: stub.cycle
-									? 2
-									: child(stub.from) || child(stub.to)
-										? 0.75
-										: 1}
+							stroke={connectorColor(stub)}
+							stroke-width={connectorWidth(stub)}
 						/>
+						{#if stub.carrier === 'line' && branch(stub)}
+							<path
+								d={path(stub.points)}
+								fill="none"
+								stroke="white"
+								stroke-width={sizes.branchGap}
+							/>
+						{/if}
 						{#if stub.ring}<DiagramRing
 								junction={ring(stub.ring, stub.key)}
 								width={item.width}

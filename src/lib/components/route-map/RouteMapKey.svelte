@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js';
+	import { routeMapSizes } from '#lib/scene/route-map-router.ts';
 	let { still = false }: { still?: boolean } = $props();
+	const sizes = $derived(routeMapSizes[still ? 'paper' : 'screen']);
+	const arm = $derived(sizes.chevron / Math.SQRT2);
 	const signs = $derived([
 		{ kind: 'workflow', label: m.route_map_key_workflow() },
 		{ kind: 'family', label: m.route_map_key_subtask_route() },
@@ -30,13 +33,13 @@
 						d="M 0 10 H 24"
 						fill="none"
 						stroke="currentColor"
-						stroke-width="8"
+						stroke-width={sizes.rail}
 					/>
 				{:else if sign.kind === 'station'}
 					<circle
 						cx="12"
 						cy="10"
-						r={still ? 2.25 : 3.25}
+						r={sizes.station / 2 - 0.75}
 						class="ground"
 						stroke="currentColor"
 						stroke-width="1.5"
@@ -53,14 +56,26 @@
 						stroke-width="2"
 					/>
 				{:else if sign.kind === 'walkway'}
+					<path d="M 0 14 L 5 9 H 20" fill="none" stroke="currentColor" stroke-width={sizes.path} />
 					<path
-						d="M 0 14 L 5 9 H 19 L 24 14"
+						d={`M ${20 - arm} ${9 - arm} L 20 9 L ${20 - arm} ${9 + arm}`}
 						fill="none"
 						stroke="currentColor"
-						stroke-width="1.5"
+						stroke-width={sizes.path}
 					/>
 				{:else if sign.kind === 'family'}
-					<path d="M 0 5 H 6 L 16 15 H 24" fill="none" stroke="currentColor" stroke-width="2" />
+					<path
+						d="M 0 5 H 6 L 16 15 H 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width={sizes.branch}
+					/>
+					<path
+						d="M 0 5 H 6 L 16 15 H 24"
+						fill="none"
+						class="branch-gap"
+						stroke-width={sizes.branchGap}
+					/>
 				{:else}
 					<path
 						d="M 1 10 H 23"
@@ -102,12 +117,18 @@
 	.ground {
 		fill: var(--background);
 	}
+	.branch-gap {
+		stroke: var(--background);
+	}
 	.paper {
 		color: var(--color-paper-ink, #1a1d23);
 		font-size: 10px;
 	}
 	.paper .ground {
 		fill: white;
+	}
+	.paper .branch-gap {
+		stroke: white;
 	}
 	.paper .cycle {
 		color: var(--color-paper-warning, #c8352d);
@@ -126,6 +147,10 @@
 		.ground,
 		.paper .ground {
 			fill: Canvas;
+		}
+		.branch-gap,
+		.paper .branch-gap {
+			stroke: Canvas;
 		}
 	}
 </style>
