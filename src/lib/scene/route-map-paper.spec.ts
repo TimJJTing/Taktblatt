@@ -1,9 +1,15 @@
+import { m } from '#lib/paraglide/messages.js';
 import { describe, expect, it } from 'vitest';
 import { makePlan } from '#lib/domain/test-helpers.ts';
 import { indexTasks } from '#lib/domain/derive.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
 import { routeMapLayout } from './route-map-layout.ts';
-import { routeMapPaper, type RouteMapPaper, type RouteMapPaperMetrics } from './route-map-paper.ts';
+import {
+	routeMapPaper,
+	routeMapPaperHeaderHeight,
+	type RouteMapPaper,
+	type RouteMapPaperMetrics
+} from './route-map-paper.ts';
 import {
 	expectClearRoutes,
 	pinnedExamplePlan,
@@ -120,6 +126,120 @@ function expectEmptyStage(paper: RouteMapPaper, stageId: string) {
 }
 
 describe('Workflow Route map paper', () => {
+	it('reserves heading and key rows and grows when the keys wrap', () => {
+		const header = {
+			heading: m.route_map_print_header_parents({
+				panels: '9'.repeat(39) + '…',
+				stages: 'W'.repeat(39) + '…',
+				parents: 'W'.repeat(39) + '…'
+			}),
+			keyEntries: [
+				'Stage journey',
+				'Subtask route',
+				'Station',
+				'Transfer',
+				'Cross-stage dependency',
+				'Dependency cycle'
+			],
+			statusEntries: ['Todo', 'In progress', 'Done', 'Canceled'],
+			readiness: 'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+		};
+		const measure = (text: string) => text.length * 7;
+		const wide = routeMapPaperHeaderHeight(header, 900, measure);
+		const narrow = routeMapPaperHeaderHeight(header, 180, measure);
+		expect(wide).toBeGreaterThan(0);
+		expect(narrow).toBeGreaterThan(wide);
+	});
+
+	it('uses the reserved header height for the panel body', () => {
+		const plan = pinnedExamplePlan();
+		const m = { ...exampleMetrics(), headerHeight: 130 };
+		const paper = routeMapPaper(routeMapModel(plan, new Set(), indexTasks(plan.tasks)), m);
+		expect(paper.panels[0].id.endsWith(`:${usable(m).w}:${usable(m).h}`)).toBe(true);
+	});
+
+	it('wraps parent summaries and reserves their label and item height in both detail states', () => {
+		const plan = pinnedExamplePlan();
+		const text = '1 in progress and 1 done';
+		for (const expanded of [false, true]) {
+			const model = routeMapModel(
+				plan,
+				new Set(expanded ? ['task-1', 'task-8'] : []),
+				indexTasks(plan.tasks)
+			);
+			const base = routeMapPaper(model, exampleMetrics());
+			const withSummary = routeMapPaper(model, {
+				...exampleMetrics(),
+				summaryText: (id) => (id === 'task-1' ? text : '')
+			});
+			const item = withSummary.segment.items.find((entry) =>
+				entry.stations.some((station) => station.id === 'task-1')
+			)!;
+			const station = item.stations.find((entry) => entry.id === 'task-1')!;
+			const oldItem = base.segment.items.find((entry) =>
+				entry.stations.some((station) => station.id === 'task-1')
+			)!;
+			const oldStation = oldItem.stations.find((entry) => entry.id === 'task-1')!;
+			expect(station.summaryLines?.join(' ')).toBe(text);
+			expect(station.summaryLines!.length).toBeGreaterThan(1);
+			for (const line of station.summaryLines!)
+				expect(exampleMetrics().measureText(line)).toBeLessThanOrEqual(station.labelBox.w);
+			expect(station.labelBox.h).toBeGreaterThan(oldStation.labelBox.h);
+			expect(item.height).toBeGreaterThanOrEqual(station.labelBox.y + station.labelBox.h);
+		}
+	});
+
+	it('fits the garden with the computed header on A4 and Letter', () => {
+		const plan = pinnedExamplePlan();
+		const header = {
+			heading: 'Route map',
+			keyEntries: [
+				'Stage journey',
+				'Subtask route',
+				'Station',
+				'Transfer',
+				'Cross-stage dependency',
+				'Dependency cycle'
+			],
+			statusEntries: ['Todo', 'In progress', 'Done', 'Canceled'],
+			readiness: 'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+		};
+		for (const letter of [false, true])
+			for (const expanded of [false, true]) {
+				const m = {
+					...exampleMetrics(letter),
+					headerHeight: routeMapPaperHeaderHeight(
+						header,
+						(letter ? 1056 : mm(297)) - 114,
+						screenMetrics.measureText
+					)
+				};
+				expect(m.headerHeight).toBeGreaterThan(66);
+				const model = routeMapModel(
+					plan,
+					new Set(expanded ? ['task-1', 'task-8'] : []),
+					indexTasks(plan.tasks)
+				);
+				const paper = routeMapPaper(model, {
+					...m,
+					summaryText: (id) =>
+						id === 'task-1' ? '1 in progress and 1 done' : '1 ready and 1 blocked'
+				});
+				if (!expanded) expect(paper.segment.items).toHaveLength(1);
+				const ids = paper.segment.items.flatMap((item) =>
+					item.stations.map((station) => station.id)
+				);
+				expect(ids.sort()).toEqual(
+					plan.tasks
+						.filter((task) => expanded || !task.parentId)
+						.map((task) => task.id)
+						.sort()
+				);
+				if (expanded) expect(ids).toHaveLength(11);
+				expectFits(paper, m);
+			}
+	});
+
 	it('keeps an empty stage with its badge on a fitting panel', () => {
 		const plan = makePlan(
 			[task({ id: 'a' }), task({ id: 'b', dependsOn: ['a'] })],

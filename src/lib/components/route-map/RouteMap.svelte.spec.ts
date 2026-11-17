@@ -19,11 +19,15 @@ import {
 } from '#lib/scene/route-map.test-helpers.ts';
 import { formatRangeDisplay, joinList } from '#lib/domain/format.ts';
 import { uiIntl } from '#lib/ui-language.ts';
-import { indexTasks } from '#lib/domain/derive.ts';
+import { familySummary, indexTasks } from '#lib/domain/derive.ts';
+import { familySummaryText } from '#lib/components/diagram/family-summary.ts';
 import { routeMapModel } from '#lib/domain/route-map.ts';
-import { routeMapPaper } from '#lib/scene/route-map-paper.ts';
+import { m } from '#lib/paraglide/messages.js';
+import { getLocale, overwriteGetLocale } from '#lib/paraglide/runtime.js';
+import { view as routeMapView } from './diagram-view.ts';
+import { routeMapPaper, routeMapPaperMeasureText } from '#lib/scene/route-map-paper.ts';
 import PrintRouteMap from './PrintRouteMap.svelte';
-import { makeTask } from '#lib/domain/test-helpers.ts';
+import { makePlan, makeTask } from '#lib/domain/test-helpers.ts';
 import { removeTasks, updateTask } from '#lib/state/commands.ts';
 import { EditingState } from '#lib/state/editing.svelte.ts';
 import { ViewerState } from '#lib/state/viewer.svelte.ts';
@@ -1905,6 +1909,352 @@ describe('Route map station interactions', () => {
 				expect(item.querySelector(`[data-paper-station="${from}"]`)).not.toBeNull();
 				expect(item.querySelector(`[data-paper-station="${to}"]`)).not.toBeNull();
 			}
+		}
+	});
+
+	it('prints both keys and family summaries in each detail state', async () => {
+		const plan = pinnedExamplePlan();
+		const index = indexTasks(plan.tasks);
+		for (const expanded of [false, true]) {
+			const model = routeMapModel(plan, new Set(expanded ? ['task-1', 'task-8'] : []), index);
+			const paper = routeMapPaper(model, {
+				...screenMetrics,
+				sheetWidth: 1200,
+				sheetHeight: 900,
+				margin: 24,
+				repeatedLabelWidth: 0,
+				gutter: 0,
+				headerHeight: 100,
+				footerHeight: 54,
+				lineHeight: 16,
+				summaryText: (id) => familySummaryText(familySummary(index, id), 'en')
+			});
+			const adapterSegment = routeMapView.paper.segments({
+				plan,
+				index,
+				showSubtasks: () => expanded,
+				today: '2026-11-14'
+			})[0];
+			expect(adapterSegment.kind).toBe('scene');
+			if (adapterSegment.kind !== 'scene') throw new Error('Expected Route map scene');
+			const headerHeight = (adapterSegment.data as { headerHeight: number }).headerHeight;
+			const segment = {
+				...paper.segment,
+				data: { stages: plan.stages, nodes: model.nodes, panels: paper.panels, headerHeight }
+			};
+			const printed = await render(PrintRouteMap, {
+				segment,
+				from: 0,
+				to: segment.items.length,
+				first: true,
+				width: 1100
+			});
+			await document.fonts.ready;
+			const root = printed.container;
+			const repeat = root.querySelector('[data-part="repeat"]')!;
+			const signs = repeat.querySelector('[data-testid="route-map-key"]');
+			expect([...signs!.querySelectorAll('li')].map((li) => li.textContent?.trim())).toEqual([
+				'Stage journey',
+				'Subtask route',
+				'Station',
+				'Transfer',
+				'Cross-stage dependency',
+				'Dependency cycle'
+			]);
+			const status = repeat.querySelector('[aria-label="Status"]');
+			expect(status).not.toBeNull();
+			if (status) {
+				expect([...status.querySelectorAll('li')].map((li) => li.textContent?.trim())).toEqual([
+					'Todo',
+					'In progress',
+					'Done',
+					'Canceled'
+				]);
+				for (const icon of status.querySelectorAll('svg')) {
+					expect(icon.getBoundingClientRect().width).toBe(12);
+					expect(icon.getBoundingClientRect().height).toBe(12);
+				}
+			}
+			expect(repeat.textContent).toContain(
+				'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+			);
+			for (const id of ['task-1', 'task-8']) {
+				const label = root.querySelector(`[data-paper-station="${id}"]`)?.nextElementSibling;
+				const summary = label?.querySelector('[data-paper-summary]');
+				expect(summary?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+					familySummaryText(familySummary(index, id), 'en')
+				);
+				if (summary && label)
+					expect(summary.getBoundingClientRect().top).toBeGreaterThan(
+						label.getBoundingClientRect().top
+					);
+			}
+			for (const icon of root.querySelectorAll('.paper-label [data-route-map-status] svg')) {
+				expect(icon.getBoundingClientRect().width).toBe(12);
+				expect(icon.getBoundingClientRect().height).toBe(12);
+			}
+			expect(root.querySelector('button')).toBeNull();
+			await printed.unmount();
+		}
+	});
+
+	it('bounds all three paper heading lists at the production reservation in four locales', async () => {
+		const originalLocale = getLocale;
+		const plan = makePlan([
+			makeTask({ id: 'parent' }),
+			makeTask({ id: 'child', parentId: 'parent' })
+		]);
+		const stageTitles = ['W'.repeat(30) + '漢'.repeat(30), '漢'.repeat(60)];
+		plan.stages = stageTitles.map((title, i) => ({
+			id: `s${i + 1}`,
+			title,
+			description: '',
+			color: 'blue' as const
+		}));
+		const index = indexTasks(plan.tasks);
+		const model = routeMapModel(plan, new Set(['parent']), index);
+		const base = routeMapPaper(model, {
+			...screenMetrics,
+			sheetWidth: 1200,
+			sheetHeight: 900,
+			margin: 24,
+			repeatedLabelWidth: 0,
+			gutter: 0,
+			headerHeight: 120,
+			footerHeight: 54,
+			lineHeight: 16
+		});
+		const template = base.segment.items.find((item) =>
+			item.stations.some((station) => station.id === 'child')
+		)!;
+		const parent = template.stations.find((station) => station.id === 'parent')!;
+		const child = template.stations.find((station) => station.id === 'child')!;
+		const parentNode = model.nodes.find((node) => node.id === 'parent')!;
+		const childNode = model.nodes.find((node) => node.id === 'child')!;
+		const panels = Array.from({ length: 35 }, (_, i) => ({
+			id: `panel-${i}`,
+			columnIds: [] as string[]
+		}));
+		const references = panels.map((_, i) => `parent-reference-${i + 1}`);
+		const nodes = panels.flatMap((_, i) => [
+			{ ...parentNode, id: `p${i}`, stageId: `s${(i % 2) + 1}` },
+			{ ...childNode, id: `c${i}`, parentId: `p${i}`, stageId: `s${(i % 2) + 1}` }
+		]);
+		const items = panels.map((panel, i) => ({
+			...template,
+			id: `item-${i}`,
+			panelId: panel.id,
+			stageId: `s${(i % 2) + 1}`,
+			stations: [
+				{ ...parent, id: `p${i}`, reference: references[i] },
+				{ ...child, id: `c${i}` }
+			],
+			lines: [],
+			edges: [],
+			continuations: [],
+			stageLabels: [],
+			signs: [],
+			junctions: [],
+			titles: []
+		}));
+		const truncate = (text: string) =>
+			Array.from(text).length > 40 ? `${Array.from(text).slice(0, 39).join('')}…` : text;
+		try {
+			for (const locale of ['en', 'de', 'ja', 'zh-TW'] as const) {
+				overwriteGetLocale(() => locale);
+				const panelText = truncate(
+					joinList(
+						panels.map((_, i) => String(i + 1)),
+						locale
+					)
+				);
+				const stageText = truncate(joinList(stageTitles.map(truncate), locale));
+				const parentText = truncate(joinList(references, locale));
+				for (const field of [panelText, stageText, parentText]) {
+					expect(Array.from(field).length).toBeLessThanOrEqual(40);
+					expect(field.endsWith('…')).toBe(true);
+				}
+				const expected = m.route_map_print_header_parents({
+					panels: panelText,
+					stages: stageText,
+					parents: parentText
+				});
+				for (const size of ['a4', 'letter'] as const) {
+					const input = { ...plan, paper: size };
+					const adapter = routeMapView.paper.segments({
+						plan: input,
+						index,
+						showSubtasks: () => true,
+						today: '2026-11-14'
+					})[0];
+					expect(adapter.kind).toBe('scene');
+					if (adapter.kind !== 'scene') throw new Error('Expected Route map scene');
+					const headerHeight = (adapter.data as { headerHeight: number }).headerHeight;
+					const segment = {
+						...base.segment,
+						items,
+						data: { stages: plan.stages, nodes, panels, headerHeight }
+					};
+					const width = (size === 'letter' ? 1056 : (297 * 96) / 25.4) - 114;
+					const printed = await render(PrintRouteMap, {
+						segment,
+						from: 0,
+						to: items.length,
+						first: true,
+						width
+					});
+					printed.container.style.width = `${width}px`;
+					await document.fonts.ready;
+					const repeat = printed.container.querySelector<HTMLElement>('[data-part="repeat"]')!;
+					const walker = document.createTreeWalker(repeat, NodeFilter.SHOW_TEXT);
+					const headingNodes: Node[] = [];
+					while (walker.nextNode()) {
+						const node = walker.currentNode;
+						if (!node.parentElement?.closest('ul, p') && node.textContent?.trim())
+							headingNodes.push(node);
+					}
+					expect(
+						headingNodes
+							.map((node) => node.textContent)
+							.join('')
+							.trim()
+					).toBe(expected);
+					const rect = repeat.getBoundingClientRect();
+					expect(Math.abs(rect.height - headerHeight)).toBeLessThanOrEqual(1);
+					expect(repeat.scrollHeight).toBeLessThanOrEqual(repeat.clientHeight + 1);
+					for (const element of repeat.children)
+						expect(element.getBoundingClientRect().bottom).toBeLessThanOrEqual(rect.bottom + 1);
+					for (const node of headingNodes) {
+						const range = document.createRange();
+						range.selectNodeContents(node);
+						for (const line of range.getClientRects())
+							expect(line.bottom).toBeLessThanOrEqual(rect.bottom + 1);
+					}
+					await printed.unmount();
+				}
+			}
+		} finally {
+			overwriteGetLocale(originalLocale);
+		}
+	});
+
+	it('uses normal weight for paper keys and semibold weight for the heading', async () => {
+		const plan = pinnedExamplePlan();
+		const segment = routeMapView.paper.segments({
+			plan,
+			index: indexTasks(plan.tasks),
+			showSubtasks: () => false,
+			today: '2026-11-14'
+		})[0];
+		expect(segment.kind).toBe('scene');
+		if (segment.kind !== 'scene') throw new Error('Expected Route map scene');
+		const printed = await render(PrintRouteMap, {
+			segment,
+			from: 0,
+			to: segment.items.length,
+			first: true,
+			width: 900
+		});
+		await document.fonts.ready;
+		const repeat = printed.container.querySelector<HTMLElement>('[data-part="repeat"]')!;
+		const sign = repeat.querySelector<HTMLElement>('[data-testid="route-map-key"] li span')!;
+		const status = repeat.querySelector<HTMLElement>('[aria-label="Status"]')!;
+		const readiness = status.nextElementSibling!;
+		const walker = document.createTreeWalker(repeat, NodeFilter.SHOW_TEXT);
+		let headingElement: HTMLElement | null = null;
+		while (walker.nextNode()) {
+			const node = walker.currentNode;
+			if (node.textContent?.includes('Route map') && node.parentElement) {
+				headingElement = node.parentElement;
+				break;
+			}
+		}
+		expect(headingElement).not.toBeNull();
+		if (headingElement) expect(getComputedStyle(headingElement).fontWeight).toBe('600');
+		expect(getComputedStyle(sign).fontWeight).toBe('400');
+		for (const entry of status.querySelectorAll('li'))
+			expect(getComputedStyle(entry).fontWeight).toBe('400');
+		expect(getComputedStyle(readiness).fontWeight).toBe('400');
+		await printed.unmount();
+	});
+
+	it('keeps a mixed-status Traditional Chinese paper summary inside its label and clear of the badge', async () => {
+		const plan = makePlan([
+			makeTask({ id: 'parent', title: 'Parent' }),
+			makeTask({ id: 'ready', parentId: 'parent' }),
+			makeTask({ id: 'blocked', parentId: 'parent', dependsOn: ['ready'] }),
+			makeTask({ id: 'progress', parentId: 'parent', status: 'in_progress' }),
+			makeTask({ id: 'done', parentId: 'parent', status: 'done' }),
+			makeTask({ id: 'canceled', parentId: 'parent', status: 'canceled' })
+		]);
+		const index = indexTasks(plan.tasks);
+		const summaryText = familySummaryText(familySummary(index, 'parent'), 'zh-TW');
+		expect(familySummary(index, 'parent')).toMatchObject({
+			ready: 1,
+			blocked: 1,
+			inProgress: 1,
+			done: 1,
+			canceled: 1
+		});
+		for (const expanded of [false, true]) {
+			const model = routeMapModel(plan, new Set(expanded ? ['parent'] : []), index);
+			const paper = routeMapPaper(model, {
+				...screenMetrics,
+				measureText: routeMapPaperMeasureText,
+				summaryText: () => summaryText,
+				sheetWidth: 1200,
+				sheetHeight: 900,
+				margin: 24,
+				repeatedLabelWidth: 0,
+				gutter: 0,
+				headerHeight: 120,
+				footerHeight: 54,
+				lineHeight: 16
+			});
+			const item = paper.segment.items.find((entry) =>
+				entry.stations.some((station) => station.id === 'parent')
+			)!;
+			const station = item.stations.find((entry) => entry.id === 'parent')!;
+			const segment = {
+				...paper.segment,
+				data: { stages: plan.stages, nodes: model.nodes, panels: paper.panels, headerHeight: 120 }
+			};
+			const printed = await render(PrintRouteMap, {
+				segment,
+				from: 0,
+				to: segment.items.length,
+				first: true,
+				width: 1100
+			});
+			await document.fonts.ready;
+			const root = printed.container;
+			const mark = root.querySelector('[data-paper-station="parent"]');
+			const label = mark?.nextElementSibling;
+			const summary = label?.querySelector('[data-paper-summary]');
+			const badge = root.querySelector('[data-testid="route-map-stage-label"][data-host="parent"]');
+			const itemElement = mark?.closest('[data-item]');
+			expect(summary).not.toBeNull();
+			expect(badge).not.toBeNull();
+			expect(itemElement).not.toBeNull();
+			if (summary && badge && itemElement) {
+				const summaryBox = summary.getBoundingClientRect();
+				const badgeBox = badge.getBoundingClientRect();
+				const itemBox = itemElement.getBoundingClientRect();
+				expect(summaryBox.height).toBeLessThanOrEqual((station.summaryLines?.length ?? 0) * 14 + 1);
+				expect(summaryBox.bottom).toBeLessThanOrEqual(
+					itemBox.top + station.labelBox.y + station.labelBox.h + 1
+				);
+				expect(
+					summaryBox.bottom <= badgeBox.top ||
+						badgeBox.bottom <= summaryBox.top ||
+						summaryBox.right <= badgeBox.left ||
+						badgeBox.right <= summaryBox.left
+				).toBe(true);
+				expect(itemBox.top + station.labelBox.y + station.labelBox.h).toBeLessThanOrEqual(
+					itemBox.bottom + 1
+				);
+			}
+			await printed.unmount();
 		}
 	});
 

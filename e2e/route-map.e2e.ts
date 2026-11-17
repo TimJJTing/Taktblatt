@@ -2,6 +2,9 @@ import type { TaskStatus } from '#lib/domain/schema.ts';
 import { createExamplePlan } from '#lib/domain/example.ts';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	expectRouteMapPaperKeys,
+	chooseLanguage,
+	choosePrint,
 	focusPreviousControl,
 	ganttRow,
 	row,
@@ -11,6 +14,7 @@ import {
 	expectView,
 	holdAnimationFrames,
 	openPlans,
+	openExample,
 	openPreview,
 	openRoutePlan,
 	storedPlan,
@@ -311,6 +315,101 @@ test('Preview measures Route map items and repeated headers on landscape A4 and 
 			)
 			.toBe(true);
 		await expect(paper(page).first()).toContainText('Route parent', { useInnerText: true });
+		await expectRouteMapPaperKeys(page);
+	}
+});
+
+test('Route map repeated header fits its reservation in four languages on both paper sizes', async ({
+	page
+}) => {
+	await openExample(page);
+	for (const [language, lang] of [
+		['English', 'en'],
+		['Deutsch', 'de'],
+		['日本語', 'ja'],
+		['繁體中文', 'zh-TW']
+	] as const) {
+		if (language !== 'English') {
+			await chooseLanguage(page, language);
+			await page.getByTestId('language-reload-confirm').click();
+			await expect(page.locator('html')).toHaveAttribute('lang', lang);
+		}
+		await choosePrint(page);
+		const preview = page.getByRole('dialog');
+		await expect(preview).toBeVisible();
+		if (language !== 'English')
+			await expect(preview.getByTestId('print-diagram-route-map')).toHaveAttribute(
+				'aria-checked',
+				'true'
+			);
+		if (
+			(await preview.getByTestId('print-diagram-route-map').getAttribute('aria-checked')) !== 'true'
+		)
+			await preview.getByTestId('print-diagram-route-map').click();
+		if ((await preview.getByTestId('print-diagram-gantt').getAttribute('aria-checked')) === 'true')
+			await preview.getByTestId('print-diagram-gantt').click();
+		const detail = preview.getByTestId('print-subtasks');
+		if ((await detail.getAttribute('aria-checked')) !== 'true') await detail.click();
+		await expect(detail).toHaveAttribute('aria-checked', 'true');
+		await page.evaluate(() => document.fonts.ready);
+		for (const size of ['a4', 'letter']) {
+			await page.getByTestId(`paper-${size}`).click();
+			await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', size);
+			await expect(paper(page).locator('[data-paper-station]')).toHaveCount(11);
+			const repeats = page.locator(
+				'[data-testid="sheet"] [data-fragment="route-map-scene"] [data-part="repeat"], [data-sheet-measurer] [data-part="repeat"]:has([data-testid="route-map-key"])'
+			);
+			await expect(repeats).toHaveCount((await paper(page).count()) + 1);
+			for (const repeat of await repeats.all())
+				await expect(repeat).toHaveAttribute('data-header-height', /^\d+(?:\.\d+)?$/);
+			await expect
+				.poll(() =>
+					repeats.evaluateAll((parts) =>
+						parts.every((repeat) => {
+							const element = repeat as HTMLElement;
+							const reservation = Number(element.dataset.headerHeight);
+							const box = element.getBoundingClientRect();
+							const textBounds = [...element.childNodes]
+								.filter((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())
+								.flatMap((node) => {
+									const range = document.createRange();
+									range.selectNodeContents(node);
+									return [...range.getClientRects()];
+								});
+							return (
+								Math.abs(box.height - reservation) < 1 &&
+								element.scrollHeight <= element.clientHeight + 1 &&
+								textBounds.every((rect) => rect.bottom <= box.bottom + 1) &&
+								[...element.children].every(
+									(child) => child.getBoundingClientRect().bottom <= box.bottom + 1
+								)
+							);
+						})
+					)
+				)
+				.toBe(true);
+			await expect
+				.poll(() =>
+					paper(page)
+						.locator('[data-item]')
+						.evaluateAll(
+							(items) =>
+								items.length > 0 &&
+								items.every((item) => {
+									const body = item
+										.closest('[data-testid="sheet"]')
+										?.querySelector('.sheet-content');
+									return (
+										!!body &&
+										item.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom + 1
+									);
+								})
+						)
+				)
+				.toBe(true);
+		}
+		await page.keyboard.press('Escape');
+		await expect(preview).toBeHidden();
 	}
 });
 
@@ -633,6 +732,40 @@ test('workflow example preserves fork ranks and keeps one complete paper item on
 			)
 		).toEqual(['Soil', 'preparation']);
 	}
+	const detail = preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+	await detail.click();
+	for (const size of ['a4', 'letter']) {
+		await page.getByTestId(`paper-${size}`).click();
+		await expect(page.getByTestId('sheets')).toHaveAttribute('data-paper', size);
+		await expect(paper(page).locator('[data-paper-station]')).toHaveCount(11);
+		await expect
+			.poll(() =>
+				paper(page)
+					.locator('[data-paper-station]')
+					.evaluateAll((stations) =>
+						stations.map((station) => station.getAttribute('data-paper-station')).sort()
+					)
+			)
+			.toEqual(fixture.tasks.map((task) => task.id).sort());
+		await expect
+			.poll(() =>
+				paper(page)
+					.locator('[data-item]')
+					.evaluateAll(
+						(items) =>
+							items.length > 0 &&
+							items.every((item) => {
+								const body = item.closest('[data-testid="sheet"]')?.querySelector('.sheet-content');
+								return (
+									!!body &&
+									item.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom + 1
+								);
+							})
+					)
+			)
+			.toBe(true);
+	}
+	await detail.click();
 	await page.emulateMedia({ media: 'print' });
 	try {
 		await expect(paper(page).locator('[data-paper-station]')).toHaveCount(7);

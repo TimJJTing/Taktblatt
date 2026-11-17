@@ -11,6 +11,98 @@ import {
 } from './route-map-layout.ts';
 import { chamferRouteMapPath, routeMapChevron, type RouteMapRoute } from './route-map-router.ts';
 
+export const ROUTE_MAP_HEADING_LIMIT = 40;
+
+export function boundedHeading(text: string): string {
+	const characters = Array.from(text);
+	return characters.length > ROUTE_MAP_HEADING_LIMIT
+		? `${characters.slice(0, ROUTE_MAP_HEADING_LIMIT - 1).join('')}…`
+		: text;
+}
+
+// Include CJK punctuation, full-width forms and supplementary ideographs and kana.
+const EAST_ASIAN_WIDE =
+	/[\u1100-\u11ff\u2e80-\ua4cf\ua960-\ua97f\uac00-\ud7ff\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff01-\uff60\uffe0-\uffe6\u{16fe0}-\u{16fff}\u{1aff0}-\u{1b2ff}\u{20000}-\u{3fffd}]/u;
+
+export function routeMapPaperMeasureText(text: string): number {
+	let width = 0;
+	for (const character of text) {
+		width += EAST_ASIAN_WIDE.test(character) ? 10 : 7;
+	}
+	return width;
+}
+
+// Mirror PrintRouteMap's text-xs, pb-1 and border-b; RouteMapKey's .paper, .map-key and svg;
+// and StatusKey's gap-1, gap-x-4, gap-y-1 and size-3 classes.
+// The semibold heading block has no margin and inherits the 16 px line height.
+const PAPER_HEADER_LAYOUT = {
+	baseFontSize: 10,
+	textFontSize: 12,
+	lineHeight: 16,
+	signWidth: 24,
+	signHeight: 20,
+	statusSize: 12,
+	entryGap: 4,
+	columnGap: 16,
+	rowGap: 4,
+	paddingBottom: 4,
+	borderBottom: 1
+} as const;
+
+export interface RouteMapPaperHeader {
+	heading: string;
+	keyEntries: readonly string[];
+	statusEntries: readonly string[];
+	readiness: string;
+}
+export function routeMapPaperHeaderHeight(
+	header: RouteMapPaperHeader,
+	width: number,
+	measureText: (text: string) => number
+): number {
+	const available = Math.max(1, width);
+	const layout = PAPER_HEADER_LAYOUT;
+	const headerMeasure = (text: string) =>
+		measureText(text) * (layout.textFontSize / layout.baseFontSize);
+	const keyHeight = (
+		entries: readonly string[],
+		signWidth: number,
+		signHeight: number,
+		measure: (text: string) => number
+	) => {
+		let height = 0;
+		let rowWidth = 0;
+		let rowHeight = 0;
+		for (const entry of entries) {
+			const entryWidth = Math.min(available, signWidth + layout.entryGap + measure(entry));
+			if (rowWidth && rowWidth + layout.columnGap + entryWidth > available) {
+				height += rowHeight + layout.rowGap;
+				rowWidth = 0;
+				rowHeight = 0;
+			}
+			rowWidth += (rowWidth ? layout.columnGap : 0) + entryWidth;
+			rowHeight = Math.max(
+				rowHeight,
+				signHeight,
+				Math.max(
+					1,
+					wrap(entry, Math.max(1, available - signWidth - layout.entryGap), measure).length
+				) * layout.lineHeight
+			);
+		}
+		return height + rowHeight;
+	};
+	// Scale the 10 px paper metric for the 12 px heading, status labels and readiness text.
+	return Math.ceil(
+		Math.max(1, wrap(header.heading, available, headerMeasure).length) * layout.lineHeight +
+			keyHeight(header.keyEntries, layout.signWidth, layout.signHeight, measureText) +
+			keyHeight(header.statusEntries, layout.statusSize, layout.statusSize, headerMeasure) +
+			Math.max(1, wrap(header.readiness, available, headerMeasure).length) * layout.lineHeight +
+			layout.paddingBottom +
+			layout.borderBottom
+	);
+}
+
 export interface RouteMapPaperMetrics extends RouteMapMetrics {
 	measureText: (text: string) => number;
 	sheetWidth: number;
@@ -21,12 +113,14 @@ export interface RouteMapPaperMetrics extends RouteMapMetrics {
 	headerHeight: number;
 	footerHeight: number;
 	lineHeight: number;
+	summaryText?: (parentId: string) => string;
 	formatTargets?: (targets: RouteMapContinuationMarker['targets']) => string;
 }
 export interface RouteMapPaperStation extends RouteMapStation {
 	collapsedParent: boolean;
 	reference: string;
 	labelLines: readonly string[];
+	summaryLines?: readonly string[];
 }
 export interface RouteMapContinuation extends RouteMapRoute {
 	id: string;
@@ -136,8 +230,24 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		metrics.sheetWidth - 2 * metrics.margin - metrics.repeatedLabelWidth - 2 * metrics.gutter;
 	const height =
 		metrics.sheetHeight - 2 * metrics.margin - metrics.headerHeight - metrics.footerHeight;
-	const layout = routeMapLayout(model, { ...metrics, paper: true });
 	const nodes = new Map(model.nodes.map((n) => [n.id, n]));
+	const summaries = new Map(
+		model.groups
+			.filter((group) => group.taskIds.length > 1)
+			.map((group) => [group.id, metrics.summaryText?.(group.id) ?? ''])
+	);
+	const summaryLines = (id: string, labelWidth: number) =>
+		wrap(summaries.get(id) ?? '', labelWidth, metrics.measureText, labelWidth, true);
+	const summaryHeight = Math.max(
+		0,
+		...[...summaries.keys()].map((id) => summaryLines(id, metrics.labelWidth).length * 14)
+	);
+	// Reserve the largest paper label before the single whole-scene routing pass.
+	const layout = routeMapLayout(model, {
+		...metrics,
+		paper: true,
+		labelHeight: Math.max(28, metrics.labelHeight) + summaryHeight
+	});
 	const refs = new Map(layout.stations.map((s, i) => [s.id, `R${i + 1}`]));
 	const labelLines = (id: string, width: number) =>
 		wrap(
@@ -294,7 +404,8 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					model.groups.some((g) => g.id === s.id && g.taskIds.length > 1) &&
 					!model.nodes.some((n) => n.parentId === s.id),
 				reference: refs.get(s.id)!,
-				labelLines: labelLines(s.id, s.labelBox.w).slice(0, 2)
+				labelLines: labelLines(s.id, s.labelBox.w).slice(0, 2),
+				summaryLines: summaryLines(s.id, s.labelBox.w)
 			}));
 			item.edges = edges.map((r) => ({ ...r, points: r.points.map(point) }));
 			item.lines = lines.map((l) => ({ ...l, points: l.points.map(point) }));
@@ -335,6 +446,8 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 				);
 				const center = { x, y };
 				const hitBox = { x: x - 4, y: y - 4, w: 8, h: 8 };
+				const name = labelLines(station.id, labelWidth).slice(0, 2);
+				const summary = summaryLines(station.id, labelWidth);
 				return {
 					...station,
 					center,
@@ -343,14 +456,24 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 					hitBox,
 					focusBox: hitBox,
 					controlBoxes: [],
-					labelBox: { x: x - labelWidth / 2, y: y + 15, w: labelWidth, h: metrics.labelHeight },
+					labelBox: {
+						x: x - labelWidth / 2,
+						y: y + 15,
+						w: labelWidth,
+						h: (Math.max(1, name.length) + summary.length) * 14
+					},
 					collapsedParent:
 						model.groups.some((group) => group.id === station.id && group.taskIds.length > 1) &&
 						!model.nodes.some((node) => node.parentId === station.id),
 					reference: refs.get(station.id)!,
-					labelLines: labelLines(station.id, labelWidth).slice(0, 2)
+					labelLines: name,
+					summaryLines: summary
 				};
 			});
+			item.height = Math.max(
+				item.height,
+				...item.stations.map((station) => station.labelBox.y + station.labelBox.h + 4 + 20 + 4)
+			);
 			const local = new Map(item.stations.map((station) => [station.id, station]));
 			item.edges = localEdges.map((route, index) => {
 				const source = local.get(route.from)!.center,
@@ -780,7 +903,10 @@ export function routeMapPaper(model: RouteMapModel, metrics: RouteMapPaperMetric
 		}));
 		item.stations = item.stations.map((station) => ({
 			...station,
-			labelBox: { ...station.labelBox, h: Math.max(1, station.labelLines.length) * 14 }
+			labelBox: {
+				...station.labelBox,
+				h: (Math.max(1, station.labelLines.length) + (station.summaryLines?.length ?? 0)) * 14
+			}
 		}));
 		item.stageLabels = item.stageLabels.map((label) => {
 			const station = item.stations.find((station) => station.id === label.hostId);

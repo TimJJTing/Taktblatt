@@ -1,17 +1,11 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js';
 	import { routeMapSizes } from '#lib/scene/route-map-router.ts';
+	import { routeMapKeyEntries } from './route-map-key.ts';
 	let { still = false }: { still?: boolean } = $props();
 	const sizes = $derived(routeMapSizes[still ? 'paper' : 'screen']);
 	const arm = $derived(sizes.chevron / Math.SQRT2);
-	const signs = $derived([
-		{ kind: 'workflow', label: m.route_map_key_workflow() },
-		{ kind: 'family', label: m.route_map_key_subtask_route() },
-		{ kind: 'station', label: m.route_map_key_station() },
-		{ kind: 'interchange', label: m.route_map_key_transfer() },
-		{ kind: 'walkway', label: m.route_map_key_cross_stage() },
-		{ kind: 'cycle', label: m.route_map_key_cycle() }
-	]);
+	const signs = $derived(routeMapKeyEntries());
 </script>
 
 <ul

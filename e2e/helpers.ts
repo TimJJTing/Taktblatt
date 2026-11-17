@@ -2063,3 +2063,36 @@ export async function expectKanbanFocusContained(target: Locator): Promise<void>
  */
 export const stageColorPalette = (page: Page) =>
 	page.locator('[data-slot="popover-content"]').getByRole('radiogroup');
+
+/** Checks the repeated Route map paper keys and physical status icon boxes. */
+export async function expectRouteMapPaperKeys(page: Page) {
+	const fragments = page.locator('[data-testid="sheet"] [data-fragment="route-map-scene"]');
+	await expect(fragments.first()).toBeVisible();
+	await page.evaluate(() => document.fonts.ready);
+	for (const fragment of await fragments.all()) {
+		const repeat = fragment.locator('[data-part="repeat"]');
+		const signs = repeat.getByTestId('route-map-key');
+		await expect(signs.locator('li')).toHaveText([
+			'Stage journey',
+			'Subtask route',
+			'Station',
+			'Transfer',
+			'Cross-stage dependency',
+			'Dependency cycle'
+		]);
+		const status = repeat.getByRole('list', { name: 'Status', exact: true });
+		await expect(status.locator('li')).toHaveText(['Todo', 'In progress', 'Done', 'Canceled']);
+		await expect(repeat).toContainText(
+			'Ready: all dependencies are finished. Blocked: a dependency is not finished.'
+		);
+		await expect(status.locator('svg')).toHaveCount(4);
+		for (const icon of await status.locator('svg').all()) {
+			await expect(icon).toHaveCSS('width', '12px');
+			await expect(icon).toHaveCSS('height', '12px');
+		}
+		for (const icon of await fragment.locator('.paper-label [data-route-map-status] svg').all()) {
+			await expect(icon).toHaveCSS('width', '12px');
+			await expect(icon).toHaveCSS('height', '12px');
+		}
+	}
+}

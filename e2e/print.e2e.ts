@@ -2,6 +2,7 @@ import { MILESTONE_SYMBOLS, type Plan } from '#lib/domain/schema.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import {
+	expectRouteMapPaperKeys,
 	appFontLoaded,
 	expectMilestoneRing,
 	expectMilestoneDatePosition,
@@ -479,6 +480,47 @@ test('the paper size changes the sheet size, is one undo step, and persists', as
 	await page.reload();
 	await openPreview(page);
 	await assertPaper('letter');
+});
+
+test('Route map paper shows summaries with and without subtask routes', async ({ page }) => {
+	await openExample(page);
+	const plan = await storedPlan(page);
+	const preview = await openPreview(page);
+	await preview.getByTestId('print-diagram-route-map').click();
+	await preview.getByTestId('print-diagram-gantt').click();
+	const detail = preview.getByRole('checkbox', { name: 'Show subtasks in printed diagrams' });
+	const paper = preview.locator('[data-fragment="route-map-scene"]');
+	for (const expanded of [false, true]) {
+		if (expanded) await detail.click();
+		await expect(detail).toHaveAttribute('aria-checked', String(expanded));
+		for (const title of ['Soil test', 'Add compost', 'Book a table', 'Make signs']) {
+			const id = plan.tasks.find((task: { title: string }) => task.title === title)!.id;
+			await expect(paper.locator(`[data-paper-station="${id}"]`)).toHaveCount(expanded ? 1 : 0);
+		}
+		for (const [title, summary] of [
+			['Soil preparation', '1 in progress and 1 done'],
+			['Neighbourhood stall', '1 ready and 1 blocked']
+		]) {
+			const id = plan.tasks.find((task: { title: string }) => task.title === title)!.id;
+			await expect(
+				paper.locator(`[data-paper-station="${id}"] + .paper-label [data-paper-summary]`)
+			).toHaveText(summary);
+		}
+		if (expanded) {
+			await expect(paper.locator('[data-family-branch]').first()).toBeVisible();
+			const branch = paper.locator('[data-family-branch]').first();
+			await expect(branch).toHaveCSS('stroke-width', '3.5px');
+			await expect(branch.locator('xpath=following-sibling::*[1]')).toHaveCSS(
+				'stroke-width',
+				'1.5px'
+			);
+			await expect(branch.locator('xpath=following-sibling::*[1]')).toHaveCSS(
+				'stroke',
+				'rgb(255, 255, 255)'
+			);
+		}
+		await expectRouteMapPaperKeys(page);
+	}
 });
 
 test('print detail is independent of screen expansion', async ({ page, context }) => {

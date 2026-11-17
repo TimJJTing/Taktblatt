@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DiagramRing from '#lib/components/diagram/DiagramRing.svelte';
+	import StatusKey from '#lib/components/diagram/StatusKey.svelte';
 	import RouteMapDecoration from './RouteMapDecoration.svelte';
 	import RouteMapInterchange from './RouteMapInterchange.svelte';
 	import RouteMapStageLabel from './RouteMapStageLabel.svelte';
@@ -14,18 +15,26 @@
 	import { joinList } from '#lib/domain/format.ts';
 	import { uiIntl } from '#lib/ui-language.ts';
 	import type { Stage } from '#lib/domain/schema.ts';
-	import type { RouteMapContinuation, RouteMapPaperItem } from '#lib/scene/route-map-paper.ts';
+	import {
+		boundedHeading,
+		type RouteMapContinuation,
+		type RouteMapPaperItem
+	} from '#lib/scene/route-map-paper.ts';
 	import { m } from '#lib/paraglide/messages.js';
 
 	let { segment, from, to }: DiagramPaperProps = $props();
 	const data = $derived(
-		segment.data as { stages: Stage[]; nodes: RouteMapNode[]; panels: { id: string }[] }
+		segment.data as {
+			stages: Stage[];
+			nodes: RouteMapNode[];
+			panels: { id: string }[];
+			headerHeight: number;
+		}
 	);
 	const items = $derived(segment.items as RouteMapPaperItem[]);
 	const node = (id: string) => data.nodes.find((entry) => entry.id === id);
 	const stage = (id: string) => data.stages.find((entry) => entry.id === id);
 	const visible = $derived(items.slice(from, to));
-	const bounded = (text: string) => (text.length > 40 ? `${text.slice(0, 39)}…` : text);
 	const headings = $derived(
 		data.stages
 			.filter((entry) =>
@@ -36,7 +45,7 @@
 						item.stations.some((station) => node(station.id)?.stageId === entry.id)
 				)
 			)
-			.map((entry) => bounded(entry.title))
+			.map((entry) => boundedHeading(entry.title))
 	);
 	const panelNames = $derived(
 		[...new Set(visible.map((item) => item.panelId))].map((id) =>
@@ -102,18 +111,26 @@
 </script>
 
 <div>
-	<div data-part="repeat" class="border-b border-paper-rule pb-1 text-xs font-semibold">
-		{#if parentReferences.length}
-			{m.route_map_print_header_parents({
-				panels: joinList(panelNames, uiIntl()),
-				stages: bounded(joinList(headings, uiIntl())),
-				parents: bounded(joinList(parentReferences, uiIntl()))
-			})}
-		{:else}{m.route_map_print_header({
-				panels: joinList(panelNames, uiIntl()),
-				stages: bounded(joinList(headings, uiIntl()))
-			})}{/if}
+	<div
+		data-part="repeat"
+		data-header-height={data.headerHeight}
+		class="border-b border-paper-rule pb-1 text-xs font-normal text-paper-ink"
+		style:min-height="{data.headerHeight}px"
+	>
+		<div class="font-semibold">
+			{#if parentReferences.length}
+				{m.route_map_print_header_parents({
+					panels: boundedHeading(joinList(panelNames, uiIntl())),
+					stages: boundedHeading(joinList(headings, uiIntl())),
+					parents: boundedHeading(joinList(parentReferences, uiIntl()))
+				})}
+			{:else}{m.route_map_print_header({
+					panels: boundedHeading(joinList(panelNames, uiIntl())),
+					stages: boundedHeading(joinList(headings, uiIntl()))
+				})}{/if}
+		</div>
 		<RouteMapKey still />
+		<StatusKey still />
 	</div>
 	{#each items.slice(from, to) as item, i (item.id)}
 		<div
@@ -238,6 +255,9 @@
 										class="sr-only">{taskStatusLabel(n.status)}</span
 									></span
 								>{/if}{line}<br />{/each}
+						{#if station.summaryLines?.length}
+							<div data-paper-summary class="paper-summary">{station.summaryLines.join('\n')}</div>
+						{/if}
 					</div>
 				{/each}
 				{#each item.signs.filter((s) => !s.stationId) as sign (sign.stageId)}
@@ -351,6 +371,10 @@
 	}
 	.paper-label {
 		line-height: 14px;
+	}
+	.paper-summary {
+		color: var(--color-paper-ink-2);
+		white-space: pre-line;
 	}
 	.paper-status {
 		display: inline-flex;
