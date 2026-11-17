@@ -1,7 +1,7 @@
 <!--
 	The dependencies of a task. Own dependencies are chips that you can remove.
 	Subtasks also show inherited dependencies (read-only).
-	The search shows only candidates that keep the rules. Refer to docs/spec.md, section 3.
+	The search shows only candidates that keep the rules. Refer to docs/spec/dependencies.md#3-dependencies.
 -->
 <script lang="ts">
 	import { overlayScrollbarInside } from '#lib/components/app/overlay-scrollbar.ts';

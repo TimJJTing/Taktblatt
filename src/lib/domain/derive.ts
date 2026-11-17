@@ -1,6 +1,6 @@
 /**
  * Derived values. Each derived value has one calculation here. All views use it.
- * Refer to docs/spec.md, section 2.
+ * Refer to docs/spec/derived-values.md#2-derived-values-and-planned-windows.
  */
 import type { ISODate } from './date.ts';
 import { normalizeOwners } from './owners.ts';

@@ -1,5 +1,5 @@
 /**
- * Current-frame capture and cue flights for the diagram stage. Refer to spec 5.13 and ADR 23.
+ * Current-frame capture and cue flights for the diagram stage. Refer to docs/spec/diagram-views.md#513-diagram-views and ADR 23.
  *
  * Read rendered nodes in stage CSS pixels, including scroll offsets and running transforms.
  * Move decorative copies of the incoming cues in one clipped flight layer. Keep real task
@@ -83,7 +83,7 @@ export function captureGeometry(root: ParentNode, stage: Element): Map<string, T
 
 /**
  * Compares router identities and connector meanings. Every view pair fades connectors,
- * including a compatible pair. Refer to spec 5.13.
+ * including a compatible pair. Refer to docs/spec/diagram-views.md#513-diagram-views.
  */
 export function routersCompatible(a: DiagramMotionInfo, b: DiagramMotionInfo): boolean {
 	return a.routerId === b.routerId && a.connectorSchema === b.connectorSchema;

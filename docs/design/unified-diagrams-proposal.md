@@ -4,7 +4,7 @@ Status: Accepted design (2026-11-16). Proposed 2026-11-14. The requesting develo
 
 This document records the selected design, its study evidence and the agreed delivery.
 The screenshots are static studies. They do not show implemented app behavior.
-The lasting contract is [ADR 23](../adr/0023-unified-diagram-language.md). The binding behavior is in the [specification](../spec.md), sections 5.13, 5.14, 5.15, 7 and 9.1.
+The lasting contract is [ADR 23](../adr/0023-unified-diagram-language.md). The binding behavior is in the [specification](../spec.md), sections [5.13](../spec/diagram-views.md#513-diagram-views), [5.14](../spec/route-map.md#514-route-map), [5.15](../spec/kanban.md#515-kanban), [7](../spec/print.md#7-preview-and-print) and [9.1](../spec/visual-language.md#91-shared-diagram-signs).
 Where this document or a study differs from the specification, the specification applies.
 
 ## Problem and evidence

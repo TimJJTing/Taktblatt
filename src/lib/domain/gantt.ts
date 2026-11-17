@@ -3,7 +3,7 @@
  * They do not use Svelte or the DOM.
  * A position is a fraction of the timeline width: 0 is the left edge, 1 is the right edge.
  * A day occupies [day start, day end) of the width.
- * Refer to docs/spec.md, section 5.4.
+ * Refer to docs/spec/timeline.md#54-timeline-gantt.
  */
 import { DAY_MS, dayNumber, isoFromDayNumber, type ISODate } from './date.ts';
 import { dependencyEdgeKey, dependencyWarnings } from './dependencies.ts';

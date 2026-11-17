@@ -1,5 +1,5 @@
 <!--
-	Shows a hint in a Tooltip on hover and on keyboard focus. Refer to docs/spec.md, section 5.10.
+	Shows a hint in a Tooltip on hover and on keyboard focus. Refer to docs/spec/workspace.md#510-hints.
 	Use it for every hint. Do not use the native `title` attribute.
 	The child snippet gets the trigger props. Spread them on the target element. When the target
 	also is a Popover or DropdownMenu trigger, or has its own handlers, merge them with `mergeProps`

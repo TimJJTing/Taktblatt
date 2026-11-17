@@ -2,7 +2,7 @@
  * The print model: the blocks of the printed plan, in sheet order.
  * It reads the plan and the task index. It does not use Svelte or the DOM.
  * The sheets component measures each block and gives the heights to the paginator.
- * Refer to docs/spec.md, section 7.
+ * Refer to docs/spec/print.md#7-preview-and-print.
  */
 import type { ISODate } from './date.ts';
 import {

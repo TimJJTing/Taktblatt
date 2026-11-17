@@ -1,5 +1,5 @@
 /**
- * The contract of a diagram view. Refer to docs/spec.md, section 5.13, and ADR 20.
+ * The contract of a diagram view. Refer to docs/spec/diagram-views.md#513-diagram-views, and ADR 20.
  *
  * Each view registers through its own `src/lib/components/<folder>/diagram-view.ts` module.
  * That module exports `view`, a `DiagramViewDefinition`. The registry discovers the modules at
@@ -97,7 +97,7 @@ export const ROUTE_ATTR = {
 /**
  * The motion description of a view. The stage reads current geometry from the rendered DOM.
  * These fields identify the router and its connector point meanings. Every view pair fades
- * connectors, including a compatible pair. Refer to docs/spec.md, section 5.13.
+ * connectors, including a compatible pair. Refer to docs/spec/diagram-views.md#513-diagram-views.
  */
 export interface DiagramMotionInfo {
 	/** The id of the connector router. */

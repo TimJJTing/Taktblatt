@@ -209,7 +209,7 @@ The message files are in `messages/`. English (`en.json`) is the source.
 
 ## Documentation
 
-- [Specification](docs/spec.md)
+- [Specification index](docs/spec.md): requirements by topic and a map of the original sections
 - [Data model and file format](docs/data-model.md)
 - [Architecture decision records](docs/adr/README.md)
 - [Glossary](GLOSSARY.md)

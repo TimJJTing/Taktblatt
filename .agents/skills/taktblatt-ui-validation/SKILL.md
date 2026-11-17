@@ -7,7 +7,7 @@ description: Validate Taktblatt UI changes in the workspace, paginated Preview d
 
 Validate the changed behavior across the app's rendering modes. Keep the scope tied to the change. This skill supplements the checks required by `AGENTS.md`.
 
-All repository paths below are relative to the repository root. Read the affected sections of `docs/spec.md` for expected behavior. Use `e2e/helpers.ts` and the relevant E2E suites as the source for test setup and existing assertions.
+All repository paths below are relative to the repository root. Use the [specification index](../../../docs/spec.md) to find the affected topic documents. Read these documents for expected behavior. Use `e2e/helpers.ts` and the relevant E2E suites as the source for test setup and existing assertions.
 
 ## Prepare the browser and build
 
@@ -55,7 +55,7 @@ The workspace and sheets use separate components. Read `docs/adr/0008-print-bloc
 
 ## Print output
 
-Check print media and generate a PDF when the available browser supports it. Inspect the rendered PDF pages, not only the preview DOM. Confirm that the sheets contain the expected content, fit the selected paper, and exclude workspace controls. Allow the clipping of oversized indivisible blocks specified in `docs/spec.md`, section 7. When geometry or pagination changes, check both A4 and Letter. When printed colors change, also check output with background graphics off. Check page breaks, page count, and the affected colors or graphics against the Preview dialog.
+Check print media and generate a PDF when the available browser supports it. Inspect the rendered PDF pages, not only the preview DOM. Confirm that the sheets contain the expected content, fit the selected paper, and exclude workspace controls. Allow the clipping of oversized indivisible blocks specified in [specification section 7](../../../docs/spec/print.md#7-preview-and-print). When geometry or pagination changes, check both A4 and Letter. When printed colors change, also check output with background graphics off. Check page breaks, page count, and the affected colors or graphics against the Preview dialog.
 
 For diagram changes, generate A4 and US Letter PDFs with all three diagrams and with print detail off and on. Confirm landscape Route map and Kanban sheets, portrait Gantt and shared plan sections, diagram order and one page-number total. Each later diagram and each orientation change must start a new sheet. Check repeated diagram headings and keys at page breaks. Confirm that family detail follows the print detail choice and that the Work plan stays complete.
 

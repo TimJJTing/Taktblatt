@@ -22,7 +22,7 @@ The workspace shell also detected a native scrollbar drag by the pointer positio
 - **Events to the shell:** the action dispatches bubbling `overlayscrollstart` and `overlayscrollend` events on the scroll area when a thumb drag starts and ends. The workspace shell uses these events as its user-scroll signal for the island and the automatic collapse. The pointer-position check goes away.
 - The edge strip was removed because it blocked controls at the right edge. Only a visible thumb can take presses, in the area of the thumb. A control below a visible thumb cannot take a press at that point. This is the same as a native overlay scrollbar.
 - The bottom sheet does not start a drag to close from a press on the layer.
-- Specification section 5.12 gives the behavior: visibility, sizes, colors, drag, motion and print.
+- [Specification section 5.12](../spec/workspace.md#512-scrollbars) gives the behavior: visibility, sizes, colors, drag, motion and print.
 
 ## Alternatives considered
 

@@ -1,5 +1,5 @@
 /**
- * Diagram views (ADR 20, docs/spec.md 5.13 and 7).
+ * Diagram views (ADR 20, docs/spec/diagram-views.md#513-diagram-views and docs/spec/print.md#7-preview-and-print).
  * Untagged tests check the normal production build. It has Gantt and the other real views, but no
  * fixture views. The tests do not assert the exact set, count or full order of the real views.
  * Tests tagged @diagram-fixtures need the build with TAKTBLATT_DIAGRAM_FIXTURES=1. That build adds

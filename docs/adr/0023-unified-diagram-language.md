@@ -2,7 +2,7 @@
 
 Status: Accepted (2026-11-16). Proposed 2026-11-14. The user selected the visual direction and made the decisions in "Reconciliation" below.
 
-Amends [ADR 4](0004-viewer-state.md), [ADR 19](0019-scene-model.md), [ADR 20](0020-diagram-views.md), [ADR 21](0021-route-map.md) and [ADR 22](0022-kanban.md). The [specification](../spec.md) sections 5.13, 5.14, 5.15, 7 and 9.1 define the behavior.
+Amends [ADR 4](0004-viewer-state.md), [ADR 19](0019-scene-model.md), [ADR 20](0020-diagram-views.md), [ADR 21](0021-route-map.md) and [ADR 22](0022-kanban.md). The [specification](../spec.md) sections [5.13](../spec/diagram-views.md#513-diagram-views), [5.14](../spec/route-map.md#514-route-map), [5.15](../spec/kanban.md#515-kanban), [7](../spec/print.md#7-preview-and-print) and [9.1](../spec/visual-language.md#91-shared-diagram-signs) define the behavior.
 
 ## Context
 

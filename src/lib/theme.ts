@@ -8,7 +8,7 @@ export { THEME_COLORS } from '#lib/theme-colors.ts';
  * before the first paint. The app starts on the client only, so ModeWatcher cannot do this in
  * time. After the start, ModeWatcher keeps the theme current. Blocked storage gives the System
  * theme.
- * Refer to docs/spec.md, section 5.1.
+ * Refer to docs/spec/workspace.md#51-layout.
  */
 export function initialThemeScript(): string {
 	const key = JSON.stringify(KEYS.theme);

@@ -1,6 +1,6 @@
 /**
  * localStorage access. All keys of the app are in this file.
- * Refer to docs/spec.md, section 4.2.
+ * Refer to docs/spec/storage.md#42-localstorage-keys.
  */
 import * as v from 'valibot';
 import { expandParents } from '#lib/domain/derive.ts';
