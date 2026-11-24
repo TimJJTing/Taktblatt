@@ -636,7 +636,19 @@
 			},
 			"paper-caption": {
 				"displayName": "Paper Caption",
-				"purpose": "Gantt captions on the printed sheet; tabular figures."
+				"purpose": "Diagram captions on the printed sheet; tabular figures. Today uses 9px with line height 1.25. Route map continuation labels use 9px with line height 10px."
+			},
+			"paper-title": {
+				"displayName": "Paper Title",
+				"purpose": "The printed plan heading; 24px, weight 600, line height 1.25."
+			},
+			"paper-subhead": {
+				"displayName": "Paper Subhead",
+				"purpose": "Printed stage card titles; 13px, weight 600, line height 1.375."
+			},
+			"paper-body": {
+				"displayName": "Paper Body",
+				"purpose": "Printed plan text, table cells and remarks; 11px, weight 400, line height 1.35."
 			}
 		},
 		"shadows": [

@@ -75,6 +75,21 @@ typography:
     fontWeight: 500
     lineHeight: 1.33
     fontFeature: "'tnum'"
+  paper-title:
+    fontFamily: "'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif"
+    fontSize: '24px'
+    fontWeight: 600
+    lineHeight: 1.25
+  paper-subhead:
+    fontFamily: "'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif"
+    fontSize: '13px'
+    fontWeight: 600
+    lineHeight: 1.375
+  paper-body:
+    fontFamily: "'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif"
+    fontSize: '11px'
+    fontWeight: 400
+    lineHeight: 1.35
   paper-label:
     fontFamily: "'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif"
     fontSize: '10px'
@@ -235,7 +250,10 @@ The stage lines. A plan file stores the line by name (`blue`, `amber`, …), so 
 - **Body** (400, 0.875rem, 1.43): table cells, fields, menus and dialogs. Most of the screen is body text.
 - **Label** (600, 0.875rem, 0.025em, uppercase): section eyebrows such as TIMELINE and WORK PLAN.
 - **Caption** (500, 0.75rem, tabular figures): progress counts, stage card labels and owner chips.
-- **Paper Label** (600, 10px, 0.05em, uppercase) and **Paper Caption** (500, 9px, tabular figures): section labels and Gantt captions on the printed sheet.
+- **Paper Title** (600, 24px, 1.25): the printed plan heading.
+- **Paper Subhead** (600, 13px, 1.375): printed stage card titles.
+- **Paper Body** (400, 11px, 1.35): printed plan text, table cells and remarks. Local labels can use a heavier weight.
+- **Paper Label** (600, 10px, 0.05em, uppercase) and **Paper Caption** (500, 9px, tabular figures): section labels and diagram captions on the printed sheet. The paper Today tag uses 9px with a 1.25 line height. Route map continuation labels use 9px with a 10px line height. The screen Today tag uses 11px with a 1.25 line height.
 
 ### Named Rules
 

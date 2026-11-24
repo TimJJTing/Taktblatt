@@ -58,6 +58,8 @@ At rest, the screen shows every dependency. Secondary ink is `#505663` in light 
 
 Preview and print use light stage colors and white ground. They show all routes without hover or focus dimming. They keep the status treatment for done and canceled tasks and satisfied connectors.
 
+Paper uses 24 px plan headings, 13 px stage card titles and 11 px body text. Paper Today tags and Route map continuation labels use 9 px text. The screen Today tag uses 11 px text in the 28 px milestone row. Its measured width controls placement and preserves the 7 px milestone clearance.
+
 Paper Gantt rows are 18 px high. Top-level task lines are 5 px thick with 1 px connectors. Their station dots have a 6 px outer diameter, a 4 px ground hole and a 1 px inset. Subtask lines are 3.5 px thick with 0.75 px connectors. Subtask station dots and point dots have an outer diameter of 4 px. Junction rings have an outer diameter of 4 px.
 
 Cycle paths retain the warning style and ground casing of [section 5.4](timeline.md#54-timeline-gantt). The default milestone is an ink interchange ring. Other milestone symbols keep their shapes in paper ink. Line weight, status fill and dotted cycle connectors keep the hierarchy clear in grayscale.
