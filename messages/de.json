@@ -137,6 +137,7 @@
 	"dependency_warning": "{task} beginnt nach dem Ende dieser Aufgabe.",
 	"mention_hint": "Eingabe zum Einfügen, Esc zum Schließen",
 	"action_ok": "OK",
+	"task_add_subtask": "Unteraufgabe hinzufügen",
 	"task_delete": "Löschen…",
 	"task_delete_title": "„{task}“ löschen?",
 	"task_delete_body": "Mit der Aufgabe gelöschte Teilaufgaben: {subtasks}. Andere Aufgaben, die davon abhängen: {dependents}. Diese Verknüpfungen werden entfernt.",

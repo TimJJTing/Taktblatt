@@ -2271,3 +2271,42 @@ export async function tapControlOffset(control: Locator, dx: number, dy: number)
 	const box = (await control.boundingBox())!;
 	await control.page().touchscreen.tap(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy);
 }
+
+/** Samples CSS colors and the foreground contrast against the nearest painted background. */
+export async function sampleElementColors(locator: Locator) {
+	return locator.evaluate((element) => {
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d')!;
+		const sample = (color: string, background?: number[]) => {
+			ctx.clearRect(0, 0, 1, 1);
+			if (background) {
+				ctx.fillStyle = `rgb(${background.slice(0, 3).join(' ')})`;
+				ctx.fillRect(0, 0, 1, 1);
+			}
+			ctx.fillStyle = color;
+			ctx.fillRect(0, 0, 1, 1);
+			return [...ctx.getImageData(0, 0, 1, 1).data];
+		};
+		let parent: Element | null = element;
+		while (parent && getComputedStyle(parent).backgroundColor === 'rgba(0, 0, 0, 0)')
+			parent = parent.parentElement;
+		const background = sample(getComputedStyle(parent!).backgroundColor);
+		const actual = sample(getComputedStyle(element).color, background);
+		const token = getComputedStyle(element).getPropertyValue('--warning').trim();
+		const luminance = (rgb: number[]) =>
+			rgb
+				.slice(0, 3)
+				.map((value) => {
+					const channel = value / 255;
+					return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+				})
+				.reduce((sum, value, i) => sum + value * [0.2126, 0.7152, 0.0722][i], 0);
+		const a = luminance(actual),
+			b = luminance(background);
+		return {
+			actual,
+			token: token ? sample(token) : null,
+			contrast: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+		};
+	});
+}

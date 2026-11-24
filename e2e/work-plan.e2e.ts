@@ -599,6 +599,25 @@ test.describe('work plan', () => {
 		});
 	}
 
+	test('a stage can be dragged from the edge of its handle hit area', async ({ page }) => {
+		await openExample(page);
+		const stageTitles = page.getByTestId('stage-title');
+		const [first, second] = await stageTitles.allTextContents();
+		const handle = page.getByLabel('Drag to reorder the stage').first();
+		const source = (await handle.boundingBox())!;
+		const destination = (await page.getByLabel('Drag to reorder the stage').nth(1).boundingBox())!;
+		await page.mouse.move(source.x + source.width / 2 + 11, source.y + source.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(
+			destination.x + destination.width / 2,
+			destination.y + destination.height / 2,
+			{ steps: 20 }
+		);
+		await page.mouse.up();
+		await expect(stageTitles.first()).toHaveText(second);
+		await expect(stageTitles.nth(1)).toHaveText(first);
+	});
+
 	test('a stage moves with the keyboard drag handle', async ({ page }) => {
 		await openExample(page);
 		const stageTitles = page.getByTestId('stage-title');

@@ -26,8 +26,15 @@
 	import { uiIntl } from '#lib/ui-language.ts';
 	import { allOwners } from '#lib/domain/owners.ts';
 	import { m } from '#lib/paraglide/messages.js';
-	import { moveTask, removeTasks, renameOwnerEverywhere, updateTask } from '#lib/state/commands.ts';
+	import {
+		addTask,
+		moveTask,
+		removeTasks,
+		renameOwnerEverywhere,
+		updateTask
+	} from '#lib/state/commands.ts';
 	import { getEditing } from '#lib/state/editing.svelte.ts';
+	import { getViewer } from '#lib/state/viewer.svelte.ts';
 	import { getWorkspace } from '#lib/state/workspace.svelte.ts';
 	import DependencyPicker from './DependencyPicker.svelte';
 	import MoveConflictDialog from './MoveConflictDialog.svelte';
@@ -35,6 +42,8 @@
 
 	const ws = getWorkspace();
 	const editing = getEditing();
+	const viewer = getViewer();
+	let pendingSubtask = $state<{ stageId: string; parentId: string } | null>(null);
 
 	const task = $derived(
 		editing.detailsTaskId ? ws.index.byId.get(editing.detailsTaskId) : undefined
@@ -88,6 +97,13 @@
 		// Let both the task dialog and its delete confirmation release their focus scopes.
 		await tick();
 		if (open) return;
+		if (pendingSubtask) {
+			const { stageId, parentId } = pendingSubtask;
+			pendingSubtask = null;
+			viewer.setExpanded(ws.plan.id, parentId, true);
+			editing.newTaskId = addTask(ws, stageId, { parentId });
+			return;
+		}
 		const target = resolve ? resolve() : from;
 		target?.focus({ preventScroll: !!resolve });
 	}
@@ -295,7 +311,18 @@
 				>
 					{m.task_delete()}
 				</Button>
-				<Button onclick={close} data-testid="dialog-ok">{m.action_ok()}</Button>
+				<div class="flex justify-end gap-2">
+					{#if task.parentId === null}
+						<Button
+							variant="outline"
+							onclick={() => {
+								pendingSubtask = { stageId: task.stageId, parentId: task.id };
+								close();
+							}}>{m.task_add_subtask()}</Button
+						>
+					{/if}
+					<Button onclick={close} data-testid="dialog-ok">{m.action_ok()}</Button>
+				</div>
 			</Dialog.Footer>
 		{/if}
 	</Dialog.Content>

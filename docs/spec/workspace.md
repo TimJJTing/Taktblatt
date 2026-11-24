@@ -138,6 +138,7 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - **Note:** plain text. Type "@" to mention a task.
 - **Dependencies:** a mention picker. Type words to filter. Enter selects. The app hides candidates that break a structure or scope rule, or are already effective dependencies. Cycle and date candidates stay selectable. Unwarned options come first, then warned options. Each part keeps the grouping and order below. Warning icons, hints and accessible names give all reasons: "Makes a dependency cycle." and "Starts after this task ends." A subtask lists only siblings. A plain help line above the input says: "To depend on another task, make this subtask a task, or move it under the same parent." The input uses this help as its accessible description. A task lists tasks in plan order, with candidate subtasks indented after each task. Each subtask shows its parent title as secondary text. Candidate subtasks stay visible when their parent is not a candidate. Search matches the subtask title or parent title. The limit is eight options in total. When the list opens, the dialog scrolls so that the full list is visible. Subtasks show inherited dependencies as read-only chips. The source appears in a hint and in the accessible name. Inherited chips also show the warnings on the parent-stored dependency.
 - Each field saves on blur.
+- **Add subtask** shows beside **OK** for top-level tasks only. It closes the dialog, expands the task, adds a subtask at the end, and focuses its title editor in the Work plan.
 - **OK** closes the dialog. **Delete…** opens a confirmation that shows the effect, for example "Subtasks deleted with the task: 2. Other tasks that depend on it: 3. The app removes their links."
 - Esc closes the dialog. The focus stays in the dialog while it is open. On close, the focus goes back to the "…" button of the task row.
 
@@ -162,9 +163,10 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 
 ### Pointer targets
 
-- Each pointer target has a hit area of at least 24 × 24 px. A smaller target can use the spacing rule: a 24 px circle centered on the target must not overlap another target or the same circle of another small target.
+- Each pointer target has a hit area of at least 24 × 24 px. A smaller target, such as the dependency remove button, can use the spacing rule: a 24 px circle centered on the target must not overlap another target or the same circle of another small target.
 - Keep the drawn size of small controls. Use an invisible hit area around the control. Adjacent hit areas must not overlap. Drag handles and their hit areas stay inside the pane on phones.
-- The subtask add line stays on the row edge in a zero-height row. Its 24 × 24 px hit area can overlap the row edge. Do not add space between task groups for this target.
+- AddLine hit areas must not cover other controls. The task and remark add lines use a 24 × 20 px hit area and the spacing rule. Stage and remark-section add lines use a 24 × 24 px hit area.
+- The subtask add line stays on the row edge in a zero-height row. Its hit area is 24 × 14 px: the height of the drawn button. It meets WCAG 2.5.8 through the equivalent **Add subtask** command in Task details. Do not add space between task groups for this target.
 - Keep the stage progress text and stage menu in one group. The group wraps as a unit on narrow panes.
 - Exception: the overlay scrollbar thumb follows [section 5.12](workspace.md#512-scrollbars). Its hit area equals the visible thumb.
 

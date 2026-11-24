@@ -84,6 +84,29 @@ test.describe('touch targets', () => {
 		await expect(stageColorPalette(page)).toBeVisible();
 	});
 
+	test('the remark handle and its hit area remain inside the pane at 320px', async ({ page }) => {
+		await page.setViewportSize({ width: 320, height: 844 });
+		await openExample(page);
+		await selectTab(page, 'Overview');
+		const handle = page.getByRole('button', { name: 'Drag to reorder the section' }).first();
+		await handle.scrollIntoViewIfNeeded();
+		const bounds = await handle.evaluate((element) => {
+			const rect = element.getBoundingClientRect();
+			let clip = element.parentElement!;
+			while (clip.parentElement && getComputedStyle(clip).overflowX === 'visible')
+				clip = clip.parentElement;
+			const pane = clip.getBoundingClientRect();
+			return {
+				left: rect.left - 2,
+				right: rect.right + 2,
+				paneLeft: pane.left,
+				paneRight: pane.right
+			};
+		});
+		expect(bounds.left).toBeGreaterThanOrEqual(bounds.paneLeft);
+		expect(bounds.right).toBeLessThanOrEqual(bounds.paneRight);
+	});
+
 	test('dependency remove has a reachable horizontal hit area', async ({ page }) => {
 		await openExample(page);
 		await selectTab(page, 'Work plan');
@@ -120,3 +143,52 @@ test.describe('Gantt touch targets', () => {
 		await expect(page.locator('[data-testid="gantt-row"][data-route]')).toHaveCount(0);
 	});
 });
+
+for (const width of [390, 1440]) {
+	test(`add-subtask hit area leaves adjacent field edges usable at ${width}px`, async ({
+		browser
+	}) => {
+		const context = await browser.newContext({
+			hasTouch: true,
+			viewport: { width, height: width === 390 ? 844 : 900 }
+		});
+		const page = await context.newPage();
+		try {
+			await openExample(page);
+			await selectTab(page, 'Work plan');
+			const parent = row(page, 'Site survey');
+			const group = stage(page, 0).locator('tbody', { has: parent });
+			const add = group.getByTestId('add-subtask');
+			await parent.hover();
+			await expectTouchHitArea(add, [
+				[-11, 0],
+				[11, 0]
+			]);
+			const count = await page.getByTestId('task-row').count();
+			const x = (await add.boundingBox())!;
+			for (const [task, edge] of [
+				[parent, 'bottom'],
+				[row(page, 'Soil preparation'), 'top']
+			] as const) {
+				// Pin the row by id: in edit mode its title is an input value, not text.
+				const id = (await task.getAttribute('data-task-id'))!;
+				const pinned = page.locator(`[data-testid="task-row"][data-task-id="${id}"]`);
+				await task.scrollIntoViewIfNeeded();
+				const cx = x.x + x.width / 2;
+				// The field under the "+" depends on the column widths: find it at the row center.
+				const box = await task.evaluate((element, px) => {
+					const r = element.getBoundingClientRect();
+					const field = document.elementFromPoint(px, r.top + r.height / 2)!.closest('button')!;
+					const b = field.getBoundingClientRect();
+					return { y: b.top, height: b.height };
+				}, cx);
+				await page.touchscreen.tap(cx, edge === 'top' ? box.y + 4 : box.y + box.height - 4);
+				await expect(pinned.locator('input:focus, textarea:focus')).toHaveCount(1);
+				await expect(page.getByTestId('task-row')).toHaveCount(count);
+				await page.keyboard.press('Escape');
+			}
+		} finally {
+			await context.close();
+		}
+	});
+}

@@ -15,6 +15,22 @@ async function setDates(page: Page, title: string, start: string, end: string) {
 }
 
 test.describe('task dialog', () => {
+	test('adds a focused subtask from a top-level task dialog', async ({ page }) => {
+		await openExample(page);
+		const parent = row(page, 'Soil preparation');
+		await openDetails(page, 'Soil preparation');
+		await page.getByRole('button', { name: 'Add subtask', exact: true }).click();
+		await expect(page.getByTestId('task-dialog')).toBeHidden();
+		await expect(parent.getByTestId('task-toggle')).toHaveAttribute('aria-expanded', 'true');
+		const group = stage(page, 0).locator('tbody', { has: parent });
+		await expect(group.getByTestId('task-row')).toHaveCount(4);
+		await expect(group.getByTestId('task-title-input')).toBeFocused();
+		await page.keyboard.type('New child');
+		await page.keyboard.press('Enter');
+		await openDetails(page, 'New child');
+		await expect(page.getByRole('button', { name: 'Add subtask', exact: true })).toHaveCount(0);
+	});
+
 	test('Esc closes the dialog and the focus goes back to the "…" button', async ({ page }) => {
 		await openExample(page);
 		await openDetails(page, 'Sowing');

@@ -473,6 +473,35 @@ test('a label jump keeps a visible static flash with reduced motion', async ({ p
 	await expect(target).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 });
 
+test('a reduced-motion label flash remains visible in forced colors and clears', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'reduce', forcedColors: 'active' });
+	await openExample(page);
+	const target = row(page, 'Neighbourhood stall');
+	// Forced colors replace authored colors with Canvas, so a translucent fill is invisible.
+	// The cue must use the system Highlight color as an opaque fill or an outline.
+	const highlightCue = () =>
+		target.evaluate((element) => {
+			const probe = document.createElement('div');
+			probe.style.color = 'Highlight';
+			document.body.append(probe);
+			const highlight = getComputedStyle(probe).color;
+			probe.remove();
+			const style = getComputedStyle(element);
+			return (
+				style.backgroundColor === highlight ||
+				(style.outlineStyle !== 'none' && style.outlineColor === highlight)
+			);
+		});
+	await ganttRow(page, 'Neighbourhood stall').getByTestId('gantt-label').click();
+	await page.mouse.move(1, 1);
+	await expect(target).toHaveClass(/row-flash/);
+	await expect.poll(highlightCue).toBe(true);
+	await expect(target).not.toHaveClass(/row-flash/, { timeout: 3000 });
+	await expect.poll(highlightCue).toBe(false);
+});
+
 test('the linked highlight works in both directions', async ({ page }) => {
 	await openExample(page);
 	const sowing = row(page, 'Sowing');

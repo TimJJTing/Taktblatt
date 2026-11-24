@@ -19,9 +19,9 @@
 
 	/** Button and icon classes of each size. */
 	const sizes: Record<Size, { button: string; icon: string }> = {
-		sm: { button: 'size-3.5 after:-inset-[6px]', icon: 'size-2.5' },
-		md: { button: 'size-4.5 after:-inset-1', icon: 'size-3' },
-		lg: { button: 'size-6 after:-inset-px', icon: 'size-3.5' }
+		sm: { button: 'size-3.5 after:inset-y-0 after:-inset-x-[6px]', icon: 'size-2.5' },
+		md: { button: 'size-4.5 after:-inset-y-0.5 after:-inset-x-1', icon: 'size-3' },
+		lg: { button: 'size-6 after:inset-0', icon: 'size-3.5' }
 	};
 
 	interface Props {

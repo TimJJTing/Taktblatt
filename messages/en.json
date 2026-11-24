@@ -137,6 +137,7 @@
 	"dependency_warning": "{task} starts after this task ends.",
 	"mention_hint": "Enter to insert, Esc to close",
 	"action_ok": "OK",
+	"task_add_subtask": "Add subtask",
 	"task_delete": "Delete…",
 	"task_delete_title": "Delete “{task}”?",
 	"task_delete_body": "Subtasks deleted with the task: {subtasks}. Other tasks that depend on it: {dependents}. The app removes their links.",

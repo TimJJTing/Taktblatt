@@ -122,15 +122,16 @@
 @keyframes row-flash {
 	0%,
 	30% {
-		background-color: color-mix(in oklab, var(--ring) 35%, transparent);
+		background-color: var(--row-flash-color);
 	}
 	100% {
 		background-color: transparent;
 	}
 }
 
-/* The row flash after a jump from the Gantt. The element sets the duration: FLASH_MS through motionDuration. */
+/* After a Gantt jump, fade for FLASH_MS through motionDuration, or hold a static cue with reduced motion. */
 .row-flash {
+	--row-flash-color: color-mix(in oklab, var(--ring) 35%, transparent);
 	animation-name: row-flash;
 	animation-timing-function: ease-out;
 	animation-iteration-count: 1;
@@ -139,7 +140,14 @@
 @media (prefers-reduced-motion: reduce) {
 	.row-flash {
 		animation: none;
-		background-color: color-mix(in oklab, var(--ring) 35%, transparent);
+		background-color: var(--row-flash-color);
+	}
+}
+
+@media (forced-colors: active) {
+	.row-flash {
+		--row-flash-color: Highlight;
+		forced-color-adjust: none;
 	}
 }
 
