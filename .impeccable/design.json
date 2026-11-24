@@ -1,0 +1,830 @@
+{
+	"schemaVersion": 2,
+	"generatedAt": "2026-11-24T17:05:54.481Z",
+	"title": "Design System: Taktblatt",
+	"extensions": {
+		"colorMeta": {
+			"paper-white": {
+				"role": "neutral",
+				"displayName": "Paper White",
+				"canonical": "#FFFFFF",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#262626",
+					"#454545",
+					"#666666",
+					"#898989",
+					"#AEAEAE",
+					"#D1D1D1",
+					"#EEEEEE"
+				]
+			},
+			"timetable-ink": {
+				"role": "primary",
+				"displayName": "Timetable Ink",
+				"canonical": "oklch(0.23026996 0.012474323 264.292633446)",
+				"tonalRamp": [
+					"#0B0B0C",
+					"#24262B",
+					"#42454C",
+					"#62666D",
+					"#858991",
+					"#AAAEB6",
+					"#CFD1D6",
+					"#EDEEF0"
+				]
+			},
+			"platform-gray": {
+				"role": "neutral",
+				"displayName": "Platform Gray",
+				"canonical": "oklch(0.452657327 0.022581144 265.780057091)",
+				"tonalRamp": [
+					"#0A0B0D",
+					"#23262E",
+					"#3F4552",
+					"#606673",
+					"#838997",
+					"#A7AEBD",
+					"#CDD1DA",
+					"#EDEEF2"
+				]
+			},
+			"timetable-gray": {
+				"role": "neutral",
+				"displayName": "Timetable Gray",
+				"canonical": "#5A6070",
+				"tonalRamp": [
+					"#0A0B0D",
+					"#232630",
+					"#3F4554",
+					"#606676",
+					"#82899A",
+					"#A7AEBF",
+					"#CDD1DB",
+					"#EDEEF2"
+				]
+			},
+			"caption-gray": {
+				"role": "neutral",
+				"displayName": "Caption Gray",
+				"canonical": "#767676",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#262626",
+					"#454545",
+					"#666666",
+					"#898989",
+					"#AEAEAE",
+					"#D1D1D1",
+					"#EEEEEE"
+				]
+			},
+			"track-rule": {
+				"role": "neutral",
+				"displayName": "Track Rule",
+				"canonical": "#C9CDD4",
+				"tonalRamp": [
+					"#0B0B0C",
+					"#24262A",
+					"#42454B",
+					"#63666C",
+					"#868990",
+					"#AAAEB5",
+					"#CFD1D5",
+					"#EEEEF0"
+				]
+			},
+			"platform-rule": {
+				"role": "neutral",
+				"displayName": "Platform Rule",
+				"canonical": "oklch(0.905837748 0.007537841 260.731551879)",
+				"tonalRamp": [
+					"#0B0B0C",
+					"#252629",
+					"#434549",
+					"#64666A",
+					"#86898E",
+					"#ABAEB3",
+					"#CFD1D4",
+					"#EEEEEF"
+				]
+			},
+			"faint-rule": {
+				"role": "neutral",
+				"displayName": "Faint Rule",
+				"canonical": "#F0F1F3",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#262627",
+					"#444547",
+					"#656668",
+					"#88898B",
+					"#ADAEB0",
+					"#D0D1D2",
+					"#EEEEEF"
+				]
+			},
+			"concourse-fill": {
+				"role": "neutral",
+				"displayName": "Concourse Fill",
+				"canonical": "#EEF0F3",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#252628",
+					"#434547",
+					"#646669",
+					"#87898C",
+					"#ACAEB1",
+					"#D0D1D3",
+					"#EEEEEF"
+				]
+			},
+			"control-fill": {
+				"role": "neutral",
+				"displayName": "Control Fill",
+				"canonical": "oklch(0.966955636 0.002874008 264.54193422)",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#262627",
+					"#444547",
+					"#656668",
+					"#88898B",
+					"#ADAEB0",
+					"#D0D1D2",
+					"#EEEEEF"
+				]
+			},
+			"signal-red": {
+				"role": "tertiary",
+				"displayName": "Signal Red",
+				"canonical": "#C8352D",
+				"tonalRamp": [
+					"#180504",
+					"#4F0002",
+					"#860005",
+					"#B9241F",
+					"#E35044",
+					"#FE8678",
+					"#FEBFB6",
+					"#FEE9E6"
+				]
+			},
+			"ready-green": {
+				"role": "tertiary",
+				"displayName": "Ready Green",
+				"canonical": "#2E9D5B",
+				"tonalRamp": [
+					"#030E06",
+					"#003015",
+					"#015429",
+					"#057A40",
+					"#33A15F",
+					"#5EC782",
+					"#AAE1B9",
+					"#E1F4E6"
+				]
+			},
+			"night-ground": {
+				"role": "neutral",
+				"displayName": "Night Ground",
+				"canonical": "oklch(0.198768961 0.009305309 255.62541138)",
+				"tonalRamp": [
+					"#0B0B0C",
+					"#24272A",
+					"#42454A",
+					"#63666B",
+					"#85898F",
+					"#AAAEB4",
+					"#CFD1D4",
+					"#EEEEF0"
+				]
+			},
+			"night-ink": {
+				"role": "neutral",
+				"displayName": "Night Ink",
+				"canonical": "oklch(0.933348684 0.004584832 258.32518797)",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#252628",
+					"#434547",
+					"#646669",
+					"#87898C",
+					"#ACAEB1",
+					"#D0D1D3",
+					"#EEEEEF"
+				]
+			},
+			"night-platform-gray": {
+				"role": "neutral",
+				"displayName": "Night Platform Gray",
+				"canonical": "oklch(0.712878693 0.019695904 258.363133432)",
+				"tonalRamp": [
+					"#0A0B0D",
+					"#22272D",
+					"#3F4550",
+					"#5F6772",
+					"#828A95",
+					"#A6AFBB",
+					"#CDD1D8",
+					"#EDEEF1"
+				]
+			},
+			"night-rule": {
+				"role": "neutral",
+				"displayName": "Night Rule",
+				"canonical": "oklch(0.307187214 0.014433161 256.783836899)",
+				"tonalRamp": [
+					"#0A0B0C",
+					"#23272B",
+					"#40454D",
+					"#61676F",
+					"#848A92",
+					"#A8AEB7",
+					"#CED1D6",
+					"#EDEEF0"
+				]
+			},
+			"night-control-fill": {
+				"role": "neutral",
+				"displayName": "Night Control Fill",
+				"canonical": "oklch(0.245812752 0.011218632 254.046497009)",
+				"tonalRamp": [
+					"#0A0B0C",
+					"#24272A",
+					"#41454B",
+					"#62676D",
+					"#858A90",
+					"#A9AEB5",
+					"#CED1D5",
+					"#EDEEF0"
+				]
+			},
+			"night-signal-red": {
+				"role": "tertiary",
+				"displayName": "Night Signal Red",
+				"canonical": "#F07A70",
+				"tonalRamp": [
+					"#160605",
+					"#4C0708",
+					"#821013",
+					"#AA3B36",
+					"#D36058",
+					"#FD867B",
+					"#FEBFB7",
+					"#FEE9E6"
+				]
+			},
+			"harbour-line-blue": {
+				"role": "secondary",
+				"displayName": "Harbour Line Blue",
+				"canonical": "#2456C9",
+				"tonalRamp": [
+					"#040A1B",
+					"#031D63",
+					"#0735A7",
+					"#295CCF",
+					"#4B82F9",
+					"#84ADFF",
+					"#BAD2FE",
+					"#E6EFFF"
+				]
+			},
+			"signal-line-amber": {
+				"role": "secondary",
+				"displayName": "Signal Line Amber",
+				"canonical": "#A0690A",
+				"tonalRamp": [
+					"#110902",
+					"#372101",
+					"#5F3D02",
+					"#8B5A03",
+					"#B47C29",
+					"#DCA153",
+					"#ECCBA2",
+					"#F9ECDE"
+				]
+			},
+			"garden-line-green": {
+				"role": "secondary",
+				"displayName": "Garden Line Green",
+				"canonical": "#1B835A",
+				"tonalRamp": [
+					"#040E08",
+					"#002F1D",
+					"#025336",
+					"#057951",
+					"#3E9E73",
+					"#66C497",
+					"#ADDEC4",
+					"#E2F3EA"
+				]
+			},
+			"twilight-line-violet": {
+				"role": "secondary",
+				"displayName": "Twilight Line Violet",
+				"canonical": "#6A4BC4",
+				"tonalRamp": [
+					"#0B0819",
+					"#2A125C",
+					"#4A239B",
+					"#694AC3",
+					"#8B70EC",
+					"#AE9DFF",
+					"#D0C9FE",
+					"#EEECFE"
+				]
+			},
+			"brick-line-red": {
+				"role": "secondary",
+				"displayName": "Brick Line Red",
+				"canonical": "#C8352D",
+				"tonalRamp": [
+					"#180504",
+					"#4F0002",
+					"#860005",
+					"#B9241F",
+					"#E35044",
+					"#FE8678",
+					"#FEBFB6",
+					"#FEE9E6"
+				]
+			},
+			"canal-line-teal": {
+				"role": "secondary",
+				"displayName": "Canal Line Teal",
+				"canonical": "#167A8A",
+				"tonalRamp": [
+					"#030D0F",
+					"#022C33",
+					"#014E5A",
+					"#057383",
+					"#3D97A8",
+					"#65BDCE",
+					"#ADDAE4",
+					"#E2F2F5"
+				]
+			},
+			"blossom-line-pink": {
+				"role": "secondary",
+				"displayName": "Blossom Line Pink",
+				"canonical": "#B4337E",
+				"tonalRamp": [
+					"#16050D",
+					"#4A002F",
+					"#7D0152",
+					"#AA2976",
+					"#D4529A",
+					"#FE78C0",
+					"#FEBADA",
+					"#FEE7F1"
+				]
+			},
+			"slate-line-gray": {
+				"role": "secondary",
+				"displayName": "Slate Line Gray",
+				"canonical": "#5A6478",
+				"tonalRamp": [
+					"#0A0B0E",
+					"#212632",
+					"#3C4558",
+					"#5C667A",
+					"#7F899F",
+					"#A3AEC4",
+					"#CBD1DE",
+					"#ECEEF3"
+				]
+			},
+			"harbour-line-blue-night": {
+				"role": "secondary",
+				"displayName": "Harbour Line Blue Night",
+				"canonical": "#6E97EC",
+				"tonalRamp": [
+					"#060B16",
+					"#0E2352",
+					"#1D3F8B",
+					"#3D62B2",
+					"#5E86DA",
+					"#85ACFE",
+					"#BBD1FE",
+					"#E7EFFE"
+				]
+			},
+			"signal-line-amber-night": {
+				"role": "secondary",
+				"displayName": "Signal Line Amber Night",
+				"canonical": "#E6A940",
+				"tonalRamp": [
+					"#120901",
+					"#352201",
+					"#5D3E00",
+					"#875D03",
+					"#B57D00",
+					"#DEA137",
+					"#EECB98",
+					"#F9EDDB"
+				]
+			},
+			"garden-line-green-night": {
+				"role": "secondary",
+				"displayName": "Garden Line Green Night",
+				"canonical": "#4FC495",
+				"tonalRamp": [
+					"#020E08",
+					"#022F1F",
+					"#025239",
+					"#027955",
+					"#20A174",
+					"#52C798",
+					"#A6E0C4",
+					"#E0F4EA"
+				]
+			},
+			"twilight-line-violet-night": {
+				"role": "secondary",
+				"displayName": "Twilight Line Violet Night",
+				"canonical": "#A68CF0",
+				"tonalRamp": [
+					"#0C0916",
+					"#2B1850",
+					"#4C2D89",
+					"#6D51AF",
+					"#8F75D7",
+					"#B49BFE",
+					"#D3C8FE",
+					"#EFECFE"
+				]
+			},
+			"brick-line-red-night": {
+				"role": "secondary",
+				"displayName": "Brick Line Red Night",
+				"canonical": "#F07A70",
+				"tonalRamp": [
+					"#160605",
+					"#4C0708",
+					"#821013",
+					"#AA3B36",
+					"#D36058",
+					"#FD867B",
+					"#FEBFB7",
+					"#FEE9E6"
+				]
+			},
+			"canal-line-teal-night": {
+				"role": "secondary",
+				"displayName": "Canal Line Teal Night",
+				"canonical": "#4DBCCB",
+				"tonalRamp": [
+					"#020E10",
+					"#022C32",
+					"#034F57",
+					"#09737F",
+					"#1F9AA9",
+					"#52C0CF",
+					"#A6DCE4",
+					"#E0F3F5"
+				]
+			},
+			"blossom-line-pink-night": {
+				"role": "secondary",
+				"displayName": "Blossom Line Pink Night",
+				"canonical": "#EB7FBE",
+				"tonalRamp": [
+					"#14060E",
+					"#460731",
+					"#781156",
+					"#9F3A79",
+					"#C75F9D",
+					"#F084C3",
+					"#FABBDD",
+					"#FFE7F3"
+				]
+			},
+			"slate-line-gray-night": {
+				"role": "secondary",
+				"displayName": "Slate Line Gray Night",
+				"canonical": "#9BA5B8",
+				"tonalRamp": [
+					"#0A0B0E",
+					"#212731",
+					"#3D4555",
+					"#5D6678",
+					"#80899C",
+					"#A4AEC1",
+					"#CBD1DC",
+					"#ECEEF3"
+				]
+			},
+			"frost-band-gray": {
+				"role": "tertiary",
+				"displayName": "Frost Band Gray",
+				"canonical": "#EEF0F3",
+				"tonalRamp": [
+					"#0B0B0B",
+					"#252628",
+					"#434547",
+					"#646669",
+					"#87898C",
+					"#ACAEB1",
+					"#D0D1D3",
+					"#EEEEEF"
+				]
+			},
+			"frost-band-blue": {
+				"role": "tertiary",
+				"displayName": "Frost Band Blue",
+				"canonical": "#E5EDFA",
+				"tonalRamp": [
+					"#0A0B0D",
+					"#23272D",
+					"#3F4550",
+					"#606672",
+					"#828A95",
+					"#A7AEBB",
+					"#CDD1D8",
+					"#EDEEF1"
+				]
+			},
+			"frost-band-amber": {
+				"role": "tertiary",
+				"displayName": "Frost Band Amber",
+				"canonical": "#FAF0DC",
+				"tonalRamp": [
+					"#0C0B09",
+					"#2B261C",
+					"#4C4434",
+					"#6E6554",
+					"#918876",
+					"#B6AD9A",
+					"#D6D0C5",
+					"#F0EEEA"
+				]
+			},
+			"frost-band-green": {
+				"role": "tertiary",
+				"displayName": "Frost Band Green",
+				"canonical": "#E2F2EA",
+				"tonalRamp": [
+					"#0A0C0B",
+					"#202925",
+					"#3B4942",
+					"#5C6A63",
+					"#7F8D86",
+					"#A3B2AB",
+					"#CBD3CF",
+					"#ECEFEE"
+				]
+			}
+		},
+		"typographyMeta": {
+			"display": {
+				"displayName": "Display",
+				"purpose": "The plan heading, once per plan."
+			},
+			"headline": {
+				"displayName": "Headline",
+				"purpose": "Stage card titles."
+			},
+			"title": {
+				"displayName": "Title",
+				"purpose": "Stage headings in the work plan."
+			},
+			"body": {
+				"displayName": "Body",
+				"purpose": "Table cells, fields, menus and dialogs."
+			},
+			"label": {
+				"displayName": "Label",
+				"purpose": "Uppercase section eyebrows such as TIMELINE."
+			},
+			"caption": {
+				"displayName": "Caption",
+				"purpose": "Counts, stage card labels and owner chips; tabular figures."
+			},
+			"paper-label": {
+				"displayName": "Paper Label",
+				"purpose": "Section labels on the printed sheet."
+			},
+			"paper-caption": {
+				"displayName": "Paper Caption",
+				"purpose": "Gantt captions on the printed sheet; tabular figures."
+			}
+		},
+		"shadows": [
+			{
+				"name": "control-lift",
+				"value": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+				"purpose": "Outline buttons and inputs only."
+			},
+			{
+				"name": "floating-panel",
+				"value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+				"purpose": "Popovers, menus and tooltips."
+			},
+			{
+				"name": "dialog",
+				"value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+				"purpose": "Modal dialogs and the bottom sheet."
+			},
+			{
+				"name": "glass-tab-bar",
+				"value": "0 8px 24px -6px rgb(0 0 0 / 0.25), 0 2px 6px rgb(0 0 0 / 0.08)",
+				"purpose": "The floating mobile tab bar, with inner highlights and a 20px backdrop blur."
+			}
+		],
+		"motion": [
+			{
+				"name": "geometry",
+				"value": "240ms",
+				"purpose": "Geometry changes inside a diagram (GEOMETRY_MOTION_MS), through motionDuration()."
+			},
+			{
+				"name": "view-switch",
+				"value": "300ms",
+				"purpose": "A switch between diagrams (VIEW_MOTION_MS), through motionDuration()."
+			},
+			{
+				"name": "timeline-collapse",
+				"value": "180ms",
+				"purpose": "Timeline collapse and expand (TIMELINE_MOTION_MS)."
+			},
+			{
+				"name": "expand-chevron",
+				"value": "200ms",
+				"purpose": "The expansion chevron turn."
+			},
+			{
+				"name": "scrollbar",
+				"value": "150ms ease-out",
+				"purpose": "Overlay scrollbar show, hide and thumb growth."
+			},
+			{
+				"name": "route-hover",
+				"value": "300ms / 120ms / 250ms",
+				"purpose": "Route highlight: first hover delay, switch delay, leave grace."
+			},
+			{
+				"name": "reduced-motion",
+				"value": "0ms",
+				"purpose": "motionDuration() returns 0 when the user prefers reduced motion."
+			}
+		],
+		"breakpoints": [
+			{
+				"name": "md",
+				"value": "768px"
+			},
+			{
+				"name": "split-workspace",
+				"value": "1024px"
+			},
+			{
+				"name": "timeline-min",
+				"value": "640px"
+			}
+		]
+	},
+	"components": [
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "The one main action of a surface, such as Print.",
+			"html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 9V2h12v7\"/><path d=\"M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2\"/><rect x=\"6\" y=\"14\" width=\"12\" height=\"8\"/></svg>Print</button>",
+			"css": ".ds-btn-primary { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px; background: var(--foreground, #1A1D23); color: var(--background, #FFFFFF); font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 150ms, transform 150ms; } .ds-btn-primary:hover { background: color-mix(in oklab, var(--foreground, #1A1D23) 80%, transparent); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--foreground, #1A1D23) 50%, transparent); } .ds-btn-primary:active { transform: translateY(1px); }"
+		},
+		{
+			"name": "Outline Button",
+			"kind": "button",
+			"refersTo": "button-outline",
+			"description": "Secondary actions in the plan, such as Fit to tasks and Legends.",
+			"html": "<button class=\"ds-btn-outline\">Fit to tasks</button>",
+			"css": ".ds-btn-outline { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border: 1px solid var(--border, #DDE0E5); border-radius: 6px; background: var(--background, #FFFFFF); color: var(--foreground, #1A1D23); font-size: 14px; font-weight: 500; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); cursor: pointer; transition: background-color 150ms, transform 150ms; } .ds-btn-outline:hover { background: var(--muted, #F3F4F6); } .ds-btn-outline:focus-visible { outline: none; border-color: var(--foreground, #1A1D23); box-shadow: 0 0 0 3px color-mix(in oklab, var(--foreground, #1A1D23) 50%, transparent); } .ds-btn-outline:active { transform: translateY(1px); }"
+		},
+		{
+			"name": "Ghost Icon Button",
+			"kind": "button",
+			"refersTo": "button-ghost",
+			"description": "Icon actions in the header and stage headings: undo, redo, menus.",
+			"html": "<button class=\"ds-btn-ghost\" aria-label=\"Undo\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 0 11H11\"/></svg></button>",
+			"css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--foreground, #1A1D23); cursor: pointer; transition: background-color 150ms; } .ds-btn-ghost:hover { background: var(--muted, #F3F4F6); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--foreground, #1A1D23) 50%, transparent); }"
+		},
+		{
+			"name": "Text Field",
+			"kind": "input",
+			"refersTo": "input",
+			"description": "Plan fields and dialog inputs.",
+			"html": "<input class=\"ds-input\" placeholder=\"Task name\" />",
+			"css": ".ds-input { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; height: 36px; width: 240px; padding: 4px 10px; border: 1px solid var(--border, #DDE0E5); border-radius: 6px; background: transparent; color: var(--foreground, #1A1D23); font-size: 14px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); outline: none; transition: border-color 150ms, box-shadow 150ms; } .ds-input::placeholder { color: var(--muted-foreground, #505663); } .ds-input:focus-visible { border-color: var(--foreground, #1A1D23); box-shadow: 0 0 0 3px color-mix(in oklab, var(--foreground, #1A1D23) 50%, transparent); }"
+		},
+		{
+			"name": "Stage Badge",
+			"kind": "chip",
+			"refersTo": "stage-badge",
+			"description": "The stage label on its line color, in headings, legends and the Gantt.",
+			"html": "<span class=\"ds-stage-badge\" style=\"--line:#1B835A\">S1</span> <span class=\"ds-stage-badge\" style=\"--line:#A0690A\">S2</span> <span class=\"ds-stage-badge\" style=\"--line:#2456C9\">S3</span>",
+			"css": ".ds-stage-badge { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 4px; background: var(--line); color: #FFFFFF; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; transition: background-color 200ms; }"
+		},
+		{
+			"name": "Owner Chip",
+			"kind": "chip",
+			"refersTo": "owner-chip",
+			"description": "Owners in the work plan table.",
+			"html": "<span class=\"ds-owner-chip\">Noor</span> <span class=\"ds-owner-chip\">Kai</span>",
+			"css": ".ds-owner-chip { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; display: inline-flex; align-items: center; height: 20px; padding: 2px 8px; border-radius: 9999px; background: var(--muted, #F3F4F6); color: var(--muted-foreground, #505663); font-size: 12px; font-weight: 500; }"
+		},
+		{
+			"name": "Stage Card",
+			"kind": "card",
+			"refersTo": "stage-card",
+			"description": "One stage in the stage overview; the top edge takes the line color.",
+			"html": "<article class=\"ds-stage-card\" style=\"--line:#1B835A\"><p class=\"ds-stage-card-label\">Stage 1 · Nov</p><h3>Prepare</h3><p>Survey the site and get the beds and seeds ready.</p><ul><li>Bed layout sketch</li><li>Ready beds</li></ul></article>",
+			"css": ".ds-stage-card { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; width: 260px; padding: 16px; border: 1px solid var(--border, #DDE0E5); border-top-color: var(--line); border-radius: 8px; background: var(--background, #FFFFFF); color: var(--foreground, #1A1D23); font-size: 14px; } .ds-stage-card h3 { margin: 0 0 8px; font-size: 18px; font-weight: 600; } .ds-stage-card p { margin: 0; } .ds-stage-card .ds-stage-card-label { margin-bottom: 8px; font-size: 12px; font-weight: 500; text-transform: uppercase; font-variant-numeric: tabular-nums; } .ds-stage-card ul { margin: 12px 0 0; padding-left: 20px; }"
+		},
+		{
+			"name": "Gantt Task Line",
+			"kind": "custom",
+			"description": "Signature mark: a fully rounded line with status station dots, a connector and an interchange ring.",
+			"html": "<svg class=\"ds-gantt\" width=\"320\" height=\"64\" viewBox=\"0 0 320 64\" role=\"img\" aria-label=\"Two tasks on the green line joined by a connector\"><path d=\"M120 18 H140 V46 H160\" fill=\"none\" stroke=\"#505663\" stroke-width=\"2\"/><line x1=\"24\" y1=\"18\" x2=\"120\" y2=\"18\" stroke=\"#1B835A\" stroke-width=\"8\" stroke-linecap=\"round\"/><circle cx=\"24\" cy=\"18\" r=\"4\" fill=\"#1B835A\"/><circle cx=\"120\" cy=\"18\" r=\"4\" fill=\"#fff\" stroke=\"#1B835A\" stroke-width=\"1\"/><line x1=\"160\" y1=\"46\" x2=\"290\" y2=\"46\" stroke=\"#1B835A\" stroke-width=\"8\" stroke-linecap=\"round\"/><circle cx=\"160\" cy=\"46\" r=\"4\" fill=\"#fff\" stroke=\"#1B835A\" stroke-width=\"1\"/><path d=\"M290 42 A4 4 0 0 1 290 50 Z\" fill=\"#1B835A\"/><circle cx=\"290\" cy=\"46\" r=\"3.5\" fill=\"none\" stroke=\"#1B835A\" stroke-width=\"1\"/><circle cx=\"140\" cy=\"18\" r=\"3\" fill=\"#fff\" stroke=\"#505663\" stroke-width=\"1.5\"/></svg>",
+			"css": ".ds-gantt { display: block; background: #FFFFFF; }"
+		},
+		{
+			"name": "Glass Tab Bar",
+			"kind": "nav",
+			"description": "The floating bottom tabs on narrow screens.",
+			"html": "<div class=\"ds-tabbar\" role=\"tablist\"><span class=\"ds-tab ds-tab-on\" role=\"tab\" aria-selected=\"true\">Overview</span><span class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Work plan</span></div>",
+			"css": ".ds-tabbar { font-family: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif; display: inline-flex; padding: 4px; border-radius: 9999px; background: color-mix(in oklab, var(--background, #FFFFFF) 55%, transparent); backdrop-filter: blur(20px) saturate(1.8); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), inset 0 0 0 1px color-mix(in oklab, var(--foreground, #1A1D23) 10%, transparent), 0 8px 24px -6px rgb(0 0 0 / 0.25), 0 2px 6px rgb(0 0 0 / 0.08); } .ds-tab { padding: 10px 16px; border-radius: 9999px; color: var(--muted-foreground, #505663); font-size: 13px; cursor: pointer; transition: background-color 200ms, color 200ms; } .ds-tab:hover { color: var(--foreground, #1A1D23); } .ds-tab-on { background: color-mix(in oklab, var(--background, #FFFFFF) 85%, transparent); color: var(--foreground, #1A1D23); }"
+		}
+	],
+	"narrative": {
+		"northStar": "The Linienplan",
+		"overview": "**Creative North Star: \"The Linienplan\"**\n\nTaktblatt draws a plan the way a transit authority draws its network map. Each stage is a line with its own color. Each task is a station on that line. Dependencies are connectors that bend only at right angles and 45°. Milestones are interchange rings. The ground is white paper, and the ink is a cool near-black. Everything else stays quiet so that the lines carry the plan.\n\nThe mood is precise and civic, like public wayfinding signage. Labels are exact, figures are tabular, and every mark means one thing. The system is also alive in motion. Every change in position moves through `motionDuration()`, so a reader can follow a task to its new place. When reduced motion is on, the change is immediate.\n\nScreen and paper speak one language. The printed sheet is not an export of the screen. It is the same diagram at a smaller scale, always on white, with every route at full strength. Dark mode exists for the screen only. It moves the ground to night (#13161A) and lifts each line color so that it stays legible.",
+		"keyCharacteristics": [
+			"White ground, cool ink, hairline rules; color belongs to the plan content.",
+			"Stage lines in eight curated colors, each at 4.5:1 or more against white.",
+			"Fully rounded task lines with station dots at each end.",
+			"Connectors without arrowheads, with right-angle and 45° bends.",
+			"Source Sans 3 everywhere, with tabular figures for dates, counts and targets.",
+			"Flat surfaces. Only layers that really float carry shadow or blur.",
+			"Every position change animates. Reduced motion makes it immediate."
+		],
+		"rules": [
+			{
+				"name": "The Lines Carry the Color Rule",
+				"body": "Only plan content is colored: stage lines, bands and status signals. Chrome stays ink on white. Never use a stage color for a button, link or menu.",
+				"section": "colors"
+			},
+			{
+				"name": "The Paper Is Always White Rule",
+				"body": "Preview and print use light line values on Paper White in every screen theme. They show all routes at full strength, with no hover or focus dimming.",
+				"section": "colors"
+			},
+			{
+				"name": "The Mix, Never Fade Rule",
+				"body": "Dim a diagram mark by mixing its color with the ground, never by reducing element opacity. Task lines and station dots stay opaque over connectors. Apply one dim level at a time.",
+				"section": "colors"
+			},
+			{
+				"name": "The Tabular Figures Rule",
+				"body": "Dates, counts, targets and stage numbers use tabular figures, so the columns align like a timetable.",
+				"section": "typography"
+			},
+			{
+				"name": "The One Family Rule",
+				"body": "Do not add a second typeface. Make hierarchy with weight, size and uppercase tracking.",
+				"section": "typography"
+			},
+			{
+				"name": "The Basic Layout Rule",
+				"body": "Keep the split workspace and the bottom tabs. New work fits into the existing panes; it does not add a sidebar, a dashboard grid or a card wall.",
+				"section": "layout"
+			},
+			{
+				"name": "The Float Only What Floats Rule",
+				"body": "A surface gets shadow or blur only if it is above the page: the header, the tab bar, popovers and dialogs. Panes, tables, cards and the chart frame stay flat.",
+				"section": "elevation"
+			},
+			{
+				"name": "The No Squares Rule",
+				"body": "Do not use square status signs or square subtask signs in any view.",
+				"section": "shapes"
+			}
+		],
+		"dos": [
+			"**Do** route every motion duration through `motionDuration(ms)`. Use 240ms for geometry changes inside a diagram, 300ms for a switch between diagrams, and 180ms for the timeline collapse.",
+			"**Do** keep each light line color at 4.5:1 or more against white and each night value at 6:1 or more against Night Ground.",
+			"**Do** give every status sign a shape difference, so that it reads in grayscale print and forced colors.",
+			"**Do** use tabular figures for dates, counts and targets.",
+			"**Do** show hints with the project Hint component, and keep the text alternative in `aria-label`.",
+			"**Do** make the printed sheet the same diagram as the screen: the same signs, light line values, white ground, and no dimming."
+		],
+		"donts": [
+			"**Don't** put arrowheads on dependency connectors.",
+			"**Don't** dim a mark with element opacity; mix its color with the ground.",
+			"**Don't** use a stage line color for chrome such as buttons, links or menus.",
+			"**Don't** add shadows or blur to panes, tables, cards, the chart frame or paper.",
+			"**Don't** use square status signs, a `details` disclosure triangle or a text arrow for expansion.",
+			"**Don't** use the native `title` attribute for hints.",
+			"**Don't** let any element jump to a new position without a transition, except when reduced motion is on."
+		]
+	}
+}

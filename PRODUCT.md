@@ -12,7 +12,7 @@ Small teams and volunteer groups: community groups, small project teams, and the
 
 ## Product Purpose
 
-Taktblatt turns one written plan into three views: a Gantt timeline, a stage overview, and a work plan table. The same plan prints on A4 or US Letter, or saves as a PDF. Success is a plan that is quick to keep current on screen and clear to read on paper.
+Taktblatt turns one written plan into several views: diagram views (Gantt, Route map, Kanban), a stage overview, and a work plan table. The same plan prints on A4 or US Letter, or saves as a PDF. Success is a plan that is quick to keep current on screen and clear to read on paper.
 
 ## Positioning
 
