@@ -258,7 +258,7 @@
 					data-testid="sheet-gantt-band"
 				>
 					<span
-						class="absolute bottom-0.5 left-1 max-w-full truncate pr-1 text-[8px] text-paper-ink-3"
+						class="absolute bottom-0.5 left-1 max-w-full truncate pr-1 text-[9px] text-paper-ink-3"
 						aria-hidden="true">{item.band.title}</span
 					>
 				</div>

@@ -139,7 +139,7 @@
 <Dialog.Root {open} onOpenChange={(o) => !o && close()}>
 	<Dialog.Content
 		{@attach overlayScrollbarInside}
-		class="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+		class="max-h-[90vh] grid-cols-[minmax(0,1fr)] overflow-y-auto sm:max-w-xl"
 		onCloseAutoFocus={returnFocus}
 		data-testid="task-dialog"
 	>
@@ -169,7 +169,9 @@
 				</div>
 			</div>
 
-			<dl class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-2.5 text-sm">
+			<dl
+				class="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 text-sm sm:grid-cols-[8rem_minmax(0,1fr)]"
+			>
 				<dt class="text-muted-foreground">{m.column_deliverable()}</dt>
 				<dd>
 					<InlineText
