@@ -4,6 +4,8 @@
 
 ## 7. Preview and print
 
+Paper typography uses a 24 px plan heading (weight 600, line height 1.25), 13 px stage card titles (weight 600, line height 1.375), and 11 px body text (weight 400, line height 1.35). Local labels can use a heavier weight. The Gantt Today tag uses 9 px text with line height 1.25. Route map continuation labels use 9 px text with a 10 px line height. Keep the fixed paper row heights and density.
+
 Printed work tables use the Status header and the same four status icons in paper ink. Every printed status icon is 12 px, for tasks and subtasks, in the Work plan, Route map, Kanban and status keys. Each icon has screen-reader text for its status. Only done and canceled rows are muted. Stage progress uses the same text as the workspace.
 
 - **Preview** shows the plan as paper sheets. It is read-only. Preview and print use the same output.

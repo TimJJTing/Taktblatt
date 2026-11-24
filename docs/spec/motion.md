@@ -12,6 +12,6 @@
 - `src/lib/motion.ts` names two shared durations. `GEOMETRY_MOTION_MS` (240 ms) is for geometry changes in a diagram, such as rows that move on expand or collapse. `VIEW_MOTION_MS` (300 ms) is for a switch between diagrams. Durations stay within 150 – 300 ms, except the two exceptions above. Refer to ADR 19.
 - All durations go through `motionDuration(ms)`. This includes CSS transitions and animations. A CSS transition that uses the default duration of 150 ms also sets its duration through `motionDuration(150)`.
 - The overlay scrollbar thumbs fade and change thickness through `motionDuration(150)`. Refer to [section 5.12](workspace.md#512-scrollbars).
-- When the viewer selects `prefers-reduced-motion`, the app disables motion.
+- When the viewer selects `prefers-reduced-motion`, the app disables motion. The row flash stays visible as a static highlight for 1200 ms. It has no animation or fade. The app then removes it in one step. The hold time is not a motion duration.
 - A switch between diagrams uses the flight layer and fades of [section 5.13](diagram-views.md#513-diagram-views).
 - Preview and print have no motion.

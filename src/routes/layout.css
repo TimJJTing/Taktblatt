@@ -27,6 +27,7 @@
 	--accent: oklch(0.966955636 0.002874008 264.54193422);
 	--accent-foreground: oklch(0.23026996 0.012474323 264.292633446);
 	--destructive: oklch(0.553483312 0.18518368 28.02993598);
+	--warning: #a0690a;
 	--border: oklch(0.905837748 0.007537841 260.731551879);
 	--input: oklch(0.905837748 0.007537841 260.731551879);
 	--ring: oklch(0.23026996 0.012474323 264.292633446);
@@ -50,6 +51,7 @@
 	--accent: oklch(0.245812752 0.011218632 254.046497009);
 	--accent-foreground: oklch(0.933348684 0.004584832 258.32518797);
 	--destructive: oklch(0.71225854 0.147004094 26.389919612);
+	--warning: #e6a940;
 	--border: oklch(0.307187214 0.014433161 256.783836899);
 	--input: oklch(0.307187214 0.014433161 256.783836899);
 	--ring: oklch(0.933348684 0.004584832 258.32518797);
@@ -77,6 +79,7 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-warning: var(--warning);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -119,18 +122,33 @@
 @keyframes row-flash {
 	0%,
 	30% {
-		background-color: color-mix(in oklab, var(--ring) 35%, transparent);
+		background-color: var(--row-flash-color);
 	}
 	100% {
 		background-color: transparent;
 	}
 }
 
-/* The row flash after a jump from the Gantt. The element sets the duration: FLASH_MS through motionDuration. */
+/* After a Gantt jump, fade for FLASH_MS through motionDuration, or hold a static cue with reduced motion. */
 .row-flash {
+	--row-flash-color: color-mix(in oklab, var(--ring) 35%, transparent);
 	animation-name: row-flash;
 	animation-timing-function: ease-out;
 	animation-iteration-count: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.row-flash {
+		animation: none;
+		background-color: var(--row-flash-color);
+	}
+}
+
+@media (forced-colors: active) {
+	.row-flash {
+		--row-flash-color: Highlight;
+		forced-color-adjust: none;
+	}
 }
 
 /*

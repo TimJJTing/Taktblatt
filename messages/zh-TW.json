@@ -137,6 +137,7 @@
 	"dependency_warning": "{task} 的開始日晚於此任務的結束日。",
 	"mention_hint": "Enter 插入，Esc 關閉",
 	"action_ok": "確定",
+	"task_add_subtask": "新增子任務",
 	"task_delete": "刪除…",
 	"task_delete_title": "要刪除「{task}」嗎？",
 	"task_delete_body": "隨任務刪除的子任務：{subtasks} 個。相依於此任務的其他任務：{dependents} 個。這些連結將被移除。",

@@ -9,6 +9,7 @@
 - Ink `#1A1D23`. Secondary text `#505663` and `#5A6070`. Rules `#C9CDD4` and `#DDE0E5`. Neutral fill `#EEF0F3`.
 - The ready light uses the paper color token `--color-paper-ready`, with value `#2E9D5B`. Preview and print use this token in every screen theme.
 - Dotted cycle connectors use `--color-paper-warning`, with value `#C8352D`. Its contrast against white paper is 5.25:1. It passes WCAG AA for normal text and graphics. The screen uses the `destructive` token. Gantt dependency connectors have no arrowheads.
+- Dependency warning icons and borders use the `warning` token. It reuses Signal Line Amber: `#A0690A` in light mode and `#E6A940` in dark mode. The stage color picker uses the same token for duplicate-color rings and decorative dots.
 - Stage palette: 8 colors. Each light value has a contrast of at least 4.5:1 against white. Each dark value has a contrast of at least 6:1 against the dark ground (`#13161A`). Stage badge text is white in light mode and `#13161A` in dark mode. Band palette: 4 light tints. Dark band tints use the dark stage values at 14% opacity. Gray uses white at 7% opacity.
 
 ### 9.1 Shared diagram signs
@@ -41,7 +42,7 @@ The diagrams share signs where their meaning is the same. Refer to ADR 19 and [A
   - It has `aria-expanded` and the accessible name "Expand {task}" or "Collapse {task}". It has a visible keyboard focus outline.
   - It changes only the shared expand state of [section 4.4](storage.md#44-viewer-state). All four places show the same state.
   - In the Work plan and the Gantt, a pointer click keeps the rule of [section 5.2](workspace.md#52-edit-fields): it removes focus from the control. In Route map and Kanban, a pointer click changes the state and keeps focus on the control. Enter and Space keep focus on the control in all four places.
-  - The visible button is 20 px. In Route map and Kanban its target is 24 × 24 px or more, and it has `aria-controls` for the content that it shows.
+  - The visible button is 20 px. Its target is 24 × 24 px or more in all four views, and it has `aria-controls` for the content that it shows.
   - Do not use a `details` element, a text arrow or a browser disclosure triangle.
 - **Stage badge:** the stage label (S1, S2, …) on the stage color, with a 4 px corner radius. The text is white on the light fills and the ground color (`#13161A`) on the dark fills. The text has a contrast of 4.5:1 or more on its fill.
 - Stage badge colors change at once with reduced motion. Paper badges have no transitions and always use the current light stage color.
@@ -56,6 +57,8 @@ Dim diagram marks by mixing their color with the ground. Do not reduce element o
 At rest, the screen shows every dependency. Secondary ink is `#505663` in light mode and `#9BA3AF` in dark mode. Junction and interchange rings use the ground color inside. The ready light stays in the task label slot. It does not change a task line to green.
 
 Preview and print use light stage colors and white ground. They show all routes without hover or focus dimming. They keep the status treatment for done and canceled tasks and satisfied connectors.
+
+Paper uses 24 px plan headings, 13 px stage card titles and 11 px body text. Paper Today tags and Route map continuation labels use 9 px text. The screen Today tag uses 11 px text in the 28 px milestone row. Its measured width controls placement and preserves the 7 px milestone clearance.
 
 Paper Gantt rows are 18 px high. Top-level task lines are 5 px thick with 1 px connectors. Their station dots have a 6 px outer diameter, a 4 px ground hole and a 1 px inset. Subtask lines are 3.5 px thick with 0.75 px connectors. Subtask station dots and point dots have an outer diameter of 4 px. Junction rings have an outer diameter of 4 px.
 

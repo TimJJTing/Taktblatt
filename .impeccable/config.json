@@ -1,3 +1,29 @@
 {
-	"buildPath": "comp"
+	"buildPath": "comp",
+	"detector": {
+		"ignoreRules": [],
+		"ignoreFiles": [],
+		"ignoreValues": [
+			{
+				"rule": "cramped-padding",
+				"value": "*",
+				"files": [".impeccable/mocks/decision/stage-matrix.html"],
+				"createdAt": "2026-11-14T09:52:00.521Z",
+				"reason": "Agent review: this prototype intentionally mirrors the compact segmented switch in src/lib/components/diagram/DiagramViewSwitch.svelte. Its 2px frame and internally padded labels are control chrome, not a body-text container. Keep the incumbent control size for a fair composition comparison."
+			},
+			{
+				"rule": "shape-assembled-illustration",
+				"value": "*",
+				"files": [".impeccable/mocks/decision/selected-combination.html"],
+				"createdAt": "2026-11-15T08:36:08.922Z",
+				"reason": "Agent review: the inline SVG is a task-and-dependency data diagram. Its primitive marks encode task identity, status, dates, and dependency geometry, which the rule explicitly exempts."
+			},
+			{
+				"rule": "design-system-font",
+				"value": "roboto",
+				"createdAt": "2026-11-24T17:44:41.191Z",
+				"reason": "agent: Roboto appears only in Tailwind preflight's default system font fallback stack in git-ignored build output (build-fixtures/); project styles use Source Sans 3"
+			}
+		]
+	}
 }

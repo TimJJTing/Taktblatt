@@ -2,10 +2,18 @@ import { HOVER_COLD_MS, HOVER_GRACE_MS } from './route-focus.svelte.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditingState, FLASH_MS } from './editing.svelte.ts';
 
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock('#lib/motion.ts', async (original) => ({
+	...(await original<typeof import('#lib/motion.ts')>()),
+	motionDuration: (ms: number) => (motion.reduced ? 0 : ms)
+}));
+
 describe('EditingState', () => {
 	afterEach(() => {
 		vi.clearAllTimers();
 		vi.useRealTimers();
+		vi.restoreAllMocks();
+		motion.reduced = false;
 	});
 
 	it('starts with empty transient state and runs a single flash lifecycle', () => {
@@ -20,10 +28,27 @@ describe('EditingState', () => {
 		editing.flash('t1');
 		expect(editing.flashId).toBeNull();
 
-		vi.advanceTimersByTime(40);
+		vi.advanceTimersToNextFrame();
+		vi.advanceTimersToNextFrame();
 		expect(editing.flashId).toBe('t1');
 
-		vi.advanceTimersByTime(FLASH_MS + 50);
+		vi.advanceTimersByTime(FLASH_MS - 1);
+		expect(editing.flashId).toBe('t1');
+		vi.advanceTimersByTime(1);
+		expect(editing.flashId).toBeNull();
+	});
+
+	it('holds the flash for its full duration with reduced motion', () => {
+		vi.useFakeTimers();
+		motion.reduced = true;
+		const editing = new EditingState();
+		editing.flash('t1');
+		vi.advanceTimersToNextFrame();
+		vi.advanceTimersToNextFrame();
+		expect(editing.flashId).toBe('t1');
+		vi.advanceTimersByTime(FLASH_MS - 1);
+		expect(editing.flashId).toBe('t1');
+		vi.advanceTimersByTime(1);
 		expect(editing.flashId).toBeNull();
 	});
 

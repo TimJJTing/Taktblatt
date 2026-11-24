@@ -141,7 +141,7 @@
 						{:else if task.start}
 							<span class="text-muted-foreground">{formatTarget(task, locale)}</span>
 						{:else}
-							<span class="text-muted-foreground/70">{m.target_empty()}</span>
+							<span class="text-muted-foreground">{m.target_empty()}</span>
 						{/if}
 					</button>
 				{/snippet}

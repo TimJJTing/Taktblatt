@@ -6,6 +6,7 @@ import {
 	openExample,
 	openPreview,
 	row,
+	sampleElementColors,
 	storedPlan,
 	waitForAnimations,
 	writeStoredPlan
@@ -246,4 +247,20 @@ test('a forward move that creates an inherited cycle shows one toast for both ne
 		)
 		.toBe('p');
 	await expect(toast).toHaveCount(0);
+});
+
+test('dependency warning uses the warning token in both themes', async ({ page }) => {
+	await openCyclePlan(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.tasks.find((task) => task.id === 'b')!.dependsOn = ['a'];
+	});
+	const dialog = await openDetails(page, 'Approve brief');
+	const icon = dialog.getByTestId('dependency-list').getByRole('img');
+	for (const theme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme: theme });
+		await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
+		const colors = await sampleElementColors(icon);
+		expect(colors.token).toEqual(theme === 'light' ? [160, 105, 10, 255] : [230, 169, 64, 255]);
+		expect(colors.actual).toEqual(colors.token);
+	}
 });

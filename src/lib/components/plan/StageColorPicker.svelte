@@ -42,8 +42,8 @@
 <Popover.Root {open} {onOpenChange}>
 	<Popover.Trigger
 		class={cn(
-			'size-3.5 shrink-0 rounded-[4px] transition-transform outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-			duplicate && 'ring-2 ring-amber-500/70 ring-offset-1'
+			"relative size-3.5 shrink-0 rounded-[4px] transition-transform outline-none after:absolute after:-inset-[5px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+			duplicate && 'ring-2 ring-warning ring-offset-1'
 		)}
 		style="background: {stageColorVar(value)}; transition-duration: {motionDuration(150)}ms"
 		aria-label={m.stage_color({ color: colorName(value) })}
@@ -89,7 +89,7 @@
 							{#if key === value}<CheckIcon class="size-4 text-white" aria-hidden="true" />{/if}
 							{#if used.includes(key) && key !== value}
 								<span
-									class="absolute -top-0.5 -right-0.5 size-2 rounded-full border border-background bg-amber-500"
+									class="absolute -top-0.5 -right-0.5 size-2 rounded-full border border-background bg-warning"
 									aria-hidden="true"
 								></span>
 							{/if}
