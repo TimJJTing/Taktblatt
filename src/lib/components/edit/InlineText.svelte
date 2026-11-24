@@ -173,6 +173,6 @@
 		onkeydown={onDisplayKeydown}
 		data-testid={testId}
 	>
-		{#if value}{value}{:else}<span class="text-muted-foreground/70">{placeholder}</span>{/if}
+		{#if value}{value}{:else}<span class="text-muted-foreground">{placeholder}</span>{/if}
 	</button>
 {/if}

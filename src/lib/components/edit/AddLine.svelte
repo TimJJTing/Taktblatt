@@ -19,9 +19,9 @@
 
 	/** Button and icon classes of each size. */
 	const sizes: Record<Size, { button: string; icon: string }> = {
-		sm: { button: 'size-3.5', icon: 'size-2.5' },
-		md: { button: 'size-4.5', icon: 'size-3' },
-		lg: { button: 'size-6', icon: 'size-3.5' }
+		sm: { button: 'size-3.5 after:-inset-[6px]', icon: 'size-2.5' },
+		md: { button: 'size-4.5 after:-inset-1', icon: 'size-3' },
+		lg: { button: 'size-6 after:-inset-px', icon: 'size-3.5' }
 	};
 
 	interface Props {
@@ -68,7 +68,7 @@
 					type="button"
 					aria-label={label}
 					class={cn(
-						"pointer-events-auto absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition after:absolute after:-inset-0.5 after:content-[''] hover:scale-110 hover:border-foreground/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+						"pointer-events-auto absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition after:absolute after:content-[''] hover:scale-110 hover:border-foreground/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
 						sizes[size].button
 					)}
 					style:transition-duration={`${motionDuration(150)}ms`}

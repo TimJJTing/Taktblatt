@@ -13,6 +13,8 @@ colors:
   concourse-fill: '#EEF0F3'
   control-fill: '#F3F4F6'
   signal-red: '#C8352D'
+  warning: '#A0690A'
+  warning-night: '#E6A940'
   ready-green: '#2E9D5B'
   night-ground: '#13161A'
   night-ink: '#E7E9EC'
@@ -197,6 +199,7 @@ The stage lines. A plan file stores the line by name (`blue`, `amber`, …), so 
 
 - **Frost Band tints** (`frost-band-gray`, `-blue`, `-amber`, `-green`): bands behind task lines that mark a time range, such as frost risk. On the dark screen, a band uses its line's night value at 14% opacity, and gray uses white at 7%.
 - **Signal Red** (`signal-red`): dotted cycle connectors on paper, and destructive actions on screen. It has the same value as Brick Line Red. The dotted pattern, not the hue, marks a cycle.
+- **Warning** (`warning`, `warning-night`): dependency warning icons and borders, duplicate-color rings and decorative dots. This token reuses Signal Line Amber: `#A0690A` on light ground and `#E6A940` on Night Ground. It adds no hue.
 - **Ready Green** (`ready-green`): the ready light in the task label slot. It never colors a task line.
 
 ### Neutral
@@ -286,6 +289,8 @@ The vendored shadcn-svelte controls are quiet supporting chrome: neutral, ink on
 - **Hover / Focus:** hover blends the fill to 80%, or adds Control Fill on outline and ghost buttons. Focus shows a 3px ring at 50% ink. A press moves the button down by 1px.
 - **Outline / Ghost:** outline is white with a Platform Rule border and a small lift (Fit to tasks, Legends). Ghost has no fill until hover, and it is the default for icon actions such as undo, redo and the stage menu.
 
+Small controls keep their drawn size. A positioned control uses one transparent `after:absolute after:content-['']` hit area. Set the inset to give at least 24 × 24 px. Adjacent hit areas must not overlap. Where a target uses the spacing rule, its centered 24 px circle must clear other targets and their circles. Dependency remove buttons use a 24 × 16 px hit area with 28 px or more between wrapped row centers. The subtask add line stays on the row edge in a zero-height row. Its 24 × 24 px hit area can overlap the row edge. Overlay scrollbar thumbs keep a hit area equal to the visible thumb.
+
 ### Chips
 
 - **Owner chip:** a fully rounded Control Fill pill with Platform Gray caption text.
@@ -323,6 +328,10 @@ Hover or focus on a task lights its dependency route. The route's lines and conn
 ### Today Line and Tag
 
 A dashed ink line at today's date, with a small Timetable Ink tag that reads "Today" in white.
+
+## Motion
+
+Route all animation and transition durations through `motionDuration(ms)`. With reduced motion, position changes are immediate. A row flash holds for 1200 ms in both motion modes. With reduced motion, show a static highlight with no animation or fade, then remove it in one step. The hold time is not motion.
 
 ## Do's and Don'ts
 

@@ -134,11 +134,11 @@
 				<li
 					class={cn(
 						'flex items-center gap-1 rounded-full border bg-background py-0.5 pr-0.5 pl-2 text-xs',
-						warn && 'border-amber-500/60'
+						warn && 'border-warning'
 					)}
 				>
 					{#if warn}
-						<TriangleAlertIcon class="size-3 text-amber-600" role="img" aria-label={warn} />
+						<TriangleAlertIcon class="size-3 text-warning" role="img" aria-label={warn} />
 					{/if}
 					<Hint text={warn || undefined} focusable={false}>
 						{#snippet child({ props })}
@@ -147,7 +147,7 @@
 					</Hint>
 					<button
 						type="button"
-						class="rounded-full p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+						class="relative rounded-full p-0.5 text-muted-foreground after:absolute after:-inset-x-1 after:inset-y-0 after:content-[''] hover:bg-accent hover:text-foreground"
 						aria-label={m.dependency_remove({ task: title(id) })}
 						onclick={() => remove(id)}
 					>
@@ -165,7 +165,7 @@
 							class="flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
 						>
 							{#if warn}
-								<TriangleAlertIcon class="size-3 text-amber-600" role="img" aria-label={warn} />
+								<TriangleAlertIcon class="size-3 text-warning" role="img" aria-label={warn} />
 							{/if}
 							<span class="max-w-48 truncate">{title(dep.depId)}</span>
 							<span class="sr-only"
@@ -246,7 +246,7 @@
 							>
 								{candidate.title || m.task_untitled()}
 								{#if warn}
-									<TriangleAlertIcon class="ml-1 inline size-3 text-amber-600" aria-hidden="true" />
+									<TriangleAlertIcon class="ml-1 inline size-3 text-warning" aria-hidden="true" />
 									<span class="sr-only">{warn}</span>
 								{/if}
 								{#if candidate.parentId !== null && task.parentId === null}

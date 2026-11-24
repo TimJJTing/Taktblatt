@@ -3,10 +3,9 @@
  * the open task modal and the linked highlight. It is not saved.
  */
 import { getContext, setContext } from 'svelte';
-import { motionDuration } from '#lib/motion.ts';
 import { RouteFocusState } from './route-focus.svelte.ts';
 
-/** The duration of the row flash, before motionDuration. The row-flash class uses it. */
+/** The hold time of the row flash in both motion modes. */
 export const FLASH_MS = 1200;
 
 /** Calls `fn` after the next two frames, so that the browser draws one frame between. */
@@ -60,12 +59,9 @@ export class EditingState {
 		afterNextFrame(() => {
 			if (count !== this.#flashCount) return;
 			this.flashId = id;
-			this.#flashTimer = setTimeout(
-				() => {
-					if (this.flashId === id) this.flashId = null;
-				},
-				motionDuration(FLASH_MS) + 50
-			);
+			this.#flashTimer = setTimeout(() => {
+				if (this.flashId === id) this.flashId = null;
+			}, FLASH_MS);
 		});
 	}
 }

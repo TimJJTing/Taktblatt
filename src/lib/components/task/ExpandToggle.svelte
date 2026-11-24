@@ -28,7 +28,7 @@
 	{...rest}
 	type="button"
 	class={cn(
-		'flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',
+		"relative flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground after:absolute after:-inset-0.5 after:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
 		large && 'box-content border-2 border-transparent bg-clip-padding',
 		className
 	)}

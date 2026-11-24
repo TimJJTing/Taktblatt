@@ -160,6 +160,14 @@ The title of the dialog in the UI is "Task details" ("Subtask details" for a sub
 - The date picker has a **Today** button. It puts the current date in the field. **Done** saves it. The app does not set the date automatically.
 - The page number shows only on the sheets ([section 7](print.md#7-preview-and-print)). The workspace does not show a page number.
 
+### Pointer targets
+
+- Each pointer target has a hit area of at least 24 × 24 px. A smaller target can use the spacing rule: a 24 px circle centered on the target must not overlap another target or the same circle of another small target.
+- Keep the drawn size of small controls. Use an invisible hit area around the control. Adjacent hit areas must not overlap. Drag handles and their hit areas stay inside the pane on phones.
+- The subtask add line stays on the row edge in a zero-height row. Its 24 × 24 px hit area can overlap the row edge. Do not add space between task groups for this target.
+- Keep the stage progress text and stage menu in one group. The group wraps as a unit on narrow panes.
+- Exception: the overlay scrollbar thumb follows [section 5.12](workspace.md#512-scrollbars). Its hit area equals the visible thumb.
+
 ### 5.10 Hints
 
 - Controls and status marks show their hints in a tooltip. Examples: the header buttons, the "+" buttons, the pin and height buttons of the timeline, the Timeline handle and the Keep open toggle, the Gantt labels, task lines, points, milestones and bands, the stage color swatches, the ready light and the derived status of a parent.

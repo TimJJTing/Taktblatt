@@ -107,7 +107,7 @@
 				{#if owners.length}
 					<OwnerChips {owners} />
 				{:else}
-					<span class="truncate text-sm whitespace-nowrap text-muted-foreground/70"
+					<span class="truncate text-sm whitespace-nowrap text-muted-foreground"
 						>{m.owner_empty()}</span
 					>
 				{/if}

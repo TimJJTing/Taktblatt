@@ -458,6 +458,21 @@ test('a label click scrolls to the table row and flashes it', async ({ page }) =
 	await expect(target).not.toHaveClass(/row-flash/, { timeout: 3000 });
 });
 
+test('a label jump keeps a visible static flash with reduced motion', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await openExample(page);
+	const target = row(page, 'Neighbourhood stall');
+	await ganttRow(page, 'Neighbourhood stall').getByTestId('gantt-label').click();
+	// Move the pointer off the Gantt, so the linked hover highlight does not paint the row.
+	await page.mouse.move(1, 1);
+	await expect(target).toHaveClass(/row-flash/);
+	await expect
+		.poll(() => target.evaluate((element) => getComputedStyle(element).backgroundColor))
+		.not.toBe('rgba(0, 0, 0, 0)');
+	await expect(target).not.toHaveClass(/row-flash/, { timeout: 3000 });
+	await expect(target).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+});
+
 test('the linked highlight works in both directions', async ({ page }) => {
 	await openExample(page);
 	const sowing = row(page, 'Sowing');

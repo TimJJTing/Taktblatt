@@ -573,6 +573,36 @@
 					"#CBD3CF",
 					"#ECEFEE"
 				]
+			},
+			"warning": {
+				"role": "tertiary",
+				"displayName": "Warning",
+				"canonical": "#A0690A",
+				"tonalRamp": [
+					"#110902",
+					"#372101",
+					"#5F3D02",
+					"#8B5A03",
+					"#B47C29",
+					"#DCA153",
+					"#ECCBA2",
+					"#F9ECDE"
+				]
+			},
+			"warning-night": {
+				"role": "tertiary",
+				"displayName": "Warning Night",
+				"canonical": "#E6A940",
+				"tonalRamp": [
+					"#120901",
+					"#352201",
+					"#5D3E00",
+					"#875D03",
+					"#B57D00",
+					"#DEA137",
+					"#EECB98",
+					"#F9EDDB"
+				]
 			}
 		},
 		"typographyMeta": {
@@ -666,6 +696,11 @@
 				"name": "reduced-motion",
 				"value": "0ms",
 				"purpose": "motionDuration() returns 0 when the user prefers reduced motion."
+			},
+			{
+				"name": "row-flash",
+				"value": "1200ms",
+				"purpose": "Hold the row highlight in both motion modes. With reduced motion, use a static highlight with no animation or fade, then remove it in one step."
 			}
 		],
 		"breakpoints": [

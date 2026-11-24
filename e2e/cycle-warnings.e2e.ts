@@ -247,3 +247,33 @@ test('a forward move that creates an inherited cycle shows one toast for both ne
 		.toBe('p');
 	await expect(toast).toHaveCount(0);
 });
+
+test('dependency warning uses the warning token in both themes', async ({ page }) => {
+	await openCyclePlan(page);
+	await writeStoredPlan(page, (plan) => {
+		plan.tasks.find((task) => task.id === 'b')!.dependsOn = ['a'];
+	});
+	const dialog = await openDetails(page, 'Approve brief');
+	const icon = dialog.getByTestId('dependency-list').getByRole('img');
+	for (const theme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme: theme });
+		await expect(page.locator('html')).toHaveCSS('color-scheme', theme);
+		const colors = await icon.evaluate((element) => {
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d')!;
+			const sample = (color: string) => {
+				ctx.clearRect(0, 0, 1, 1);
+				ctx.fillStyle = color;
+				ctx.fillRect(0, 0, 1, 1);
+				return [...ctx.getImageData(0, 0, 1, 1).data];
+			};
+			const token = getComputedStyle(element).getPropertyValue('--warning').trim();
+			return {
+				actual: sample(getComputedStyle(element).color),
+				token: token ? sample(token) : null
+			};
+		});
+		expect(colors.token).toEqual(theme === 'light' ? [160, 105, 10, 255] : [230, 169, 64, 255]);
+		expect(colors.actual).toEqual(colors.token);
+	}
+});

@@ -122,7 +122,7 @@
 			use:dragHandle
 			role="button"
 			tabindex="0"
-			class="-ml-6 flex size-5 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing [@media(hover:none)]:opacity-100"
+			class="relative ml-0 flex size-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-focus-within/stage:opacity-100 group-hover/stage:opacity-100 after:absolute after:-inset-0.5 after:content-[''] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing lg:-ml-6 [@media(hover:none)]:opacity-100"
 			style:transition-duration={`${motionDuration(150)}ms`}
 			aria-label={m.stage_drag()}
 		>
@@ -155,43 +155,45 @@
 				>
 			{/if}
 		</h3>
-		<span
-			class="ml-auto text-xs whitespace-nowrap text-muted-foreground tabular-nums"
-			data-testid="stage-progress"
-		>
-			<span aria-hidden="true">
-				{#each progressText as part, i (i)}
-					{#if part === '{done}'}<AnimatedNumber value={progress.done} />
-					{:else if part === '{inProgress}'}<AnimatedNumber value={progress.inProgress} />
-					{:else}{part}{/if}
-				{/each}
-			</span>
-			<span class="sr-only">{progressLabel}</span>
-		</span>
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger
-				class={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
-				aria-label={m.stage_menu()}
-				data-testid="stage-menu"
+		<div class="ml-auto flex shrink-0 items-center gap-2">
+			<span
+				class="text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+				data-testid="stage-progress"
 			>
-				<EllipsisVerticalIcon aria-hidden="true" />
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end">
-				<DropdownMenu.Item disabled={position === 0} onSelect={() => moveStage(ws, stage.id, -1)}>
-					{m.action_move_up()}
-				</DropdownMenu.Item>
-				<DropdownMenu.Item
-					disabled={position === ws.plan.stages.length - 1}
-					onSelect={() => moveStage(ws, stage.id, 1)}
+				<span aria-hidden="true">
+					{#each progressText as part, i (i)}
+						{#if part === '{done}'}<AnimatedNumber value={progress.done} />
+						{:else if part === '{inProgress}'}<AnimatedNumber value={progress.inProgress} />
+						{:else}{part}{/if}
+					{/each}
+				</span>
+				<span class="sr-only">{progressLabel}</span>
+			</span>
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger
+					class={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+					aria-label={m.stage_menu()}
+					data-testid="stage-menu"
 				>
-					{m.action_move_down()}
-				</DropdownMenu.Item>
-				<DropdownMenu.Separator />
-				<DropdownMenu.Item variant="destructive" onSelect={() => (confirmDelete = true)}>
-					{m.stage_delete()}
-				</DropdownMenu.Item>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
+					<EllipsisVerticalIcon aria-hidden="true" />
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end">
+					<DropdownMenu.Item disabled={position === 0} onSelect={() => moveStage(ws, stage.id, -1)}>
+						{m.action_move_up()}
+					</DropdownMenu.Item>
+					<DropdownMenu.Item
+						disabled={position === ws.plan.stages.length - 1}
+						onSelect={() => moveStage(ws, stage.id, 1)}
+					>
+						{m.action_move_down()}
+					</DropdownMenu.Item>
+					<DropdownMenu.Separator />
+					<DropdownMenu.Item variant="destructive" onSelect={() => (confirmDelete = true)}>
+						{m.stage_delete()}
+					</DropdownMenu.Item>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		</div>
 	</header>
 
 	<!-- Below 640 px only: the rule sticks here, because the header cells cannot stick in the scrolling wrapper. -->
@@ -311,7 +313,7 @@
 	</div>
 	<!-- Outside the table, so the "+" is at the center of the visible width. Both "+" buttons share one axis.
 		Directly under the table, so the line belongs to this stage and not to the gap to the next stage.
-		The top padding clears the strip of the last "add subtask" line. -->
+		The top padding clears the last "add subtask" line. -->
 	<div class="pt-2.5 pb-1">
 		<AddLine
 			label={m.task_add({ stage: stageName })}
@@ -338,7 +340,8 @@
 />
 
 <style>
-	/* Sticky offsets follow Timeline motion. The global 0.01 ms fallback must not delay them. */
+	/* Reduced motion applies sticky offsets and clears row highlights at once. */
+	section[data-motion='false'] [data-grid-row],
 	section[data-motion='false'] > header,
 	section[data-motion='false'] thead th,
 	section[data-motion='false'] > [data-testid='stage-band'] {
