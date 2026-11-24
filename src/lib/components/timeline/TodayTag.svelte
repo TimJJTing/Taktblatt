@@ -43,7 +43,7 @@
 {#if placement.side !== 'hidden'}
 	<span
 		use:measureTag
-		class="today-tag pointer-events-none absolute top-1/2 rounded-sm px-0.5 text-[10px] leading-tight font-medium whitespace-nowrap"
+		class="today-tag pointer-events-none absolute top-1/2 rounded-sm px-0.5 text-[11px] leading-tight font-medium whitespace-nowrap"
 		class:still
 		style:left="{x * 100}%"
 		style:width={width === undefined ? undefined : `${width}px`}
@@ -63,7 +63,7 @@
 	.still {
 		background: var(--color-paper-ink);
 		color: var(--color-paper);
-		font-size: 8px;
+		font-size: 9px;
 		text-align: center;
 		transition: none;
 	}

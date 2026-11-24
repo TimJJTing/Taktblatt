@@ -382,14 +382,14 @@
 		position: absolute;
 		left: 0;
 		max-width: 100%;
-		font-size: 8px;
+		font-size: 9px;
 		line-height: 10px;
 		overflow-wrap: anywhere;
 		white-space: pre-wrap;
 	}
 	.marker-text {
 		white-space: pre-wrap;
-		font-size: 8px;
+		font-size: 9px;
 		line-height: 10px;
 	}
 	.title-line {
